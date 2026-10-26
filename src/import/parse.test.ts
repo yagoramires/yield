@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
+import { normalizeBroker, parseBRDate, parseBRL, parseDecimal, parseQty } from './parse'
 
 describe('parseBRL', () => {
   test('formatos brasileiros', () => {
@@ -45,5 +45,20 @@ describe('normalizeBroker', () => {
     expect(normalizeBroker('INTER DTVM')).toBe('INTER')
     expect(normalizeBroker('BTG PACTUAL CTVM S/A')).toBe('BTG')
     expect(normalizeBroker('  rico   investimentos ')).toBe('RICO INVESTIMENTOS')
+  })
+})
+
+describe('parseDecimal', () => {
+  test('vírgula ou ponto decimal; milhar com 3 dígitos', () => {
+    expect(parseDecimal('0,01')).toBe(0.01)
+    expect(parseDecimal('0.01')).toBe(0.01)
+    expect(parseDecimal('1.5')).toBe(1.5)
+    expect(parseDecimal('1.000')).toBe(1000)
+    expect(parseDecimal('1.234.567')).toBe(1234567)
+    expect(parseDecimal('1.234,5')).toBe(1234.5)
+    expect(parseDecimal('12')).toBe(12)
+  })
+  test('rejeita entrada malformada', () => {
+    for (const bad of ['1,2,3', 'abc', '', '1..2', '-1']) expect(() => parseDecimal(bad)).toThrow()
   })
 })
