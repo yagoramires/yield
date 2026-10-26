@@ -37,14 +37,17 @@ export function replay(trades: Trade[], events: CorporateEvent[]): ReplayResult 
         if (!types.has(nk) && types.has(tk)) types.set(nk, types.get(tk)!)
         continue
       }
-      const cur = p ?? { qty: 0, cost: 0 }
-      cur.qty += ev.qtyDelta
+      if (!p || p.qty <= 0) {
+        warnings.push({ kind: 'evento_sem_posicao', ticker: tk, date: ev.date, detail: `Evento (${ev.kind}) sem posição em carteira; ignorado` })
+        continue
+      }
+      p.qty += ev.kind === 'grupamento' ? Math.max(ev.qtyDelta, -p.qty) : ev.qtyDelta
+      if (p.qty === 0) p.cost = 0
       if (ev.kind === 'bonificacao') {
         if (ev.unitCostCents === null) {
           warnings.push({ kind: 'bonificacao_sem_custo', ticker: tk, date: ev.date, detail: `Bonificação de ${ev.qtyDelta} sem custo atribuído` })
-        } else cur.cost += ev.qtyDelta * ev.unitCostCents
+        } else p.cost += ev.qtyDelta * ev.unitCostCents
       }
-      pos.set(tk, cur)
       continue
     }
     const t = tr!
@@ -67,6 +70,10 @@ export function replay(trades: Trade[], events: CorporateEvent[]): ReplayResult 
     if (t.side === 'C') {
       p.qty += t.qty
       p.cost += t.qty * t.priceCents + t.feesCents
+      continue
+    }
+    if (t.qty <= 0) {
+      warnings.push({ kind: 'quantidade_invalida', ticker: tk, date: t.tradeDate, detail: `Venda com quantidade ${t.qty}; ignorada` })
       continue
     }
     const m = Math.min(t.qty, p.qty)

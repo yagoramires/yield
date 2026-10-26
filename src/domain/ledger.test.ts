@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import { normalizeTicker, replay } from './ledger'
+import { computeTax } from './tax'
 import type { CorporateEvent, Trade } from './types'
 
 const t = (o: Partial<Trade> & { id: string }): Trade => ({
@@ -78,6 +79,45 @@ describe('replay', () => {
     const r = replay([t({ id: 'v', noteId: 'a', side: 'V', qty: 10 }), t({ id: 'c', noteId: 'z', side: 'C', qty: 10 })], [])
     expect(r.warnings.filter((w) => w.kind === 'venda_maior_que_posicao')).toEqual([])
     expect(r.sales[0].qty).toBe(10)
+  })
+  test('evento de quantidade sem posição avisa e é ignorado; a venda seguinte fica maior que a posição', () => {
+    for (const ev of [
+      { id: 'e', kind: 'bonificacao', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: 10, unitCostCents: 500 },
+      { id: 'e', kind: 'desdobramento', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: 10 },
+      { id: 'e', kind: 'grupamento', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: -10 },
+    ] as CorporateEvent[]) {
+      const r = replay([t({ id: 'v', side: 'V', qty: 10, tradeDate: '2024-03-01' })], [ev])
+      expect(r.warnings.map((w) => [w.kind, w.ticker, w.date])).toEqual([
+        ['evento_sem_posicao', 'ITSA4', '2024-02-01'], ['venda_maior_que_posicao', 'ITSA4', '2024-03-01'],
+      ])
+      expect(r.sales[0]).toMatchObject({ qty: 0, grossCents: 0, costBasisCents: 0 })
+      expect(r.positions).toEqual([])
+    }
+  })
+  test('evento após zerar a posição também é ignorado', () => {
+    const ev: CorporateEvent = { id: 'e', kind: 'desdobramento', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: 10 }
+    const r = replay([t({ id: '1', qty: 10 }), t({ id: '2', seq: 2, side: 'V', qty: 10, tradeDate: '2024-01-03' })], [ev])
+    expect(r.warnings.map((w) => w.kind)).toEqual(['evento_sem_posicao'])
+    expect(r.positions).toEqual([])
+  })
+  test('grupamento maior que a posição zera a quantidade, nunca negativa', () => {
+    const ev: CorporateEvent = { id: 'e', kind: 'grupamento', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: -50 }
+    const r = replay([t({ id: '1', qty: 10 }), t({ id: '2', side: 'C', qty: 5, tradeDate: '2024-03-01' }), t({ id: '3', side: 'V', qty: 5, tradeDate: '2024-04-01' })], [ev])
+    expect(r.sales[0]).toMatchObject({ qty: 5, grossCents: 5000, costBasisCents: 5000 })
+    expect(r.positions).toEqual([])
+  })
+  test('venda com quantidade zero ou negativa avisa e é ignorada', () => {
+    const r = replay([t({ id: '1', qty: 10 }), t({ id: '2', side: 'V', qty: 0, tradeDate: '2024-02-01' }), t({ id: '3', side: 'V', qty: -5, tradeDate: '2024-02-02' })], [])
+    expect(r.sales).toEqual([])
+    expect(r.warnings.map((w) => [w.kind, w.date])).toEqual([['quantidade_invalida', '2024-02-01'], ['quantidade_invalida', '2024-02-02']])
+    expect(r.positions[0]).toMatchObject({ qty: 10, totalCostCents: 10000 })
+  })
+  test('pela apuração: desdobro sem posição deixa o mês da venda incompleto', () => {
+    const ev: CorporateEvent = { id: 'e', kind: 'desdobramento', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: 10 }
+    const r = replay([t({ id: 'v', side: 'V', qty: 10, priceCents: 5000, tradeDate: '2024-03-01' })], [ev])
+    const m = computeTax(r.sales, r.warnings, '2024-03', '2024-03')
+    expect(m[0]).toMatchObject({ month: '2024-03', incomplete: true })
+    expect(m[0].comum.resultCents).toBe(0)
   })
   test('tipo diferente para o mesmo ticker gera aviso', () => {
     const r = replay([t({ id: '1', ticker: 'HGLG11', assetType: 'FII' }), t({ id: '2', seq: 2, ticker: 'HGLG11', assetType: 'ETF' })], [])
