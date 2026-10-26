@@ -96,4 +96,26 @@ describe('computeTax', () => {
     const [m] = run([s({ date: '2023-12-10', type: 'ETF', result: 900_000 })], '2024-01', '2024-01')
     expect(m.comum.resultCents).toBe(0)
   })
+  test('mês misto: lucro isento de ação absorve o prejuízo de ETF como perda a compensar', () => {
+    const [m] = run([
+      s({ date: '2024-03-10', gross: 1_000_000, result: 300_000 }),
+      s({ date: '2024-03-11', type: 'ETF', gross: 500_000, result: -100_000 }),
+    ], '2024-03', '2024-03')
+    expect(m.comum.exemptProfitCents).toBe(300_000)
+    expect(m.comum.baseCents).toBe(0)
+    expect(m.comum.lossOutCents).toBe(-100_000)
+  })
+  test('imposto fracionado é truncado (piso)', () => {
+    const [m] = run([s({ date: '2024-03-10', type: 'ETF', result: 333 })], '2024-03', '2024-03')
+    expect(m.comum.taxDueCents).toBe(49)
+  })
+  test('prejuízo atravessa a virada do ano', () => {
+    const [, jan] = run([
+      s({ date: '2024-12-10', type: 'ETF', result: -100_000 }),
+      s({ date: '2025-01-10', type: 'ETF', result: 300_000 }),
+    ], '2024-12', '2025-01')
+    expect(jan.comum.lossInCents).toBe(-100_000)
+    expect(jan.comum.baseCents).toBe(200_000)
+    expect(jan.comum.taxDueCents).toBe(30_000)
+  })
 })
