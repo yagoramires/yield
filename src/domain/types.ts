@@ -20,7 +20,7 @@ export interface Sale {
   qty: number /* parte casada com a posição */; grossCents: Cents; netCents: Cents; costBasisCents: Cents; resultCents: Cents; irrfCents: Cents
   alienationCents: Cents /* qty da operação inteira × preço: é o que conta no limite de R$ 20 mil */
 }
-export type WarningKind = 'day_trade' | 'venda_maior_que_posicao' | 'bonificacao_sem_custo' | 'tipo_inconsistente'
+export type WarningKind = 'day_trade' | 'venda_maior_que_posicao' | 'bonificacao_sem_custo' | 'tipo_inconsistente' | 'evento_sem_posicao' | 'quantidade_invalida'
 export interface Warning { kind: WarningKind; ticker: string; date: ISODate; detail: string }
 export type DividendKind = 'Dividendo' | 'JCP' | 'Rendimento'
 export interface Dividend {

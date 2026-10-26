@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { DarfRow } from '../../domain/darf'
 import type { PotMonth, TaxMonth } from '../../domain/tax'
-import { buildPayment, dayTradeMonths, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts } from './build'
+import type { WarningKind } from '../../domain/types'
+import { buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts } from './build'
 
 const pot = (o: Partial<PotMonth> = {}): PotMonth => ({
   resultCents: 0, exemptProfitCents: 0, lossInCents: 0, baseCents: 0, taxDueCents: 0, irrfMonthCents: 0,
@@ -39,6 +40,11 @@ describe('lastDayOfMonth / dayTradeMonths', () => {
   it('meses com aviso de day trade', () => {
     const w = (kind: 'day_trade' | 'tipo_inconsistente', date: string) => ({ kind, ticker: 'X', date, detail: '' })
     expect([...dayTradeMonths([w('day_trade', '2025-03-10'), w('tipo_inconsistente', '2025-04-01')])]).toEqual(['2025-03'])
+  })
+  it('avisos que deixam o mês incompleto, só do mês', () => {
+    const w = (kind: WarningKind, ticker: string, date: string) => ({ kind, ticker, date, detail: '' })
+    const ws = [w('venda_maior_que_posicao', 'ITSA4', '2025-03-10'), w('evento_sem_posicao', 'BBAS3', '2025-03-02'), w('day_trade', 'X', '2025-03-10'), w('venda_maior_que_posicao', 'Y', '2025-04-01')]
+    expect(incompleteWarnings(ws, '2025-03').map(x => x.ticker)).toEqual(['ITSA4', 'BBAS3'])
   })
 })
 

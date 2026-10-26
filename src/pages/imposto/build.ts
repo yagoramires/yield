@@ -32,6 +32,10 @@ export function lastDayOfMonth(m: Month): ISODate {
 export const dayTradeMonths = (ws: Warning[]): Set<Month> =>
   new Set(ws.filter(w => w.kind === 'day_trade').map(w => w.date.slice(0, 7)))
 
+// Avisos do mês que explicam o "incompleto": venda maior que a posição e evento sem posição.
+export const incompleteWarnings = (ws: Warning[], m: Month): Warning[] =>
+  ws.filter(w => (w.kind === 'venda_maior_que_posicao' || w.kind === 'evento_sem_posicao') && w.date.startsWith(m))
+
 export function buildPayment(month: Month, f: PaymentForm): DarfPayment {
   const paidAt = parseDate(f.paidAt, 'Data do pagamento')
   const principalCents = parseMoney(f.principal, 'Principal')

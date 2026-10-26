@@ -3,7 +3,7 @@ import { deletePayment, savePayment } from '../db/repo'
 import { DARF_CODE, type DarfStatus } from '../domain/darf'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
-import { buildPayment, dayTradeMonths, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type PaymentForm } from './imposto/build'
+import { buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type PaymentForm } from './imposto/build'
 
 const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -125,7 +125,9 @@ export function Imposto() {
                   </tr>,
                   (t.incomplete || dtMonths.has(m)) && (
                     <tr key={`${m}-w`}><td colSpan={13}>
-                      {t.incomplete && <div className="note">Venda maior que a posição: faltam notas antes desta data</div>}
+                      {t.incomplete && <div className="note">
+                        Posição insuficiente em {incompleteWarnings(replay.warnings, m).map(w => `${w.ticker} (${w.kind === 'evento_sem_posicao' ? 'evento sem posição, ' : ''}${brDay(w.date).slice(0, 5)})`).join(', ')}: faltam notas antes destas datas
+                      </div>}
                       {dtMonths.has(m) && <div className="note" style={{ marginTop: t.incomplete ? 4 : 0 }}>
                         Day trade em {replay.warnings.filter(w => w.kind === 'day_trade' && w.date.startsWith(m)).map(w => `${w.ticker} (${brDay(w.date).slice(0, 5)})`).join(', ')}: não apurado aqui, o imposto pode estar errado.
                       </div>}
