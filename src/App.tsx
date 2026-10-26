@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Sidebar } from './ui/Sidebar'
+import { Carteira } from './pages/Carteira'
 import { ROUTES, type Route } from './ui/routes'
 
 const TITLES = Object.fromEntries(
@@ -12,8 +13,12 @@ export default function App() {
     <div className="app">
       <Sidebar route={route} onNavigate={setRoute} />
       <main className="main">
-        <h1>{TITLES[route]}</h1>
-        <div className="muted">Em construção.</div>
+        {route === 'carteira' ? <Carteira /> : (
+          <>
+            <h1>{TITLES[route]}</h1>
+            <div className="muted">Em construção.</div>
+          </>
+        )}
       </main>
     </div>
   )
