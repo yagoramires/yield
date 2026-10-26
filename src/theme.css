@@ -70,3 +70,10 @@ tr.cls td { color: var(--text-2); font-weight: 600; background: var(--sidebar); 
 .chip { border: 1px solid var(--border); background: none; border-radius: 20px; padding: 3px 9px; font-size: 11px; color: var(--text-2); cursor: pointer; }
 .chip.on { color: var(--bg); background: var(--text); border-color: var(--text); }
 .link { border: 0; background: none; padding: 0; color: inherit; cursor: pointer; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Imposto */
+.pill { font-size: 10px; color: var(--text-2); border: 1px solid var(--border); border-radius: 10px; padding: 1px 7px; }
+.pill.ok { color: var(--accent); border-color: var(--accent); }
+.pill.bad { color: var(--negative); border-color: #4a2224; }
+.pill.warn { color: #ffcf5c; border-color: #4a3c14; }
+tr.hl td { background: #1a1213; }
