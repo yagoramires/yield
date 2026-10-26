@@ -3,6 +3,7 @@ import { deleteDividend, upsertDividends } from '../db/repo'
 import { formatBRL, formatCents } from '../domain/money'
 import type { Dividend } from '../domain/types'
 import { useData } from '../state/DataProvider'
+import { useB3Import } from './configuracoes/useB3Import'
 import { buildDividend, filterDividends, groupByMonth, KINDS, totalsByKind, totalsByYear, type DividendForm, type Filter } from './proventos/build'
 
 const ORIGIN: Record<Dividend['source'], string> = { b3: 'B3', planilha: 'planilha', manual: 'manual' }
@@ -19,6 +20,7 @@ export function Proventos() {
   const [formError, setFormError] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const b3 = useB3Import()
 
   const save = async () => {
     if (!form) return
@@ -41,9 +43,10 @@ export function Proventos() {
     <>
       <div className="bar">
         <h1>Proventos</h1>
-        <div className="btns"><button className="b pri" onClick={() => { setForm(emptyForm()); setFormError(null) }}>+ Provento</button></div>
+        <div className="btns">{b3.button('Importar extrato da B3', 'b')}<button className="b pri" onClick={() => { setForm(emptyForm()); setFormError(null) }}>+ Provento</button></div>
       </div>
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
+      {b3.panel}
 
       <div className="kpis">
         {totalsByYear(all).map(y => <div className="k" key={y.year}><div className="muted">{y.year}</div><div className="v">{formatBRL(y.totalCents)}</div></div>)}

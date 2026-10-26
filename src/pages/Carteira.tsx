@@ -24,7 +24,7 @@ const today = () => new Date().toISOString().slice(0, 10)
 interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; sourceKey: string | null }
 const EMPTY: Form = { name: '', assetClass: 'renda_fixa', quoteSymbol: '', quantity: '', value: '', sourceKey: null }
 
-export function Carteira() {
+export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const { data, db, derived, reload, refreshing, refreshQuotesNow } = useData()
   const { portfolio: p } = derived
   const [grouped, setGrouped] = useState(true)
@@ -144,7 +144,13 @@ export function Carteira() {
         </div>
         <span className="muted">Ordenar: valor atual ↓</span>
       </div>
-      {p.rows.length === 0 ? <div className="info">Nenhuma posição ainda. Lance notas em Notas ou importe a planilha em Configurações.</div> : (
+      {data.notes.length === 0 ? (
+        <div className="card">
+          <b style={{ color: '#fff' }}>Comece importando sua planilha</b>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Notas, proventos e ativos manuais da planilha antiga entram de uma vez. Depois, o extrato da B3 completa os proventos.</div>
+          <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
+        </div>
+      ) : p.rows.length === 0 ? <div className="info">Nenhuma posição ainda. Lance notas em Notas ou importe a planilha em Configurações.</div> : (
         <table>
           <thead><tr><th>Ativo</th><th className="r">Qtd</th><th className="r">Preço médio</th><th className="r">Custo</th><th className="r">Cotação</th><th className="r">Valor atual</th><th className="r">Var. R$</th><th className="r">Var. %</th><th /></tr></thead>
           <tbody>

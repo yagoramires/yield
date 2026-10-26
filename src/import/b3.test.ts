@@ -55,8 +55,8 @@ test('importar o mesmo extrato duas vezes não duplica', async () => {
     row('Credito', '14/03/2024', 'Rendimento', 'HGLG11 - CSHG LOGISTICA FII', '10', '1,10', '11,00'),
     row('Credito', '20/04/2024', 'Bonificação em Ativos', 'ITSA4 - ITAUSA S.A.', '5'),
   ])
-  expect(await importB3(db, parseB3Movimentacao(data))).toEqual({ dividends: 1, dividendsSkipped: 0, replaced: 0, events: 1, eventsSkipped: 0 })
-  expect(await importB3(db, parseB3Movimentacao(data))).toEqual({ dividends: 0, dividendsSkipped: 1, replaced: 0, events: 0, eventsSkipped: 1 })
+  expect(await importB3(db, parseB3Movimentacao(data))).toMatchObject({ dividends: 1, dividendsSkipped: 0, replaced: 0, applied: [{ kind: 'bonificacao', ticker: 'ITSA4' }], eventsSkipped: 0 })
+  expect(await importB3(db, parseB3Movimentacao(data))).toEqual({ dividends: 0, dividendsSkipped: 1, replaced: 0, applied: [], eventsSkipped: 1 })
   const all = await loadAll(db)
   expect(all.dividends).toHaveLength(1)
   expect(all.events).toHaveLength(1)
