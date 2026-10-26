@@ -13,7 +13,7 @@ describe('validação de campos', () => {
     expect(parseMoney('1.234,56', 'Preço')).toBe(123456)
     expect(parseMoney('10', 'Preço')).toBe(1000)
     expect(parseMoney('', 'Taxa', false)).toBe(0)
-    for (const t of ['abc', '29.05', '1,234', '-1']) expect(() => parseMoney(t, 'Preço')).toThrow(/Preço/)
+    for (const t of ['abc', '29.05', '1500.50', '1,234', '-1']) expect(() => parseMoney(t, 'Preço')).toThrow(/Preço/)
     expect(() => parseMoney('0', 'Preço')).toThrow(/maior que zero/)
   })
 })
