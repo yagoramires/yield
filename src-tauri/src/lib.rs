@@ -10,6 +10,11 @@ fn swap_in_dir(dir: &Path, source: &Path) -> Result<PathBuf, String> {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
     let backup = dir.join(format!("seguranca-{secs}.db"));
     std::fs::copy(&db, &backup).map_err(err)?;
+    // WAL não checkpointado: preserva ao lado da cópia para não perder transações recentes
+    let wal = dir.join("yield.db-wal");
+    if wal.exists() {
+        std::fs::copy(&wal, dir.join(format!("seguranca-{secs}.db-wal"))).map_err(err)?;
+    }
     let tmp = dir.join("yield.db.novo");
     std::fs::copy(source, &tmp).map_err(err)?;
     for ext in ["yield.db-wal", "yield.db-shm"] {
@@ -25,7 +30,7 @@ fn swap_in_dir(dir: &Path, source: &Path) -> Result<PathBuf, String> {
 
 #[tauri::command]
 fn swap_database(app: tauri::AppHandle, source: String) -> Result<String, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     swap_in_dir(&dir, Path::new(&source)).map(|p| p.to_string_lossy().into_owned())
 }
 
@@ -77,7 +82,8 @@ mod tests {
         let backup = swap_in_dir(&dir, &origem).unwrap();
 
         assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
-        assert_eq!(std::fs::read_to_string(backup).unwrap(), "antigo");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), "antigo");
+        assert_eq!(std::fs::read_to_string(backup.with_extension("db-wal")).unwrap(), "wal");
         assert!(!dir.join("yield.db-wal").exists() && !dir.join("yield.db-shm").exists());
         assert!(!dir.join("yield.db.novo").exists());
         std::fs::remove_dir_all(&dir).unwrap();
