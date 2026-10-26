@@ -77,3 +77,5 @@ tr.cls td { color: var(--text-2); font-weight: 600; background: var(--sidebar); 
 .pill.bad { color: var(--negative); border-color: #4a2224; }
 .pill.warn { color: #ffcf5c; border-color: #4a3c14; }
 tr.hl td { background: #1a1213; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.warn { color: #ffcf5c; }

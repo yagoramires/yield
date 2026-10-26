@@ -8,7 +8,7 @@ import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 export interface PlanilhaImport {
   notes: { note: Omit<Note, 'id'>; trades: Parameters<typeof saveNote>[2] }[]
   dividends: Omit<Dividend, 'id'>[]
-  typeConflicts: string[] // tickers com tipos diferentes entre linhas
+  typeConflicts: string[] // avisos em pt-BR: ticker com tipos diferentes entre linhas
   manualAssets: Omit<ManualAsset, 'id'>[]
   ignored: string[] // mensagens em pt-BR para o resumo
 }
@@ -47,7 +47,10 @@ function parseNotas(rows: Cell[][], ignored: string[]) {
     counts.set(v.ticker, m.set(v.tipo, (m.get(v.tipo) ?? 0) + 1))
   }
   const typeOf = new Map([...counts].map(([t, m]) => [t, [...m].reduce((a, b) => (b[1] > a[1] ? b : a))[0]]))
-  const typeConflicts = [...counts].filter(([, m]) => m.size > 1).map(([t]) => t)
+  const typeConflicts = [...counts].filter(([, m]) => m.size > 1).map(([t, m]) => {
+    const types = [...m.keys()]
+    return `${t} aparece como ${types.slice(0, -1).join(', ')} e ${types[types.length - 1]}; usei ${typeOf.get(t)}`
+  })
 
   const notes = new Map<string, PlanilhaImport['notes'][number]>()
   for (const { r, ticker } of valid) {

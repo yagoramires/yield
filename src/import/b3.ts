@@ -55,8 +55,8 @@ export function parseB3Movimentacao(data: ArrayBuffer): B3Import {
 
 export async function importB3(db: Db, p: B3Import) {
   const d = await upsertDividends(db, p.dividends)
-  let events = 0
+  const applied: B3Import['events'] = []
   let eventsSkipped = 0
-  for (const e of p.events) ('skipped' in (await saveEvent(db, e)) ? eventsSkipped++ : events++)
-  return { dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, events, eventsSkipped }
+  for (const e of p.events) ('skipped' in (await saveEvent(db, e)) ? eventsSkipped++ : applied.push(e))
+  return { dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped }
 }

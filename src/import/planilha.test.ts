@@ -107,5 +107,5 @@ test('ticker com dois tipos usa o mais frequente e entra em typeConflicts', () =
     ],
   }))
   expect(p.notes.flatMap(n => n.trades).map(t => [t.ticker, t.assetType])).toEqual([['HGLG11', 'FII'], ['HGLG11', 'FII'], ['HGLG11', 'FII'], ['ITSA4', 'Ação']])
-  expect(p.typeConflicts).toEqual(['HGLG11'])
+  expect(p.typeConflicts).toEqual(['HGLG11 aparece como FII e ETF; usei FII'])
 })

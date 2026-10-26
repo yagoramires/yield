@@ -15,6 +15,7 @@ export async function openDb(path = 'sqlite:yield.db'): Promise<Db> {
   return {
     select: (sql, params) => d.select(sql, params),
     execute: async (sql, params) => ({ rowsAffected: (await d.execute(sql, params)).rowsAffected }),
-    close: async () => { await d.close() },
+    // sem o nome, o plugin fecha TODOS os pools (fechar o backup derrubaria o banco do app)
+    close: async () => { await d.close(d.path) },
   }
 }
