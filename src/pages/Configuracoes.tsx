@@ -6,7 +6,7 @@ import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
 import { importPlanilha, parsePlanilha } from '../import/planilha'
 import { useData } from '../state/DataProvider'
-import { planilhaSummary } from './configuracoes/build'
+import { planilhaSummary, refreshLine, restoreBackup } from './configuracoes/build'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -15,10 +15,11 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 const brDay = (iso: string) => iso.split('-').reverse().join('/')
+const dayTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const BACKUP_FILTER = [{ name: 'Backup do Yield', extensions: ['db'] }]
 
 export function Configuracoes() {
-  const { data, db, reload, refreshing, refreshQuotesNow } = useData()
+  const { data, db, reload, refreshing, refreshQuotesNow, lastRefresh } = useData()
   const b3 = useB3Import()
   const planilhaInput = useRef<HTMLInputElement>(null)
   const [planilha, setPlanilha] = useState<ReturnType<typeof planilhaSummary> | null>(null)
@@ -68,25 +69,17 @@ export function Configuracoes() {
   const substituir = async () => {
     if (!restore) return
     setBusy(true)
-    let closed = false
-    try {
-      await db.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-      await db.close()
-      closed = true
-      const safety = await invoke<string>('swap_database', { source: restore })
+    const r = await restoreBackup({
+      checkpoint: async () => { await db.execute('PRAGMA wal_checkpoint(TRUNCATE)') },
+      close: () => db.close(),
+      swap: () => invoke<string>('swap_database', { source: restore }),
       // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
       // ('sqlite:yield.db'); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
-      await openDb()
-      closed = false
-      await reload()
-      setBackupMsg(`Dados substituídos. A cópia de segurança dos dados anteriores está em ${safety}.`)
-    } catch (e) {
-      let msg = `Não foi possível importar o backup: ${errText(e)}`
-      if (closed) {
-        try { await openDb(); await reload() } catch (e2) { msg += ` O banco não reabriu (${errText(e2)}): feche e abra o Yield.` }
-      }
-      setBackupError(msg)
-    }
+      reopen: async () => { await openDb() },
+      reload,
+    })
+    if (r.ok) setBackupMsg(r.message)
+    else setBackupError(r.message)
     setRestore(null); setBusy(false)
   }
 
@@ -142,10 +135,10 @@ export function Configuracoes() {
 
         <div className="card">
           <b style={{ color: '#fff' }}>Cotações</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Yahoo Finance, atraso de ~15 min · atualiza a cada 15 min</div>
-          <button className="b ghost" disabled={refreshing} onClick={() => void refreshQuotesNow()}>{refreshing ? 'Atualizando…' : '↻ Atualizar agora'}</button>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Yahoo Finance, atraso de ~15 min</div>
+          <div className="row"><span className="t2">Atualiza a cada 15 min</span><button className="b ghost" disabled={refreshing} onClick={() => void refreshQuotesNow()}>{refreshing ? 'Atualizando…' : '↻ Atualizar agora'}</button></div>
           <div className="muted" style={{ marginTop: 8 }}>
-            Última: {lastQuote ? new Date(lastQuote).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'nenhuma ainda'}
+            Última: {lastRefresh ? `${dayTime(lastRefresh.at)} · ${refreshLine(lastRefresh)}` : lastQuote ? dayTime(lastQuote) : 'nenhuma ainda'}
           </div>
         </div>
       </div>

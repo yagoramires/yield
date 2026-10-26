@@ -16,6 +16,7 @@ export interface AppData {
   reload(): Promise<void>
   refreshing: boolean
   refreshQuotesNow(): Promise<void>
+  lastRefresh: { at: string; ok: string[]; failed: string[] } | null
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -36,6 +37,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Dataset | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState<AppData['lastRefresh']>(null)
   const dbRef = useRef<Db | null>(null)
 
   const reload = useCallback(async () => {
@@ -51,7 +53,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const ds = await loadAll(d)
       const { positions } = replay(ds.trades, ds.events)
       const symbols = new Set([...positions.filter(p => p.qty > 0).map(p => yahooSymbol(p.ticker)), ...ds.manualAssets.flatMap(a => (a.quoteSymbol ? [a.quoteSymbol] : []))])
-      await refreshQuotes(d, [...symbols], tauriFetch as typeof fetch)
+      setLastRefresh({ at: new Date().toISOString(), ...(await refreshQuotes(d, [...symbols], tauriFetch as typeof fetch)) })
       setData(await loadAll(d))
     } catch { /* offline ou Yahoo fora do ar */ }
     setRefreshing(false)
@@ -83,10 +85,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
     const tax = computeTax(rp.sales, rp.warnings, firstSale, monthOf(today))
     return {
-      data, db, reload, refreshing, refreshQuotesNow,
+      data, db, reload, refreshing, refreshQuotesNow, lastRefresh,
       derived: { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today) },
     }
-  }, [db, data, reload, refreshing, refreshQuotesNow])
+  }, [db, data, reload, refreshing, refreshQuotesNow, lastRefresh])
 
   if (error) return <main className="main"><h1>Yield</h1><div className="note">{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>
