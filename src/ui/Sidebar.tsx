@@ -3,7 +3,7 @@ import { ROUTES, type Route } from './routes'
 export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: Route) => void }) {
   return (
     <nav className="sidebar">
-      <div className="logo"><b>●</b> Yield</div>
+      <div className="logo">yield<b>.</b></div>
       {ROUTES.map(({ page, items }) => (
         <div key={page} style={{ display: 'contents' }}>
           <div className={items.some(i => i.route === route) ? 'group on' : 'group'}>{page}</div>
