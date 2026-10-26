@@ -17,3 +17,6 @@ export function monthsBetween(from: Month, to: Month): Month[] {
   for (let m = from; m <= to; m = addMonths(m, 1)) out.push(m)
   return out
 }
+
+const num = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+export const formatCents = (c: Cents): string => num.format(c / 100)
