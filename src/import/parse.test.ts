@@ -11,6 +11,10 @@ describe('parseBRL', () => {
   test('vazio vira zero', () => {
     for (const v of ['-', '', null, undefined]) expect(parseBRL(v)).toBe(0)
   })
+  test('texto sem nenhum dígito lança', () => {
+    for (const v of ['abc', 'R$', ',']) expect(() => parseBRL(v)).toThrow('Número inválido')
+    expect(() => parseQty('abc')).toThrow('Número inválido')
+  })
   test('número do Excel é reais, sem erro de ponto flutuante', () => {
     expect(parseBRL(10.85)).toBe(1085)
     expect(parseBRL(1.005)).toBe(101)

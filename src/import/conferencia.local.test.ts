@@ -12,7 +12,7 @@ import { importPlanilha, parsePlanilha } from './planilha'
 const FILE = 'planilhas/Controle de Investimentos.xlsm'
 
 type Cell = string | number | null
-const cents = (v: Cell | undefined) => (typeof v === 'number' || typeof v === 'string' ? parseBRL(v) : 0)
+const cents = (v: Cell | undefined) => (typeof v === 'number' || (typeof v === 'string' && /\d/.test(v)) ? parseBRL(v) : 0) // cabeçalhos ('Janeiro') não são valor
 
 describe.skipIf(!existsSync(FILE))('conferência com a planilha antiga', () => {
   test('imprime as diferenças por mês e ticker', async () => {

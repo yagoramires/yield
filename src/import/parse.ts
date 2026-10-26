@@ -8,7 +8,7 @@ function toCents(n: number): Cents { return Math.round(Number(`${n.toFixed(6)}e2
 
 function brNumber(s: string): number {
   const n = Number(s.replace(/[^\d,-]/g, '').replace(',', '.'))
-  if (Number.isNaN(n)) throw new Error(`Número inválido: "${s}"`)
+  if (Number.isNaN(n) || !/\d/.test(s)) throw new Error(`Número inválido: "${s}"`)
   return n
 }
 

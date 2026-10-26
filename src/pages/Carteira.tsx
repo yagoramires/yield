@@ -3,8 +3,9 @@ import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type Manu
 import { formatBRL, formatCents } from '../domain/money'
 import type { Cents } from '../domain/types'
 import type { PortfolioRow } from '../domain/portfolio'
-import { AMBIGUOUS_MSG, parseBRL, parseDecimal } from '../import/parse'
+import { AMBIGUOUS_MSG, parseDecimal } from '../import/parse'
 import { yahooSymbol } from '../quotes/yahoo'
+import { parseMoney } from './notas/build'
 import { useData } from '../state/DataProvider'
 
 const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', outro: 'Outro' }
@@ -19,6 +20,7 @@ const when = (iso: string) => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} às ${p(d.getHours())}:${p(d.getMinutes())}`
 }
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const today = () => new Date().toISOString().slice(0, 10)
 
 interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; sourceKey: string | null }
@@ -54,10 +56,10 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const saveForm = async () => {
     if (!form) return
     let qty: number | null, value: Cents | null
-    try {
-      qty = form.quantity.trim() ? parseDecimal(form.quantity) : null
-      value = form.value.trim() ? parseBRL(form.value) : null
-    } catch (e) { return setFormError(e instanceof Error && e.message === AMBIGUOUS_MSG ? AMBIGUOUS_MSG : 'Quantidade ou valor em formato inválido. Use, por exemplo, 0,01 ou 1.234,56.') }
+    try { qty = form.quantity.trim() ? parseDecimal(form.quantity) : null } catch (e) {
+      return setFormError(e instanceof Error && e.message === AMBIGUOUS_MSG ? AMBIGUOUS_MSG : 'Quantidade em formato inválido. Use, por exemplo, 0,01 ou 1500.')
+    }
+    try { value = form.value.trim() ? parseMoney(form.value, 'Valor', false) : null } catch (e) { return setFormError(errText(e)) }
     const symbol = form.quoteSymbol.trim() ? yahooSymbol(form.quoteSymbol) : null
     if (!form.name.trim()) return setFormError('Informe o nome do ativo.')
     if (qty !== null && !(qty >= 0)) return setFormError('Quantidade inválida.')
@@ -73,8 +75,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const savePrice = async () => {
     if (!priceFor) return
     let cents: Cents
-    try { cents = parseBRL(priceFor.text) } catch { return setError('Preço em formato inválido. Use, por exemplo, 29,05.') }
-    if (!(cents > 0)) return setError('Informe um preço maior que zero.')
+    try { cents = parseMoney(priceFor.text, 'Preço') } catch (e) { return setError(errText(e)) }
     await run(async () => {
       await upsertQuote(db, { symbol: yahooSymbol(priceFor.ticker), priceCents: cents, fetchedAt: new Date().toISOString(), source: 'manual' })
       setPriceFor(null)
