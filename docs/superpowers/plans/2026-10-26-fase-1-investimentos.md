@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-26-yield-design.md` (com apoio em `docs/analise-planilha-investimentos.md` e `docs/pesquisa-open-finance.md`).
 
-**Fora desta fase (decisões tomadas aqui):** Bens e Direitos / fichas DIRPF (P1 da spec, plano próprio depois); brapi como reserva de cotação (fica só Yahoo + preço manual); renda fixa atualizada por indicador (valor manual); importação da aba `Movimentações` (é derivada das notas; serve só de conferência); quantidades de dólar/BTC escritas dentro das fórmulas da `Visão Geral` (o resumo da importação pede para lançar à mão); gráficos.
+**Fora desta fase (decisões tomadas aqui):** Bens e Direitos / fichas DIRPF (P1 da spec, plano próprio depois); brapi como reserva de cotação (fica só Yahoo + preço manual); renda fixa atualizada por indicador (valor manual); importação da aba `Movimentações` (é derivada das notas; serve só de conferência); abas `Feriados` (o calendário é calculado, Task 2) e `Empresas Listadas` (só serve à DIRPF); **isenção da Lei 13.043** (nenhuma operação dele usa os tickers da lista nem lotes `.N`, e a regra acabou em 2023-12-31); quantidades de dólar/BTC escritas dentro das fórmulas da `Visão Geral` (o resumo da importação pede para lançar à mão); gráficos.
 
 ## Global Constraints
 
@@ -26,12 +26,16 @@
 - IR cobre só renda variável na B3 (Ação, FII, ETF, BDR). Cripto e dólar não entram, e a tela diz isso.
 - Antes de construir cada tela, mockup aprovado pelo Yago (Task 13).
 - Identificador do app: `com.yagoramires.yield`. Título da janela: `Yield`.
+- Toda operação que apaga ou substitui dados (excluir nota, evento, provento, pagamento, ativo manual; substituir proventos da planilha pelos da B3; importar backup) pede confirmação na tela.
+- Node ≥ 22.13 (fixar em `engines` e `.nvmrc`), por causa do `node:sqlite` nos testes.
+- Colunas SQLite só `INTEGER`, `TEXT` e `REAL`. `@tauri-apps/plugin-sql` com a feature `sqlite`.
+- Uma nota é identificada por **corretora normalizada + número + data do pregão**, qualquer que seja a origem (planilha, PDF, manual). É isso que impede a mesma nota de entrar duas vezes.
 
 ## Review Focus
 
 1. **Ticker do mercado fracionário** (`ITSA4F`) precisa somar na mesma posição que `ITSA4`. Teste na Task 4.
 2. **Venda maior que a posição** (histórico incompleto, que é o caso real dele): aviso visível e mês marcado como incompleto no IR, nunca imposto calculado em silêncio sobre custo zero. Testes nas Tasks 4 e 5.
-3. **Importar o mesmo arquivo duas vezes** (planilha, extrato B3 ou PDF de nota) não duplica nada. Testes nas Tasks 7, 8 e 9.
+3. **A mesma nota por dois caminhos** (veio da planilha e depois pelo PDF) ou **o mesmo arquivo importado duas vezes** (planilha, extrato B3, PDF) não duplica nada, e reimportar a planilha depois do extrato B3 não ressuscita proventos substituídos. Testes nas Tasks 7, 8 e 9.
 4. **Importar como backup um arquivo que não é do Yield** não apaga os dados atuais. Teste na Task 10.
 5. **Números no formato brasileiro** vindos de planilha e PDF (`1.234,56`, `R$ 10,85`, `-`, célula numérica já convertida pelo Excel) viram centavos corretos. Teste na Task 7 (`parseBRL`), usado pelas Tasks 7, 8 e 9.
 
@@ -80,7 +84,7 @@ yield/
 **Interfaces:**
 - Produces: `type Route = 'carteira' | 'notas' | 'proventos' | 'imposto' | 'configuracoes'`; `const ROUTES: { page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Sistema'; items: { route: Route | null; label: string; disabled: boolean }[] }[]` em `src/ui/routes.ts`; `<Sidebar route onNavigate />`.
 
-- [ ] **Step 1:** Criar o projeto com `pnpm create tauri-app` (template React + TypeScript, gerenciador pnpm) dentro de `yield/` sem apagar `docs/`, `.gitignore`, `planilhas/`, `notas/`. Ajustar `tauri.conf.json`: identifier `com.yagoramires.yield`, título `Yield`, janela 1200×780, mínimo 960×640.
+- [ ] **Step 1:** Gerar o projeto numa pasta temporária, sem prompts: `pnpm create tauri-app@latest /tmp/yield-scaffold --template react-ts --manager pnpm --identifier com.yagoramires.yield -y`, e mover o conteúdo para `yield/` sem sobrescrever `docs/`, `.gitignore`, `planilhas/`, `notas/` (juntar o `.gitignore` gerado ao existente). Ajustar `tauri.conf.json`: identifier `com.yagoramires.yield`, título `Yield`, janela 1200×780, mínimo 960×640.
 - [ ] **Step 2: Teste que falha**
 
 ```ts
@@ -125,26 +129,29 @@ export interface Trade {
   tradeDate: ISODate; settleDate: ISODate; side: Side; assetType: AssetType
   ticker: string; qty: number; priceCents: Cents; feesCents: Cents; irrfCents: Cents
 }
+export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 export type CorporateEvent =
   | { id: string; kind: 'bonificacao'; ticker: string; date: ISODate; qtyDelta: number; unitCostCents: Cents | null }
   | { id: string; kind: 'desdobramento' | 'grupamento'; ticker: string; date: ISODate; qtyDelta: number }
   | { id: string; kind: 'mudanca_ticker'; ticker: string; newTicker: string; date: ISODate }
+export type NewCorporateEvent = DistributiveOmit<CorporateEvent, 'id'>
 export interface Position { ticker: string; assetType: AssetType; qty: number; totalCostCents: Cents }
 export interface Sale {
   tradeId: string; tradeDate: ISODate; settleDate: ISODate; ticker: string; assetType: AssetType
-  qty: number; grossCents: Cents; netCents: Cents; costBasisCents: Cents; resultCents: Cents; irrfCents: Cents
+  qty: number /* parte casada com a posição */; grossCents: Cents; netCents: Cents; costBasisCents: Cents; resultCents: Cents; irrfCents: Cents
+  alienationCents: Cents /* qty da operação inteira × preço: é o que conta no limite de R$ 20 mil */
 }
-export type WarningKind = 'day_trade' | 'venda_maior_que_posicao' | 'bonificacao_sem_custo'
+export type WarningKind = 'day_trade' | 'venda_maior_que_posicao' | 'bonificacao_sem_custo' | 'tipo_inconsistente'
 export interface Warning { kind: WarningKind; ticker: string; date: ISODate; detail: string }
 export type DividendKind = 'Dividendo' | 'JCP' | 'Rendimento'
 export interface Dividend {
   id: string; ticker: string; kind: DividendKind; payDate: ISODate; amountCents: Cents
   broker: string | null; source: 'b3' | 'planilha' | 'manual'; sourceKey: string | null
 }
-export interface DarfPayment { month: Month; paidAt: ISODate; amountCents: Cents }
+export interface DarfPayment { month: Month; paidAt: ISODate; principalCents: Cents /* sem multa e juros */; totalPaidCents: Cents }
 ```
 
-- Produces: `formatBRL(c: Cents): string`; `monthOf(d: ISODate): Month`; `addMonths(m: Month, n: number): Month`; `monthsBetween(from: Month, to: Month): Month[]` (inclusivo); `nationalHolidays(year: number): ISODate[]`; `isBusinessDay(d: ISODate): boolean`; `lastBusinessDayOfMonth(m: Month): ISODate`.
+- Produces: `formatBRL(c: Cents): string`; `monthOf(d: ISODate): Month`; `addMonths(m: Month, n: number): Month`; `monthsBetween(from: Month, to: Month): Month[]` (inclusivo); `nationalHolidays(year: number): ISODate[]`; `isBusinessDay(d: ISODate): boolean`; `lastBusinessDayOfMonth(m: Month): ISODate`; `darfDueDate(apuracao: Month): ISODate` (último dia útil do mês seguinte; quando esse mês é dezembro, o penúltimo, porque não há expediente bancário ao público no último dia útil do ano — Res. CMN 4.880/2020 art. 3º).
 
 - [ ] **Step 1: Testes que falham**
 
@@ -164,6 +171,9 @@ expect(isBusinessDay('2023-11-20')).toBe(true)
 expect(isBusinessDay('2024-02-13')).toBe(false)                // terça de Carnaval
 expect(isBusinessDay('2024-05-30')).toBe(false)                // Corpus Christi
 expect(isBusinessDay('2024-12-25')).toBe(false)
+expect(darfDueDate('2024-02')).toBe('2024-03-28')
+expect(darfDueDate('2025-11')).toBe('2025-12-30')                 // 31/12 é o último dia útil do ano, sem expediente
+expect(darfDueDate('2022-11')).toBe('2022-12-29')                 // 31/12/2022 foi sábado → último útil 30 → vence 29
 ```
 
 - [ ] **Step 2:** `pnpm vitest run src/domain` → FAIL.
@@ -247,10 +257,11 @@ export function replay(trades: Trade[], events: CorporateEvent[]): ReplayResult
 ```
 
 Regras:
-- Ordem: por data; no mesmo dia, eventos antes de trades; trades do mesmo dia por `noteId` e `seq`. O resultado não depende da ordem de entrada dos arrays.
+- Ordem: por data; no mesmo dia, eventos, depois compras, depois vendas; empate por `noteId` e `seq`. O resultado não depende da ordem de entrada dos arrays.
 - Posição por ticker normalizado, somando todas as corretoras. Compra: `qty += q`, `totalCost += q × price + fees`. `assetType` vem do primeiro trade do ticker.
-- Venda: `gross = q × price`, `net = gross − fees`, `costBasis = Math.round(totalCost × q / qty)`, `result = net − costBasis`; depois `qty −= q`, `totalCost −= costBasis`. Quando a posição zera, `totalCost = 0`.
-- Venda com `q` maior que a posição: vende só o que existe (se existir), gera `venda_maior_que_posicao` com o excedente em `detail`. Sem venda a descoberto.
+- Venda: `gross = q × price`, `net = gross − fees`, `costBasis = Math.round(totalCost × q / qty)`, `result = net − costBasis`; depois `qty −= q`, `totalCost −= costBasis`. Quando a posição zera, `totalCost = 0`. `alienationCents = qty da operação × price`.
+- Venda com quantidade maior que a posição: casa só `m = min(q, posição)`; `gross`, `fees` e `irrf` proporcionais a `m / q` (arredondando com `Math.round`); `alienationCents` continua com a operação inteira; gera `venda_maior_que_posicao` com o excedente em `detail`. Com posição zero ainda emite a `Sale` com `qty: 0` (para a alienação contar no mês). Sem venda a descoberto.
+- Mesmo ticker com `assetType` diferente entre trades: usa o tipo do primeiro trade e gera `tipo_inconsistente` (uma vez por ticker). Acontece na planilha real (HGLG11 aparece como ETF em algumas linhas).
 - Compra e venda do mesmo ticker na mesma data e corretora: aviso `day_trade` (uma vez por ticker+data+corretora), cálculo normal.
 - `desdobramento`/`grupamento`: `qty += qtyDelta`, custo total igual. `bonificacao`: `qty += qtyDelta`, `totalCost += qtyDelta × unitCostCents`; com `unitCostCents === null`, soma 0 e gera `bonificacao_sem_custo`. `mudanca_ticker`: move qty e custo para `newTicker` (somando se já existir).
 - `positions` só com `qty > 0`, ordenadas por ticker.
@@ -275,8 +286,8 @@ test('fracionário soma na posição do lote padrão', () => {
   // compra 10 ITSA4F + 100 ITSA4 → uma posição ITSA4 com qty 110
 })
 test('venda maior que a posição avisa e não vende o excedente', () => {
-  const r = replay([t({ id: '1', side: 'C', qty: 10, tradeDate: '2024-01-02' }), t({ id: '2', side: 'V', qty: 15, tradeDate: '2024-01-05' })], [])
-  expect(r.sales[0].qty).toBe(10)
+  const r = replay([t({ id: '1', side: 'C', qty: 10, tradeDate: '2024-01-02' }), t({ id: '2', side: 'V', qty: 15, priceCents: 1000, feesCents: 30, tradeDate: '2024-01-05' })], [])
+  expect(r.sales[0]).toMatchObject({ qty: 10, grossCents: 10000, netCents: 9980, alienationCents: 15000 })
   expect(r.warnings).toContainEqual(expect.objectContaining({ kind: 'venda_maior_que_posicao', date: '2024-01-05' }))
   expect(r.positions).toEqual([])
 })
@@ -287,6 +298,10 @@ test('bonificação soma custo atribuído; sem custo avisa', () => {
 })
 test('mudança de ticker move a posição e as compras seguintes somam no novo ticker', () => {})
 test('evento do mesmo dia é aplicado antes da venda do dia', () => {})
+test('no mesmo dia a compra vem antes da venda, mesmo em notas diferentes', () => {
+  /* venda de 10 na nota z (id menor) e compra de 10 na nota a, mesma data, sem posição anterior → nenhuma venda_maior_que_posicao */
+})
+test('tipo diferente para o mesmo ticker gera aviso', () => { /* HGLG11 FII e depois ETF → posição FII e aviso tipo_inconsistente */ })
 ```
 
 - [ ] **Step 2:** `pnpm vitest run src/domain/ledger.test.ts` → FAIL.
@@ -313,15 +328,14 @@ export interface PotMonth {
   irrfCarryOutCents: Cents; lossOutCents: Cents /* ≤ 0 */; taxPayableCents: Cents
 }
 export interface TaxMonth { month: Month; stockSalesCents: Cents; comum: PotMonth; fii: PotMonth; incomplete: boolean }
-export function computeTax(sales: Sale[], warnings: Warning[], exemptTickers: string[], from: Month, to: Month): TaxMonth[]
+export function computeTax(sales: Sale[], warnings: Warning[], from: Month, to: Month): TaxMonth[]
 ```
 
 Regras (análise §6, corrigindo o que a planilha errava):
 - Mês da venda = mês de `tradeDate`. IRRF entra no mês de `settleDate`.
 - Pote **comum** = Ação + ETF + BDR, alíquota 15%. Pote **fii** = FII, 20%. Prejuízos e IRRF separados por pote.
-- `stockSalesCents` = soma do `grossCents` das vendas de **Ação** no mês, exceto tickers isentos com venda até 2023-12-31.
+- `stockSalesCents` = soma do `alienationCents` das vendas de **Ação** no mês (a operação inteira, mesmo quando a venda é maior que a posição).
 - Isenção: se `stockSalesCents <= 2_000_000` (lei: "igual ou inferior a R$ 20 mil"), o resultado **positivo** de Ação do mês vira `exemptProfitCents` e sai da base. Resultado negativo de Ação continua no pote (prejuízo compensável).
-- Tickers da lista de isentos (Lei 13.043) com venda até 2023-12-31: o resultado dessas vendas fica fora do resultado do pote; se positivo, soma em `exemptProfitCents`; se negativo, é descartado; a venda não conta em `stockSalesCents`. De 2024 em diante, tratamento normal.
 - `base = max(resultado − isento + lossIn, 0)`; `lossOut = min(resultado − isento + lossIn, 0)`.
 - `taxDue = Math.floor(base × aliquota)` (aliquota como fração inteira: `base * 15 / 100`, com `Math.floor`).
 - IRRF: disponível = `irrfMonth + irrfCarryIn`; `irrfUsed = min(disponível, taxDue)`; `irrfCarryOut = disponível − irrfUsed`; o carry **zera em janeiro** (o que sobra em dezembro fica visível em `irrfCarryOutCents` de dezembro, para a declaração).
@@ -351,10 +365,6 @@ test('IRRF abate o imposto e sobra passa para o mês seguinte, zerando em janeir
   // 2024-11: irrf 1_000 sem imposto → carryOut 1_000; 2024-12: taxDue 600 → irrfUsed 600, payable 0, carryOut 400
   // 2025-01: taxDue 300 → irrfUsed 0 (carry zerou), payable 300
 })
-test('ticker isento da Lei 13.043 até 2023, normal depois', () => {
-  // exempt ['ABCD3']; 2023-06 gross 3_000_000 result 50_000 → stockSales 0, exempt 50_000, taxDue 0
-  // 2024-06 mesma venda → stockSales 3_000_000, taxDue 7_500
-})
 test('mês com venda maior que a posição fica incompleto', () => {})
 test('meses sem venda aparecem e carregam o prejuízo', () => {})
 ```
@@ -373,29 +383,34 @@ test('meses sem venda aparecem e carregam o prejuízo', () => {})
 - Test: `src/domain/darf.test.ts`
 
 **Interfaces:**
-- Consumes: `TaxMonth` (Task 5), `DarfPayment`, `lastBusinessDayOfMonth`, `addMonths`.
+- Consumes: `TaxMonth` (Task 5), `DarfPayment`, `darfDueDate`.
 - Produces:
 
 ```ts
-export type DarfStatus = 'sem_imposto' | 'acumulado' | 'a_vencer' | 'em_aberto' | 'pago'
+export type DarfStatus = 'sem_imposto' | 'acumulado' | 'a_vencer' | 'em_aberto' | 'pago' | 'pago_a_menor'
 export interface DarfRow {
   month: Month; taxCents: Cents /* comum + fii a pagar no mês */; accumulatedCents: Cents
   darfCents: Cents /* 0 quando acumula */; dueDate: ISODate | null; status: DarfStatus; payment: DarfPayment | null
+  complementCents: Cents /* darfCents − principal pago, quando pago a menor */; incomplete: boolean /* herdado do TaxMonth */
 }
+export interface DarfResult { rows: DarfRow[]; orphanPayments: DarfPayment[] /* pagamento num mês que hoje não tem DARF (o acúmulo mudou) */; openCents: Cents; openIncompleteCents: Cents }
 export const DARF_CODE = '6015'
-export function computeDarfs(months: TaxMonth[], payments: DarfPayment[], today: ISODate): DarfRow[]
+export function computeDarfs(months: TaxMonth[], payments: DarfPayment[], today: ISODate): DarfResult
 ```
 
-Regras: soma comum + fii (ambos código 6015); `accumulated = tax + pendente anterior`; se `accumulated < 1000`, `darfCents = 0`, `status = 'acumulado'` (ou `sem_imposto` quando 0) e o valor passa adiante; senão `darfCents = accumulated`, pendente zera, `dueDate = lastBusinessDayOfMonth(addMonths(month, 1))`; status `pago` se houver pagamento do mês, senão `a_vencer` quando `today <= dueDate`, senão `em_aberto`.
+Regras: soma comum + fii (ambos código 6015); `accumulated = tax + pendente anterior`; se `accumulated < 1000`, `darfCents = 0`, `status = 'acumulado'` (ou `sem_imposto` quando 0) e o valor passa adiante; senão `darfCents = accumulated`, pendente zera, `dueDate = darfDueDate(month)`; status `pago` se houver pagamento do mês com `principalCents >= darfCents`, `pago_a_menor` (com `complementCents`) se o principal for menor, senão `a_vencer` quando `today <= dueDate`, senão `em_aberto`. `openCents` soma os em aberto e a menor de meses completos; `openIncompleteCents`, os de meses `incomplete`, mostrados à parte.
 
 - [ ] **Step 1: Testes que falham**
 
 ```ts
 // 2024-01 payable 600 → acumulado; 2024-02 payable 500 → darf 1100, dueDate '2024-03-28'
 expect(rows[0]).toMatchObject({ month: '2024-01', darfCents: 0, status: 'acumulado' })
-expect(rows[1]).toMatchObject({ month: '2024-02', accumulatedCents: 1100, darfCents: 1100, dueDate: '2024-03-28', status: 'em_aberto' }) // today '2026-10-26'
+expect(rows[1]).toMatchObject({ month: '2024-02', accumulatedCents: 1100, darfCents: 1100, dueDate: '2024-03-28', status: 'em_aberto' }) // today '2026-10-26'; rows = computeDarfs(...).rows
 // com today '2024-03-10' → status 'a_vencer'
-// com payment { month: '2024-02', paidAt: '2026-11-05', amountCents: 1300 } → 'pago'
+// com payment { month: '2024-02', paidAt: '2026-10-20', principalCents: 1100, totalPaidCents: 1300 } → 'pago'
+// com principalCents 900 → 'pago_a_menor', complementCents 200
+// payment de '2024-01' (que só acumulou) → aparece em orphanPayments
+// mês incomplete com DARF em aberto → soma em openIncompleteCents, não em openCents
 // mês sem imposto → 'sem_imposto', dueDate null
 ```
 
@@ -408,7 +423,7 @@ expect(rows[1]).toMatchObject({ month: '2024-02', accumulatedCents: 1100, darfCe
 
 **Files:**
 - Create: `src-tauri/migrations/001_init.sql`, `src/db/client.ts`, `src/db/testDb.ts`, `src/db/repo.ts`, `src/import/parse.ts`
-- Modify: `src-tauri/src/lib.rs` (registrar `tauri_plugin_sql` com a migração via `include_str!`, `tauri_plugin_http`, `tauri_plugin_dialog`), `src-tauri/capabilities/default.json` (permissões `sql:default`, `sql:allow-execute`, `http:default` com allow `https://query1.finance.yahoo.com/*` e `https://query2.finance.yahoo.com/*`, `dialog:default`)
+- Modify: `src-tauri/src/lib.rs` (registrar `tauri_plugin_sql` com a migração via `include_str!`, `tauri_plugin_http`, `tauri_plugin_dialog`, e os comandos `move_file(from, to)` e `swap_database(source) -> safety_path` da Task 10), `src-tauri/capabilities/default.json` (permissões `sql:default`, `sql:allow-execute`, `sql:allow-close`, `http:default` com allow `https://query1.finance.yahoo.com/*` e `https://query2.finance.yahoo.com/*`, `dialog:default`)
 - Test: `src/db/repo.test.ts`, `src/import/parse.test.ts`
 
 **Interfaces:**
@@ -419,23 +434,29 @@ expect(rows[1]).toMatchObject({ month: '2024-02', accumulatedCents: 1100, darfCe
 export interface Db {
   select<T>(sql: string, params?: unknown[]): Promise<T[]>
   execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number }>
+  close(): Promise<void>
 }
 export const SCHEMA_VERSION = 1
 export function openDb(path?: string): Promise<Db>   // padrão 'sqlite:yield.db'; com path abre outro arquivo (backup)
 // testDb.ts
-export function createTestDb(): Db                    // node:sqlite em memória + 001_init.sql
+export function createTestDb(path?: string): Db       // node:sqlite (memória ou arquivo); aplica 001_init.sql só se a tabela meta não existir
+export function createRawDb(path?: string): Db        // node:sqlite sem migração (para testar arquivo estranho)
+export function tmpPath(name: string): string         // caminho único em os.tmpdir()
 // parse.ts
+export function parseQty(v: string | number | null | undefined): number   // '1.000' → 1000; 10 → 10; '-' → 0
 export function parseBRL(v: string | number | null | undefined): Cents   // '1.234,56' → 123456; 'R$ 10,85' → 1085; '-' / '' / null → 0; 10.85 (número) → 1085; '(1,00)' e '-1,00' → -100
-export function parseBRDate(v: string | number | Date): ISODate          // '05/01/2024' → '2024-01-05'; serial do Excel → data; Date → data
+export function parseBRDate(v: string | number): ISODate                 // '05/01/2024' → '2024-01-05'; serial do Excel → data por aritmética (sem Date local)
+export function normalizeBroker(v: string): string                        // 'CLEAR CORRETORA - GRUPO XP' → 'CLEAR'; 'INTER DTVM' → 'INTER'; 'BTG PACTUAL ...' → 'BTG'; outros: maiúsculas sem espaços extras
 // repo.ts
-export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'outro'; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate }
+export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'outro'; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate; sourceKey: string | null }
 export interface Note { id: string; number: string; broker: string; tradeDate: ISODate; settleDate: ISODate; source: 'manual' | 'pdf' | 'planilha' | 'sem_nota'; sourceKey: string | null; label: string | null }
-export interface Quote { symbol: string; priceCents: Cents; fetchedAt: string; source: 'yahoo' | 'manual' }
-export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[]; exemptTickers: string[] }
+export interface Quote { symbol: string /* sempre yahooSymbol(ticker), ex. 'ITSA4.SA' */; priceCents: Cents; fetchedAt: string; source: 'yahoo' | 'manual' /* manual prevalece e nunca é sobrescrita */ }
+export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[] }
 export function loadAll(db: Db): Promise<Dataset>
 export function saveNote(db: Db, note: Omit<Note, 'id'>, trades: Omit<Trade, 'id' | 'noteId' | 'broker' | 'tradeDate' | 'settleDate'>[]): Promise<{ id: string } | { skipped: 'duplicada' }>
 export function deleteNote(db: Db, id: string): Promise<void>
-export function saveEvent(db: Db, e: Omit<CorporateEvent, 'id'> & { sourceKey?: string }): Promise<{ id: string } | { skipped: 'duplicada' }>
+export function replaceNote(db: Db, id: string, note: Omit<Note, 'id'>, trades: Parameters<typeof saveNote>[2]): Promise<{ id: string }>   // editar = apagar e salvar de novo; se o novo save falhar, regrava o original
+export function saveEvent(db: Db, e: NewCorporateEvent & { sourceKey?: string }): Promise<{ id: string } | { skipped: 'duplicada' }>
 export function deleteEvent(db: Db, id: string): Promise<void>
 export function setBonificacaoCost(db: Db, id: string, unitCostCents: Cents): Promise<void>
 export function upsertDividends(db: Db, list: Omit<Dividend, 'id'>[]): Promise<{ inserted: number; skipped: number; replaced: number }>
@@ -444,16 +465,15 @@ export function savePayment(db: Db, p: DarfPayment): Promise<void>
 export function deletePayment(db: Db, month: Month): Promise<void>
 export function upsertQuote(db: Db, q: Quote): Promise<void>
 export function deleteQuote(db: Db, symbol: string): Promise<void>
-export function saveManualAsset(db: Db, a: Omit<ManualAsset, 'id'> & { id?: string }): Promise<string>
+export function saveManualAsset(db: Db, a: Omit<ManualAsset, 'id'> & { id?: string }): Promise<string | { skipped: 'duplicada' }>   // sourceKey repetido é ignorado
 export function deleteManualAsset(db: Db, id: string): Promise<void>
-export function setExemptTickers(db: Db, tickers: string[]): Promise<void>
 export function getAlias(db: Db, spec: string): Promise<string | null>
 export function saveAlias(db: Db, spec: string, ticker: string): Promise<void>
 ```
 
-Esquema (`001_init.sql`): `meta(key PK, value)` com `('app','yield')` e `('schema_version','1')`; `notes` (`source_key` UNIQUE); `trades` (FK `note_id` com `ON DELETE CASCADE`, `seq`); `corporate_events` (`source_key` UNIQUE); `dividends` (`source_key` UNIQUE); `darf_payments(month PK)`; `quotes(symbol PK)`; `manual_assets`; `exempt_tickers(ticker PK)`; `ticker_aliases(spec PK, ticker)`. Ids com `crypto.randomUUID()`. Parâmetros SQL sempre com `?`. Ligar `PRAGMA foreign_keys = ON` em `openDb` e `createTestDb`.
+Esquema (`001_init.sql`): `meta(key PK, value)` com `('app','yield')` e `('schema_version','1')`; `notes` (`UNIQUE(broker, number, trade_date)` com `broker` já normalizado; `source_key` só para rastreio); `trades` (FK `note_id` com `ON DELETE CASCADE`, `seq`); `corporate_events` (`source_key` UNIQUE); `dividends` (`source_key` UNIQUE); `darf_payments(month PK, paid_at, principal_cents, total_paid_cents)`; `quotes(symbol PK)`; `manual_assets` (`source_key` UNIQUE); `ticker_aliases(spec PK, ticker)`. Ids com `crypto.randomUUID()`. Parâmetros SQL sempre com `?`. Ligar `PRAGMA foreign_keys = ON` em `openDb` e `createTestDb`.
 
-`saveNote` faz o insert da nota e, num único `INSERT ... VALUES (...), (...)`, os trades; se o insert dos trades falhar, apaga a nota e relança o erro. `upsertDividends`: `sourceKey` repetido é ignorado (`skipped`); ao inserir um provento `source: 'b3'`, apaga antes os de `source: 'planilha'` com o mesmo ticker e o mesmo mês de `payDate` (`replaced`), porque o extrato da B3 é mais preciso que a grade manual.
+`saveNote` faz o insert da nota e, num único `INSERT ... VALUES (...), (...)`, os trades; se o insert dos trades falhar, apaga a nota e relança o erro. `saveNote` normaliza `broker` e devolve `{ skipped: 'duplicada' }` quando já existe nota com a mesma corretora, número e data. `upsertDividends`: `sourceKey` repetido é ignorado (`skipped`); ao inserir um provento `source: 'b3'`, apaga antes os de `source: 'planilha'` com o mesmo ticker e o mesmo mês de `payDate` (`replaced`), porque o extrato da B3 é mais preciso que a grade manual; ao inserir um `source: 'planilha'`, pula (`skipped`) se já existir um `b3` com o mesmo ticker e mês.
 
 - [ ] **Step 1: Testes que falham**
 
@@ -466,6 +486,8 @@ expect(parseBRL(10.85)).toBe(1085)
 expect(parseBRL('-1,00')).toBe(-100)
 expect(parseBRDate('05/01/2024')).toBe('2024-01-05')
 expect(parseBRDate(45296)).toBe('2024-01-05')     // serial do Excel
+expect(parseQty('1.000')).toBe(1000)
+expect(normalizeBroker('CLEAR CORRETORA - GRUPO XP')).toBe('CLEAR')
 
 // repo.test.ts (createTestDb)
 test('salva nota com trades e recarrega', async () => {})
@@ -474,6 +496,11 @@ test('nota com o mesmo sourceKey é ignorada', async () => {
   expect(await saveNote(db, { ...nota, sourceKey: 'pdf:CLEAR:123' }, trades)).toHaveProperty('id')
   expect(await saveNote(db, { ...nota, sourceKey: 'pdf:CLEAR:123' }, trades)).toEqual({ skipped: 'duplicada' })
 })
+test('a mesma nota vinda da planilha e depois do PDF é duplicada', async () => {
+  await saveNote(db, { number: '123', broker: 'CLEAR CORRETORA - GRUPO XP', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'planilha', sourceKey: 'planilha:x', label: null }, trades)
+  expect(await saveNote(db, { number: '123', broker: 'CLEAR', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'pdf', sourceKey: 'pdf:CLEAR:123', label: null }, trades)).toEqual({ skipped: 'duplicada' })
+})
+test('editar nota troca os trades e mantém a nota única', async () => {})
 test('provento repetido é ignorado e o da B3 substitui o da planilha no mesmo mês', async () => {
   await upsertDividends(db, [{ ticker: 'HGLG11', kind: 'Rendimento', payDate: '2024-03-01', amountCents: 1000, broker: null, source: 'planilha', sourceKey: 'planilha:HGLG11:2024-03:Rendimento' }])
   const r = await upsertDividends(db, [
@@ -482,6 +509,8 @@ test('provento repetido é ignorado e o da B3 substitui o da planilha no mesmo m
   ])
   expect(r).toEqual({ inserted: 1, skipped: 1, replaced: 1 })
   expect((await loadAll(db)).dividends.map(d => d.amountCents)).toEqual([1100])
+  // reimportar a planilha depois não traz o provento de volta
+  expect(await upsertDividends(db, [{ ticker: 'HGLG11', kind: 'Rendimento', payDate: '2024-03-01', amountCents: 1000, broker: null, source: 'planilha', sourceKey: 'planilha:HGLG11:2024-03:Rendimento' }])).toEqual({ inserted: 0, skipped: 1, replaced: 0 })
 })
 ```
 
@@ -499,14 +528,14 @@ test('provento repetido é ignorado e o da B3 substitui o da planilha no mesmo m
 - Test: `src/import/planilha.test.ts`, `src/import/conferencia.local.test.ts`
 
 **Interfaces:**
-- Consumes: `parseBRL`, `parseBRDate`, `normalizeTicker`, `saveNote`, `upsertDividends`, `setExemptTickers`, `saveManualAsset`, `replay`, `computeTax`.
+- Consumes: `parseBRL`, `parseBRDate`, `parseQty`, `normalizeTicker`, `saveNote`, `upsertDividends`, `saveManualAsset`, `replay`, `computeTax`, `computeDarfs`.
 - Produces:
 
 ```ts
 export interface PlanilhaImport {
   notes: { note: Omit<Note, 'id'>; trades: Parameters<typeof saveNote>[2] }[]
   dividends: Omit<Dividend, 'id'>[]
-  exemptTickers: string[]
+  typeConflicts: string[]               // tickers com tipos diferentes entre linhas
   manualAssets: Omit<ManualAsset, 'id'>[]
   ignored: string[]                    // mensagens em pt-BR para o resumo
 }
@@ -514,11 +543,10 @@ export function parsePlanilha(data: ArrayBuffer): PlanilhaImport
 export function importPlanilha(db: Db, p: PlanilhaImport): Promise<{ notes: number; notesSkipped: number; dividends: number; dividendsSkipped: number; manualAssets: number }>
 ```
 
-Leitura (SheetJS `read(data, { cellDates: true })`; instalar com `pnpm add https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`):
-- Aba `Notas`, cabeçalho na linha 1, colunas da análise §3 (`Nota`, `Corretora`, `Data Pregão`, `Data Liquidação`, `C/V`, `Tipo`, `Ticker`, `Quantidade`, `Preço`, `I.R.R.F.` e as colunas de taxa). Agrupar por `Corretora + Nota + Data Pregão` → uma nota com `source: 'planilha'`, `sourceKey: planilha:<corretora>:<nota>:<data>`. `feesCents` de cada linha = soma das colunas de taxa **sem** o IRRF (as taxas já estão rateadas na planilha, então não chamar `allocateFees`). Linhas com `Tipo` fora de `AssetType` vão para `ignored`.
-- Abas `Rendimentos 2022` a `Rendimentos 2025`: grade ativo × mês em blocos (Dividendos Ações → `Dividendo`, JCP Ações → `JCP`, FIIs → `Rendimento`). Cada célula > 0 vira um provento com `payDate = <ano>-<mês>-01`, `source: 'planilha'`, `sourceKey: planilha:<ticker>:<mês>:<kind>`. O layout exato dos blocos deve ser confirmado rodando um script local de inspeção sobre `planilhas/Controle de Investimentos.xlsm` (só imprimir rótulos e posições, nunca valores) antes de escrever o parser, e reproduzido na fixture sintética.
-- Aba `Ações Isentas`: coluna de tickers → `exemptTickers`.
-- Aba `Visão Geral`: linhas "Tesouro Selic" e "Pré-fixado" → `manualAssets` com `assetClass: 'renda_fixa'` e `valueCents`. Dólar e BTC entram em `ignored` com a mensagem "Dólar e BTC: lance a quantidade em Carteira › Ativos manuais".
+Leitura (SheetJS `read(data, { cellDates: false })`, datas como número de série convertidas por `parseBRDate`; instalar com `pnpm add https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`):
+- Aba `Notas`, cabeçalho na linha 1, colunas da análise §3 (`Nota`, `Corretora`, `Data Pregão`, `Data Liquidação`, `C/V`, `Tipo`, `Ticker`, `Quantidade`, `Preço`, `I.R.R.F.` e as colunas de taxa). Agrupar por `Corretora + Nota + Data Pregão` → uma nota com `source: 'planilha'`, `sourceKey: planilha:<corretora>:<nota>:<data>`. `feesCents` de cada linha = soma das colunas de taxa **sem** o IRRF (as taxas já estão rateadas na planilha, então não chamar `allocateFees`). Linhas com `Tipo` fora de `AssetType` vão para `ignored`. Ticker com mais de um `Tipo` (ex.: HGLG11 como FII e como ETF): usa o tipo mais frequente em todas as linhas e lista em `typeConflicts` para o resumo.
+- Abas cujo nome casa `/^Rendimentos \d{4}$/`: grade ativo × mês em blocos (Dividendos Ações → `Dividendo`, JCP Ações → `JCP`, FIIs → `Rendimento`). Cada célula > 0 vira um provento com `payDate = <ano>-<mês>-01`, `source: 'planilha'`, `sourceKey: planilha:<ticker>:<mês>:<kind>`. O layout exato dos blocos deve ser confirmado rodando um script local de inspeção sobre `planilhas/Controle de Investimentos.xlsm` (só imprimir rótulos e posições, nunca valores) antes de escrever o parser, e reproduzido na fixture sintética.
+- Aba `Visão Geral`: linhas "Tesouro Selic" e "Pré-fixado" → `manualAssets` com `assetClass: 'renda_fixa'`, `valueCents` e `sourceKey: planilha:visao-geral:<rótulo>`. Dólar e BTC entram em `ignored` com a mensagem "Dólar e BTC: lance a quantidade em Carteira › Ativos manuais".
 - Abas que não existirem viram uma mensagem em `ignored`, sem erro.
 
 - [ ] **Step 1: Testes que falham**
@@ -533,13 +561,14 @@ test('grade de rendimentos vira proventos por mês', () => {})
 test('importar duas vezes não duplica', async () => {
   const db = createTestDb(); const p = parsePlanilha(makePlanilha(base))
   await importPlanilha(db, p)
-  expect(await importPlanilha(db, p)).toMatchObject({ notes: 0, notesSkipped: 2, dividends: 0 })
+  expect(await importPlanilha(db, p)).toMatchObject({ notes: 0, notesSkipped: 2, dividends: 0, manualAssets: 0 })
 })
 test('aba faltando entra no resumo, sem erro', () => {})
+test('ticker com dois tipos usa o mais frequente e entra em typeConflicts', () => {})
 ```
 
 - [ ] **Step 2:** → FAIL. **Step 3:** implementar. **Step 4:** → PASS.
-- [ ] **Step 5: Conferência local** — `conferencia.local.test.ts` usa `describe.skipIf(!existsSync('planilhas/Controle de Investimentos.xlsm'))`, importa a planilha real num `createTestDb`, roda `replay` + `computeTax` de 2020-01 a 2021-12 e compara com os valores calculados das abas `Imposto de Renda` (coluna `Imposto Devido`) e `Imposto de Renda F.I.I.`, e as posições com a tabela do `Resumo`. Imprime só as diferenças por mês/ticker (ex.: `2021-05 comum: planilha 123,45 · Yield 120,00`). Rodar `pnpm vitest run conferencia` e anotar em `docs/conferencia-fase-1.md` cada diferença com a explicação (bug conhecido da planilha da análise §7, IRRF fora das taxas, regra do "≤ 20 mil", etc.). Diferença sem explicação = bug a corrigir antes de seguir.
+- [ ] **Step 5: Conferência local** — `conferencia.local.test.ts` usa `describe.skipIf(!existsSync('planilhas/Controle de Investimentos.xlsm'))`, importa a planilha real num `createTestDb`, roda `replay` + `computeTax` + `computeDarfs` de 2020-01 a 2021-12 e compara com os valores calculados das abas `Imposto de Renda` (coluna `Imposto Devido`), `Imposto de Renda F.I.I.` e `DARF a Pagar`, e as posições com a tabela do `Resumo`. O teste **só imprime** as diferenças por mês/ticker no terminal (nunca falha e nunca grava valores em arquivo). Rodar `pnpm vitest run conferencia` e anotar em `docs/conferencia-fase-1.md` **só a categoria e a explicação** de cada diferença, sem valores (ex.: "2021-05, IR comum: planilha incluía o IRRF nas taxas"). Explicações aceitas: bug conhecido da planilha (análise §7), IRRF fora das taxas, regra do "≤ 20 mil", tipo inconsistente do ticker, DARF juntado pela linha. Diferença sem explicação = bug a corrigir antes de seguir.
 - [ ] **Step 6: Commit** `feat: importação da planilha antiga com conferência local` (sem dados reais: conferir `git status` antes)
 
 ---
@@ -551,11 +580,11 @@ test('aba faltando entra no resumo, sem erro', () => {})
 - Test: `src/import/b3.test.ts`
 
 **Interfaces:**
-- Consumes: `parseBRL`, `parseBRDate`, `normalizeTicker`, `upsertDividends`, `saveEvent`.
+- Consumes: `parseBRL`, `parseBRDate`, `parseQty`, `normalizeTicker`, `normalizeBroker`, `upsertDividends`, `saveEvent`.
 - Produces:
 
 ```ts
-export interface B3Import { dividends: Omit<Dividend, 'id'>[]; events: (Omit<CorporateEvent, 'id'> & { sourceKey: string })[]; ignored: number }
+export interface B3Import { dividends: Omit<Dividend, 'id'>[]; events: (NewCorporateEvent & { sourceKey: string })[]; ignored: number; toReview: { date: ISODate; movimentacao: string; produto: string }[] }
 export function parseB3Movimentacao(data: ArrayBuffer): B3Import
 export function importB3(db: Db, p: B3Import): Promise<{ dividends: number; dividendsSkipped: number; replaced: number; events: number; eventsSkipped: number }>
 ```
@@ -563,8 +592,10 @@ export function importB3(db: Db, p: B3Import): Promise<{ dividends: number; divi
 Colunas do extrato: `Entrada/Saída`, `Data`, `Movimentação`, `Produto`, `Instituição`, `Quantidade`, `Preço unitário`, `Valor da Operação`. Ticker = primeiro token de `Produto` antes de ` - `, normalizado. Mapeamento de `Movimentação`:
 - `Rendimento` → `Rendimento`; `Dividendo` → `Dividendo`; `Juros Sobre Capital Próprio` → `JCP` (provento com `amountCents = Valor da Operação`).
 - `Bonificação em Ativos` → evento `bonificacao`, `qtyDelta = Quantidade`, `unitCostCents = null` (o usuário informa o custo depois; o motor avisa).
-- `Desdobro` → `desdobramento`, `qtyDelta = +Quantidade`; `Grupamento` → `grupamento`, `qtyDelta = −Quantidade`.
-- Qualquer outra (`Transferência - Liquidação`, `Atualização`, `Leilão de Fração`, `Direito de Subscrição`, ...) → `ignored` (negociações entram pelas notas).
+- `Desdobro` → `desdobramento`; `Grupamento` → `grupamento`; nos dois, `qtyDelta = parseQty(Quantidade)` com sinal vindo de `Entrada/Saída` (`Credito` +, `Debito` −).
+- `Atualização`, `Amortização`, `Leilão de Fração`, `Incorporação`, `Fração em Ativos`, `Cisão` → `toReview` (o resumo mostra "Movimentações não tratadas, revise e lance à mão").
+- Qualquer outra (`Transferência - Liquidação`, `Direito de Subscrição`, `Cessão de Direitos`, ...) → `ignored` (negociações entram pelas notas).
+- O resumo da importação também lista os eventos aplicados (ticker, data, variação de quantidade), que é onde aparecem as diferenças com a planilha.
 - `sourceKey = b3:<data>:<movimentação>:<produto>:<instituição>:<quantidade>:<valor>`.
 
 - [ ] **Step 1: Testes que falham**
@@ -581,6 +612,8 @@ test('proventos, bonificação e desdobro', () => {
   expect(p.events.map(e => e.kind)).toEqual(['bonificacao', 'desdobramento'])
   expect(p.ignored).toBe(1)
 })
+test('grupamento com Debito reduz a quantidade e 1.000 vira mil', () => { /* Debito, Grupamento, qtd '1.000' → qtyDelta −1000 */ })
+test('Atualização e Amortização vão para revisão', () => {})
 test('importar o mesmo extrato duas vezes não duplica', async () => {})
 ```
 
@@ -593,32 +626,37 @@ test('importar o mesmo extrato duas vezes não duplica', async () => {})
 
 **Files:**
 - Create: `src/db/backup.ts`
+- Modify: `src-tauri/src/lib.rs` (comandos `swap_database` e `move_file`, com teste Rust)
 - Test: `src/db/backup.test.ts`
 
 **Interfaces:**
-- Consumes: `Db`, `SCHEMA_VERSION`, `createTestDb`.
+- Consumes: `Db`, `SCHEMA_VERSION`, `createTestDb`, `createRawDb`, `tmpPath`.
 - Produces:
 
 ```ts
 export class BackupError extends Error {}
-export function exportBackup(db: Db, path: string): Promise<void>                 // VACUUM INTO ?
-export function importBackup(target: Db, source: Db, safetyPath: string): Promise<void>
-export const TABLES: string[]   // ordem que respeita as FKs: notes antes de trades, etc.
+export function validateBackup(source: Db): Promise<void>                          // lança BackupError se não for um backup do Yield
+export function exportBackup(db: Db, tmpPath: string, dest: string, move: (from: string, to: string) => Promise<void>): Promise<void>
+// importação no app: validateBackup(await openDb(path)) → source.close() → checkpoint + db.close() → invoke('swap_database', { source: path }) → openDb() → reload()
 ```
 
-`importBackup`: (1) lê `meta` de `source`; se `app !== 'yield'` ou `schema_version !== String(SCHEMA_VERSION)` (ou se a tabela não existir), lança `BackupError('Este arquivo não é um backup do Yield.')` **sem tocar no `target`**; (2) `exportBackup(target, safetyPath)`; (3) para cada tabela de `TABLES` (exceto `meta`), apaga no `target` (ordem inversa) e copia as linhas de `source` (ordem direta) com `INSERT` de várias linhas. Se qualquer passo de (3) falhar, repete (3) usando o arquivo de segurança como origem e relança o erro. Sem `ATTACH` e sem transação explícita (o pool do plugin-sql não garante a mesma conexão).
+`validateBackup`: lê `meta`; se a tabela não existir, `app !== 'yield'` ou `schema_version !== String(SCHEMA_VERSION)`, lança `BackupError('Este arquivo não é um backup do Yield.')`. `exportBackup`: `VACUUM INTO tmpPath` (arquivo que ainda não existe, na pasta de dados do app) e depois `move(tmpPath, dest)` — `VACUUM INTO` falha se o destino já existir, e o diálogo de salvar permite substituir. A troca do banco é feita em Rust, sem cópia linha a linha: comando `swap_database(source)` copia o `yield.db` atual para `seguranca-<timestamp>.db`, copia `source` para um temporário na mesma pasta, apaga `yield.db-wal`/`-shm` e renomeia o temporário sobre `yield.db` (rename atômico); devolve o caminho da cópia de segurança. Comando `move_file(from, to)`: rename, ou copy + remove se estiver em outro volume, sobrescrevendo `to`.
 
 - [ ] **Step 1: Testes que falham**
 
 ```ts
-test('arquivo que não é do Yield não apaga nada', async () => {
-  const target = createTestDb(); await saveNote(target, nota, trades)
-  const alien = createRawDb()           // node:sqlite sem a migração
-  await expect(importBackup(target, alien, tmp('safe.db'))).rejects.toThrow('não é um backup do Yield')
-  expect((await loadAll(target)).notes).toHaveLength(1)
+test('arquivo que não é do Yield é recusado', async () => {
+  await expect(validateBackup(createRawDb())).rejects.toThrow('não é um backup do Yield')
 })
-test('backup válido substitui os dados e deixa cópia de segurança', async () => {})
-test('exportar e importar devolve os mesmos dados', async () => {})
+test('exportar sobre arquivo existente funciona e o backup é válido', async () => {
+  const db = createTestDb(); await saveNote(db, nota, trades)
+  const dest = tmpPath('b.db'); writeFileSync(dest, 'lixo')
+  await exportBackup(db, tmpPath('t.db'), dest, async (a, b) => renameSync(a, b))
+  const back = createTestDb(dest)   // abrir sem rodar migração de novo: createTestDb aplica só se meta não existir
+  await validateBackup(back)
+  expect((await loadAll(back)).notes).toHaveLength(1)
+})
+// Rust (src-tauri/src/lib.rs, #[cfg(test)]): swap_database num diretório temporário → yield.db passa a ter o conteúdo da origem e a cópia de segurança tem o conteúdo anterior
 ```
 
 - [ ] **Step 2:** → FAIL. **Step 3:** implementar. **Step 4:** → PASS.
@@ -644,7 +682,7 @@ export interface NoteDraft { number: string; broker: 'CLEAR'; tradeDate: ISODate
 export function parseClearNote(pages: string[]): NoteDraft[]     // um PDF pode ter várias notas
 ```
 
-Antes de escrever o parser: rodar `extractPdfText` sobre os PDFs em `notas/` num script local (fora do git) para ver o layout real e se pedem senha. A fixture `clear-nota-sintetica.txt` reproduz esse layout com dados inventados. `ticker` sai do texto quando a especificação contiver algo que case `/\b[A-Z]{4}\d{1,2}\b/` (comum em FII); senão fica `null` e a tela resolve com o apelido salvo (`getAlias`) ou pedindo ao usuário (`saveAlias`). `assetType`: `FII` quando a especificação começar com `FII` ou o ticker terminar em `11` e a linha disser `FII`; `null` quando não der para saber. Taxas lidas do "Resumo Financeiro"/"Resumo dos Negócios": taxa de liquidação, taxa de registro, emolumentos, taxa operacional, ISS, I.R.R.F. s/ operações, outros. `pdfjs-dist` com o worker configurado para Vite (`pdfjs-dist/build/pdf.worker.min.mjs?url`).
+Antes de escrever o parser: rodar `extractPdfText` sobre os PDFs em `notas/` num script local (fora do git) para ver o layout real e se pedem senha. A fixture `clear-nota-sintetica.txt` reproduz esse layout com dados inventados. `ticker` sai do texto quando a especificação contiver algo que case `/\b[A-Z]{4}\d{1,2}\b/` (comum em FII); senão fica `null` e a tela resolve com o apelido salvo (`getAlias`) ou pedindo ao usuário (`saveAlias`). `assetType`: `FII` quando a especificação começar com `FII` ou o ticker terminar em `11` e a linha disser `FII`; `null` quando não der para saber. A corretora do rascunho passa por `normalizeBroker`. Taxas lidas do "Resumo Financeiro"/"Resumo dos Negócios": taxa de liquidação, taxa de registro, emolumentos, taxa operacional, ISS, I.R.R.F. s/ operações, outros. `pdfjs-dist` com o worker configurado para Vite (`pdfjs-dist/build/pdf.worker.min.mjs?url`) no app; o script local de inspeção roda em Node com `pdfjs-dist/legacy/build/pdf.mjs`, sem worker.
 
 - [ ] **Step 1: Testes que falham** (sobre o texto da fixture)
 
@@ -682,7 +720,7 @@ export const MANUAL_QUOTE_SYMBOLS = { dolar: 'BRL=X', BTC: 'BTC-BRL', ETH: 'ETH-
 export const REFRESH_MS = 15 * 60 * 1000
 ```
 
-Endpoint: `https://query1.finance.yahoo.com/v8/finance/chart/<symbol>?range=1d&interval=1d`; preço em `chart.result[0].meta.regularMarketPrice`, hora em `regularMarketTime` (segundos). No app, `fetchFn` é o `fetch` de `@tauri-apps/plugin-http`. Falha de um símbolo não derruba os outros e mantém a última cotação salva. Cotação com `source: 'manual'` nunca é sobrescrita pelo Yahoo.
+Endpoint: `https://query1.finance.yahoo.com/v8/finance/chart/<symbol>?range=1d&interval=1d`; preço em `chart.result[0].meta.regularMarketPrice`, hora em `regularMarketTime` (segundos). No app, `fetchFn` é o `fetch` de `@tauri-apps/plugin-http`, com header `User-Agent` de navegador (sem ele o Yahoo às vezes responde 429). Fazer uma chamada real cedo, antes de seguir para a Task 13. Falha de um símbolo não derruba os outros e mantém a última cotação salva. Cotação com `source: 'manual'` nunca é sobrescrita pelo Yahoo.
 
 - [ ] **Step 1: Testes que falham** (com `fetchFn` falso)
 
@@ -716,20 +754,20 @@ expect(yahooSymbol('BTC-BRL')).toBe('BTC-BRL')
 - Test: `src/domain/portfolio.test.ts`
 
 **Interfaces:**
-- Consumes: `Dataset`, `loadAll`, `replay`, `computeTax`, `computeDarfs`, `refreshQuotes`, `yahooSymbol`, `REFRESH_MS`.
+- Consumes: `Dataset`, `loadAll`, `replay`, `computeTax`, `computeDarfs`, `DarfResult`, `refreshQuotes`, `yahooSymbol`, `REFRESH_MS`.
 - Produces:
 
 ```ts
 // portfolio.ts
 export interface PortfolioRow { ticker: string; assetType: AssetType; qty: number; avgPriceCents: Cents; costCents: Cents; priceCents: Cents | null; valueCents: Cents | null; varCents: Cents | null; varPct: number | null; quotedAt: string | null }
 export interface ManualRow { id: string; name: string; assetClass: ManualAsset['assetClass']; valueCents: Cents | null }
-export interface Portfolio { rows: PortfolioRow[]; manual: ManualRow[]; byClass: { cls: AssetType | 'Ativos manuais'; costCents: Cents; valueCents: Cents }[]; totalValueCents: Cents; totalCostCents: Cents; dividends12mCents: Cents; missingQuotes: string[] }
+export interface Portfolio { rows: PortfolioRow[]; manual: ManualRow[]; byClass: { cls: AssetType | ManualAsset['assetClass']; costCents: Cents | null; valueCents: Cents }[]; totalValueCents: Cents; totalCostCents: Cents; dividends12mCents: Cents; missingQuotes: string[] }
 export function buildPortfolio(positions: Position[], quotes: Quote[], manual: ManualAsset[], dividends: Dividend[], today: ISODate): Portfolio
 // DataProvider.tsx
-export function useData(): { data: Dataset; derived: { replay: ReplayResult; tax: TaxMonth[]; darfs: DarfRow[]; portfolio: Portfolio }; db: Db; reload(): Promise<void>; refreshing: boolean }
+export function useData(): { data: Dataset; derived: { replay: ReplayResult; tax: TaxMonth[]; darfs: DarfResult; portfolio: Portfolio }; db: Db; reload(): Promise<void>; refreshing: boolean }
 ```
 
-Regras: `avgPrice = Math.round(cost / qty)`; posição sem cotação tem `priceCents/valueCents/var* = null`, entra em `missingQuotes`, e **não** soma no total de valor (o total mostra "sem cotação: N ativos"). `byClass` soma custo e valor **da mesma classe** (corrige o bug da Visão Geral). Ativo manual: `quantity × cotação de quoteSymbol` quando os dois existirem, senão `valueCents`. `dividends12m` = proventos com `payDate` nos 365 dias até `today`. `tax` vai do mês da primeira venda (ou 2020-01, o que for menor) até o mês de `today`. `DataProvider` atualiza cotações ao abrir e a cada `REFRESH_MS`.
+Regras: `avgPrice = Math.round(cost / qty)`; posição sem cotação tem `priceCents/valueCents/var* = null`, entra em `missingQuotes`, e **não** soma no total de valor (o total mostra "sem cotação: N ativos"). `byClass` soma custo e valor **da mesma classe** (corrige o bug da Visão Geral); renda fixa, cripto, dólar e outro são classes separadas, com custo `null` (ativo manual não tem custo). Ativo manual: `quantity × cotação de quoteSymbol` quando os dois existirem, senão `valueCents`. `dividends12m` = proventos com `payDate` nos 365 dias até `today`. `tax` vai do mês da primeira venda (ou 2020-01, o que for menor) até o mês de `today`. `DataProvider` atualiza cotações ao abrir e a cada `REFRESH_MS`.
 
 - [ ] **Step 1: Testes que falham**
 
@@ -753,11 +791,11 @@ Regras: `avgPrice = Math.round(cost / qty)`; posição sem cotação tem `priceC
 - Create: `src/pages/Notas.tsx` (e componentes em `src/pages/notas/` se passar de ~300 linhas)
 
 **Interfaces:**
-- Consumes: `allocateFees`, `saveNote`, `deleteNote`, `saveEvent`, `deleteEvent`, `setBonificacaoCost`, `extractPdfText`, `PdfPasswordError`, `parseClearNote`, `getAlias`, `saveAlias`, `normalizeTicker`, `useData`.
+- Consumes: `allocateFees`, `saveNote`, `replaceNote`, `deleteNote`, `saveEvent`, `deleteEvent`, `setBonificacaoCost`, `extractPdfText`, `PdfPasswordError`, `parseClearNote`, `getAlias`, `saveAlias`, `normalizeTicker`, `useData`.
 
-- [ ] **Step 1:** Lista de notas por data (corretora, número, itens, total) com excluir (confirmação "Excluir a nota X e recalcular tudo?").
-- [ ] **Step 2:** Formulário de nota manual: cabeçalho, itens (C/V, tipo, ticker, qtd, preço) e as 7 taxas; ao salvar chama `allocateFees` e `saveNote` com `source: 'manual'`, `sourceKey: manual:<corretora>:<número>:<data>`. Precisa ser rápido de digitar: Tab percorre os campos, Enter adiciona item, ticker já em maiúsculas.
-- [ ] **Step 3:** Importar PDF (`<input type="file" accept="application/pdf" multiple>`): extrai, pede senha se `PdfPasswordError`, mostra cada rascunho para revisão (itens com ticker `null` pedem o ticker e salvam o apelido; tipo `null` pede o tipo); confirmar salva com `source: 'pdf'`, `sourceKey: pdf:CLEAR:<número>`. Nota já importada aparece como "já importada" e não salva de novo.
+- [ ] **Step 1:** Lista de notas por data (corretora, número, itens, total) com editar (reabre o formulário preenchido e salva com `replaceNote`) e excluir (confirmação "Excluir a nota X e recalcular tudo?").
+- [ ] **Step 2:** Formulário de nota manual: cabeçalho, itens (C/V, tipo, ticker, qtd, preço) e as 7 taxas; ao salvar chama `allocateFees` e `saveNote` com `source: 'manual'`, `sourceKey: manual:<corretora>:<número>:<data>`; `{ skipped: 'duplicada' }` vira a mensagem "Essa nota já existe". Precisa ser rápido de digitar: Tab percorre os campos, Enter adiciona item, ticker já em maiúsculas.
+- [ ] **Step 3:** Importar PDF (`<input type="file" accept="application/pdf" multiple>`): extrai, pede senha se `PdfPasswordError`, mostra cada rascunho para revisão (itens com ticker `null` pedem o ticker e salvam o apelido; tipo `null` pede o tipo); confirmar salva com `source: 'pdf'`, `sourceKey: pdf:CLEAR:<número>`. Nota já existente (inclusive a que veio da planilha) aparece como "já importada" e não salva de novo.
 - [ ] **Step 4:** Operação sem nota (IPO, subscrição): uma compra com data, ticker, tipo, qtd e preço, `source: 'sem_nota'`, `label` com o motivo.
 - [ ] **Step 5:** Eventos corporativos: lista e formulário (bonificação com custo unitário, desdobramento, grupamento, mudança de ticker). Bonificação importada da B3 sem custo aparece destacada com campo para informar o custo.
 - [ ] **Step 6:** Verificar no app: lançar uma nota manual, importar um PDF real de `notas/`, excluir uma nota e ver a Carteira e o Imposto mudarem. `pnpm vitest run` continua PASS.
@@ -771,9 +809,9 @@ Regras: `avgPrice = Math.round(cost / qty)`; posição sem cotação tem `priceC
 - Create: `src/pages/Proventos.tsx`
 
 **Interfaces:**
-- Consumes: `useData`, `upsertDividends`, `deleteDividend`.
+- Consumes: `useData`, `upsertDividends`, `deleteDividend` (com confirmação).
 
-- [ ] **Step 1:** Lista por mês (data, ticker, tipo, corretora, valor, origem), filtro por ticker e tipo, total por ano e por tipo (Dividendo e Rendimento isentos, JCP com tributação exclusiva, rotulados assim).
+- [ ] **Step 1:** Lista por mês (data, ticker, tipo, corretora, valor, origem), filtro por ticker e tipo, total por ano e por tipo (Dividendo, JCP, Rendimento). Sem rótulo de "isento": desde 2026 dividendos acima de R$ 50 mil/mês da mesma fonte têm retenção (Lei 15.270/2025), e rendimento de FII só é isento em certas condições.
 - [ ] **Step 2:** Lançamento manual (`source: 'manual'`, `sourceKey: null`) e exclusão.
 - [ ] **Step 3:** Verificar no app com os proventos importados da planilha. **Step 4: Commit** `feat: tela de proventos`
 
@@ -788,9 +826,9 @@ Regras: `avgPrice = Math.round(cost / qty)`; posição sem cotação tem `priceC
 - Consumes: `useData` (`derived.tax`, `derived.darfs`, `derived.replay.warnings`), `savePayment`, `deletePayment`, `DARF_CODE`.
 
 - [ ] **Step 1:** Aviso fixo no topo: "Cobre só renda variável na B3 (ações, FIIs, ETFs e BDRs). Cripto e dólar não entram. Day trade não é apurado."
-- [ ] **Step 2:** Resumo: total de DARF em aberto e quantidade de meses em aberto, em destaque.
+- [ ] **Step 2:** Resumo: `openCents` e quantidade de meses em aberto, em destaque; `openIncompleteCents` à parte ("em meses com notas faltando"); `orphanPayments` listados com "Pagamento sem DARF correspondente — revise".
 - [ ] **Step 3:** Tabela por mês, do mais recente ao mais antigo, agrupada por ano: vendas de ações, resultado comum, lucro isento, prejuízo a compensar, IR comum, resultado FII, IR FII, IRRF usado, DARF, vencimento, situação. Meses `incomplete` com aviso "Venda maior que a posição: faltam notas antes desta data". Meses com aviso de day trade também sinalizados.
-- [ ] **Step 4:** Por DARF: dados para emitir (código `6015`, período de apuração = último dia do mês, valor principal, vencimento) com texto "Pagamento em atraso: calcule multa e juros no SicalcWeb da Receita" e link `https://sicalc.receita.economia.gov.br/sicalc/principal`; "Marcar como pago" pede data e valor pago (`savePayment`); desfazer (`deletePayment`).
+- [ ] **Step 4:** Por DARF: dados para emitir (código `6015`, período de apuração = último dia do mês, valor principal, vencimento) com texto "Pagamento em atraso: calcule multa e juros no SicalcWeb da Receita" e link `https://sicalc.receita.economia.gov.br/sicalc/principal`; "Marcar como pago" pede data, principal e total pago (`savePayment`); `pago_a_menor` mostra o complemento a pagar; desfazer (`deletePayment`, com confirmação).
 - [ ] **Step 5:** Saldo de IRRF de dezembro de cada ano exibido como "IRRF a informar na declaração".
 - [ ] **Step 6:** Verificar no app com o histórico importado: meses de 2022–2025 aparecem calculados. **Step 7: Commit** `feat: tela de imposto e DARF`
 
@@ -803,11 +841,11 @@ Regras: `avgPrice = Math.round(cost / qty)`; posição sem cotação tem `priceC
 - Modify: `src/pages/Carteira.tsx` (estado vazio)
 
 **Interfaces:**
-- Consumes: `parsePlanilha`, `importPlanilha`, `parseB3Movimentacao`, `importB3`, `exportBackup`, `importBackup`, `BackupError`, `openDb`, `useData`; `save`/`open` de `@tauri-apps/plugin-dialog`; `appDataDir` de `@tauri-apps/api/path`.
+- Consumes: `parsePlanilha`, `importPlanilha`, `parseB3Movimentacao`, `importB3`, `exportBackup`, `validateBackup`, `BackupError`, `openDb`, `useData`, `invoke('swap_database')`, `invoke('move_file')`; `save`/`open` de `@tauri-apps/plugin-dialog`; `appDataDir` de `@tauri-apps/api/path`.
 
-- [ ] **Step 1:** Importar planilha (`<input type="file" accept=".xlsm,.xlsx">`) → resumo com contagens e a lista `ignored`.
-- [ ] **Step 2:** Importar extrato B3 (`.xlsx`) → resumo com contagens (incluindo "substituídos da planilha").
-- [ ] **Step 3:** Exportar backup: `save({ defaultPath: 'yield-backup-AAAA-MM-DD.db' })` → `exportBackup`. Importar backup: `open()` → confirmação "Isso substitui todos os dados atuais. Uma cópia de segurança será guardada." → `importBackup(db, await openDb(path), <appDataDir>/seguranca-<timestamp>.db)` → `reload()`; `BackupError` vira mensagem na tela.
+- [ ] **Step 1:** Importar planilha (`<input type="file" accept=".xlsm,.xlsx">`) → resumo com contagens, a lista `ignored` e `typeConflicts` ("HGLG11 aparece como FII e ETF; usei FII").
+- [ ] **Step 2:** Importar extrato B3 (`.xlsx`) → antes de gravar, confirmação mostrando quantos proventos da planilha serão substituídos; depois, resumo com contagens, eventos aplicados e `toReview`.
+- [ ] **Step 3:** Exportar backup: `save({ defaultPath: 'yield-backup-AAAA-MM-DD.db' })` → `exportBackup(db, <appDataDir>/export-<timestamp>.db, dest, move_file)`. Importar backup: `open()` → `validateBackup(await openDb(path))` e `close()` → confirmação "Isso substitui todos os dados atuais. Uma cópia de segurança será guardada." → `PRAGMA wal_checkpoint(TRUNCATE)` + `db.close()` → `swap_database` → `openDb()` → `reload()` e mensagem com o caminho da cópia de segurança; `BackupError` vira mensagem na tela sem tocar em nada.
 - [ ] **Step 4:** Carteira vazia (sem notas) mostra "Comece importando sua planilha" com botão que leva a Configurações.
 - [ ] **Step 5:** Verificar no app: primeira abertura → importar a planilha real → importar de novo (nada duplica) → exportar → importar o backup → mesmos dados. **Step 6: Commit** `feat: configurações, importações e backup`
 
