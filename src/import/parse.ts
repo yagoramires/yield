@@ -3,7 +3,8 @@ import type { Cents, ISODate } from '../domain/types'
 const blank = (v: unknown) => v == null || (typeof v === 'string' && /^[\s-]*$/.test(v))
 
 // '1.234,56' → 1234.56 (pt-BR); `${n}e2` evita 1.005 * 100 = 100.49999…
-function toCents(n: number): Cents { return Math.round(Number(`${n}e2`)) }
+// toFixed nunca usa notação exponencial (1e-14 → '0.000000'), o que quebraria o 'e2'.
+function toCents(n: number): Cents { return Math.round(Number(`${n.toFixed(6)}e2`)) + 0 }
 
 function brNumber(s: string): number {
   const n = Number(s.replace(/[^\d,-]/g, '').replace(',', '.'))

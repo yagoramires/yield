@@ -14,6 +14,8 @@ describe('parseBRL', () => {
   test('número do Excel é reais, sem erro de ponto flutuante', () => {
     expect(parseBRL(10.85)).toBe(1085)
     expect(parseBRL(1.005)).toBe(101)
+    expect(parseBRL(1e-14)).toBe(0)
+    expect(parseBRL(1.4210854715202004e-14)).toBe(0)
   })
 })
 
