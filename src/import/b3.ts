@@ -23,6 +23,7 @@ export function parseB3Movimentacao(data: ArrayBuffer): B3Import {
   const rows = utils.sheet_to_json<Cell[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false })
   const col = new Map(rows[0]?.map((h, i) => [text(h), i]))
   const out: B3Import = { dividends: [], events: [], ignored: 0, toReview: [] }
+  const seen = new Map<string, number>() // linhas idênticas no mesmo arquivo ganham :#n (n = idênticas anteriores)
   for (const r of rows.slice(1)) {
     const get = (h: string) => r[col.get(h) ?? -1]
     const mov = text(get('Movimentação'))
@@ -34,12 +35,19 @@ export function parseB3Movimentacao(data: ArrayBuffer): B3Import {
     const qtyCell = get('Quantidade')
     const valueCell = get('Valor da Operação')
     const ticker = normalizeTicker(produto.split(' - ')[0])
-    const sourceKey = `b3:${date}:${mov}:${produto}:${inst}:${text(qtyCell)}:${text(valueCell)}`
+    const baseKey = `b3:${date}:${mov}:${produto}:${inst}:${text(qtyCell)}:${text(valueCell)}`
+    const n = seen.get(baseKey) ?? 0
+    seen.set(baseKey, n + 1)
+    const sourceKey = n ? `${baseKey}:#${n}` : baseKey
     const qty = parseQty(str(qtyCell))
     const sign = /^d/i.test(text(get('Entrada/Saída'))) ? -1 : 1
 
-    if (PROVENTOS[mov]) {
-      out.dividends.push({ ticker, kind: PROVENTOS[mov], payDate: date, amountCents: parseBRL(str(valueCell)), broker: normalizeBroker(inst), source: 'b3', sourceKey })
+    const amountCents = PROVENTOS[mov] ? parseBRL(str(valueCell)) : 0
+    // Provento sem valor ou Grupamento a crédito (sinal não confirmado num extrato real) vão para revisão.
+    if ((PROVENTOS[mov] && amountCents <= 0) || (mov === 'Grupamento' && sign > 0)) {
+      out.toReview.push({ date, movimentacao: mov, produto })
+    } else if (PROVENTOS[mov]) {
+      out.dividends.push({ ticker, kind: PROVENTOS[mov], payDate: date, amountCents, broker: normalizeBroker(inst), source: 'b3', sourceKey })
     } else if (mov === 'Bonificação em Ativos') {
       out.events.push({ kind: 'bonificacao', ticker, date, qtyDelta: qty, unitCostCents: null, sourceKey })
     } else if (mov === 'Desdobro' || mov === 'Grupamento') {
