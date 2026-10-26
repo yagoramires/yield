@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type ManualAsset } from '../db/repo'
 import { formatBRL, formatCents } from '../domain/money'
+import type { Cents } from '../domain/types'
 import type { PortfolioRow } from '../domain/portfolio'
-import { parseBRL } from '../import/parse'
+import { parseBRL, parseDecimal } from '../import/parse'
 import { yahooSymbol } from '../quotes/yahoo'
 import { useData } from '../state/DataProvider'
 
@@ -18,7 +19,6 @@ const when = (iso: string) => {
   const p = (n: number) => String(n).padStart(2, '0')
   return `${p(d.getDate())}/${p(d.getMonth() + 1)} às ${p(d.getHours())}:${p(d.getMinutes())}`
 }
-const toNum = (s: string) => Number(s.trim().replace(/\./g, '').replace(',', '.'))
 const today = () => new Date().toISOString().slice(0, 10)
 
 interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; sourceKey: string | null }
@@ -53,8 +53,11 @@ export function Carteira() {
 
   const saveForm = async () => {
     if (!form) return
-    const qty = form.quantity.trim() ? toNum(form.quantity) : null
-    const value = form.value.trim() ? parseBRL(form.value) : null
+    let qty: number | null, value: Cents | null
+    try {
+      qty = form.quantity.trim() ? parseDecimal(form.quantity) : null
+      value = form.value.trim() ? parseBRL(form.value) : null
+    } catch { return setFormError('Quantidade ou valor em formato inválido. Use, por exemplo, 0,01 ou 1.234,56.') }
     const symbol = form.quoteSymbol.trim() ? yahooSymbol(form.quoteSymbol) : null
     if (!form.name.trim()) return setFormError('Informe o nome do ativo.')
     if (qty !== null && !(qty >= 0)) return setFormError('Quantidade inválida.')
@@ -69,7 +72,8 @@ export function Carteira() {
 
   const savePrice = async () => {
     if (!priceFor) return
-    const cents = parseBRL(priceFor.text)
+    let cents: Cents
+    try { cents = parseBRL(priceFor.text) } catch { return setError('Preço em formato inválido. Use, por exemplo, 29,05.') }
     if (!(cents > 0)) return setError('Informe um preço maior que zero.')
     await run(async () => {
       await upsertQuote(db, { symbol: yahooSymbol(priceFor.ticker), priceCents: cents, fetchedAt: new Date().toISOString(), source: 'manual' })

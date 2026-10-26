@@ -17,6 +17,15 @@ export function parseQty(v: string | number | null | undefined): number {
   return typeof v === 'number' ? v : brNumber(v!.replace(/\./g, ''))
 }
 
+// Digitação do usuário (quantidade decimal): '0,01' e '0.01' são decimais; '1.000' e '1.234.567' são milhar.
+// Regra: com vírgula, vale pt-BR; sem vírgula, um único '.' seguido de ≠ 3 dígitos é ponto decimal.
+export function parseDecimal(v: string): number {
+  const t = v.trim()
+  if (!t || !/^(\d+(\.\d+)*)?(,\d+)?$/.test(t)) throw new Error(`Número inválido: "${v}"`)
+  if (t.includes(',')) return brNumber(t.replace(/\./g, ''))
+  return /^\d+\.\d+$/.test(t) && !/\.\d{3}$/.test(t) ? Number(t) : Number(t.replace(/\./g, ''))
+}
+
 export function parseBRL(v: string | number | null | undefined): Cents {
   if (blank(v)) return 0
   if (typeof v === 'number') return toCents(v)
