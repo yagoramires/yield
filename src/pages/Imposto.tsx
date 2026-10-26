@@ -3,7 +3,7 @@ import { deletePayment, savePayment } from '../db/repo'
 import { DARF_CODE, type DarfStatus } from '../domain/darf'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
-import { buildPayment, dayTradeMonths, groupByYear, irrfToDeclare, lastDayOfMonth, type ImpostoRow, type PaymentForm } from './imposto/build'
+import { buildPayment, dayTradeMonths, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type PaymentForm } from './imposto/build'
 
 const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -26,11 +26,15 @@ export function Imposto() {
   const [copied, setCopied] = useState<string | null>(null)
 
   const { darfs, tax, replay } = derived
-  const groups = groupByYear(tax, darfs.rows)
+  const groups = groupByYear(tax, darfs.rows).map(g => ({ ...g, rows: g.rows.filter(r => !isEmptyMonth(r)) })).filter(g => g.rows.length > 0)
   const dtMonths = dayTradeMonths(replay.warnings)
+  const loss = (r: ImpostoRow) => { const l = lossCarry(r.tax); return l.comum + l.fii === 0 ? '—' : <>comum {formatCents(l.comum)}<br />FII {formatCents(l.fii)}</> }
   const exempt = (r: ImpostoRow) => r.tax.comum.exemptProfitCents
-  const loss = (r: ImpostoRow) => -(r.tax.comum.lossOutCents + r.tax.fii.lossOutCents)
-  const openMonths = darfs.rows.filter(r => r.status === 'em_aberto' || r.status === 'pago_a_menor').length
+  const counts = openCounts(darfs.rows)
+  const latest = tax[tax.length - 1]
+  const latestLoss = latest ? lossCarry(latest) : { comum: 0, fii: 0 }
+  const year = groups[0]?.year ?? ''
+  const plural = (n: number) => `${n} ${n === 1 ? 'mês' : 'meses'}`
 
   const startPay = (r: ImpostoRow) => {
     // Complementar substitui o pagamento do mês: o principal sugerido é o DARF inteiro.
@@ -59,17 +63,30 @@ export function Imposto() {
         <div className="k" style={{ borderColor: darfs.openCents > 0 ? '#4a2224' : undefined }}>
           <div className="muted">DARF em aberto</div>
           <div className={`v ${darfs.openCents > 0 ? 'dn' : ''}`}>{formatBRL(darfs.openCents)}</div>
-          <div className="s muted">{openMonths} {openMonths === 1 ? 'mês' : 'meses'} em aberto · código {DARF_CODE}</div>
+          <div className="s muted">{plural(counts.complete)} em aberto · código {DARF_CODE}</div>
         </div>
         <div className="k">
           <div className="muted">Em meses com notas faltando</div>
           <div className="v">{formatBRL(darfs.openIncompleteCents)}</div>
-          <div className="s muted">valor pode estar errado</div>
+          <div className="s muted">{plural(counts.incomplete)} · valor pode estar errado</div>
+        </div>
+        <div className="k">
+          <div className="muted">Prejuízo a compensar</div>
+          <div className="v">{formatBRL(latestLoss.comum + latestLoss.fii)}</div>
+          <div className="s muted">comum {formatBRL(latestLoss.comum)} · FII {formatBRL(latestLoss.fii)}</div>
+        </div>
+        <div className="k">
+          <div className="muted">Vendas de ações isentas em {year}</div>
+          <div className="v">{formatBRL(exemptSales(tax, year))}</div>
+          <div className="s muted">meses abaixo de R$ 20 mil com lucro</div>
         </div>
       </div>
       {darfs.orphanPayments.map(p => (
         <div className="note" key={p.month} style={{ marginBottom: 8 }}>
-          Pagamento sem DARF correspondente — revise: {monLabel(p.month)}, pago em {brDay(p.paidAt)}, principal {formatBRL(p.principalCents)}.
+          Pagamento sem DARF correspondente — revise: {monLabel(p.month)}, pago em {brDay(p.paidAt)}, principal {formatBRL(p.principalCents)}.{' '}
+          {confirm === `o-${p.month}` ? (
+            <span>Desfazer este pagamento? <button className="link dn" onClick={() => void undo(p.month)}>Desfazer</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
+          ) : <button className="link" onClick={() => setConfirm(`o-${p.month}`)}>desfazer</button>}
         </div>
       ))}
 
@@ -89,7 +106,7 @@ export function Imposto() {
                 return [
                   <tr key={m} className={urgent ? 'hl' : ''}>
                     <td>{monLabel(m)}</td><td className="r">{dash(t.stockSalesCents)}</td><td className="r">{result(t.comum.resultCents)}</td>
-                    <td className="r">{dash(exempt(r))}</td><td className="r">{dash(loss(r))}</td><td className="r">{formatCents(t.comum.taxDueCents)}</td>
+                    <td className="r">{dash(exempt(r))}</td><td className="r">{loss(r)}</td><td className="r">{formatCents(t.comum.taxDueCents)}</td>
                     <td className="r">{result(t.fii.resultCents)}</td><td className="r">{formatCents(t.fii.taxDueCents)}</td>
                     <td className="r">{formatCents(t.comum.irrfUsedCents + t.fii.irrfUsedCents)}</td>
                     <td className={`r ${urgent ? 'dn' : ''}`}>{d.darfCents > 0 ? formatCents(d.darfCents) : '—'}</td>
