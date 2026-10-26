@@ -17,13 +17,22 @@ export function parseQty(v: string | number | null | undefined): number {
   return typeof v === 'number' ? v : brNumber(v!.replace(/\./g, ''))
 }
 
-// Digitação do usuário (quantidade decimal): '0,01' e '0.01' são decimais; '1.000' e '1.234.567' são milhar.
-// Regra: com vírgula, vale pt-BR; sem vírgula, um único '.' seguido de ≠ 3 dígitos é ponto decimal.
+// Digitação do usuário (quantidade decimal). Com vírgula: pt-BR. Sem vírgula, o ponto é decimal,
+// exceto grupos de milhar (2+ pontos); '1.500' é ambíguo e é rejeitado.
+export const AMBIGUOUS_MSG = 'Valor ambíguo: use vírgula para decimais (1,5) ou escreva sem ponto (1500).'
 export function parseDecimal(v: string): number {
   const t = v.trim()
-  if (!t || !/^(\d+(\.\d+)*)?(,\d+)?$/.test(t)) throw new Error(`Número inválido: "${v}"`)
-  if (t.includes(',')) return brNumber(t.replace(/\./g, ''))
-  return /^\d+\.\d+$/.test(t) && !/\.\d{3}$/.test(t) ? Number(t) : Number(t.replace(/\./g, ''))
+  const bad = () => new Error(`Número inválido: "${v}"`)
+  if (t.includes(',')) {
+    if (!/^(\d{1,3}(\.\d{3})*|\d+),\d+$/.test(t)) throw bad()
+    return Number(t.replace(/\./g, '').replace(',', '.'))
+  }
+  if (/^\d+$/.test(t)) return Number(t)
+  if (/^0\.\d+$/.test(t)) return Number(t)
+  if (/^\d{1,3}(\.\d{3}){2,}$/.test(t)) return Number(t.replace(/\./g, ''))
+  if (/^\d+\.\d{3}$/.test(t)) throw new Error(AMBIGUOUS_MSG)
+  if (/^\d+\.(\d{1,2}|\d{4,})$/.test(t)) return Number(t)
+  throw bad()
 }
 
 export function parseBRL(v: string | number | null | undefined): Cents {

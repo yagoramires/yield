@@ -49,16 +49,26 @@ describe('normalizeBroker', () => {
 })
 
 describe('parseDecimal', () => {
-  test('vírgula ou ponto decimal; milhar com 3 dígitos', () => {
+  test('com vírgula: pt-BR', () => {
+    expect(parseDecimal('1,500')).toBe(1.5)
     expect(parseDecimal('0,01')).toBe(0.01)
-    expect(parseDecimal('0.01')).toBe(0.01)
-    expect(parseDecimal('1.5')).toBe(1.5)
-    expect(parseDecimal('1.000')).toBe(1000)
-    expect(parseDecimal('1.234.567')).toBe(1234567)
     expect(parseDecimal('1.234,5')).toBe(1234.5)
-    expect(parseDecimal('12')).toBe(12)
+    expect(() => parseDecimal('1.23,5')).toThrow()
+    expect(() => parseDecimal('1,2,3')).toThrow()
   })
-  test('rejeita entrada malformada', () => {
-    for (const bad of ['1,2,3', 'abc', '', '1..2', '-1']) expect(() => parseDecimal(bad)).toThrow()
+  test('sem vírgula e sem ponto', () => { expect(parseDecimal('12')).toBe(12); expect(parseDecimal('1500')).toBe(1500) })
+  test('0. inicial é decimal', () => {
+    for (const [s, n] of [['0.001', 0.001], ['0.010', 0.01], ['0.500', 0.5], ['0.123', 0.123], ['0.01', 0.01]] as const) expect(parseDecimal(s)).toBe(n)
+  })
+  test('dois ou mais pontos em grupos de milhar', () => { expect(parseDecimal('1.234.567')).toBe(1234567) })
+  test('ponto único com 3 dígitos e inteiro ≠ 0 é ambíguo', () => {
+    expect(() => parseDecimal('1.500')).toThrow(/Valor ambíguo/)
+    expect(() => parseDecimal('1.000')).toThrow(/Valor ambíguo/)
+  })
+  test('ponto único com 1, 2 ou 4+ dígitos é decimal', () => {
+    expect(parseDecimal('1.5')).toBe(1.5); expect(parseDecimal('2.25')).toBe(2.25); expect(parseDecimal('1.2345')).toBe(1.2345)
+  })
+  test('rejeita o resto', () => {
+    for (const bad of ['1.5.5', '1..2', 'abc', '', '-1', '1.23.456']) expect(() => parseDecimal(bad)).toThrow()
   })
 })
