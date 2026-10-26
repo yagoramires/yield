@@ -8,6 +8,19 @@ async function loadPdfjs() {
   return pdfjs
 }
 
+const ROW_TOLERANCE = 2.5 // pt: itens da mesma linha visual podem ter baseline com jitter
+
+export function buildLines(items: { s: string; x: number; y: number }[]): string {
+  const sorted = [...items].sort((a, b) => b.y - a.y) // pdf.js: y cresce para cima
+  const rows: { y: number; cells: typeof items }[] = []
+  for (const it of sorted) {
+    const row = rows[rows.length - 1]
+    if (row && row.y - it.y <= ROW_TOLERANCE) row.cells.push(it)
+    else rows.push({ y: it.y, cells: [it] })
+  }
+  return rows.map(r => r.cells.sort((a, b) => a.x - b.x).map(c => c.s).join(' ')).join('\n')
+}
+
 export async function extractPdfText(data: Uint8Array, password?: string): Promise<string[]> {
   const pdfjs = await loadPdfjs()
   const task = pdfjs.getDocument({ data: data.slice(), password })
@@ -21,14 +34,7 @@ export async function extractPdfText(data: Uint8Array, password?: string): Promi
   const pages: string[] = []
   for (let n = 1; n <= doc.numPages; n++) {
     const { items } = await (await doc.getPage(n)).getTextContent()
-    const rows = new Map<number, { x: number; s: string }[]>()
-    for (const it of items) {
-      if (!('str' in it) || !it.str.trim()) continue
-      const y = Math.round(it.transform[5] / 3) // tolera ~3pt de variação de baseline na mesma linha
-      rows.set(y, [...(rows.get(y) ?? []), { x: it.transform[4], s: it.str.trim() }])
-    }
-    pages.push([...rows].sort((a, b) => b[0] - a[0])
-      .map(([, r]) => r.sort((a, b) => a.x - b.x).map(c => c.s).join(' ')).join('\n'))
+    pages.push(buildLines(items.flatMap(it => ('str' in it && it.str.trim() ? [{ s: it.str.trim(), x: it.transform[4], y: it.transform[5] }] : []))))
   }
   await task.destroy()
   return pages

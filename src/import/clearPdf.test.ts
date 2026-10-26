@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parseClearNote } from './clearPdf'
-import { extractPdfText, PdfPasswordError } from './pdfText'
+import { buildLines, extractPdfText, PdfPasswordError } from './pdfText'
 
 const fixture = readFileSync('tests/fixtures/clear-nota-sintetica.txt', 'utf8')
 
@@ -43,6 +43,13 @@ endstream endobj
 5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
 trailer<</Root 1 0 R/Size 6>>
 %%EOF${extra}`)
+
+describe('buildLines', () => {
+  it('junta itens com jitter de baseline na mesma linha e separa linhas distintas', () => {
+    const items = [{ s: 'B', x: 50, y: 4.6 }, { s: 'A', x: 10, y: 4.4 }, { s: 'C', x: 10, y: -8 }]
+    expect(buildLines(items)).toBe('A B\nC')
+  })
+})
 
 describe('extractPdfText', () => {
   it('reconstrói linhas pela posição y', async () => {
