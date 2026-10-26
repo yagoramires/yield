@@ -3,7 +3,7 @@ import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type Manu
 import { formatBRL, formatCents } from '../domain/money'
 import type { Cents } from '../domain/types'
 import type { PortfolioRow } from '../domain/portfolio'
-import { parseBRL, parseDecimal } from '../import/parse'
+import { AMBIGUOUS_MSG, parseBRL, parseDecimal } from '../import/parse'
 import { yahooSymbol } from '../quotes/yahoo'
 import { useData } from '../state/DataProvider'
 
@@ -57,7 +57,7 @@ export function Carteira() {
     try {
       qty = form.quantity.trim() ? parseDecimal(form.quantity) : null
       value = form.value.trim() ? parseBRL(form.value) : null
-    } catch { return setFormError('Quantidade ou valor em formato inválido. Use, por exemplo, 0,01 ou 1.234,56.') }
+    } catch (e) { return setFormError(e instanceof Error && e.message === AMBIGUOUS_MSG ? AMBIGUOUS_MSG : 'Quantidade ou valor em formato inválido. Use, por exemplo, 0,01 ou 1.234,56.') }
     const symbol = form.quoteSymbol.trim() ? yahooSymbol(form.quoteSymbol) : null
     if (!form.name.trim()) return setFormError('Informe o nome do ativo.')
     if (qty !== null && !(qty >= 0)) return setFormError('Quantidade inválida.')
