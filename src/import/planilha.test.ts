@@ -28,9 +28,21 @@ test('agrupa linhas em notas e soma taxas sem o IRRF', () => {
 })
 
 test('linhas com tipo desconhecido ou sem data vão para ignored', () => {
-  const p = parsePlanilha(makePlanilha({ notas: [nota({}), nota({ tipo: 'Opção', ticker: 'PETRA1' })] }))
+  const p = parsePlanilha(makePlanilha({ notas: [
+    nota({}), nota({ tipo: 'Opção', ticker: 'PETRA1' }),
+    nota({ nota: '', corretora: 'BTG', pregao: null, liquidacao: null, ticker: 'PETR3' }),
+  ] }))
+  expect(p.notes).toHaveLength(1)
   expect(p.notes[0].trades).toHaveLength(1)
   expect(p.ignored.some(m => m.includes('PETRA1') && m.includes('Opção'))).toBe(true)
+  expect(p.ignored.some(m => m.includes('PETR3') && m.includes('sem data'))).toBe(true)
+})
+
+test('linhas com data mas sem número de nota viram uma nota de número vazio', () => {
+  const p = parsePlanilha(makePlanilha({ notas: [nota({ nota: '' }), nota({ nota: '', ticker: 'WEGE3' })] }))
+  expect(p.notes).toHaveLength(1)
+  expect(p.notes[0].note).toMatchObject({ number: '', broker: 'CLEAR', tradeDate: '2024-01-05', sourceKey: 'planilha:CLEAR::2024-01-05' })
+  expect(p.notes[0].trades.map(t => t.ticker)).toEqual(['ITSA4', 'WEGE3'])
 })
 
 test('grade de rendimentos vira proventos por mês', () => {
@@ -71,7 +83,7 @@ test('Visão Geral: renda fixa vira ativo manual e Dólar/BTC entram no resumo',
 test('importar duas vezes não duplica', async () => {
   const db = createTestDb(); const p = parsePlanilha(makePlanilha(base))
   expect(await importPlanilha(db, p)).toEqual({ notes: 2, notesSkipped: 0, dividends: 1, dividendsSkipped: 0, manualAssets: 2 })
-  expect(await importPlanilha(db, p)).toMatchObject({ notes: 0, notesSkipped: 2, dividends: 0, manualAssets: 0 })
+  expect(await importPlanilha(db, p)).toEqual({ notes: 0, notesSkipped: 2, dividends: 0, dividendsSkipped: 1, manualAssets: 0 })
   const d = await loadAll(db)
   expect([d.notes.length, d.trades.length, d.dividends.length, d.manualAssets.length]).toEqual([2, 3, 1, 2])
 })

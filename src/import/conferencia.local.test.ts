@@ -30,6 +30,29 @@ describe.skipIf(!existsSync(FILE))('conferência com a planilha antiga', () => {
     const db = createTestDb()
     const p = parsePlanilha(data)
     console.log('importação:', await importPlanilha(db, p), '\ntypeConflicts:', p.typeConflicts, '\nignored:', p.ignored)
+
+    // Proventos: sourceKey repetido perderia valor no upsert; e o total lido tem de bater com os totais da própria grade.
+    const seen = new Set<string>()
+    const collisions = p.dividends.filter(x => seen.size === seen.add(x.sourceKey!).size)
+    console.log(`proventos: ${collisions.length} sourceKey repetidos`, collisions.map(x => `${x.ticker} ${x.payDate.slice(0, 7)} ${x.kind}`))
+    for (const name of wb.SheetNames.filter(n => /^Rendimentos \d{4}$/.test(n))) {
+      const year = name.slice(-4)
+      let label = '', inBlock = false, cells = 0, gridTotal = 0
+      for (const row of utils.sheet_to_json<Cell[]>(wb.Sheets[name], { header: 1, raw: true, defval: null })) {
+        const a = String(row[0] ?? '').trim()
+        const months = row.slice(2, 14).reduce<number>((s, v) => s + cents(v), 0) // C–N = janeiro–dezembro
+        if (a === 'Ativo') { inBlock = true; cells = 0; continue }
+        if (a === 'Total' && inBlock) {
+          console.log(`${year} bloco "${label}": linha Total ${months === cells ? 'ok' : 'diferente'} da soma das células`)
+          gridTotal += months; inBlock = false; continue
+        }
+        if (!inBlock) { if (a) label = a; continue }
+        if (a) cells += row.slice(2, 14).reduce<number>((s, v) => s + Math.max(cents(v), 0), 0)
+      }
+      const parsed = p.dividends.filter(x => x.payDate.startsWith(year)).reduce((s, x) => s + x.amountCents, 0)
+      console.log(`${year}: proventos importados ${parsed === gridTotal ? 'ok' : 'diferente'} da soma das linhas Total`)
+    }
+
     const d = await loadAll(db)
     const r = replay(d.trades, d.events)
     console.log('warnings:', r.warnings.map(w => `${w.kind} ${w.ticker} ${w.date}`))
