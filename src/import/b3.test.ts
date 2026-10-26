@@ -69,3 +69,33 @@ test('provento da B3 substitui o da planilha do mesmo ticker e mês', async () =
   expect(r).toMatchObject({ dividends: 1, replaced: 1 })
   expect((await loadAll(db)).dividends.map(d => d.source)).toEqual(['b3'])
 })
+
+test('grupamento com Credito vai para revisão', () => {
+  const p = parseB3Movimentacao(makeB3([row('Credito', '10/06/2024', 'Grupamento', 'MGLU3 - MAGAZINE LUIZA S.A.', '10')]))
+  expect(p.events).toHaveLength(0)
+  expect(p.toReview).toEqual([{ date: '2024-06-10', movimentacao: 'Grupamento', produto: 'MGLU3 - MAGAZINE LUIZA S.A.' }])
+})
+
+test('provento sem valor vai para revisão e não apaga o da planilha', async () => {
+  const p = parseB3Movimentacao(makeB3([
+    row('Credito', '14/03/2024', 'Rendimento', 'HGLG11 - CSHG LOGISTICA FII', '10', '-', '-'),
+    row('Credito', '15/03/2024', 'Dividendo', 'BBAS3 - BANCO DO BRASIL S.A.', '10', '-', ''),
+  ]))
+  expect(p.dividends).toHaveLength(0)
+  expect(p.toReview.map(r => r.movimentacao)).toEqual(['Rendimento', 'Dividendo'])
+  const db = await createTestDb()
+  await upsertDividends(db, [{ ticker: 'HGLG11', kind: 'Rendimento', payDate: '2024-03-01', amountCents: 1000, broker: null, source: 'planilha', sourceKey: 'planilha:HGLG11:2024-03:Rendimento' }])
+  expect(await importB3(db, p)).toMatchObject({ dividends: 0, replaced: 0 })
+  expect((await loadAll(db)).dividends.map(d => d.amountCents)).toEqual([1000])
+})
+
+test('linhas idênticas no mesmo extrato viram proventos distintos; reimportar não duplica', async () => {
+  const jcp = row('Credito', '01/07/2024', 'Juros Sobre Capital Próprio', 'ITSA4 - ITAUSA S.A.', '100', '0,05', '5,00')
+  const data = makeB3([jcp, jcp, jcp])
+  const p = parseB3Movimentacao(data)
+  expect(p.dividends.map(d => d.sourceKey!.replace(/^.*:5,00/, ''))).toEqual(['', ':#1', ':#2'])
+  const db = await createTestDb()
+  expect(await importB3(db, p)).toMatchObject({ dividends: 3, dividendsSkipped: 0 })
+  expect(await importB3(db, parseB3Movimentacao(data))).toMatchObject({ dividends: 0, dividendsSkipped: 3 })
+  expect((await loadAll(db)).dividends).toHaveLength(3)
+})
