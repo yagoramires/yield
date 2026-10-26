@@ -4,6 +4,17 @@
   "description": "Capability for the main window",
   "windows": ["main"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "sql:default",
+    "sql:allow-execute",
+    "sql:allow-close",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://query1.finance.yahoo.com/*" },
+        { "url": "https://query2.finance.yahoo.com/*" }
+      ]
+    },
+    "dialog:default"
   ]
 }
