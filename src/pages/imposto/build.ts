@@ -39,3 +39,20 @@ export function buildPayment(month: Month, f: PaymentForm): DarfPayment {
   if (totalPaidCents < principalCents) throw new Error('Total pago: não pode ser menor que o principal.')
   return { month, paidAt, principalCents, totalPaidCents }
 }
+
+const isOpen = (r: DarfRow) => r.status === 'em_aberto' || r.status === 'pago_a_menor'
+// Mesma regra de computeDarfs: openCents exclui meses incompletos, openIncompleteCents só conta eles.
+export const openCounts = (rows: DarfRow[]) => ({
+  complete: rows.filter(r => isOpen(r) && !r.incomplete).length,
+  incomplete: rows.filter(r => isOpen(r) && r.incomplete).length,
+})
+
+// Prejuízo comum e de FII nunca se compensam entre si: sempre separados (positivos).
+export const lossCarry = (t: TaxMonth): { comum: Cents; fii: Cents } => ({ comum: Math.abs(t.comum.lossOutCents), fii: Math.abs(t.fii.lossOutCents) })
+
+// Mês isento = o lucro de ações foi isentado (vendas <= R$ 20 mil e lucro > 0, ver computeTax).
+export const exemptSales = (tax: TaxMonth[], year: string): Cents =>
+  tax.filter(t => t.month.startsWith(year) && t.comum.exemptProfitCents > 0).reduce((a, t) => a + t.stockSalesCents, 0)
+
+export const isEmptyMonth = (r: ImpostoRow): boolean =>
+  r.tax.stockSalesCents === 0 && r.tax.comum.resultCents === 0 && r.tax.fii.resultCents === 0 && r.darf.darfCents === 0 && !r.darf.payment

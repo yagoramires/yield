@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DarfRow } from '../../domain/darf'
 import type { PotMonth, TaxMonth } from '../../domain/tax'
-import { buildPayment, dayTradeMonths, groupByYear, irrfToDeclare, lastDayOfMonth } from './build'
+import { buildPayment, dayTradeMonths, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts } from './build'
 
 const pot = (o: Partial<PotMonth> = {}): PotMonth => ({
   resultCents: 0, exemptProfitCents: 0, lossInCents: 0, baseCents: 0, taxDueCents: 0, irrfMonthCents: 0,
@@ -54,5 +54,24 @@ describe('buildPayment', () => {
     expect(() => buildPayment('2026-09', { ...f, principal: '0' })).toThrow('Principal')
     expect(() => buildPayment('2026-09', { ...f, total: '' })).toThrow('Total')
     expect(() => buildPayment('2026-09', { ...f, total: '100,00' })).toThrow('Total pago: não pode ser menor')
+  })
+})
+
+describe('resumo', () => {
+  it('conta meses em aberto separando incompletos', () => {
+    const r = (status: DarfRow['status'], incomplete: boolean): DarfRow => ({ ...darf('2026-01'), status, incomplete })
+    expect(openCounts([r('em_aberto', false), r('pago_a_menor', false), r('em_aberto', true), r('pago', false), r('a_vencer', false)])).toEqual({ complete: 2, incomplete: 1 })
+  })
+  it('prejuízo comum e FII separados', () => {
+    expect(lossCarry(tax('2026-01', { lossOutCents: -500 }, { lossOutCents: -120 }))).toEqual({ comum: 500, fii: 120 })
+    expect(Object.is(lossCarry(tax('2026-01')).comum, 0)).toBe(true) // sem -0 ("-R$ 0,00")
+  })
+  it('vendas isentas só de meses com lucro isentado no ano', () => {
+    const m = [{ ...tax('2026-01', { exemptProfitCents: 10 }), stockSalesCents: 1000 }, { ...tax('2026-02'), stockSalesCents: 5000 }, { ...tax('2025-03', { exemptProfitCents: 10 }), stockSalesCents: 7 }]
+    expect(exemptSales(m, '2026')).toBe(1000)
+  })
+  it('mês vazio', () => {
+    expect(isEmptyMonth({ tax: tax('2026-01'), darf: darf('2026-01') })).toBe(true)
+    expect(isEmptyMonth({ tax: { ...tax('2026-01'), stockSalesCents: 1 }, darf: darf('2026-01') })).toBe(false)
   })
 })
