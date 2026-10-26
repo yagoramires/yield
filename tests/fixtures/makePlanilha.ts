@@ -2,7 +2,7 @@ import { utils, write } from 'xlsx'
 
 // Planilha sintética no layout da `planilha-investimentos.xlsm` (só os campos que o importador lê).
 export interface NotaRow {
-  nota: number | string; corretora: string; pregao: string /* ISO */; liquidacao: string; cv: string; tipo: string
+  nota: number | string; corretora: string; pregao: string | null /* ISO; null = célula vazia */; liquidacao: string | null; cv: string; tipo: string
   ticker: string; qtd: number; preco: number; irrf?: number; liquidacaoTaxa?: number; emolumentos?: number; corretagem?: number
 }
 export interface Bloco { label: string; rows: [ticker: string, ...meses: (number | null)[]][] }
@@ -18,7 +18,7 @@ const NOTAS_HEADER = ['Incluída', 'ID', 'Nota', 'Corretora', 'Data Pregão', 'D
   'Emolumentos', 'Taxa Operacional', 'Taxa Execução', 'Taxa Custódia', 'Impostos', 'Outros']
 
 // Datas como número de série do Excel, igual à planilha real.
-const serial = (iso: string) => (Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 86_400_000
+const serial = (iso: string | null) => iso && (Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) - Date.UTC(1899, 11, 30)) / 86_400_000
 
 export function makePlanilha(f: PlanilhaFixture): ArrayBuffer {
   const wb = utils.book_new()
