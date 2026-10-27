@@ -1,0 +1,4 @@
+{ "results": [
+  { "id": "t-1", "date": "2026-10-05T00:00:00.000Z", "description": "  Padaria Exemplo ", "amount": -23.9, "type": "DEBIT", "status": "POSTED", "operationType": "PIX" },
+  { "id": "t-2", "date": "2026-10-06T01:30:00.000Z", "description": "Salario Ficticio", "amount": 5000, "type": "CREDIT", "status": "PENDING" }
+], "next": null }
