@@ -10,7 +10,7 @@ import { CategoryIcon } from '../ui/CategoryIcon'
 import { shortBRL } from '../ui/charts'
 import { categoryStrip, cleanDescription, filterTxns, groupByDay, NO_FILTER, ruleFor, shortAccountLabel, suggestRulePattern, type TxnFilter } from './lancamentos/build'
 import { CategoryPicker } from './lancamentos/CategoryPicker'
-import { errText, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
+import { errText, GastosHeader, GastosVazio } from './lancamentos/GastosHeader'
 
 const signed = (c: number) => (c < 0 ? `−${formatCents(-c)}` : c > 0 ? `+${formatCents(c)}` : '—')
 const dayTitle = (iso: string) => {
@@ -31,6 +31,8 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
   const left = totals.incomeCents - totals.spentCents
   const list = filterTxns(data.txns, data.accounts, cat, month, filter)
   const strip = categoryStrip(data.txns, cat, month)
+  const out = list.reduce((s, t) => s + Math.min(0, t.amountCents), 0)
+  const inc = list.reduce((s, t) => s + Math.max(0, t.amountCents), 0)
   const accounts = new Map(data.accounts.map(a => [a.id, a]))
   const filtered = filter.accountKind !== 'todas' || filter.categoryId !== null || filter.search !== ''
   const toggle = (id: string | null) => setFilter({ ...filter, categoryId: filter.categoryId === id ? null : id })
@@ -100,6 +102,12 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
           {KINDS.map(([k, l]) => <button key={k} className={filter.accountKind === k ? 'on' : ''} aria-pressed={filter.accountKind === k} onClick={() => setFilter({ ...filter, accountKind: k })}>{l}</button>)}
         </div>
         {filtered && <button className="link" onClick={() => setFilter(NO_FILTER)}>limpar filtros</button>}
+        <div className="lan-total" aria-live="polite">
+          <span className="muted">{list.length === 1 ? '1 lançamento' : `${list.length} lançamentos`}</span>
+          {/* sem filtro os cartões do topo já dizem o mês; aqui somaria fatura e transferência junto */}
+          {filtered && out < 0 && <span>saiu <b>{formatBRL(-out)}</b></span>}
+          {filtered && inc > 0 && <span>entrou <b className="up">{formatBRL(inc)}</b></span>}
+        </div>
       </div>
       <div className="cat-strip" role="group" aria-label="Filtrar por categoria">
         <button className={`cc ${filter.categoryId === null ? 'on' : ''}`} aria-pressed={filter.categoryId === null} onClick={() => setFilter({ ...filter, categoryId: null })}>Todas</button>
@@ -118,7 +126,6 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
           </section>
         ))
       )}
-      <div className="muted" style={{ marginTop: 6 }}>{list.length === 1 ? '1 lançamento' : `${list.length} lançamentos`} em {monthName(month).toLowerCase()}</div>
     </>
   )
 }
