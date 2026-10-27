@@ -7,6 +7,7 @@ import { openDb, type Db } from '../db/client'
 import { importPlanilha, parsePlanilha } from '../import/planilha'
 import { useData } from '../state/DataProvider'
 import { planilhaSummary, refreshLine, restoreBackup } from './configuracoes/build'
+import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -89,7 +90,7 @@ export function Configuracoes() {
   return (
     <>
       <h1>Configurações</h1>
-      <div className="muted">Tudo fica neste computador. Nada é enviado para servidor; só as cotações vêm do Yahoo.</div>
+      <div className="muted">Tudo fica neste computador. Saem da máquina só as cotações do Yahoo e a leitura dos seus bancos na Pluggy.</div>
       <div className="grid2" style={{ marginTop: 14 }}>
         <div className="card">
           <b style={{ color: '#fff' }}>Importar planilha antiga</b>
@@ -142,6 +143,8 @@ export function Configuracoes() {
           </div>
         </div>
       </div>
+      <OpenFinance />
+      <Contas />
     </>
   )
 }
