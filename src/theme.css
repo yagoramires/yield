@@ -141,3 +141,4 @@ tr.hl td { background: #1a1213; }
 .step-body h3 { margin: 2px 0 8px; color: #fff; font-size: 15px; }
 .step-body p { margin: 0 0 8px; line-height: 1.5; }
 @media (max-width: 640px) { .guide { grid-template-columns: 1fr; } }
+.update-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }

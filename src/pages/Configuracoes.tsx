@@ -6,6 +6,7 @@ import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
 import { useData } from '../state/DataProvider'
 import { backupPasswordError, refreshLine, restoreBackup } from './configuracoes/build'
+import { AtualizacaoCard } from '../ui/Atualizacao'
 import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { useB3Import } from './configuracoes/useB3Import'
@@ -164,6 +165,7 @@ export function Configuracoes() {
             Última: {lastRefresh ? `${dayTime(lastRefresh.at)} · ${refreshLine(lastRefresh)}` : lastQuote ? dayTime(lastQuote) : 'nenhuma ainda'}
           </div>
         </div>
+        <AtualizacaoCard />
       </div>
       <div style={{ marginTop: 12 }}><FontesRenda /></div>
       <OpenFinance />
