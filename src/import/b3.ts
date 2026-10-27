@@ -9,6 +9,7 @@ import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents }
 export interface B3Import {
   trades: B3Trade[]
+  names: Record<string, string> // ticker → nome do produto, para deduzir o tipo
   dividends: Omit<Dividend, 'id'>[]
   events: (NewCorporateEvent & { sourceKey: string })[]
   ignored: number
@@ -21,6 +22,13 @@ const REVISAR = ['Atualização', 'Amortização', 'Leilão de Fração', 'Incor
 const text = (v: Cell | undefined) => (v == null ? '' : String(v).trim())
 const str = (v: Cell | undefined) => (typeof v === 'number' ? v : text(v))
 const columns = (rows: Cell[][]) => new Map(rows[0]?.map((h, i) => [text(h), i]))
+/** "HGLG11 - CSHG LOGÍSTICA FDO INV IMOB - FII" → HGLG11, guardando o nome. */
+function tickerOf(out: B3Import, produto: string) {
+  const [code, ...name] = produto.split(' - ')
+  const ticker = normalizeTicker(code)
+  if (name.length) out.names[ticker] = name.join(' - ')
+  return ticker
+}
 // Linhas idênticas no mesmo arquivo ganham :#n (n = idênticas anteriores).
 function uniqueKey(seen: Map<string, number>, base: string) {
   const n = seen.get(base) ?? 0
@@ -41,7 +49,7 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
     const inst = text(get('Instituição'))
     const qtyCell = get('Quantidade')
     const valueCell = get('Valor da Operação')
-    const ticker = normalizeTicker(produto.split(' - ')[0])
+    const ticker = tickerOf(out, produto)
     const sourceKey = uniqueKey(seen, `b3:${date}:${mov}:${produto}:${inst}:${text(qtyCell)}:${text(valueCell)}`)
     const qty = parseQty(str(qtyCell))
     const sign = /^d/i.test(text(get('Entrada/Saída'))) ? -1 : 1
@@ -97,7 +105,7 @@ function parseProventos(rows: Cell[][], out: B3Import) {
     const amountCents = parseBRL(str(valueCell))
     if (!PROVENTOS[evento] || amountCents <= 0) { out.toReview.push({ date, movimentacao: evento, produto }); continue }
     const sourceKey = uniqueKey(seen, `b3prov:${date}:${evento}:${produto}:${inst}:${text(get('Quantidade'))}:${text(valueCell)}`)
-    out.dividends.push({ ticker: normalizeTicker(produto.split(' - ')[0]), kind: PROVENTOS[evento], payDate: date, amountCents, broker: normalizeBroker(inst), source: 'b3', sourceKey })
+    out.dividends.push({ ticker: tickerOf(out, produto), kind: PROVENTOS[evento], payDate: date, amountCents, broker: normalizeBroker(inst), source: 'b3', sourceKey })
   }
 }
 
@@ -106,7 +114,7 @@ export function parseB3(data: ArrayBuffer): B3Import {
   const wb = read(data, { cellDates: false })
   const rows = utils.sheet_to_json<Cell[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false })
   const header = new Set(rows[0]?.map(text))
-  const out: B3Import = { trades: [], dividends: [], events: [], ignored: 0, toReview: [] }
+  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [] }
   if (header.has('Código de Negociação')) parseNegociacao(rows, out)
   else if (header.has('Tipo de Evento')) parseProventos(rows, out)
   else if (header.has('Movimentação')) parseMovimentacao(rows, out)
@@ -118,6 +126,15 @@ export function parseB3(data: ArrayBuffer): B3Import {
 export function assetTypeOf(ticker: string): AssetType {
   if (/3[2-59]$/.test(ticker)) return 'BDR'
   return /11$/.test(ticker) ? 'FII' : 'Ação'
+}
+
+/** Tipo pelo nome do produto na B3 ("… FDO INV IMOB - FII", "… S/A", "ISHARES … FUNDO DE ÍNDICE"); null quando o nome não diz. */
+export function typeFromName(name: string): AssetType | null {
+  const s = name.toUpperCase()
+  if (/\bFII\b|FDO\.? (DE )?INV(EST)?\.? IMOB|FUNDO DE INVESTIMENTO IMOBILI/.test(s)) return 'FII'
+  if (/\bETF\b|[IÍ]NDICE|ISHARES/.test(s)) return 'ETF'
+  if (/\bS[./] ?A\b|\bUNT\b/.test(s)) return 'Ação'
+  return null
 }
 
 function settleDate(d: ISODate): ISODate { // D+2 em dias úteis

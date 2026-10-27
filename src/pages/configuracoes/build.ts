@@ -2,7 +2,7 @@ import type { Db } from '../../db/client'
 import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
 import { pjNet, sourceNet } from '../../domain/orcamento'
 import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
-import { assetTypeOf, type B3Import, type importB3 } from '../../import/b3'
+import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
 import { parseMoney } from '../notas/build'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
@@ -21,18 +21,37 @@ export function planilhaReplacedByB3(existing: Dividend[], incoming: B3Import['d
 
 /** Junta os relatórios escolhidos de uma vez num só import. */
 export const mergeB3 = (list: B3Import[]): B3Import => ({
-  trades: list.flatMap(p => p.trades), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
+  trades: list.flatMap(p => p.trades), names: Object.assign({}, ...list.map(p => p.names)), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
   ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview),
 })
 
-/** Tickers final 11 que ainda não têm operação: FII, ETF ou unit, o usuário confirma. Os já conhecidos mantêm o tipo. */
-export function typesToConfirm(p: B3Import, existing: Trade[]): { ticker: string; type: AssetType }[] {
+type TickerType = { ticker: string; type: AssetType }
+
+/**
+ * Tickers final 11 ainda sem operação podem ser FII, ETF ou unit. O tipo sai do nome do produto nos relatórios
+ * (Proventos, Movimentação) ou dos proventos já conhecidos (Rendimento → FII; Dividendo/JCP → unit).
+ * Sem nenhum provento, com proventos conhecidos, quase sempre é ETF (FII paga todo mês).
+ * `ask` é o que sobra para o usuário escolher; `inferred` já vem resolvido.
+ */
+export function typesToConfirm(p: B3Import, existing: Trade[], dividends: Pick<Dividend, 'ticker' | 'kind'>[] = []): { ask: TickerType[]; inferred: TickerType[] } {
   const known = new Set(existing.map(t => t.ticker))
-  return [...new Set(p.trades.map(t => t.ticker))].filter(t => !known.has(t) && /11$/.test(t)).sort().map(ticker => ({ ticker, type: assetTypeOf(ticker) }))
+  const kinds = new Map<string, Set<string>>()
+  for (const d of [...dividends, ...p.dividends]) kinds.set(d.ticker, (kinds.get(d.ticker) ?? new Set()).add(d.kind))
+  const byKind = (t: string): AssetType | null => {
+    const k = kinds.get(t)
+    return !k ? null : k.has('Dividendo') || k.has('JCP') ? 'Ação' : 'FII'
+  }
+  const out = { ask: [] as TickerType[], inferred: [] as TickerType[] }
+  for (const ticker of [...new Set(p.trades.map(t => t.ticker))].filter(t => !known.has(t) && /11$/.test(t)).sort()) {
+    const type = (p.names[ticker] && typeFromName(p.names[ticker])) || byKind(ticker)
+    if (type) out.inferred.push({ ticker, type })
+    else out.ask.push({ ticker, type: kinds.size ? 'ETF' : 'FII' })
+  }
+  return out
 }
 
-/** Tipo de cada ticker: o que já está nas operações vale; depois, o confirmado na tela. */
-export function typeMap(existing: Trade[], confirmed: { ticker: string; type: AssetType }[]): Map<string, AssetType> {
+/** Tipo de cada ticker: o que já está nas operações vale; depois, o deduzido ou confirmado na tela. */
+export function typeMap(existing: Trade[], confirmed: TickerType[]): Map<string, AssetType> {
   return new Map([...confirmed.map(c => [c.ticker, c.type] as const), ...existing.map(t => [t.ticker, t.assetType] as const)])
 }
 

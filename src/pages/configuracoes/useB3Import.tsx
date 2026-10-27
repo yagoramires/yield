@@ -12,7 +12,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 export function useB3Import(): { button(label: string, className: string): ReactNode; panel: ReactNode } {
   const { data, db, reload } = useData()
   const input = useRef<HTMLInputElement>(null)
-  const [pending, setPending] = useState<{ parsed: B3Import; replaces: number; name: string; types: { ticker: string; type: AssetType }[] } | null>(null)
+  const [pending, setPending] = useState<{ parsed: B3Import; replaces: number; name: string; types: { ticker: string; type: AssetType }[]; inferred: { ticker: string; type: AssetType }[] } | null>(null)
   const [summary, setSummary] = useState<ReturnType<typeof b3Summary> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -28,14 +28,14 @@ export function useB3Import(): { button(label: string, className: string): React
     if (!parsed.trades.length && !parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored) {
       return setError(`Nada encontrado em ${name}. Use os relatórios de Negociação, Proventos Recebidos ou Movimentação da Área do Investidor da B3.`)
     }
-    setPending({ parsed, replaces: planilhaReplacedByB3(data.dividends, parsed.dividends), name, types: typesToConfirm(parsed, data.trades) })
+    setPending({ parsed, replaces: planilhaReplacedByB3(data.dividends, parsed.dividends), name, ...(({ ask, inferred }) => ({ types: ask, inferred }))(typesToConfirm(parsed, data.trades, data.dividends)) })
   }
 
   const confirm = async () => {
     if (!pending) return
     setBusy(true)
     try {
-      setSummary(b3Summary(await importB3(db, pending.parsed, typeMap(data.trades, pending.types)), pending.parsed))
+      setSummary(b3Summary(await importB3(db, pending.parsed, typeMap(data.trades, [...pending.inferred, ...pending.types])), pending.parsed))
       setPending(null)
     } catch (e) { setError(`Não foi possível importar o extrato: ${errText(e)}`) }
     try { await reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
@@ -58,9 +58,14 @@ export function useB3Import(): { button(label: string, className: string): React
             {pending.name}: {p.trades.length} operações, {p.dividends.length} proventos, {p.events.length} eventos e {p.toReview.length} itens para revisar.
             {pending.replaces > 0 && <> {pending.replaces === 1 ? '1 provento da planilha será substituído' : `${pending.replaces} proventos da planilha serão substituídos`} pelos do extrato.</>}
             {p.trades.length > 0 && <> A B3 não informa as taxas: as operações entram sem custos; se tiver a nota do dia, ela vale no lugar.</>}
+            {pending.inferred.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                Tipo pelo nome ou pelos proventos: {pending.inferred.map(t => `${t.ticker} ${t.type === 'Ação' ? 'unit' : t.type}`).join(' · ')}
+              </div>
+            )}
             {pending.types.length > 0 && (
               <div style={{ marginTop: 8 }}>
-                Confira o tipo dos ativos final 11 (FII, ETF ou unit de ação):
+                Sem nome nem proventos para saber o tipo; confira (FII, ETF ou unit de ação):
                 <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                   {pending.types.map((t, i) => (
                     <label key={t.ticker} className="t2">{t.ticker}{' '}

@@ -2,7 +2,7 @@ import { utils, write } from 'xlsx'
 import { createTestDb } from '../db/testDb'
 import { loadAll, saveNote, upsertDividends } from '../db/repo'
 import { makeB3, makeNegociacao, makeProventos, type B3Row } from '../../tests/fixtures/makeB3'
-import { assetTypeOf, importB3, parseB3 } from './b3'
+import { assetTypeOf, importB3, parseB3, typeFromName } from './b3'
 
 const CLEAR = 'CLEAR CORRETORA - GRUPO XP'
 const row = (io: string, data: string, mov: string, produto: string, qtd: string, preco = '-', valor = '-'): B3Row => [io, data, mov, produto, CLEAR, qtd, preco, valor]
@@ -181,4 +181,16 @@ test('arquivo que não é da B3 dá erro claro', () => {
   const wb = utils.book_new()
   utils.book_append_sheet(wb, utils.aoa_to_sheet([['Data', 'Valor'], ['01/01/2024', 1]]), 'Planilha1')
   expect(() => parseB3(write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer)).toThrow('não parece um relatório da B3')
+})
+
+test('typeFromName lê os nomes que a B3 usa', () => {
+  expect([
+    'ALFA FDO INV IMOB - FII', 'BETA CE - FDO INV IMOB', 'GAMA RECEBÍVEIS IMOBILIÁRIOS FDO DE INV IMOB', 'DELTA OFFICES FUNDO DE INVESTIMENTO IMOBILIARIO',
+    'ISHARES BOVA FDO INV COTAS FDO INDICE', 'IT NOW IBOVESPA FUNDO DE ÍNDICE', 'COMPANHIA TESTE DE ENERGIA S/A', 'KLABIN S.A. UNT', 'CRIPTO NASDAQ TESTE',
+  ].map(typeFromName)).toEqual(['FII', 'FII', 'FII', 'FII', 'ETF', 'ETF', 'Ação', 'Ação', null])
+})
+
+test('Proventos e Movimentação guardam o nome do produto por ticker', () => {
+  const p = parseB3(makeProventos([['HGLG11 - CSHG LOGISTICA FDO INV IMOB - FII', '14/03/2024', 'Rendimento', CLEAR, '10', 1.1, 11]]))
+  expect(p.names).toEqual({ HGLG11: 'CSHG LOGISTICA FDO INV IMOB - FII' })
 })
