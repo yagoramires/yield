@@ -16,6 +16,7 @@
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-local-003B57?logo=sqlite&logoColor=white">
   <img alt="Plataformas" src="https://img.shields.io/badge/macOS%20%7C%20Windows-desktop-c6ff3d">
   <img alt="Open Finance" src="https://img.shields.io/badge/Open%20Finance-s%C3%B3%20leitura-c6ff3d">
+  <img alt="Licença MIT" src="https://img.shields.io/badge/licen%C3%A7a-MIT-8a8d96">
 </p>
 
 <p align="center">
@@ -127,3 +128,7 @@ Spec, planos e telas aprovadas estão em [`docs/`](docs).
 - [x] **Fase 1: Investimentos.** Carteira, notas, proventos, imposto, importação e backup.
 - [x] **Fase 3: Últimos gastos.** Open Finance só leitura, extratos, categorias, assinaturas e resumos com gráficos.
 - [ ] **Fase 2: Orçamento mensal.** Plano do mês com entradas e saídas (inclusive salário PJ líquido), meses que se repetem e planejado × real.
+
+## Licença
+
+[MIT](LICENSE).
