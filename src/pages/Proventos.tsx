@@ -4,7 +4,7 @@ import { formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, HBars } from '../ui/charts'
 import { useB3Import } from './configuracoes/useB3Import'
-import { brDay as brDate, monthName } from './lancamentos/GastosHeader'
+import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
 
@@ -12,7 +12,6 @@ const pct = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const signedPct = (p: number) => `${p >= 0 ? '+' : '−'}${pct(Math.abs(p))}`
 const shortBroker = (b: string | null) => (b ? b.split(/\s+/).slice(0, 2).join(' ') : '—')
 type Period = string // '12m', 'tudo' ou um ano ('2025')
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const emptyForm = (): DividendForm => ({ ticker: '', kind: 'Dividendo', payDate: '', broker: '', amount: '' })
 
 export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {

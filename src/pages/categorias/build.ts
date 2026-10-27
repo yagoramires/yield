@@ -2,7 +2,7 @@ import type { Account, Category, CategoryRule, Txn } from '../../db/gastosRepo'
 import type { Subscription } from '../../domain/assinaturas'
 import type { BudgetLine } from '../../db/orcamentoRepo'
 import { monthTotals, normalizeDescription } from '../../domain/gastos'
-import { ruleFor, suggestRulePattern } from '../lancamentos/build'
+import { fold, ruleFor, suggestRulePattern } from '../lancamentos/build'
 import { formatCents } from '../../domain/money'
 import type { Cents, Month } from '../../domain/types'
 
@@ -22,7 +22,6 @@ export function spentByCategory(txns: Txn[], accounts: Account[], cat: (t: Txn) 
   return [...yes, { category: null, cents: spent.get(null) ?? 0, countsAsSpending: true }, ...no]
 }
 
-const fold = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
 
 export function validateCategoryName(name: string, categories: Category[], exceptId?: string): string {
   const n = name.trim()

@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx'
 import type { Broker, Issuer } from '../db/irRepo'
 import { formatCnpj } from '../domain/declaracao'
+import { fold } from '../pages/lancamentos/build'
 
-const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').trim().toUpperCase()
 const rows = (ws: XLSX.WorkSheet | undefined) => (ws ? XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: true }) : [])
 const cell = (r: unknown[] | undefined, i: number) => String(r?.[i] ?? '').trim()
 
@@ -28,7 +28,7 @@ export function parseCadastroPlanilha(buf: ArrayBuffer, knownBrokers: string[]):
   const brokers: Broker[] = []
   let unknownBrokers = 0
   const bens = rows(wb.Sheets['Bens e Direitos'])
-  const start = bens.findIndex(r => fold(cell(r, 0)) === 'CORRETORA')
+  const start = bens.findIndex(r => fold(cell(r, 0)) === 'corretora')
   if (start >= 0) {
     for (const r of bens.slice(start + 1)) {
       if (!cell(r, 0)) break
