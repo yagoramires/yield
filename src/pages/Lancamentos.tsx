@@ -66,7 +66,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
     const pattern = suggestRulePattern(t.description)
     return (
       <div key={t.id} className={`lrow ${off ? 'off' : ''}`}>
-        <CategoryIcon id={c?.id ?? null} />
+        <CategoryIcon category={c} />
         <div className="lmid">
           <div className="lname" title={t.description}>{name}</div>
           <div className="lsub">
@@ -112,7 +112,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
         <button className={`cc ${filter.categoryId === null ? 'on' : ''}`} aria-pressed={filter.categoryId === null} onClick={() => setFilter({ ...filter, categoryId: null })}>Todas</button>
         {strip.map(i => (
           <button key={i.id} className={`cc ${i.id === 'sem' ? 'warn' : ''} ${i.spending ? '' : 'quiet'} ${filter.categoryId === i.id ? 'on' : ''}`} aria-pressed={filter.categoryId === i.id} onClick={() => toggle(i.id)}>
-            <CategoryIcon id={i.id === 'sem' ? null : i.id} size={13} bare />{i.name}{i.id === 'sem' && <b>{i.count}</b>}
+            <CategoryIcon category={i.id === 'sem' ? null : data.categories.find(k => k.id === i.id) ?? null} size={13} bare />{i.name}{i.id === 'sem' && <b>{i.count}</b>}
           </button>
         ))}
       </div>

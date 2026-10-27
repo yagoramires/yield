@@ -30,7 +30,7 @@ export function CategoryPicker({ categories, current, pattern, reach, busy, erro
       <div className="cat-grid">
         {categories.map(c => (
           <button key={c.id} className={c.id === current ? 'on' : ''} disabled={busy} onClick={() => onPick(c.id, always)}>
-            <CategoryIcon id={c.id} size={22} />{c.name}
+            <CategoryIcon category={c} size={22} />{c.name}
           </button>
         ))}
       </div>
