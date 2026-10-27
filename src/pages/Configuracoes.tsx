@@ -7,6 +7,7 @@ import { openDb, type Db } from '../db/client'
 import { importPlanilha, parsePlanilha } from '../import/planilha'
 import { useData } from '../state/DataProvider'
 import { planilhaSummary, refreshLine, restoreBackup } from './configuracoes/build'
+import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { useB3Import } from './configuracoes/useB3Import'
 
@@ -107,6 +108,8 @@ export function Configuracoes() {
           )}
         </div>
 
+        <ImportarOrcamento />
+
         <div className="card">
           <b style={{ color: '#fff' }}>Importar extrato da B3</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Movimentação (.xlsx) baixada da Área do Investidor</div>
@@ -143,6 +146,7 @@ export function Configuracoes() {
           </div>
         </div>
       </div>
+      <div style={{ marginTop: 12 }}><FontesRenda /></div>
       <OpenFinance />
       <Contas />
     </>

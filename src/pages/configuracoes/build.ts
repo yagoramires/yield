@@ -1,6 +1,9 @@
+import { DEFAULT_PJ, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
+import { pjNet } from '../../domain/orcamento'
 import type { Dividend } from '../../domain/types'
 import type { B3Import, importB3 } from '../../import/b3'
 import type { importPlanilha, PlanilhaImport } from '../../import/planilha'
+import { parseMoney } from '../notas/build'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
 type PlanilhaResult = Awaited<ReturnType<typeof importPlanilha>>
@@ -74,4 +77,28 @@ export function parseItemId(text: string): string {
   const id = text.trim()
   if (!UUID.test(id)) throw new Error('itemId inválido: copie do painel da Pluggy')
   return id.toLowerCase()
+}
+
+/** Avisos aparecem em lista própria na tela; aqui só as contagens. */
+export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }, _warnings: string[], sourceCreated: boolean): string {
+  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`, ...(sourceCreated ? ['1 fonte de renda PJ criada'] : [])].join(' · ')
+}
+
+export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string }
+
+const pct = (text: string): number => {
+  const t = text.trim().replace(',', '.')
+  const x = /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN
+  if (!(x >= 0 && x <= 100)) throw new Error('Percentual inválido: use um número entre 0 e 100')
+  return x
+}
+
+export function validateSource(f: SourceForm): Omit<IncomeSource, 'id' | 'sourceKey'> {
+  const name = f.name.trim()
+  if (!name) throw new Error('Dê um nome para a fonte')
+  if (f.kind === 'fixo') return { name, kind: 'fixo', grossCents: null, netCents: parseMoney(f.net, 'Líquido'), ...DEFAULT_PJ }
+  const cfg = { proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
+  const grossCents = parseMoney(f.gross, 'Bruto')
+  if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
+  return { name, kind: 'pj', grossCents, netCents: null, ...cfg }
 }
