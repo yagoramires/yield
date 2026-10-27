@@ -10,6 +10,10 @@ export class PluggyError extends Error {
 export interface PluggyAccount { id: string; type: 'BANK' | 'CREDIT'; subtype: string; name: string; marketingName?: string | null; number?: string | null; itemId: string }
 export interface PluggyTxn { id: string; date: string; description: string; amount: number; type: 'DEBIT' | 'CREDIT'; status: 'PENDING' | 'POSTED'; operationType?: string | null; creditCardMetadata?: { installmentNumber?: number; totalInstallments?: number } | null }
 
+const FORMAT = () => new PluggyError('A Pluggy devolveu dados fora do formato esperado', 'resposta')
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
+const str = (v: unknown) => typeof v === 'string' && v !== ''
+
 const ALLOWED = new Set(['POST /auth', 'GET /accounts', 'GET /v2/transactions'])
 
 // Única porta de saída: o Yield só lê da Pluggy. Lança antes de qualquer fetch.
@@ -39,7 +43,7 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
     return apiKey
   }
 
-  async function get(path: string, itemId?: string): Promise<any> {
+  async function get(path: string, itemId?: string): Promise<{ results: unknown[]; next?: unknown }> {
     const cached = !!key && Date.now() - key.at < KEY_TTL_MS
     const call = async (k: string) => send('GET', path, { headers: { 'X-API-KEY': k } })
     let res = await call(cached ? key!.value : await auth())
@@ -55,14 +59,20 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
 
   return {
     async listAccounts(itemId: string): Promise<PluggyAccount[]> {
-      return (await get(`/accounts?itemId=${encodeURIComponent(itemId)}`, itemId)).results
+      const results = (await get(`/accounts?itemId=${encodeURIComponent(itemId)}`, itemId)).results
+      if (!results.every(a => isObj(a) && str(a.id) && (a.type === 'BANK' || a.type === 'CREDIT') && str(a.name))) throw FORMAT()
+      return results as PluggyAccount[]
     },
     async listTransactions(accountId: string, dateFrom: ISODate, dateTo: ISODate): Promise<PluggyTxn[]> {
       const out: PluggyTxn[] = []
       let q: string | null = `?accountId=${encodeURIComponent(accountId)}&dateFrom=${dateFrom}&dateTo=${dateTo}`
+      const seen = new Set<string>()
       while (q) {
+        if (seen.has(q)) throw FORMAT() // `next` repetido: evita laço infinito
+        seen.add(q)
         const body = await get(`/v2/transactions${q}`)
-        out.push(...body.results)
+        if (!body.results.every(t => isObj(t) && str(t.id) && typeof t.description === 'string' && str(t.date) && !isNaN(Date.parse(t.date as string)) && typeof t.amount === 'number' && isFinite(t.amount))) throw FORMAT()
+        out.push(...(body.results as PluggyTxn[]))
         q = typeof body.next === 'string' && body.next ? body.next : null
       }
       return out
@@ -78,13 +88,13 @@ export function pluggyDate(iso: string): ISODate {
 
 export function toTxnRow(t: PluggyTxn, kind: AccountKind) {
   const cents = Math.round(t.amount * 100)
-  const total = t.creditCardMetadata?.totalInstallments
+  const { installmentNumber: n, totalInstallments: total } = t.creditCardMetadata ?? {}
   return {
     date: pluggyDate(t.date),
     description: t.description.trim(),
     amountCents: (kind === 'cartao' ? -cents : cents) + 0 as Cents,
     pending: t.status === 'PENDING',
-    installment: total && total > 1 ? `${t.creditCardMetadata!.installmentNumber}/${total}` : null,
+    installment: typeof n === 'number' && typeof total === 'number' && total > 1 ? `${n}/${total}` : null,
     operationType: t.operationType ?? null,
   }
 }
