@@ -44,14 +44,66 @@ fn move_file(from: String, to: String) -> Result<(), String> {
     std::fs::remove_file(&from).map_err(|e| e.to_string())
 }
 
+const SECRET_SERVICE: &str = "com.yagoramires.yield";
+const SECRET_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
+
+fn entry_for(key: &str) -> Result<keyring::Entry, String> {
+    if !SECRET_KEYS.contains(&key) {
+        return Err("chave de credencial desconhecida".into());
+    }
+    keyring::Entry::new(SECRET_SERVICE, key).map_err(|e| e.to_string())
+}
+
+fn get_with(entry: &keyring::Entry) -> Result<Option<String>, String> {
+    match entry.get_password() {
+        Ok(v) => Ok(Some(v)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn set_with(entry: &keyring::Entry, value: &str) -> Result<(), String> {
+    entry.set_password(value).map_err(|e| e.to_string())
+}
+
+fn delete_with(entry: &keyring::Entry) -> Result<(), String> {
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn secret_get(key: String) -> Result<Option<String>, String> {
+    get_with(&entry_for(&key)?)
+}
+
+#[tauri::command]
+fn secret_set(key: String, value: String) -> Result<(), String> {
+    set_with(&entry_for(&key)?, &value)
+}
+
+#[tauri::command]
+fn secret_delete(key: String) -> Result<(), String> {
+    delete_with(&entry_for(&key)?)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "init",
-        sql: include_str!("../migrations/001_init.sql"),
-        kind: MigrationKind::Up,
-    }];
+    let migrations = vec![
+        Migration {
+            version: 1,
+            description: "init",
+            sql: include_str!("../migrations/001_init.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "gastos",
+            sql: include_str!("../migrations/002_gastos.sql"),
+            kind: MigrationKind::Up,
+        },
+    ];
     tauri::Builder::default()
         .plugin(
             tauri_plugin_sql::Builder::default()
@@ -60,7 +112,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![swap_database, move_file])
+        .invoke_handler(tauri::generate_handler![swap_database, move_file, secret_get, secret_set, secret_delete])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -87,5 +139,23 @@ mod tests {
         assert!(!dir.join("yield.db-wal").exists() && !dir.join("yield.db-shm").exists());
         assert!(!dir.join("yield.db.novo").exists());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn cofre_rejeita_key_desconhecida_antes_de_tocar_no_cofre() {
+        assert!(entry_for("outra.coisa").is_err());
+        assert!(entry_for("pluggy.clientId").is_ok());
+    }
+
+    #[test]
+    fn cofre_set_get_delete() {
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let e = entry_for("pluggy.clientSecret").unwrap();
+        assert_eq!(get_with(&e).unwrap(), None);
+        set_with(&e, "valor").unwrap();
+        assert_eq!(get_with(&e).unwrap(), Some("valor".to_string()));
+        delete_with(&e).unwrap();
+        assert_eq!(get_with(&e).unwrap(), None);
+        delete_with(&e).unwrap();
     }
 }

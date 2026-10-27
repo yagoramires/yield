@@ -52,7 +52,7 @@ O Yield é um app de desktop local que substitui as duas planilhas e acrescenta 
 2. Três páginas: **Últimos gastos**, **Orçamento mensal**, **Investimentos**, cada uma com subseções.
 3. Navegação **A**: barra lateral com as três páginas e todas as subseções sempre visíveis (mockup em `.superpowers/brainstorm/*/content/navegacao.html`).
 4. Visual no padrão NeyHub (tema **Grafite**: escuro, denso, um acento verde-lima `#c6ff3d`, barra lateral). Referência: `~/Documents/personal-projects/neyhub/docs/design/mockup-direcao-visual.html` (mockup A).
-5. Ordem: **investimentos primeiro**, depois orçamento, por último Open Finance.
+5. Ordem: **investimentos primeiro**, depois orçamento, por último Open Finance. (26/10/2026: a pedido do Yago, a fase 3 — Open Finance/Últimos gastos — foi feita antes da fase 2.)
 6. **Importar o histórico** da planilha de investimentos na primeira abertura (notas, movimentações e proventos).
 7. **Mostrar IR e DARF em aberto dos anos passados** (2020→hoje), inclusive o que a planilha não calculou.
 8. Planejado e real ficam em páginas separadas, mas **o real alimenta o planejamento**: o app sugere no plano do mês as despesas que se repetem nos gastos reais. Detalhe fino ele ajusta depois.

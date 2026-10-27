@@ -79,3 +79,33 @@ tr.cls td { color: var(--text-2); font-weight: 600; background: var(--sidebar); 
 tr.hl td { background: #1a1213; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .warn { color: #ffcf5c; }
+
+/* Gráficos e Últimos gastos (mockup docs/design/telas-fase-3.html) */
+.chart { position: relative; }
+.chart svg { display: block; overflow: visible; }
+.chart .ax { fill: var(--faint); font-size: 9px; }
+.chart .vl { fill: var(--text); font-size: 9px; }
+.lg { display: flex; gap: 12px; justify-content: flex-end; font-size: 10px; color: var(--text-2); margin: 2px 0 4px; }
+.lg i, .tip i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 4px; border-radius: 1px; }
+.tip { position: absolute; top: 0; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 11px; white-space: nowrap; z-index: 1; }
+.tip b { color: #fff; font-weight: 600; }
+.barrow { display: grid; grid-template-columns: 100px 1fr 72px; align-items: center; gap: 8px; width: 100%; padding: 3px 4px; border: 0; border-radius: 6px; background: none; color: var(--text); font-size: 11px; text-align: left; cursor: pointer; }
+.barrow:disabled { cursor: default; }
+.barrow:hover:not(:disabled), .barrow.sel { background: var(--surface); }
+.barrow > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barrow .tr { height: 12px; min-width: 2px; background: #3987e5; border-radius: 0 4px 4px 0; }
+.barrow .tr.striped { background: repeating-linear-gradient(45deg, #3987e5 0 3px, transparent 3px 6px); }
+.barrow .tr.striped.warn { background: repeating-linear-gradient(45deg, #ffcf5c 0 3px, transparent 3px 6px); }
+.alert { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; background: #241e0c; border: 1px solid #4a3c14; color: #ffcf5c; border-radius: 8px; padding: 6px 10px; font-size: 11px; }
+.alert .one { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alert ul { flex: 1; margin: 0; padding-left: 16px; }
+.txn td { padding: 7px 5px; }
+.txn .d1 { color: #fff; }
+.txn .d2 { color: var(--faint); font-size: 10px; margin-top: 1px; }
+.txn tr.off td { opacity: .55; }
+.txn tr.day td { color: var(--text-2); font-weight: 600; background: var(--sidebar); font-size: 10px; border-bottom: 1px solid var(--border); }
+.txn tr.expand td { background: var(--sidebar); border-bottom: 1px solid var(--border); }
+.txn tr.clk { cursor: pointer; }
+.txn tr.clk:hover td { background: var(--surface); }
+.in.none, .chip.warn { color: #ffcf5c; border-color: #4a3c14; }
+.chip.warn.on { color: var(--bg); background: #ffcf5c; border-color: #ffcf5c; }

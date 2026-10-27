@@ -1,0 +1,386 @@
+<style>
+.y{font-family:-apple-system,"SF Pro Display",Inter,"Segoe UI",sans-serif;background:#0b0c0d;color:#d6d8dd;border-radius:14px;overflow:hidden;display:flex;min-height:520px;font-size:12px;line-height:1.35}
+.y .sb{width:170px;flex-shrink:0;background:#121315;border-right:1px solid #26282e;padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.y .logo{font-weight:800;font-size:16px;color:#fff;margin:0 6px 14px;letter-spacing:-.02em}.y .logo b{color:#c6ff3d}
+.y .grp{margin-top:8px;padding:4px 8px;color:#d6d8dd;font-weight:600}.y .grp.on{color:#c6ff3d}
+.y .sub{padding:5px 8px 5px 22px;border-radius:6px;color:#5d6068;font-size:11px}.y .sub.on{color:#d6d8dd;background:#1a1b1f}
+.y .sub small{font-size:9px;margin-left:4px}
+.y .main{flex:1;padding:18px 22px;min-width:0}
+.y h4{margin:0 0 2px;color:#fff;font-size:17px}.y h5{margin:16px 0 8px;color:#d6d8dd;font-size:12px;font-weight:600}
+.y .muted{color:#5d6068;font-size:11px}.y .t2{color:#8a8d96}
+.y .bar{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.y .btns{display:flex;gap:6px}
+.y .b{border:1px solid #26282e;background:#1a1b1f;color:#d6d8dd;border-radius:7px;padding:5px 9px;font-size:11px;white-space:nowrap}
+.y .b.pri{background:#c6ff3d;color:#0b0c0d;border-color:#c6ff3d;font-weight:600}
+.y .b.ghost{background:none}
+.y .kpis{display:flex;gap:10px;margin:14px 0}
+.y .k{flex:1;background:#1a1b1f;border:1px solid #26282e;border-radius:10px;padding:10px}
+.y .k .v{font-size:16px;color:#fff;font-weight:600;margin-top:4px}.y .k .s{font-size:11px;margin-top:2px}
+.y .up{color:#c6ff3d}.y .dn{color:#ff6b6b}
+.y table{width:100%;border-collapse:collapse}.y td,.y th{padding:6px 5px;border-bottom:1px solid #1a1b1f;text-align:left;white-space:nowrap}
+.y th{color:#5d6068;font-weight:500;font-size:10px;text-transform:uppercase}.y .r{text-align:right}
+.y tr.cls td{color:#8a8d96;font-weight:600;background:#121315;border-bottom:1px solid #26282e}
+.y .pill{display:inline-block;border-radius:20px;padding:2px 8px;font-size:10px;border:1px solid #26282e;color:#8a8d96}
+.y .pill.ok{color:#c6ff3d;border-color:#2c3a14;background:#1c2410}.y .pill.bad{color:#ff6b6b;border-color:#4a2224;background:#2a1414}
+.y .pill.warn{color:#ffcf5c;border-color:#4a3c14;background:#241e0c}
+.y .tag{font-size:9px;color:#5d6068;border:1px solid #26282e;border-radius:4px;padding:1px 4px}
+.y .card{background:#121315;border:1px solid #26282e;border-radius:10px;padding:12px}
+.y .note{background:#241e0c;border:1px solid #4a3c14;color:#ffcf5c;border-radius:8px;padding:8px 10px;font-size:11px}
+.y .info{background:#121315;border:1px solid #26282e;color:#8a8d96;border-radius:8px;padding:8px 10px;font-size:11px}
+.y .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.y .field{display:flex;flex-direction:column;gap:3px}.y .field span{font-size:10px;color:#5d6068}
+.y .in{background:#0b0c0d;border:1px solid #26282e;border-radius:6px;padding:5px 7px;color:#d6d8dd;font-size:11px}
+.y .in.need{border-color:#ffcf5c}
+.y .row{display:flex;gap:8px;flex-wrap:wrap}
+.y tr.hl td{background:#2a1414}
+.y .chip{border:1px solid #26282e;border-radius:20px;padding:3px 9px;font-size:11px;color:#8a8d96}.y .chip.on{color:#0b0c0d;background:#d6d8dd;border-color:#d6d8dd}
+.y .sec{border-top:1px solid #26282e;padding-top:12px;margin-top:14px}
+.ap{margin:10px 0 34px}
+</style>
+<style>
+.y .day td{color:#8a8d96;font-weight:600;background:#121315;font-size:10px;border-bottom:1px solid #26282e}
+.y .sel{display:inline-flex;align-items:center;gap:4px;border:1px solid #26282e;border-radius:6px;padding:2px 6px;font-size:10px;color:#d6d8dd;background:#0b0c0d}
+.y .sel.none{color:#ffcf5c;border-color:#4a3c14}
+.y .pop{position:absolute;right:20px;top:36px;width:250px;background:#1a1b1f;border:1px solid #3a3d44;border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.y .ok{background:#1c2410;border:1px solid #2c3a14;color:#c6ff3d;border-radius:8px;padding:8px 10px;font-size:11px}
+.y ol{margin:6px 0 0 16px;padding:0}.y ol li{margin:3px 0;color:#8a8d96}
+</style>
+
+<style>
+.y{--s1:#3987e5;--s2:#d95926}
+.y .lc{background:#121315;border:1px solid #26282e;border-radius:10px;padding:12px}
+.y .lc h6{margin:0;font-size:12px;color:#d6d8dd;font-weight:600}
+.y .lg{display:flex;gap:12px;font-size:10px;color:#8a8d96;margin-top:2px}
+.y .lg i{display:inline-block;width:10px;height:2px;vertical-align:middle;margin-right:4px;border-radius:1px}
+.y svg text{font-family:inherit}
+.y .alert{display:flex;align-items:center;gap:8px;background:#241e0c;border:1px solid #4a3c14;color:#ffcf5c;border-radius:8px;padding:6px 10px;font-size:11px;margin-top:10px}
+.y .alert b{color:#ffcf5c}.y .alert .lnk{margin-left:auto;text-decoration:underline}
+.y .txn td{padding:7px 5px}.y .txn td:nth-child(2){width:150px}
+.y .txn .d1{color:#e8e9ec}.y .txn .d2{color:#5d6068;font-size:10px;margin-top:1px}
+.y .txn tr.off td{opacity:.55}
+.y .expand td{background:#16171a;border-bottom:1px solid #26282e}
+.y .search{flex:1;max-width:220px}
+.y .mini{display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:6px}
+.y .mini span{width:12px;background:#3a3d44;border-radius:3px 3px 0 0}
+.y .mini span.cur{background:var(--s1)}
+.y .barrow{display:grid;grid-template-columns:92px 1fr 64px;align-items:center;gap:8px;font-size:11px;padding:3px 0}
+.y .barrow .tr{height:12px;background:var(--s1);border-radius:0 4px 4px 0}
+.y .barrow .tr.unc{background:repeating-linear-gradient(45deg,#ffcf5c 0 3px,#3a3214 3px 6px)}
+.y .barrow.sel{background:#1a1b1f;border-radius:6px}
+</style>
+
+<h2>Telas de Últimos gastos e Resumo de Investimentos: fase 3</h2>
+<p class="subtitle">"Últimos gastos" ganha uma tela nova, <b>Resumo</b>, que abre primeiro. Lançamentos fica só com a lista. Números e lojas fictícios.</p>
+<h3>1 · Resumo</h3>
+<div class="mockup"><div class="mockup-header">Últimos gastos › Resumo</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp on">Últimos gastos</div><div class="sub on">Resumo</div><div class="sub">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp">Investimentos</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar">
+      <div class="row" style="align-items:center;gap:10px"><h4 style="margin:0">Resumo</h4><span class="chip">‹</span><b style="color:#fff;font-size:13px">Outubro 2026</b><span class="chip">›</span></div>
+      <div class="btns"><span class="muted" style="align-self:center">sincronizado hoje 09:12</span><span class="b ghost">↻ Sincronizar</span><span class="b">Importar extrato…</span></div>
+    </div>
+    <div class="alert">⚠ <b>2 avisos:</b> Cartão Azul não sincronizou (itemId não encontrado) · Banco Laranja ···4821 pode estar em dobro (Pluggy e extrato) <span class="lnk">Ver</span></div>
+    <div class="kpis">
+      <div class="k"><div class="muted">Gasto no mês</div><div class="v">R$ 6.482,17</div>
+        <div class="s muted">R$ 1.468 a mais que setembro até o dia 26</div>
+      </div>
+      <div class="k"><div class="muted">Entradas</div><div class="v">R$ 12.300,00</div><div class="s muted">salário + 1 estorno</div></div>
+      <div class="k"><div class="muted">Sobrou</div><div class="v up">R$ 5.817,83</div><div class="s muted">entradas − gasto</div></div>
+    </div>
+
+    <div class="grid2" style="grid-template-columns:1.15fr 1fr">
+      <div class="lc">
+        <div class="bar"><h6>Gasto acumulado no mês</h6><div class="lg"><span><i style="background:var(--s1)"></i>outubro</span><span><i style="background:var(--s2)"></i>setembro</span></div></div>
+        <svg viewBox="0 0 420 140" width="100%" role="img" aria-label="Gasto acumulado: outubro R$ 6.482 até o dia 26; setembro R$ 5.014 no dia 26 e R$ 7.106 no fim do mês">
+          <g stroke="#1f2125" stroke-width="1">
+            <line x1="34" x2="404" y1="124" y2="124" stroke="#3a3d44"/><line x1="34" x2="404" y1="96" y2="96"/><line x1="34" x2="404" y1="68" y2="68"/><line x1="34" x2="404" y1="40" y2="40"/><line x1="34" x2="404" y1="12" y2="12"/>
+          </g>
+          <g fill="#5d6068" font-size="9" text-anchor="end"><text x="28" y="127">0</text><text x="28" y="99">2 mil</text><text x="28" y="71">4 mil</text><text x="28" y="43">6 mil</text><text x="28" y="15">8 mil</text></g>
+          <g fill="#5d6068" font-size="9" text-anchor="middle"><text x="34" y="137">1</text><text x="157.3" y="137">11</text><text x="280.7" y="137">21</text><text x="404" y="137">31</text></g>
+          <path d="M34.0 121.4 L46.3 117.8 L58.7 116.6 L71.0 116.2 L83.3 115.3 L95.7 112.3 L108.0 111.5 L120.3 110.2 L132.7 107.0 L145.0 85.7 L157.3 83.3 L169.7 79.9 L182.0 76.1 L194.3 74.1 L206.7 72.9 L219.0 71.1 L231.3 69.3 L243.7 67.0 L256.0 65.9 L268.3 62.7 L280.7 62.2 L293.0 59.1 L305.3 59.0 L317.7 57.7 L330.0 56.0 L342.3 53.8 L354.7 51.4 L367.0 28.9 L379.3 26.0 L391.7 24.5" fill="none" stroke="var(--s2)" stroke-width="2" stroke-linejoin="round" stroke-dasharray="4 3"/>
+          <path d="M34.0 122.4 L46.3 120.6 L58.7 120.2 L71.0 119.4 L83.3 98.5 L95.7 92.0 L108.0 91.7 L120.3 88.9 L132.7 86.9 L145.0 66.1 L157.3 65.2 L169.7 62.6 L182.0 55.6 L194.3 55.4 L206.7 53.8 L219.0 53.0 L231.3 50.8 L243.7 50.3 L256.0 48.5 L268.3 42.0 L280.7 41.5 L293.0 41.3 L305.3 38.2 L317.7 35.1 L330.0 34.7 L342.3 33.2" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>
+          <line x1="342.3" x2="342.3" y1="12" y2="124" stroke="#3a3d44" stroke-dasharray="2 2"/>
+          <circle cx="342.3" cy="33.2" r="4" fill="var(--s1)" stroke="#121315" stroke-width="2"/>
+          <circle cx="342.3" cy="53.8" r="4" fill="var(--s2)" stroke="#121315" stroke-width="2"/>
+          <g font-size="10"><rect x="232" y="2" width="104" height="30" rx="5" fill="#1a1b1f" stroke="#3a3d44"/><text x="240" y="14" fill="#8a8d96">dia 26</text><text x="240" y="27" fill="#e8e9ec">out 6.482 · set 5.014</text></g>
+        </svg>
+        <div class="muted">Passe o mouse para ver cada dia. A linha tracejada é setembro.</div>
+      </div>
+      <div class="lc">
+        <div class="bar"><h6>Por categoria</h6><span class="muted">clique para filtrar a lista</span></div>
+        <div style="margin-top:6px">
+          <div class="barrow"><span>Mercado</span><div><div class="tr" style="width:100%"></div></div><span class="r">1.618,40</span></div>
+          <div class="barrow"><span>Moradia</span><div><div class="tr" style="width:89.6%"></div></div><span class="r">1.450,00</span></div>
+          <div class="barrow sel"><span>Alimentação</span><div><div class="tr" style="width:60.7%"></div></div><span class="r">982,75</span></div>
+          <div class="barrow"><span>Transporte</span><div><div class="tr" style="width:37.3%"></div></div><span class="r">604,30</span></div>
+          <div class="barrow"><span>Pet</span><div><div class="tr" style="width:19.6%"></div></div><span class="r">318,00</span></div>
+          <div class="barrow"><span>Assinaturas</span><div><div class="tr" style="width:13.4%"></div></div><span class="r">216,60</span></div>
+          <div class="barrow"><span>Outras (4)</span><div><div class="tr" style="width:54.3%"></div></div><span class="r">879,50</span></div>
+          <div class="barrow"><span style="color:#ffcf5c">Sem categoria</span><div><div class="tr unc" style="width:25.5%"></div></div><span class="r">412,62</span></div>
+        </div>
+        <div class="muted" style="margin-top:4px">Pagamento de fatura, transferências e investimentos não entram.</div>
+      </div>
+    </div>
+
+    <div class="grid2" style="grid-template-columns:1fr 1fr;margin-top:12px">
+      <div class="lc">
+        <div class="bar"><h6>Gasto por mês</h6><span class="muted">outubro até hoje (listrado)</span></div>
+        <svg viewBox="0 0 400 132" width="100%" role="img" aria-label="Gasto por mês de maio a outubro">
+          <defs><pattern id="parcial" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#1c3a63"/><rect width="3" height="6" fill="#3987e5"/></pattern></defs>
+          <line x1="30" x2="396" y1="112" y2="112" stroke="#3a3d44"/>
+          <rect x="40" y="43.7" width="34" height="68.3" rx="4" fill="var(--s1)"><title>mai: R$ 6.210</title></rect><text x="57" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">mai</text><text x="57" y="38.7" text-anchor="middle" fill="#d6d8dd" font-size="9">6,2 mil</text><rect x="100" y="36.2" width="34" height="75.8" rx="4" fill="var(--s1)"><title>jun: R$ 6.890</title></rect><text x="117" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">jun</text><text x="117" y="31.2" text-anchor="middle" fill="#d6d8dd" font-size="9">6,9 mil</text><rect x="160" y="46.7" width="34" height="65.3" rx="4" fill="var(--s1)"><title>jul: R$ 5.940</title></rect><text x="177" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">jul</text><text x="177" y="41.7" text-anchor="middle" fill="#d6d8dd" font-size="9">5,9 mil</text><rect x="220" y="31.5" width="34" height="80.5" rx="4" fill="var(--s1)"><title>ago: R$ 7.320</title></rect><text x="237" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">ago</text><text x="237" y="26.5" text-anchor="middle" fill="#d6d8dd" font-size="9">7,3 mil</text><rect x="280" y="33.8" width="34" height="78.2" rx="4" fill="var(--s1)"><title>set: R$ 7.106</title></rect><text x="297" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">set</text><text x="297" y="28.8" text-anchor="middle" fill="#d6d8dd" font-size="9">7,1 mil</text><rect x="340" y="40.7" width="34" height="71.3" rx="4" fill="url(#parcial)"><title>out: R$ 6.482 até hoje</title></rect><text x="357" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">out</text><text x="357" y="35.7" text-anchor="middle" fill="#d6d8dd" font-size="9">6,5 mil</text>
+        </svg>
+      </div>
+      <div class="lc">
+        <div class="bar"><h6>Maiores gastos do mês</h6><span class="muted">ver todos em Lançamentos</span></div>
+        <table class="txn" style="margin-top:4px">
+          <tr><td><div class="d1">Aluguel</div><div class="d2">05/10 · Banco Laranja · Moradia</div></td><td class="r">−1.450,00</td></tr>
+          <tr><td><div class="d1">Mercado Bom Preço</div><div class="d2">12/10 · Cartão Roxo · Mercado</div></td><td class="r">−642,18</td></tr>
+          <tr><td><div class="d1">Pet Shop Amigo</div><div class="d2">18/10 · Cartão Roxo · Pet</div></td><td class="r">−318,00</td></tr>
+          <tr><td><div class="d1">Mercado Bom Preço</div><div class="d2">26/10 · Cartão Roxo · Mercado · pendente</div></td><td class="r">−287,50</td></tr>
+          <tr><td><div class="d1">Posto Avenida</div><div class="d2">09/10 · Cartão Roxo · Transporte</div></td><td class="r">−240,00</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="resumo-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Resumo</h3></div></div><div class="option" data-choice="resumo-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+<h3>2 · Lançamentos</h3>
+<div class="mockup"><div class="mockup-header">Últimos gastos › Lançamentos</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp on">Últimos gastos</div><div class="sub">Resumo</div><div class="sub on">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp">Investimentos</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar">
+      <div class="row" style="align-items:center;gap:10px"><h4 style="margin:0">Lançamentos</h4><span class="chip">‹</span><b style="color:#fff;font-size:13px">Outubro 2026</b><span class="chip">›</span></div>
+      <div class="btns"><span class="muted" style="align-self:center">sincronizado hoje 09:12</span><span class="b ghost">↻ Sincronizar</span><span class="b">Importar extrato…</span></div>
+    </div>
+    <div class="row" style="margin-top:10px;gap:14px;font-size:11px"><span class="t2">Gasto <b style="color:#fff">R$ 6.482,17</b></span><span class="t2">Entradas <b style="color:#fff">R$ 12.300,00</b></span><span class="muted">os números do mês ficam no Resumo</span></div>
+    <div class="bar" style="margin:14px 0 6px">
+      <div class="row" style="align-items:center"><span class="in search">🔍 buscar descrição</span><span class="chip on">Tudo</span><span class="chip">Contas</span><span class="chip">Cartões</span><span class="chip">Categoria: todas ▾</span><span class="chip" style="color:#ffcf5c;border-color:#4a3c14">7 sem categoria</span></div>
+    </div>
+    <table class="txn">
+      <tr class="day"><td colspan="2">Segunda, 26 de outubro</td><td class="r">−24,90</td></tr>
+      <tr><td><div class="d1">Padaria Central</div><div class="d2">Cartão Roxo</div></td><td><span class="sel none">Sem categoria ▾</span></td><td class="r">−24,90</td></tr>
+      <tr class="expand"><td colspan="3">
+        <div class="row" style="align-items:center;gap:10px"><span class="muted">Categoria:</span><span class="in">Alimentação ▾</span>
+        <label style="display:flex;gap:6px;align-items:center;font-size:11px"><span style="color:#c6ff3d">☑</span> fazer isso sempre com "padaria central" <span class="muted">(também nas 4 compras antigas)</span></label>
+        <span style="margin-left:auto" class="btns"><span class="b ghost">Cancelar</span><span class="b pri">Salvar</span></span></div>
+      </td></tr>
+      <tr class="day"><td colspan="2">Sexta, 23 de outubro</td><td class="r">−58,40</td></tr>
+      <tr><td><div class="d1">Restaurante Sabor</div><div class="d2">Cartão Roxo · pendente</div></td><td><span class="sel">Alimentação ▾</span></td><td class="r">−58,40</td></tr>
+      <tr class="day"><td colspan="2">Quinta, 22 de outubro</td><td class="r">−112,00</td></tr>
+      <tr><td><div class="d1">Uber Eats</div><div class="d2">Cartão Roxo · regra "uber eats"</div></td><td><span class="sel">Alimentação ▾</span></td><td class="r">−112,00</td></tr>
+
+      <tr class="day"><td colspan="2">Quarta, 21 de outubro</td><td class="r">−1.500,00 em fatura</td></tr>
+      <tr class="off"><td><div class="d1">Pag Fatura Cartão Roxo</div><div class="d2">Banco Laranja ···4821 · não conta como gasto</div></td><td><span class="sel">Pagamento de fatura ▾</span></td><td class="r">−1.500,00</td></tr>
+      <tr><td><div class="d1">Estorno Loja Acme</div><div class="d2">Cartão Roxo</div></td><td><span class="sel">Compras ▾</span></td><td class="r up">+119,00</td></tr>
+      <tr><td><div class="d1">Loja de Móveis Acme</div><div class="d2">Cartão Roxo · parcela 3/10</div></td><td><span class="sel">Compras ▾</span></td><td class="r">−189,90</td></tr>
+    </table>
+    <div class="muted" style="margin-top:6px">86 lançamentos em outubro · mostrando por dia, do mais recente</div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="lancamentos-v4-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Lançamentos</h3></div></div><div class="option" data-choice="lancamentos-v4-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+<div class="info" style="margin-top:4px;font-size:12px;line-height:1.5">
+<b>Como as duas se ligam</b><br>
+• O Resumo abre primeiro quando você clica em Últimos gastos. O mês escolhido vale para as duas telas.<br>
+• Clicar numa barra de "Por categoria" ou num item de "Maiores gastos" abre Lançamentos já filtrado.<br>
+• O Resumo ganhou "Gasto por mês" (6 meses, o mês atual listrado por estar incompleto) e "Maiores gastos do mês".<br>
+• Lançamentos mantém só uma linha com o gasto e as entradas do mês, para não perder a referência.
+</div>
+<!-- ============ 2. ASSINATURAS ============ -->
+<h3>3 · Assinaturas</h3>
+<div class="mockup"><div class="mockup-header">Últimos gastos › Assinaturas</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp on">Últimos gastos</div><div class="sub">Resumo</div><div class="sub">Lançamentos</div><div class="sub on">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp">Investimentos</div><div class="sub">Resumo</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <h4>Assinaturas</h4><div class="muted">Cobranças que se repetem todo mês (ou todo ano) no mesmo lugar, com valor parecido. Compras parceladas não entram.</div>
+    <div class="kpis">
+      <div class="k"><div class="muted">Por mês</div><div class="v">R$ 216,60</div><div class="s muted">4 ativas</div></div>
+      <div class="k"><div class="muted">Por ano</div><div class="v">R$ 2.599,20</div><div class="s muted">anuais incluídas</div></div>
+      <div class="k"><div class="muted">Paradas</div><div class="v">1</div><div class="s muted">sem cobrança há mais de 45 dias</div></div>
+    </div>
+    <table>
+      <tr><th>Assinatura</th><th>Conta</th><th>Período</th><th class="r">Valor</th><th class="r">Por mês</th><th>Próxima</th><th>Situação</th><th></th></tr>
+      <tr><td>ACADEMIA FORTE</td><td class="t2">Banco Laranja</td><td>mensal</td><td class="r">119,90</td><td class="r">119,90</td><td>05/11</td><td><span class="pill ok">ativa</span></td><td class="muted">não é assinatura</td></tr>
+      <tr><td>STREAMFLIX</td><td class="t2">Cartão Roxo</td><td>mensal</td><td class="r">44,90</td><td class="r">44,90</td><td>22/11</td><td><span class="pill ok">ativa</span> <span class="tag">subiu de 39,90</span></td><td class="muted">não é assinatura</td></tr>
+      <tr><td>NUVEM FOTOS</td><td class="t2">Cartão Roxo</td><td>anual</td><td class="r">358,80</td><td class="r">29,90</td><td>12/03/2027</td><td><span class="pill ok">ativa</span></td><td class="muted">não é assinatura</td></tr>
+      <tr><td>MUSICA JA</td><td class="t2">Cartão Roxo</td><td>mensal</td><td class="r">21,90</td><td class="r">21,90</td><td>02/11</td><td><span class="pill ok">ativa</span></td><td class="muted">não é assinatura</td></tr>
+      <tr><td>REVISTA DIGITAL</td><td class="t2">Cartão Azul</td><td>mensal</td><td class="r">9,90</td><td class="r t2">—</td><td class="t2">—</td><td><span class="pill">parada desde 14/08</span></td><td class="muted">não é assinatura</td></tr>
+    </table>
+    <div class="note" style="margin-top:10px">Tirar "MUSICA JA" da lista? Ela não volta a aparecer como assinatura. Os lançamentos continuam em Lançamentos. [Cancelar] [Não é assinatura]</div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="assinaturas-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Assinaturas</h3></div></div><div class="option" data-choice="assinaturas-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 3. CATEGORIAS ============ -->
+<h3>4 · Categorias</h3>
+<div class="mockup"><div class="mockup-header">Últimos gastos › Categorias</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp on">Últimos gastos</div><div class="sub">Resumo</div><div class="sub">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub on">Categorias</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp">Investimentos</div><div class="sub">Resumo</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar"><div><h4>Categorias</h4><div class="muted">Gasto de outubro por categoria · ‹ Out/2026 ›</div></div><div class="btns"><span class="b">+ Categoria</span></div></div>
+    <div class="grid2" style="margin-top:12px;grid-template-columns:1.2fr 1fr">
+      <div>
+        <table>
+          <tr><th>Categoria</th><th>Conta como gasto</th><th class="r">Outubro</th><th></th></tr>
+          <tr><td>Mercado</td><td>sim</td><td class="r">1.618,40</td><td class="muted">renomear</td></tr>
+          <tr><td>Moradia</td><td>sim</td><td class="r">1.450,00</td><td class="muted">renomear</td></tr>
+          <tr><td>Alimentação</td><td>sim</td><td class="r">982,75</td><td class="muted">renomear</td></tr>
+          <tr><td>Transporte</td><td>sim</td><td class="r">604,30</td><td class="muted">renomear</td></tr>
+          <tr><td>Pet <span class="tag">sua</span></td><td>sim</td><td class="r">318,00</td><td class="muted">renomear · apagar</td></tr>
+          <tr><td>Assinaturas</td><td>sim</td><td class="r">216,60</td><td class="muted">renomear</td></tr>
+          <tr><td style="color:#ffcf5c">Sem categoria</td><td>sim</td><td class="r">412,62</td><td></td></tr>
+          <tr><td class="t2">Pagamento de fatura</td><td class="t2">não</td><td class="r t2">1.500,00</td><td class="muted">renomear</td></tr>
+          <tr><td class="t2">Transferência</td><td class="t2">não</td><td class="r t2">800,00</td><td class="muted">renomear</td></tr>
+          <tr><td class="t2">Investimento</td><td class="t2">não</td><td class="r t2">2.000,00</td><td class="muted">renomear</td></tr>
+        </table>
+        <div class="note" style="margin-top:10px">Apagar "Pet"? Vão junto 2 regras e 5 categorias escolhidas à mão; essas compras voltam para "Sem categoria". [Cancelar] [Apagar]</div>
+      </div>
+      <div class="card">
+        <b style="color:#fff">Regras</b><div class="muted" style="margin:4px 0 8px">"Sempre categorizar … como …". A regra mais específica ganha; a categoria escolhida à mão numa compra ganha de todas.</div>
+        <table>
+          <tr><th>Quando a descrição tem</th><th>Categoria</th><th></th></tr>
+          <tr><td>uber eats</td><td>Alimentação</td><td class="muted">apagar</td></tr>
+          <tr><td>uber</td><td>Transporte</td><td class="muted">apagar</td></tr>
+          <tr><td>padaria central</td><td>Alimentação</td><td class="muted">apagar</td></tr>
+          <tr><td>pet shop amigo</td><td>Pet</td><td class="muted">apagar</td></tr>
+          <tr><td>mercado bom preco</td><td>Mercado</td><td class="muted">apagar</td></tr>
+        </table>
+        <div class="row" style="margin-top:8px"><span class="in" style="flex:1">descrição contém…</span><span class="in">categoria ▾</span><span class="b">Adicionar</span></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="categorias-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Categorias</h3></div></div><div class="option" data-choice="categorias-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 4. CONFIGURAÇÕES › OPEN FINANCE ============ -->
+<h3>5 · Configurações › Open Finance</h3>
+<div class="mockup"><div class="mockup-header">Sistema › Configurações (cartão novo)</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp">Últimos gastos</div><div class="sub">Resumo</div><div class="sub">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp">Investimentos</div><div class="sub">Resumo</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp on">Sistema</div><div class="sub on">Configurações</div>
+  </div>
+  <div class="main">
+    <h4>Configurações</h4><div class="muted">Tudo fica neste computador. Saem da máquina só as cotações do Yahoo e a leitura dos seus bancos na Pluggy.</div>
+    <div class="card" style="margin-top:14px">
+      <div class="bar"><b style="color:#fff">Open Finance (Pluggy + Meu Pluggy)</b><span class="pill ok">3 bancos conectados</span></div>
+      <div class="ok" style="margin-top:8px"><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele só lista contas e transações.</div>
+      <div class="grid2" style="margin-top:10px">
+        <div>
+          <div class="muted"><b style="color:#d6d8dd">Como conectar</b> (uma vez)</div>
+          <ol>
+            <li>Crie sua conta em <b>meu.pluggy.ai</b> e conecte cada banco (uma autorização por banco).</li>
+            <li>Crie a conta de desenvolvedor em <b>dashboard.pluggy.ai</b> e adicione o conector <b>MeuPluggy</b>.</li>
+            <li>Conecte o MeuPluggy no dashboard e copie o <b>itemId</b> de cada banco.</li>
+            <li>Copie o <b>Client ID</b> e o <b>Client Secret</b> e cole aqui.</li>
+          </ol>
+          <div class="note" style="margin-top:8px">Faça tudo dentro dos 15 dias do teste da Pluggy. Depois disso as conexões continuam lendo, mas não dá mais para adicionar bancos.</div>
+        </div>
+        <div>
+          <div class="field"><span>Client ID</span><span class="in">salvo no cofre do sistema · <span style="color:#c6ff3d">Trocar</span> · <span style="color:#ff6b6b">Apagar</span></span></div>
+          <div class="field" style="margin-top:6px"><span>Client Secret</span><span class="in">salvo no cofre do sistema · <span style="color:#c6ff3d">Trocar</span></span></div>
+          <div class="muted" style="margin:10px 0 4px">Bancos (itemId do Meu Pluggy)</div>
+          <table>
+            <tr><th>Nome</th><th>itemId</th><th>Situação</th><th></th></tr>
+            <tr><td>Banco Laranja</td><td class="t2">3f1a…9c02</td><td><span class="pill ok">2 contas</span></td><td class="muted">tirar</td></tr>
+            <tr><td>Cartão Roxo</td><td class="t2">a77e…41bd</td><td><span class="pill ok">1 cartão</span></td><td class="muted">tirar</td></tr>
+            <tr><td>Cartão Azul</td><td class="t2">0be2…77aa</td><td><span class="pill bad">item não encontrado</span></td><td class="muted">tirar</td></tr>
+          </table>
+          <div class="row" style="margin-top:6px"><span class="in" style="width:80px">nome</span><span class="in" style="flex:1">cole o itemId</span><span class="b">Adicionar</span></div>
+          <div class="btns" style="margin-top:8px"><span class="b pri">Testar conexão</span><span class="b ghost">↻ Sincronizar agora</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="info" style="margin-top:8px">Sincroniza sozinho ao abrir o Yield (se passaram mais de 6 h) e pelo botão. Os bancos atualizam no Meu Pluggy uma vez por dia.</div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="openfinance-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Open Finance</h3></div></div><div class="option" data-choice="openfinance-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+
+<style>.y{--s3:#199e70}</style>
+<h3>6 · Investimentos › Resumo</h3>
+
+<div class="mockup"><div class="mockup-header">Investimentos › Resumo</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp">Últimos gastos</div><div class="sub">Resumo</div><div class="sub">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp on">Investimentos</div><div class="sub on">Resumo</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar"><div><h4>Resumo</h4><div class="muted">Cotações do Yahoo de 26/10 às 14:32 (atraso de ~15 min)</div></div><div class="btns"><span class="b ghost">↻ Atualizar cotações</span></div></div>
+    <div class="alert">⚠ <b>DARF de setembro vence em 30/10:</b> R$ 312,40 (código 6015) · 1 mês com imposto incompleto (XPTO11) <span class="lnk">Ver em Imposto</span></div>
+    <div class="kpis">
+      <div class="k"><div class="muted">Patrimônio</div><div class="v">R$ 184.230,55</div><div class="s muted">aportado R$ 163.910,20</div></div>
+      <div class="k"><div class="muted">Resultado</div><div class="v up">+R$ 20.320,35</div><div class="s up">+12,4% sobre o aportado</div></div>
+      <div class="k"><div class="muted">Proventos 12 meses</div><div class="v">R$ 6.912,40</div><div class="s muted">média R$ 576/mês</div></div>
+      <div class="k"><div class="muted">Imposto</div><div class="v">R$ 312,40</div><div class="s" style="color:#ffcf5c">DARF a vencer</div></div>
+    </div>
+    <div class="grid2" style="grid-template-columns:1.15fr 1fr">
+      <div class="lc">
+        <div class="bar"><h6>Aportado × valor de hoje</h6><span class="muted">últimos 24 meses</span></div>
+        <svg viewBox="0 0 420 140" width="100%" role="img" aria-label="Aportado acumulado de nov/24 a out/26 chegando a R$ 163,9 mil; valor de hoje R$ 184,2 mil">
+          <line x1="40" x2="400" y1="120.0" y2="120.0" stroke="#1f2125"/><text x="34" y="123.0" text-anchor="end" fill="#5d6068" font-size="9">100 mil</text><line x1="40" x2="400" y1="68.0" y2="68.0" stroke="#1f2125"/><text x="34" y="71.0" text-anchor="end" fill="#5d6068" font-size="9">150 mil</text><line x1="40" x2="400" y1="16.0" y2="16.0" stroke="#1f2125"/><text x="34" y="19.0" text-anchor="end" fill="#5d6068" font-size="9">200 mil</text><line x1="40" x2="400" y1="120" y2="120" stroke="#3a3d44"/>
+          <path d="M40.0 100.6 L54.3 98.2 L68.7 95.5 L83.0 92.8 L97.4 91.8 L111.7 89.7 L126.1 87.4 L140.4 85.5 L154.8 84.3 L169.1 82.4 L183.5 81.4 L197.8 78.6 L212.2 75.9 L226.5 73.9 L240.9 72.4 L255.2 69.6 L269.6 67.6 L283.9 64.9 L298.3 62.2 L312.6 60.3 L327.0 58.6 L341.3 56.5 L355.7 54.7 L370.0 53.5 L370.0 120 L40 120 Z" fill="#3987e5" fill-opacity=".12"/><path d="M40.0 100.6 L54.3 98.2 L68.7 95.5 L83.0 92.8 L97.4 91.8 L111.7 89.7 L126.1 87.4 L140.4 85.5 L154.8 84.3 L169.1 82.4 L183.5 81.4 L197.8 78.6 L212.2 75.9 L226.5 73.9 L240.9 72.4 L255.2 69.6 L269.6 67.6 L283.9 64.9 L298.3 62.2 L312.6 60.3 L327.0 58.6 L341.3 56.5 L355.7 54.7 L370.0 53.5" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>
+          <circle cx="370.0" cy="32.4" r="4" fill="#c6ff3d" stroke="#121315" stroke-width="2"/><line x1="370.0" x2="370.0" y1="32.4" y2="53.5" stroke="#c6ff3d" stroke-dasharray="2 2"/><text x="364.0" y="26.4" text-anchor="end" fill="#e8e9ec" font-size="10">vale hoje 184,2 mil</text><text x="370.0" y="81.5" text-anchor="end" fill="#8a8d96" font-size="10">aportado 163,9 mil</text><text x="40.0" y="134" text-anchor="middle" fill="#5d6068" font-size="9">nov/24</text><text x="212.2" y="134" text-anchor="middle" fill="#5d6068" font-size="9">nov/25</text><text x="370.0" y="134" text-anchor="middle" fill="#5d6068" font-size="9">out/26</text>
+        </svg>
+        <div class="muted">A linha é o que você aportou (custo das compras menos o das vendas). O Yield não guarda cotações antigas, então o valor de mercado aparece só para hoje.</div>
+      </div>
+      <div class="lc">
+        <div class="bar"><h6>Patrimônio por classe</h6><span class="muted">clique para abrir na Carteira</span></div>
+        <div style="margin-top:6px"><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>Ação</span><div><div class="tr" style="width:100.0%"></div></div><span class="r">75.610,30 <span class="muted">41%</span></span></div><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>FII</span><div><div class="tr" style="width:69.0%"></div></div><span class="r">52.180,00 <span class="muted">28%</span></span></div><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>Renda fixa</span><div><div class="tr" style="width:32.5%"></div></div><span class="r">24.600,00 <span class="muted">13%</span></span></div><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>ETF</span><div><div class="tr" style="width:24.4%"></div></div><span class="r">18.420,25 <span class="muted">10%</span></span></div><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>BDR</span><div><div class="tr" style="width:8.1%"></div></div><span class="r">6.120,00 <span class="muted">3%</span></span></div><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>Cripto</span><div><div class="tr" style="width:5.4%"></div></div><span class="r">4.100,00 <span class="muted">2%</span></span></div><div class="barrow" style="grid-template-columns:78px 1fr 92px"><span>Dólar</span><div><div class="tr" style="width:4.2%"></div></div><span class="r">3.200,00 <span class="muted">2%</span></span></div></div>
+        <div class="muted" style="margin-top:4px">Renda fixa, cripto e dólar vêm dos ativos manuais.</div>
+      </div>
+    </div>
+    <div class="grid2" style="grid-template-columns:1.15fr 1fr;margin-top:12px">
+      <div class="lc">
+        <div class="bar"><h6>Proventos por mês</h6><div class="lg"><span><i style="background:var(--s1);height:8px"></i>Rendimento</span><span><i style="background:var(--s2);height:8px"></i>Dividendo</span><span><i style="background:var(--s3);height:8px"></i>JCP</span></div></div>
+        <svg viewBox="0 0 400 132" width="100%" role="img" aria-label="Proventos por mês, de novembro a outubro, total R$ 6.912,40">
+          <line x1="28" x2="396" y1="80.0" y2="80.0" stroke="#1f2125"/><text x="24" y="83.0" text-anchor="end" fill="#5d6068" font-size="9">300</text><line x1="28" x2="396" y1="48.0" y2="48.0" stroke="#1f2125"/><text x="24" y="51.0" text-anchor="end" fill="#5d6068" font-size="9">600</text><line x1="28" x2="396" y1="16.0" y2="16.0" stroke="#1f2125"/><text x="24" y="19.0" text-anchor="end" fill="#5d6068" font-size="9">900</text><line x1="28" x2="396" y1="112" y2="112" stroke="#3a3d44"/><rect x="34" y="70.9" width="20" height="40.1" rx="2" fill="var(--s1)"><title>nov · Rendimento: R$ 394,50</title></rect><text x="44" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">nov</text><rect x="64" y="65.8" width="20" height="45.2" rx="2" fill="var(--s1)"><title>dez · Rendimento: R$ 442,52</title></rect><rect x="64" y="44.7" width="20" height="19.1" rx="2" fill="var(--s2)"><title>dez · Dividendo: R$ 197,94</title></rect><rect x="64" y="24.9" width="20" height="17.8" rx="2" fill="var(--s3)"><title>dez · JCP: R$ 185,57</title></rect><text x="74" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">dez</text><rect x="94" y="71.8" width="20" height="39.2" rx="2" fill="var(--s1)"><title>jan · Rendimento: R$ 386,48</title></rect><text x="104" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">jan</text><rect x="124" y="73.2" width="20" height="37.8" rx="2" fill="var(--s1)"><title>fev · Rendimento: R$ 373,11</title></rect><rect x="124" y="44.2" width="20" height="27.0" rx="2" fill="var(--s2)"><title>fev · Dividendo: R$ 272,17</title></rect><text x="134" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">fev</text><rect x="154" y="63.7" width="20" height="47.3" rx="2" fill="var(--s1)"><title>mar · Rendimento: R$ 462,00</title></rect><rect x="154" y="43.9" width="20" height="17.8" rx="2" fill="var(--s3)"><title>mar · JCP: R$ 185,57</title></rect><text x="164" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">mar</text><rect x="184" y="71.1" width="20" height="39.9" rx="2" fill="var(--s1)"><title>abr · Rendimento: R$ 393,10</title></rect><rect x="184" y="42.0" width="20" height="27.0" rx="2" fill="var(--s2)"><title>abr · Dividendo: R$ 272,17</title></rect><text x="194" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">abr</text><rect x="214" y="69.6" width="20" height="41.4" rx="2" fill="var(--s1)"><title>mai · Rendimento: R$ 406,80</title></rect><rect x="214" y="64.3" width="20" height="3.3" rx="2" fill="var(--s2)"><title>mai · Dividendo: R$ 49,49</title></rect><text x="224" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">mai</text><rect x="244" y="64.7" width="20" height="46.3" rx="2" fill="var(--s1)"><title>jun · Rendimento: R$ 452,98</title></rect><rect x="244" y="52.8" width="20" height="9.9" rx="2" fill="var(--s2)"><title>jun · Dividendo: R$ 111,34</title></rect><rect x="244" y="33.0" width="20" height="17.8" rx="2" fill="var(--s3)"><title>jun · JCP: R$ 185,57</title></rect><text x="254" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">jun</text><rect x="274" y="71.1" width="20" height="39.9" rx="2" fill="var(--s1)"><title>jul · Rendimento: R$ 392,36</title></rect><text x="284" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">jul</text><rect x="304" y="64.7" width="20" height="46.3" rx="2" fill="var(--s1)"><title>ago · Rendimento: R$ 453,18</title></rect><rect x="304" y="52.8" width="20" height="9.9" rx="2" fill="var(--s2)"><title>ago · Dividendo: R$ 111,34</title></rect><text x="314" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">ago</text><rect x="334" y="65.0" width="20" height="46.0" rx="2" fill="var(--s1)"><title>set · Rendimento: R$ 450,37</title></rect><rect x="334" y="59.7" width="20" height="3.3" rx="2" fill="var(--s2)"><title>set · Dividendo: R$ 49,49</title></rect><rect x="334" y="39.9" width="20" height="17.8" rx="2" fill="var(--s3)"><title>set · JCP: R$ 185,57</title></rect><text x="344" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">set</text><rect x="364" y="71.7" width="20" height="39.3" rx="2" fill="var(--s1)"><title>out · Rendimento: R$ 387,46</title></rect><rect x="364" y="59.8" width="20" height="9.9" rx="2" fill="var(--s2)"><title>out · Dividendo: R$ 111,34</title></rect><text x="374" y="126" text-anchor="middle" fill="#8a8d96" font-size="9">out</text>
+        </svg>
+      </div>
+      <div class="lc">
+        <div class="bar"><h6>Maiores posições</h6><span class="muted">ver todas na Carteira</span></div>
+        <table class="txn" style="margin-top:4px">
+          <tr><td><div class="d1">ITSA4</div><div class="d2">Ação · 19% do patrimônio</div></td><td class="r">34.944,00<div class="d2 up">+10,9%</div></td></tr>
+          <tr><td><div class="d1">HGLG11</div><div class="d2">FII · 11%</div></td><td class="r">20.480,00<div class="d2 up">+4,2%</div></td></tr>
+          <tr><td><div class="d1">Tesouro IPCA 2035</div><div class="d2">Renda fixa · 9%</div></td><td class="r">16.800,00<div class="d2 muted">à mão</div></td></tr>
+          <tr><td><div class="d1">BBAS3</div><div class="d2">Ação · 8%</div></td><td class="r">15.120,00<div class="d2 up">+18,6%</div></td></tr>
+          <tr><td><div class="d1">IVVB11</div><div class="d2">ETF · 7%</div></td><td class="r">12.910,25<div class="d2 dn">−2,3%</div></td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="inv-resumo-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Resumo de Investimentos</h3></div></div><div class="option" data-choice="inv-resumo-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
