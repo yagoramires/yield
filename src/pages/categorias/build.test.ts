@@ -42,7 +42,7 @@ describe('validateCategoryName', () => {
 })
 
 describe('totalsOfSubscriptions', () => {
-  const s = (o: Partial<Subscription>): Subscription => ({ merchantKey: 'k', name: 'N', accountId: 'a', period: 'mensal', amountCents: 1000, monthlyCents: 1000, yearlyCents: 12000, lastDate: '2026-10-01', nextDate: '2026-11-01', active: true, charges: 3, ...o })
+  const s = (o: Partial<Subscription>): Subscription => ({ merchantKey: 'k', name: 'N', accountId: 'a', period: 'mensal', amountCents: 1000, monthlyCents: 1000, yearlyCents: 12000, lastDate: '2026-10-01', nextDate: '2026-11-01', active: true, charges: 3, previousAmountCents: null, ...o })
   it('soma só as ativas', () => {
     expect(totalsOfSubscriptions([s({}), s({ monthlyCents: 500, yearlyCents: 6000 }), s({ active: false })])).toEqual({ monthlyCents: 1500, yearlyCents: 18000, active: 2, stopped: 1 })
   })

@@ -49,3 +49,13 @@ describe('detectSubscriptions', () => {
     expect(detectSubscriptions([...netflix.slice(0, 2), txn({ accountId: 'c2', date: '2026-09-05' })], semCat, [], '2026-09-20')).toEqual([])
   })
 })
+
+describe('previousAmountCents', () => {
+  it('guarda o valor anterior quando a última cobrança subiu', () => {
+    const subs = detectSubscriptions([...netflix.slice(0, 2), txn({ date: '2026-09-05', amountCents: -4490 })], semCat, [], '2026-09-20')
+    expect(subs[0].previousAmountCents).toBe(3990)
+  })
+  it('é null quando o valor é estável', () => {
+    expect(detectSubscriptions(netflix, semCat, [], '2026-09-20')[0].previousAmountCents).toBeNull()
+  })
+})
