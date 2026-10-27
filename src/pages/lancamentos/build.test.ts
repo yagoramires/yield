@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Category, GastosData, Txn } from '../../db/gastosRepo'
 import {
-  categoryBars, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
-  spentByMonth, suggestRulePattern, topSpending, type TxnFilter,
+  categoryBars, categoryStrip, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
+  shortAccountLabel, spentByMonth, suggestRulePattern, topSpending, type TxnFilter,
 } from './build'
 
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true })
@@ -167,5 +167,57 @@ describe('needsSync', () => {
   it('ignora contas de item removido', () => {
     const old: Account = { ...pluggy, id: 'p2', externalId: 'pluggy:2', itemId: 'removido', lastSyncAt: null }
     expect(needsSync(g({ accounts: [pluggy, old] }), now)).toBe(false)
+  })
+})
+
+describe('cleanDescription', () => {
+  it('separa o tipo de operação do nome, antes do |', () => {
+    expect(cleanDescription('Transferência enviada pelo Pix|PADARIA SOL NASCENTE LTDA')).toEqual({ name: 'Padaria Sol Nascente', via: 'Pix enviado' })
+    expect(cleanDescription('Compra no débito via NuPay|Loja Azul')).toEqual({ name: 'Loja Azul', via: 'Débito via NuPay' })
+    expect(cleanDescription('Tipo Novo Qualquer|Ana Teste')).toEqual({ name: 'Ana Teste', via: 'Tipo Novo Qualquer' })
+    expect(cleanDescription('Cashback da Carteira |')).toEqual({ name: 'Cashback da Carteira', via: null })
+  })
+  it('caixa alta vira título; texto misto fica como veio, sem o sufixo da empresa', () => {
+    expect(cleanDescription('SUPERMERCADO DO BAIRRO E CIA')).toEqual({ name: 'Supermercado do Bairro e Cia', via: null })
+    expect(cleanDescription('Loja Bonita Comercio De Roupas S/a').name).toBe('Loja Bonita Comercio De Roupas')
+    expect(cleanDescription('LOJA DE ESPORTES S A').name).toBe('Loja de Esportes')
+    expect(cleanDescription('Pix recebido de Ana Teste').name).toBe('Pix recebido de Ana Teste')
+  })
+  it('descritor de cartão: tira o código curto e a repetição', () => {
+    expect(cleanDescription('XY*TAXIRAPIDO').name).toBe('Taxirapido')
+    expect(cleanDescription('LOJAX*LOJAX').name).toBe('Lojax')
+    expect(cleanDescription('PG*AB').name).toBe('Ab')
+    expect(cleanDescription('Lojinha *Casa Azul 7/9').name).toBe('Lojinha Casa Azul 7/9')
+    expect(cleanDescription('TAXA RFB/*-123 - DOC').name).toBe('Taxa Rfb/*-123 - Doc')
+  })
+})
+
+describe('shortAccountLabel', () => {
+  const a = (o: Partial<Account>): Account => ({ ...conta, number: null, ...o })
+  it('nome longo ou que não cita o banco vira o nome do banco; cartão ganha o prefixo', () => {
+    expect(shortAccountLabel(a({ institution: 'Banco Laranja', name: 'Banco Laranja S.A. - Instituição de Pagamento (Conta)', number: '0001-1234' }))).toBe('Banco Laranja ···1234')
+    expect(shortAccountLabel(a({ institution: 'Banco Laranja', name: 'gold', kind: 'cartao' }))).toBe('Cartão Banco Laranja')
+    expect(shortAccountLabel(a({ institution: 'Laranja', name: 'Laranja Investimentos' }))).toBe('Laranja Investimentos')
+    expect(shortAccountLabel(a({ institution: 'Laranja', name: 'Cartão Laranja Black', kind: 'cartao' }))).toBe('Cartão Laranja Black')
+    expect(shortAccountLabel(undefined)).toBe('—')
+  })
+})
+
+describe('categoryStrip', () => {
+  it('sem categoria primeiro, depois gasto por valor; o que não é gasto vai no fim', () => {
+    const receita = { ...cat('receita', false), name: 'Receita' }
+    const by: Record<string, Category> = { m1: mercado, m2: mercado, f: fatura, r: receita }
+    const strip = categoryStrip([
+      txn({ description: 'm1', amountCents: -3000 }), txn({ description: 'm2', amountCents: 500 }),
+      txn({ description: 'x', amountCents: -200 }), txn({ description: 'y', amountCents: 900 }),
+      txn({ description: 'f', amountCents: -90000 }), txn({ description: 'r', amountCents: 100000 }),
+      txn({ description: 'm1', amountCents: -7000, date: '2026-09-01' }),
+    ], t => by[t.description] ?? null, '2026-10')
+    expect(strip).toEqual([
+      { id: 'sem', name: 'Sem categoria', cents: 200, count: 1, spending: true },
+      { id: 'mercado', name: 'mercado', cents: 3000, count: 2, spending: true },
+      { id: 'receita', name: 'Receita', cents: 100000, count: 1, spending: false },
+      { id: 'pagamento-de-fatura', name: 'pagamento-de-fatura', cents: 90000, count: 1, spending: false },
+    ])
   })
 })

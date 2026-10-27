@@ -1,3 +1,4 @@
+import { Search } from 'lucide-react'
 import { useState } from 'react'
 import { saveRule, setOverride, type Txn } from '../db/gastosRepo'
 import { pluggyCategoryId } from '../domain/categoriasPluggy'
@@ -5,8 +6,11 @@ import { monthTotals, normalizeDescription } from '../domain/gastos'
 import { ownerMention } from '../domain/transferencias'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
-import { filterTxns, groupByDay, NO_FILTER, ruleFor, suggestRulePattern, type TxnFilter } from './lancamentos/build'
-import { accountLabel, errText, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
+import { CategoryIcon } from '../ui/CategoryIcon'
+import { shortBRL } from '../ui/charts'
+import { categoryStrip, cleanDescription, filterTxns, groupByDay, NO_FILTER, ruleFor, shortAccountLabel, suggestRulePattern, type TxnFilter } from './lancamentos/build'
+import { CategoryPicker } from './lancamentos/CategoryPicker'
+import { errText, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 
 const signed = (c: number) => (c < 0 ? `−${formatCents(-c)}` : c > 0 ? `+${formatCents(c)}` : '—')
 const dayTitle = (iso: string) => {
@@ -18,118 +22,103 @@ const KINDS: [TxnFilter['accountKind'], string][] = [['todas', 'Tudo'], ['conta'
 export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
   const { db, reload, gastos } = useData()
   const { data, categorize: cat, transfers, month, filter, setFilter } = gastos
-  const [edit, setEdit] = useState<{ txn: Txn; categoryId: string; always: boolean } | null>(null)
+  const [picking, setPicking] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   if (!data.txns.length) return <><GastosHeader title="Lançamentos" /><GastosVazio onOpenSettings={onOpenSettings} /></>
 
   const totals = monthTotals(data.txns, data.accounts, cat, month)
+  const left = totals.incomeCents - totals.spentCents
   const list = filterTxns(data.txns, data.accounts, cat, month, filter)
-  const uncategorized = filterTxns(data.txns, data.accounts, cat, month, { ...NO_FILTER, categoryId: 'sem' }).length
+  const strip = categoryStrip(data.txns, cat, month)
   const accounts = new Map(data.accounts.map(a => [a.id, a]))
   const filtered = filter.accountKind !== 'todas' || filter.categoryId !== null || filter.search !== ''
+  const toggle = (id: string | null) => setFilter({ ...filter, categoryId: filter.categoryId === id ? null : id })
+  const open = (id: string | null) => { setPicking(id); setError(null) }
 
   // "fazer isso sempre" grava a regra no lugar da escolha manual (e apaga uma antiga), para a compra seguir a regra.
-  const save = async () => {
-    if (!edit) return
+  const pick = async (t: Txn, categoryId: string, always: boolean) => {
+    if (!always && cat(t)?.id === categoryId) return open(null)
     setBusy(true)
     try {
-      if (edit.always) {
-        await saveRule(db, suggestRulePattern(edit.txn.description), edit.categoryId)
-        await setOverride(db, edit.txn.fingerprint, null)
-      } else await setOverride(db, edit.txn.fingerprint, edit.categoryId)
+      if (always) {
+        await saveRule(db, suggestRulePattern(t.description), categoryId)
+        await setOverride(db, t.fingerprint, null)
+      } else await setOverride(db, t.fingerprint, categoryId)
       await reload()
-      setEdit(null); setError(null)
+      open(null)
     } catch (e) { setError(`Não foi possível salvar a categoria: ${errText(e)}`) }
     setBusy(false)
   }
 
-  const editor = (t: Txn) => {
-    if (edit?.txn.id !== t.id) return null
+  const row = (t: Txn) => {
+    const c = cat(t)
+    const off = c !== null && !c.countsAsSpending && c.id !== 'receita' // fatura, transferência, investimento
+    const rule = ruleFor(t, data.rules, data.overrides)
+    const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
+    const between = tr && `${tr.outgoing ? 'para' : 'de'} ${shortAccountLabel(accounts.get(tr.otherAccountId))}, entre suas contas`
+    const auto = !rule && !between && !data.overrides[t.fingerprint]
+    const company = auto && c?.id === 'receita' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
+    const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
+    const { name, via } = cleanDescription(t.description)
+    const meta = [via, shortAccountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
     const pattern = suggestRulePattern(t.description)
-    const reach = pattern ? data.txns.filter(o => o.id !== t.id && !data.overrides[o.fingerprint] && normalizeDescription(o.description).includes(pattern)).length : 0
     return (
-      <tr key={`edit-${t.id}`} className="expand"><td colSpan={3}>
-        <div className="row" style={{ alignItems: 'center', gap: 10 }}>
-          <span className="muted">Categoria:</span>
-          <select className="in" aria-label="Nova categoria" value={edit.categoryId} onChange={e => setEdit({ ...edit, categoryId: e.target.value })}>
-            {data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-          {pattern && (
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11 }}>
-              <input type="checkbox" checked={edit.always} onChange={e => setEdit({ ...edit, always: e.target.checked })} />
-              fazer isso sempre com "{pattern}"
-              {reach > 0 && <span className="muted">(também {reach === 1 ? 'na 1 compra antiga' : `nas ${reach} compras antigas`})</span>}
-            </label>
-          )}
-          <span className="btns" style={{ marginLeft: 'auto' }}>
-            <button className="b ghost" disabled={busy} onClick={() => setEdit(null)}>Cancelar</button>
-            <button className="b pri" disabled={busy} onClick={() => void save()}>{busy ? 'Salvando…' : 'Salvar'}</button>
-          </span>
+      <div key={t.id} className={`lrow ${off ? 'off' : ''}`}>
+        <CategoryIcon id={c?.id ?? null} />
+        <div className="lmid">
+          <div className="lname" title={t.description}>{name}</div>
+          <div className="lsub">
+            <button className={`catlink ${c ? '' : 'none'}`} aria-expanded={picking === t.id} aria-label={`Categoria de ${name}: ${c?.name ?? 'sem categoria'}`} onClick={() => open(picking === t.id ? null : t.id)}>{c?.name ?? 'Escolher categoria'}</button>
+            {meta.filter(Boolean).map((m, i) => <span key={i}>· {m}</span>)}
+          </div>
         </div>
-        {error && <div className="note" style={{ marginTop: 8 }}>{error}</div>}
-      </td></tr>
+        <div className={`lval ${t.amountCents > 0 ? 'up' : ''}`}>{signed(t.amountCents)}</div>
+        {picking === t.id && (
+          <CategoryPicker categories={data.categories} current={c?.id ?? null} pattern={pattern} busy={busy} error={error}
+            reach={pattern ? data.txns.filter(o => o.id !== t.id && !data.overrides[o.fingerprint] && normalizeDescription(o.description).includes(pattern)).length : 0}
+            onPick={(id, always) => void pick(t, id, always)} onClose={() => open(null)} />
+        )}
+      </div>
     )
   }
 
   return (
     <>
       <GastosHeader title="Lançamentos" />
-      <div className="row" style={{ marginTop: 10, gap: 14, fontSize: 11 }}>
-        <span className="t2">Gasto <b style={{ color: '#fff' }}>{formatBRL(totals.spentCents)}</b></span>
-        <span className="t2">Entradas <b style={{ color: '#fff' }}>{formatBRL(totals.incomeCents)}</b></span>
-        <span className="muted">os números do mês ficam no Resumo</span>
+      <div className="kpis">
+        <div className="k"><div className="muted">Gasto</div><div className="v">{formatBRL(totals.spentCents)}</div></div>
+        <div className="k"><div className="muted">Entradas</div><div className="v up">{formatBRL(totals.incomeCents)}</div></div>
+        <div className="k"><div className="muted">Sobrou</div><div className={`v ${left < 0 ? 'dn' : ''}`}>{formatBRL(left)}</div></div>
       </div>
 
-      <div className="row" style={{ margin: '14px 0 6px', alignItems: 'center' }}>
-        <input className="in" style={{ flex: 1, maxWidth: 220 }} placeholder="buscar descrição" aria-label="Buscar descrição" value={filter.search} onChange={e => setFilter({ ...filter, search: e.target.value })} />
-        {KINDS.map(([k, l]) => <button key={k} className={`chip ${filter.accountKind === k ? 'on' : ''}`} onClick={() => setFilter({ ...filter, accountKind: k })}>{l}</button>)}
-        <select className="in" aria-label="Categoria" value={filter.categoryId ?? ''} onChange={e => setFilter({ ...filter, categoryId: e.target.value || null })}>
-          <option value="">Categoria: todas</option>
-          {data.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-          <option value="sem">Sem categoria</option>
-        </select>
-        {uncategorized > 0 && (
-          <button className={`chip warn ${filter.categoryId === 'sem' ? 'on' : ''}`} onClick={() => setFilter({ ...filter, categoryId: filter.categoryId === 'sem' ? null : 'sem' })}>{uncategorized} sem categoria</button>
-        )}
+      <div className="lan-tools">
+        <label className="search-box"><Search size={14} aria-hidden />
+          <input placeholder="buscar" aria-label="Buscar descrição" value={filter.search} onChange={e => setFilter({ ...filter, search: e.target.value })} />
+        </label>
+        <div className="seg" role="group" aria-label="Tipo de conta">
+          {KINDS.map(([k, l]) => <button key={k} className={filter.accountKind === k ? 'on' : ''} aria-pressed={filter.accountKind === k} onClick={() => setFilter({ ...filter, accountKind: k })}>{l}</button>)}
+        </div>
         {filtered && <button className="link" onClick={() => setFilter(NO_FILTER)}>limpar filtros</button>}
+      </div>
+      <div className="cat-strip" role="group" aria-label="Filtrar por categoria">
+        <button className={`cc ${filter.categoryId === null ? 'on' : ''}`} aria-pressed={filter.categoryId === null} onClick={() => setFilter({ ...filter, categoryId: null })}>Todas</button>
+        {strip.map(i => (
+          <button key={i.id} className={`cc ${i.id === 'sem' ? 'warn' : ''} ${i.spending ? '' : 'quiet'} ${filter.categoryId === i.id ? 'on' : ''}`} aria-pressed={filter.categoryId === i.id} onClick={() => toggle(i.id)}>
+            <CategoryIcon id={i.id === 'sem' ? null : i.id} size={13} bare />{i.name}<b>{i.id === 'sem' ? i.count : shortBRL(i.cents)}</b>
+          </button>
+        ))}
       </div>
 
       {list.length === 0 ? <div className="info">{filtered ? 'Nenhum lançamento com esses filtros neste mês.' : 'Nenhum lançamento neste mês.'}</div> : (
-        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="txn ledger-table">
-          <tbody>
-            {groupByDay(list, cat).map(g => [
-              <tr key={g.date} className="day"><td colSpan={2}>{dayTitle(g.date)}</td><td className="r">{signed(g.totalCents)}</td></tr>,
-              ...g.txns.flatMap(t => {
-                const c = cat(t)
-                const off = c !== null && !c.countsAsSpending && c.id !== 'receita' // fatura, transferência, investimento
-                const rule = ruleFor(t, data.rules, data.overrides)
-                const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
-                const between = tr && `transferência ${tr.outgoing ? 'para' : 'de'} ${accountLabel(accounts.get(tr.otherAccountId))}`
-                const auto = !rule && !between && !data.overrides[t.fingerprint]
-                const company = auto && c?.id === 'receita' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
-                const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
-                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
-                return [
-                  <tr key={t.id} className={off ? 'off' : ''}>
-                    <td><div className="d1">{t.description}</div><div className="d2">{meta.filter(Boolean).join(' · ')}</div></td>
-                    <td>
-                      <select className={`in ${c ? '' : 'none'}`} aria-label={`Categoria de ${t.description}`} value={edit?.txn.id === t.id ? edit.categoryId : c?.id ?? ''}
-                        onChange={e => { if (e.target.value) { setEdit({ txn: t, categoryId: e.target.value, always: false }); setError(null) } }}>
-                        {!c && <option value="">Sem categoria</option>}
-                        {data.categories.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
-                      </select>
-                    </td>
-                    <td className={`r ${t.amountCents > 0 ? 'up' : ''}`}>{signed(t.amountCents)}</td>
-                  </tr>,
-                  editor(t),
-                ]
-              }),
-            ])}
-          </tbody>
-        </table></div>
+        groupByDay(list, cat).map(g => (
+          <section key={g.date} className="day-card" aria-label={dayTitle(g.date)}>
+            <div className="day-h"><span>{dayTitle(g.date)}</span><span>{signed(g.totalCents)}</span></div>
+            {g.txns.map(row)}
+          </section>
+        ))
       )}
-      <div className="muted" style={{ marginTop: 6 }}>{list.length === 1 ? '1 lançamento' : `${list.length} lançamentos`} em {monthName(month).toLowerCase()} · mostrando por dia, do mais recente</div>
+      <div className="muted" style={{ marginTop: 6 }}>{list.length === 1 ? '1 lançamento' : `${list.length} lançamentos`} em {monthName(month).toLowerCase()}</div>
     </>
   )
 }
