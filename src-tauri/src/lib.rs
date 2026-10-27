@@ -46,12 +46,20 @@ fn move_file(from: String, to: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "init",
-        sql: include_str!("../migrations/001_init.sql"),
-        kind: MigrationKind::Up,
-    }];
+    let migrations = vec![
+        Migration {
+            version: 1,
+            description: "init",
+            sql: include_str!("../migrations/001_init.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "gastos",
+            sql: include_str!("../migrations/002_gastos.sql"),
+            kind: MigrationKind::Up,
+        },
+    ];
     tauri::Builder::default()
         .plugin(
             tauri_plugin_sql::Builder::default()
