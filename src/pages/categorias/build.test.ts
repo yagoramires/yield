@@ -3,7 +3,7 @@ import type { Category, CategoryRule, Txn } from '../../db/gastosRepo'
 import type { BudgetLine } from '../../db/orcamentoRepo'
 import type { Subscription } from '../../domain/assinaturas'
 import { monthTotals } from '../../domain/gastos'
-import { barInfo, budgetByCategory, deleteImpact, monthDelta, nextCharges, rulePreview, ruleSuggestions, ruleUsage, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
+import { barInfo, biggestChanges, budgetByCategory, deleteImpact, monthDelta, nextCharges, rulePreview, ruleSuggestions, ruleUsage, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
 
 const c = (id: string, name: string, countsAsSpending = true): Category => ({ id, name, countsAsSpending, builtin: false, icon: null, color: null })
 const cats = [c('mercado', 'Mercado'), c('pet', 'Pet'), c('fatura', 'Pagamento de fatura', false)]
@@ -103,5 +103,21 @@ describe('barInfo', () => {
     expect(barInfo(28800, undefined, 342230)).toEqual({ pct: 8, over: false, caption: '8% do gasto do mês' })
     expect(barInfo(500, 0, 1000)).toEqual({ pct: 50, over: false, caption: '50% do gasto do mês' })
     expect(barInfo(0, undefined, 0)).toEqual({ pct: 0, over: false, caption: '0% do gasto do mês' })
+  })
+})
+
+describe('biggestChanges', () => {
+  it('as que mais subiram e as que mais caíram em reais, ignorando variação pequena', () => {
+    const cur = new Map([['mercado', 82000], ['transporte', 28800], ['alimentacao', 51300], ['lazer', 0], ['saude', 15000]])
+    const prev = new Map([['mercado', 66000], ['transporte', 27400], ['alimentacao', 62500], ['lazer', 8000], ['saude', 14800], ['viagem', 0]])
+    expect(biggestChanges(cur, prev, 2)).toEqual([
+      { id: 'mercado', deltaCents: 16000, pct: 16000 / 66000 },
+      { id: 'transporte', deltaCents: 1400, pct: 1400 / 27400 },
+      { id: 'alimentacao', deltaCents: -11200, pct: -11200 / 62500 },
+      { id: 'lazer', deltaCents: -8000, pct: -1 },
+    ])
+  })
+  it('categoria nova no mês entra sem percentual', () => {
+    expect(biggestChanges(new Map([['pets', 5000]]), new Map(), 2)).toEqual([{ id: 'pets', deltaCents: 5000, pct: null }])
   })
 })

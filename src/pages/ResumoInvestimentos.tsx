@@ -1,11 +1,12 @@
-import { Coins, Landmark, RefreshCw, TrendingUp, Wallet } from 'lucide-react'
+import { Coins, Landmark, RefreshCw, Sprout, TrendingUp, Wallet } from 'lucide-react'
 import { DARF_CODE } from '../domain/darf'
-import { formatBRL, formatCents, monthOf } from '../domain/money'
+import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, LineChart } from '../ui/charts'
 import { summary, yieldOnCost } from './proventos/build'
+import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
-import { classLabel, dividendsByMonth, investedByMonth, topPositions } from './resumoInvestimentos/build'
+import { classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 
 const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s.replace('-', '')}` : s)
 const tone = (c: number | null) => (c === null || c === 0 ? '' : c > 0 ? 'up' : 'dn')
@@ -24,7 +25,7 @@ const classColor = (c: string) => CLASS_COLOR[c] ?? '#9a9da6'
 export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
   onOpenCarteira(): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
 }) {
-  const { data, derived, refreshing, refreshQuotesNow } = useData()
+  const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
   const today = todayISO()
   const thisMonth = monthOf(today)
@@ -71,6 +72,8 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
   const classes = [...p.byClass].sort((a, b) => b.valueCents - a.valueCents)
   const divs = dividendsByMonth(data.dividends, thisMonth, 12)
   const top = topPositions(p, 5)
+  // Meses fechados: o mês atual pela metade puxaria a média do gasto para baixo.
+  const coverage = gastos.data.txns.length ? passiveCoverage(p.dividends12mCents, spentByMonth(gastos.data.txns, gastos.categorize, addMonths(thisMonth, -1), 12).map(m => m.cents)) : null
   const yoc = yieldOnCost(summary(data.dividends, today).last12, p.rows.map(r => ({ ticker: r.ticker, costCents: r.costCents }))).total
   // topPositions devolve o rótulo da classe nos manuais; volta para a chave da cor
   const clsKey = (t: (typeof top)[number]) => (t.manual ? p.manual.find(m => m.name === t.name)?.assetClass ?? 'outro' : t.cls)
@@ -97,6 +100,15 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <div className={`v ${dueTotal > 0 ? 'dn' : ''}`}>{dueTotal > 0 ? formatBRL(dueTotal) : 'nada a pagar'}</div>
           <div className="s muted">{dueTotal > 0 ? (nextDue?.dueDate ? `DARF · vence ${brDay(nextDue.dueDate)}` : `DARF · código ${DARF_CODE}`) : 'nenhum DARF a vencer ou em aberto'}</div></div>
       </div>
+
+      {coverage && (
+        <div className="card coverage">
+          <div className="bar"><h5 style={{ margin: 0 }} className="k-l"><Sprout size={14} aria-hidden style={{ color: 'var(--accent)' }} />Renda passiva</h5><span className="muted">últimos 12 meses</span></div>
+          <div className="coverage-v"><b>{Math.round(coverage.pct * 100)}%</b> <span className="muted">do seu gasto médio já é pago pelos proventos</span></div>
+          <div className="meter big" aria-hidden><i style={{ width: `${Math.min(100, coverage.pct * 100)}%` }} /></div>
+          <div className="muted">proventos {formatBRL(coverage.avgDividendsCents)}/mês · gasto {formatBRL(coverage.avgSpentCents)}/mês · {coverage.gapCents > 0 ? `faltam ${formatBRL(coverage.gapCents)}/mês para cobrir tudo` : 'os proventos já cobrem todo o gasto'}</div>
+        </div>
+      )}
 
       <div className="grid2">
         <div className="card">

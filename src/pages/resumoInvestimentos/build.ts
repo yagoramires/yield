@@ -34,3 +34,12 @@ export function topPositions(p: Portfolio, n: number): { name: string; cls: stri
     ...p.manual.flatMap(m => (m.valueCents === null ? [] : [{ name: m.name, cls: classLabel(m.assetClass), valueCents: m.valueCents, pct: pct(m.valueCents), varPct: null, manual: true }])),
   ].sort((a, b) => b.valueCents - a.valueCents).slice(0, n)
 }
+
+/** Quanto os proventos (média mensal dos últimos 12 meses) cobrem do gasto médio dos meses que têm gasto. */
+export function passiveCoverage(dividends12mCents: Cents, monthlySpentCents: Cents[]): { pct: number; avgDividendsCents: Cents; avgSpentCents: Cents; gapCents: Cents } | null {
+  const months = monthlySpentCents.filter(c => c > 0)
+  if (!months.length) return null
+  const avgSpentCents = Math.round(months.reduce((s, c) => s + c, 0) / months.length)
+  const avgDividendsCents = Math.round(dividends12mCents / 12)
+  return { pct: avgDividendsCents / avgSpentCents, avgDividendsCents, avgSpentCents, gapCents: Math.max(0, avgSpentCents - avgDividendsCents) }
+}
