@@ -48,7 +48,7 @@ export function Assinaturas() {
                   <td className="r">{formatCents(s.amountCents)}</td>
                   <td className={`r ${s.active ? '' : 't2'}`}>{s.active ? formatCents(s.monthlyCents) : '—'}</td>
                   <td className={s.active ? '' : 't2'}>{s.active ? next(s.nextDate) : '—'}</td>
-                  <td>{s.active ? <span className="pill ok">ativa</span> : <span className="pill">parada desde {brDay(s.lastDate)}</span>}</td>
+                  <td>{s.active ? <><span className="pill ok">ativa</span>{s.previousAmountCents !== null && <> <span className="tag">subiu de {formatCents(s.previousAmountCents)}</span></>}</> : <span className="pill">parada desde {brDay(s.lastDate)}</span>}</td>
                   <td className="muted"><button className="link" disabled={busy} onClick={() => { setAsk(s); setError(null) }}>não é assinatura</button></td>
                 </tr>
               ))}

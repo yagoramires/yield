@@ -2,7 +2,7 @@ import type { Category, Txn } from '../db/gastosRepo'
 import type { Cents, ISODate } from './types'
 import { normalizeDescription } from './gastos'
 
-export interface Subscription { merchantKey: string; name: string /* descrição mais recente */; accountId: string; period: 'mensal' | 'anual'; amountCents: Cents /* positivo */; monthlyCents: Cents; yearlyCents: Cents; lastDate: ISODate; nextDate: ISODate; active: boolean; charges: number }
+export interface Subscription { merchantKey: string; name: string /* descrição mais recente */; accountId: string; period: 'mensal' | 'anual'; amountCents: Cents /* positivo */; monthlyCents: Cents; yearlyCents: Cents; lastDate: ISODate; nextDate: ISODate; active: boolean; charges: number; previousAmountCents: Cents | null /* só quando a última cobrança subiu */ }
 
 const DAY = 86_400_000
 const ms = (d: ISODate) => Date.parse(`${d}T00:00:00Z`)
@@ -38,6 +38,7 @@ export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | nul
     if (!period) continue
     const last = g[g.length - 1]
     const amountCents = Math.abs(last.amountCents)
+    const before = g.length > 1 ? Math.abs(g[g.length - 2].amountCents) : null
     const sinceLast = Math.round((ms(today) - ms(last.date)) / DAY)
     out.push({
       merchantKey, name: last.description, accountId: last.accountId, period, amountCents,
@@ -46,6 +47,7 @@ export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | nul
       lastDate: last.date,
       nextDate: addMonths(last.date, period === 'anual' ? 12 : 1),
       active: sinceLast <= (period === 'mensal' ? 45 : 400), charges: g.length,
+      previousAmountCents: before !== null && amountCents > before ? before : null,
     })
   }
   return out.sort((a, b) => b.monthlyCents - a.monthlyCents)
