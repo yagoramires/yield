@@ -27,3 +27,16 @@ describe('backup', () => {
     expect((await loadAll(back)).notes).toHaveLength(1)
   })
 })
+
+describe('backup schema 2', () => {
+  test('banco novo é schema 2 e válido', async () => {
+    const db = createTestDb()
+    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('2')
+    await validateBackup(db)
+  })
+  test('backup schema 1 é recusado', async () => {
+    const db = createTestDb()
+    await db.execute("UPDATE meta SET value = '1' WHERE key = 'schema_version'")
+    await expect(validateBackup(db)).rejects.toThrow('não é um backup do Yield')
+  })
+})
