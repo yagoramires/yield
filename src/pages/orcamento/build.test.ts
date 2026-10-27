@@ -5,19 +5,23 @@ import { defaultMonth, monthProgress, spendingPlan, validateLine } from './build
 
 describe('validateLine', () => {
   it('exige nome', () => {
-    expect(() => validateLine({ name: '  ', amount: '10,00', installment: '' })).toThrow('Informe o nome')
+    expect(() => validateLine({ name: '  ', amount: '10,00', installment: '', recurring: false })).toThrow('Informe o nome')
   })
   it('recusa valor inválido', () => {
-    expect(() => validateLine({ name: 'Aluguel', amount: 'abc', installment: '' })).toThrow('valor inválido')
+    expect(() => validateLine({ name: 'Aluguel', amount: 'abc', installment: '', recurring: false })).toThrow('valor inválido')
   })
   it('recusa parcela fora de n/total', () => {
-    for (const installment of ['3/2', '0/5', '2', 'a/b']) expect(() => validateLine({ name: 'Sofá', amount: '100', installment })).toThrow('Parcela')
+    for (const installment of ['3/2', '0/5', '2', 'a/b']) expect(() => validateLine({ name: 'Sofá', amount: '100', installment, recurring: false })).toThrow('Parcela')
   })
   it('aceita parcela e devolve centavos', () => {
-    expect(validateLine({ name: ' Sofá ', amount: '1.234,56', installment: ' 2/5 ' })).toEqual({ name: 'Sofá', amountCents: 123456, installmentCurrent: 2, installmentTotal: 5 })
+    expect(validateLine({ name: ' Sofá ', amount: '1.234,56', installment: ' 2/5 ', recurring: true })).toEqual({ name: 'Sofá', amountCents: 123456, installmentCurrent: 2, installmentTotal: 5, recurring: true })
+  })
+  it('linha com parcela é sempre recorrente; sem parcela segue a caixa', () => {
+    expect(validateLine({ name: 'Sofá', amount: '100', installment: '2/5', recurring: false }).recurring).toBe(true)
+    expect(validateLine({ name: 'Mercado', amount: '500', installment: '', recurring: false }).recurring).toBe(false)
   })
   it('sem parcela fica nulo', () => {
-    expect(validateLine({ name: 'Mercado', amount: '500', installment: '' })).toMatchObject({ installmentCurrent: null, installmentTotal: null })
+    expect(validateLine({ name: 'Mercado', amount: '500', installment: '', recurring: false })).toMatchObject({ installmentCurrent: null, installmentTotal: null })
   })
 })
 
