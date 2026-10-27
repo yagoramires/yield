@@ -28,7 +28,7 @@ export function GastosHeader({ title }: { title: string }) {
   const imp = useExtratoImport()
   const [open, setOpen] = useState(false)
   const lastSync = data.accounts.flatMap(a => (a.source === 'pluggy' && a.lastSyncAt ? [a.lastSyncAt] : [])).sort().at(-1)
-  const avisos = [...(lastSyncResult?.errors ?? []).map(e => `${e.label} não sincronizou (${e.message})`), ...duplicateAccountWarning(data.accounts)]
+  const avisos = [...(lastSyncResult?.errors ?? []).map(e => `${e.label} não sincronizou (${e.message})`), ...duplicateAccountWarning(data.accounts, data.txns)]
   return (
     <>
       <div className="bar">

@@ -49,8 +49,28 @@ describe('categorize', () => {
     expect(id({ description: 'PAGAMENTO FATURA CARTÃO' }, cartao)).toBeNull()
     expect(id({ operationType: 'RESGATE_APLIC_FINANCEIRA' })).toBe('investimento')
     expect(id({ operationType: 'RENDIMENTO_APLIC_FINANCEIRA', amountCents: 5 })).toBe('investimento')
-    expect(id({ amountCents: 1000 }, cartao)).toBe('pagamento-de-fatura')
     expect(id({ amountCents: -1000 }, cartao)).toBeNull()
+  })
+  it('no cartão, entrada só é fatura se parece pagamento; estorno fica sem categoria', () => {
+    const id = (t: Partial<Txn>) => categorize(txn(t), cartao, [], {}, categories)?.id ?? null
+    expect(id({ description: 'Pagamento recebido', amountCents: 150000 })).toBe('pagamento-de-fatura')
+    expect(id({ description: 'PGTO DEBITO AUTOMATICO', amountCents: 150000 })).toBe('pagamento-de-fatura')
+    expect(id({ description: 'ESTORNO LOJA X', amountCents: 11900 })).toBeNull()
+  })
+  it('pagamento de fatura na conta pelas variações do texto', () => {
+    const id = (description: string) => categorize(txn({ description, amountCents: -90000 }), conta, [], {}, categories)?.id ?? null
+    for (const d of ['PAGTO CARTAO CREDITO', 'PAG FAT CARTAO', 'PAGAMENTO DE FATURA', 'PAG CARTAO', 'Pagamento fatura cartão'])
+      expect(id(d), d).toBe('pagamento-de-fatura')
+    expect(id('pagamento aluguel')).toBeNull()
+    expect(id('PAG FATIMA SILVA')).toBeNull()
+  })
+  it('aplicação saindo da conta é investimento', () => {
+    const id = (description: string, amountCents = -50000, a = conta) => categorize(txn({ description, amountCents }), a, [], {}, categories)?.id ?? null
+    for (const d of ['APLICACAO CDB', 'Dinheiro guardado na caixinha', 'APLIC RDB', 'INVESTIMENTO TESOURO'])
+      expect(id(d), d).toBe('investimento')
+    expect(id('IFOOD')).toBeNull()
+    expect(id('APLICACAO CDB', 50000)).toBeNull() // entrada não é aplicação
+    expect(id('APLICACAO CDB', -50000, cartao)).toBeNull()
   })
 })
 
@@ -78,5 +98,13 @@ describe('monthTotals', () => {
     expect(t.spentCents).toBe(1000)
     expect(t.incomeCents).toBe(5250)
     expect(t.byCategory.map(b => b.cents)).toEqual([700, 300])
+  })
+  it('estorno no cartão entra como receita', () => {
+    const t = monthTotals([
+      txn({ accountId: 'k1', amountCents: -11900, description: 'LOJA X' }),
+      txn({ accountId: 'k1', amountCents: 11900, description: 'ESTORNO LOJA X' }),
+    ], [cartao], x => categorize(x, cartao, [], {}, categories), '2026-03')
+    expect(t.spentCents).toBe(11900)
+    expect(t.incomeCents).toBe(11900)
   })
 })

@@ -41,17 +41,28 @@ export function groupByDay(txns: Txn[], cat: Cat = () => null): { date: ISODate;
 
 export const suggestRulePattern = (description: string): string => normalizeDescription(description)
 
-export function duplicateAccountWarning(accounts: Account[]): string[] {
-  const groups = new Map<string, Account[]>()
-  for (const a of accounts) {
-    const tail = a.number?.replace(/\D/g, '').slice(-4)
-    if (!tail) continue
-    const key = `${a.institution.trim().toLowerCase()}|${a.kind}|${tail}`
-    groups.set(key, [...(groups.get(key) ?? []), a])
+const tail4 = (a: Account) => a.number?.replace(/\D/g, '').slice(-4) || null
+const label = (a: Account) => `"${a.name}${tail4(a) ? ` ···${tail4(a)}` : ''}" (${a.source === 'pluggy' ? 'Pluggy' : 'extrato'})`
+
+/** Contas que parecem a mesma: mesmo tipo e final de número em origens diferentes, ou (sem número) metade das linhas iguais às de outra. */
+export function duplicateAccountWarning(accounts: Account[], txns: Txn[]): string[] {
+  const rowKeys = new Map<string, Set<string>>()
+  for (const t of txns) {
+    const set = rowKeys.get(t.accountId) ?? new Set<string>()
+    set.add(`${t.date}|${t.amountCents}|${normalizeDescription(t.description)}`)
+    rowKeys.set(t.accountId, set)
   }
-  return [...groups.values()]
-    .filter(g => new Set(g.map(a => a.source)).size > 1)
-    .map(g => { const a = g.find(x => x.source === 'arquivo') ?? g[0]; return `${a.institution} ···${a.number!.replace(/\D/g, '').slice(-4)} pode estar em dobro (Pluggy e extrato)` })
+  const overlaps = (a: Account, b: Account) => {
+    const mine = [...(rowKeys.get(a.id) ?? [])], theirs = rowKeys.get(b.id)
+    return !!theirs && mine.length > 0 && mine.filter(k => theirs.has(k)).length * 2 >= mine.length
+  }
+  const out: string[] = []
+  accounts.forEach((a, i) => accounts.slice(i + 1).forEach(b => {
+    const sameNumber = a.source !== b.source && a.kind === b.kind && !!tail4(a) && tail4(a) === tail4(b)
+    const sameRows = (a.number === null && overlaps(a, b)) || (b.number === null && overlaps(b, a))
+    if (sameNumber || sameRows) out.push(`${label(a)} e ${label(b)} podem ser a mesma conta, contada em dobro`)
+  }))
+  return out
 }
 
 export function cumulativeByDay(txns: Txn[], cat: Cat, month: Month): Cents[] {
