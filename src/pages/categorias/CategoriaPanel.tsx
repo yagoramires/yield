@@ -5,9 +5,8 @@ import { useData } from '../../state/DataProvider'
 import { categoryLook, COLOR_CHOICES, ICON_CHOICES, IconGlyph } from '../../ui/CategoryIcon'
 import { errText } from '../lancamentos/GastosHeader'
 import { deleteImpact, validateCategoryName } from './build'
-import { AddRule, RuleList } from './RegrasPanel'
+import { AddRule, plural, RuleList } from './RegrasPanel'
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 /** Coluna direita ao editar (`category`) ou criar (`null`) uma categoria. Esc ou Cancelar volta para as regras. */
 export function CategoriaPanel({ category, onClose }: { category: Category | null; onClose(): void }) {

@@ -6,10 +6,9 @@ import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
 import { BarChart, LineChart } from '../ui/charts'
 import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
 import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
+import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
-
-const WEEKDAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
   const { gastos, orcamento } = useData()
@@ -156,15 +155,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
           )}
           {soon.length > 0 && <>
             <div className="bar" style={{ marginTop: 12 }}><h5 style={{ margin: 0 }}>Próximas cobranças</h5><button className="link muted" onClick={onOpenAssinaturas}>assinaturas</button></div>
-            <div className="next-strip three">
-              {soon.map(s => (
-                <div key={s.merchantKey} className={`next-c ${s.nextDate <= today ? 'now' : ''}`}>
-                  <div className="d">{s.nextDate === today ? 'Hoje' : s.nextDate < today ? 'Atrasada' : WEEKDAY[new Date(`${s.nextDate}T12:00:00`).getDay()]} · {brDay(s.nextDate)}</div>
-                  <div className="n">{cleanDescription(s.name).name}</div>
-                  <div className="v">{formatCents(s.amountCents)}</div>
-                </div>
-              ))}
-            </div>
+            <NextCharges list={soon} today={today} three />
           </>}
         </div>
       </div>

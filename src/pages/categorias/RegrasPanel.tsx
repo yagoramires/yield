@@ -10,7 +10,7 @@ import { CategoryPicker } from '../lancamentos/CategoryPicker'
 import { brDay, errText } from '../lancamentos/GastosHeader'
 import { rulePreview, ruleSuggestions, ruleUsage } from './build'
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 /** Linhas de regra; `showCategory` falso no painel de uma categoria (todas são dela). */
 export function RuleList({ rules, showCategory }: { rules: CategoryRule[]; showCategory: boolean }) {

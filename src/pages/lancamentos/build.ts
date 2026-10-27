@@ -121,7 +121,8 @@ export function needsSync(g: GastosData, nowMs: number): boolean {
     || pluggy.some(a => !a.lastSyncAt || nowMs - Date.parse(a.lastSyncAt) > SYNC_EVERY_MS)
 }
 
-const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+/** Minúsculas, sem acento e sem espaço nas pontas: para comparar nomes. */
+export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
 // Prefixos que os bancos põem antes do "|" ("Transferência enviada pelo Pix|LOJA"); um prefixo novo aparece como veio.
 const VIA: Record<string, string> = {
   'transferencia enviada pelo pix': 'Pix enviado', 'transferencia recebida': 'Transferência recebida', 'transferencia enviada': 'Transferência enviada',
