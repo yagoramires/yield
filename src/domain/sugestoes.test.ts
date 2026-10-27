@@ -46,4 +46,8 @@ describe('suggestForMonth', () => {
     const r = suggestForMonth('2026-10', [sub({ merchantKey: 'c1|b', name: 'B', amountCents: 500 }), sub({ merchantKey: 'c1|a', name: 'A', amountCents: 500 }), sub({})], [], semCat, [], [])
     expect(r.map(s => s.name)).toEqual(['NETFLIX', 'A', 'B'])
   })
+  it('parcela malformada (11/10, 0/3) é ignorada sem derrubar as válidas', () => {
+    const t = [txn({ installment: '11/10' }), txn({ description: 'OUTRA', installment: '0/3' }), compra(3, '2026-09-10')]
+    expect(suggestForMonth('2026-10', [], t, semCat, [], []).map(s => s.name)).toEqual(['LOJA X (4/10)'])
+  })
 })

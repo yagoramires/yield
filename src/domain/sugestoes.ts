@@ -19,8 +19,9 @@ export function suggestForMonth(month: Month, subscriptions: Subscription[], txn
   const groups = new Map<string, { t: Txn; n: number; total: number }>()
   for (const t of txns) {
     const m = t.installment?.match(/^(\d+)\/(\d+)$/)
-    if (t.amountCents >= 0 || !m || Number(m[2]) <= 1) continue
+    if (t.amountCents >= 0 || !m) continue
     const n = Number(m[1]), total = Number(m[2])
+    if (total <= 1 || n < 1 || n > total) continue
     const key = `parc:${t.accountId}|${normalizeDescription(t.description)}|${total}|${Math.abs(t.amountCents)}`
     const g = groups.get(key)
     if (!g || n > g.n || (n === g.n && t.date > g.t.date)) groups.set(key, { t, n, total })
