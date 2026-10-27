@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react'
-import { applySource, DEFAULT_PJ, deleteSource, saveSource, type IncomeSource } from '../../db/orcamentoRepo'
+import { DEFAULT_PJ, deleteSource, type IncomeSource } from '../../db/orcamentoRepo'
 import { pjNet, sourceNet } from '../../domain/orcamento'
 import { formatBRL, monthOf } from '../../domain/money'
 import { importOrcamento, parseOrcamentoPlanilha } from '../../import/orcamentoPlanilha'
 import { todayISO, useData } from '../../state/DataProvider'
-import { orcamentoImportSummary, validateSource, type SourceForm } from './build'
+import { orcamentoImportSummary, saveSourceForm, validateSource, type SourceForm } from './build'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const num = (x: number) => String(x).replace('.', ',')
@@ -73,13 +73,14 @@ export function FontesRenda() {
     if (!form) return
     setBusy(true); setError(null)
     try {
-      const v = validateSource(form)
-      const id = await saveSource(db, { ...v, ...(editing ? { id: editing.id } : {}), sourceKey: editing?.sourceKey ?? null })
-      const n = await applySource(db, id, monthOf(todayISO()), sourceNet({ ...v, id, sourceKey: null }))
+      const n = await saveSourceForm(db, validateSource(form), editing, monthOf(todayISO()), setEditing)
       setMsg(`Fonte salva. ${n} ${n === 1 ? 'entrada deste mês e dos próximos foi recalculada' : 'entradas deste mês e dos próximos foram recalculadas'}.`)
       setForm(null); setEditing(null)
       await orcamento.reload()
-    } catch (e) { setError(errText(e)) }
+    } catch (e) {
+      setError(errText(e))
+      try { await orcamento.reload() } catch { /* o erro principal já está na tela */ }
+    }
     setBusy(false)
   }
 

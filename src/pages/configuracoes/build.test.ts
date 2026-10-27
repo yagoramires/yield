@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
+import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup, validateSource } from './build'
+import { b3Summary, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup, saveSourceForm, validateSource } from './build'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -138,5 +140,17 @@ describe('orcamentoImportSummary', () => {
   it('contagens e fonte criada', () => {
     expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 }, true)).toBe('11 meses · 186 linhas · 0 já existiam · 1 fonte de renda PJ criada')
     expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 }, false)).toBe('1 mês · 1 linha · 2 já existiam')
+  })
+})
+
+describe('saveSourceForm', () => {
+  it('se recalcular as entradas falhar, salvar de novo edita a mesma fonte em vez de criar outra', async () => {
+    const db = createTestDb()
+    const failing = { ...db, execute: (sql: string, p?: unknown[]) => (sql.startsWith('UPDATE budget_lines') ? Promise.reject(new Error('falhou')) : db.execute(sql, p)) }
+    const v = validateSource({ name: 'Freela', kind: 'fixo', gross: '', proLabore: '', irpj: '', inss: '', contabilidade: '', outros: '', net: '1000' })
+    let editing: IncomeSource | null = null
+    await expect(saveSourceForm(failing, v, editing, '2026-10', s => { editing = s })).rejects.toThrow('falhou')
+    expect(await saveSourceForm(db, v, editing, '2026-10', s => { editing = s })).toBe(0)
+    expect((await loadOrcamento(db)).sources).toHaveLength(1)
   })
 })
