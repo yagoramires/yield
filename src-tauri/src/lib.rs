@@ -109,6 +109,12 @@ pub fn run() {
             sql: include_str!("../migrations/003_orcamento.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 4,
+            description: "fontes de renda",
+            sql: include_str!("../migrations/004_fontes_renda.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import type { BudgetLine } from '../db/orcamentoRepo'
+import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
-import { monthSummary, nextMonthLines, pjNet, planVsReal } from './orcamento'
+import { monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from './orcamento'
 
-const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, pjGrossCents: null, sourceKey: 'k', ...o })
+const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: 'k', ...o })
+const src = (o: Partial<IncomeSource> = {}): IncomeSource => ({ id: 's1', name: 'F', kind: 'pj', grossCents: 1_000_000, ...DEFAULT_PJ, contabilidadeCents: 30_000, netCents: null, sourceKey: null, ...o })
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true })
 const cats: Record<string, Category> = { mercado: cat('mercado'), fatura: cat('pagamento-de-fatura', false) }
 const txn = (o: Partial<Txn> & { cat?: string }): Txn => ({ id: 't', accountId: 'c1', date: '2026-03-10', description: 'LOJA', amountCents: -1000, pending: false, installment: null, operationType: null, fingerprint: 'fp', sourceKey: 's', ...o })
@@ -22,6 +23,13 @@ describe('pjNet', () => {
   })
 })
 
+describe('sourceNet', () => {
+  it('pj usa pjNet; fixo usa o líquido informado', () => {
+    expect(sourceNet(src())).toBe(879_200)
+    expect(sourceNet(src({ kind: 'fixo', grossCents: null, netCents: 400_000 }))).toBe(400_000)
+  })
+})
+
 describe('monthSummary', () => {
   it('soma entradas, saídas e saldo', () => {
     expect(monthSummary([line({ kind: 'entrada', amountCents: 5000 }), line({ amountCents: 1200 }), line({ amountCents: 300 })])).toEqual({ entradasCents: 5000, saidasCents: 1500, saldoCents: 3500 })
@@ -35,17 +43,20 @@ describe('nextMonthLines', () => {
       line({ name: 'b', position: 1, installmentCurrent: 5, installmentTotal: 5 }),
       line({ name: 'c', position: 2, recurring: false }),
       line({ name: 'd', position: 3 }),
-    ], DEFAULT_PJ)
+    ], [])
     expect(out.map(l => [l.name, l.position, l.installmentCurrent, l.sourceKey])).toEqual([['a', 0, 5, null], ['d', 3, null, null]])
     expect(out[0]).not.toHaveProperty('id')
     expect(out[0]).not.toHaveProperty('month')
   })
-  it('linha PJ usa o cfg atual', () => {
-    const l = line({ kind: 'entrada', pjGrossCents: 1_000_000, amountCents: 1 })
-    expect(nextMonthLines([l], DEFAULT_PJ)[0].amountCents).toBe(pjNet(1_000_000, DEFAULT_PJ).netCents)
-    const cfg = { ...DEFAULT_PJ, irpjPct: 10 }
-    expect(nextMonthLines([l], cfg)[0].amountCents).toBe(pjNet(1_000_000, cfg).netCents)
-    expect(nextMonthLines([l], cfg)[0].amountCents).not.toBe(pjNet(1_000_000, DEFAULT_PJ).netCents)
+  it('linha ligada a fonte recalcula pela fonte atual', () => {
+    const l = line({ kind: 'entrada', sourceId: 's1', amountCents: 1 })
+    expect(nextMonthLines([l], [src()])[0]).toMatchObject({ amountCents: 879_200, sourceId: 's1' })
+    expect(nextMonthLines([l], [src({ irpjPct: 10 })])[0].amountCents).toBe(sourceNet(src({ irpjPct: 10 })))
+    expect(nextMonthLines([l], [src({ kind: 'fixo', netCents: 123 })])[0].amountCents).toBe(123)
+  })
+  it('fonte que sumiu: mantém o valor e solta o vínculo', () => {
+    const l = line({ kind: 'entrada', sourceId: 'x', amountCents: 555 })
+    expect(nextMonthLines([l], [src()])[0]).toMatchObject({ amountCents: 555, sourceId: null })
   })
 })
 

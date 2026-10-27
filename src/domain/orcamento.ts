@@ -1,5 +1,5 @@
 import type { Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine, PjConfig } from '../db/orcamentoRepo'
+import type { BudgetLine, IncomeSource, PjConfig } from '../db/orcamentoRepo'
 import { monthTotals } from './gastos'
 import type { Cents, Month } from './types'
 
@@ -20,16 +20,21 @@ export function monthSummary(lines: BudgetLine[]): { entradasCents: Cents; saida
   return { entradasCents, saidasCents, saldoCents: entradasCents - saidasCents }
 }
 
-// Recebe as linhas de UM mês; parcelas avançam, a última não é copiada, PJ é recalculado.
-export function nextMonthLines(lines: BudgetLine[], cfg: PjConfig): Omit<BudgetLine, 'id' | 'month'>[] {
+export const sourceNet = (s: IncomeSource): Cents => s.kind === 'pj' ? pjNet(s.grossCents ?? 0, s).netCents : s.netCents ?? 0
+
+// Recebe as linhas de UM mês; parcelas avançam, a última não é copiada, linhas de fonte são recalculadas.
+export function nextMonthLines(lines: BudgetLine[], sources: IncomeSource[]): Omit<BudgetLine, 'id' | 'month'>[] {
   return lines
     .filter(l => l.recurring && !(l.installmentCurrent !== null && l.installmentTotal !== null && l.installmentCurrent >= l.installmentTotal))
-    .map(({ id: _id, month: _month, ...l }) => ({
+    .map(({ id: _id, month: _month, ...l }) => {
+      const source = sources.find(s => s.id === l.sourceId)
+      return {
       ...l,
-      amountCents: l.pjGrossCents !== null ? pjNet(l.pjGrossCents, cfg).netCents : l.amountCents,
+      amountCents: source ? sourceNet(source) : l.amountCents,
+      sourceId: source ? l.sourceId : null,
       installmentCurrent: l.installmentCurrent !== null && l.installmentTotal !== null ? l.installmentCurrent + 1 : l.installmentCurrent,
       sourceKey: null,
-    }))
+    }})
 }
 
 export interface PlanVsReal { plannedSaidasCents: Cents; realSpentCents: Cents; byCategory: { categoryId: string; plannedCents: Cents; realCents: Cents }[] }

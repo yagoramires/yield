@@ -1,11 +1,12 @@
 import { read, utils, type CellObject, type WorkSheet } from 'xlsx'
 import type { Db } from '../db/client'
-import { createMonth, saveLine, savePjConfig, type BudgetLine, type PjConfig } from '../db/orcamentoRepo'
+import { createMonth, saveLine, saveSource, type BudgetLine, type IncomeSource } from '../db/orcamentoRepo'
 import { normalizeDescription } from '../domain/gastos'
-import type { Cents, Month } from '../domain/types'
+import type { Month } from '../domain/types'
 
-type ImportLine = Omit<BudgetLine, 'id' | 'month' | 'position'>
-export interface OrcamentoImport { months: { month: Month; lines: ImportLine[] }[]; pj: (PjConfig & { grossCents: Cents }) | null; warnings: string[] }
+// usesImportedSource: a fórmula da linha cita o líquido da fonte PJ; o import liga sourceId.
+type ImportLine = Omit<BudgetLine, 'id' | 'month' | 'position'> & { usesImportedSource: boolean }
+export interface OrcamentoImport { months: { month: Month; lines: ImportLine[] }[]; source: Omit<IncomeSource, 'id'> | null; warnings: string[] }
 
 const SALDO_RE = /^\s*SUM\(\s*[A-Z]+(\d+)\s*:\s*[A-Z]+(\d+)\s*\)\s*-\s*SUM\(\s*[A-Z]+(\d+)\s*:\s*[A-Z]+(\d+)\s*\)\s*$/i
 const PCT_RE = /^\s*([\d.]+)\s*\*\s*\$?([A-Z]+)\$?(\d+)\s*$/i
@@ -61,14 +62,14 @@ export function parseOrcamentoPlanilha(data: ArrayBuffer): OrcamentoImport {
       const v = cell.v as number
       if (v === 0) continue
       if (v < 0) { warnings.push(`${month}, linha ${row}: valor negativo; linha ignorada`); continue }
-      const pjGrossCents = refRe && cell.f && refRe.test(cell.f) ? pj.grossCents : null
-      lines.push({ row, kind, name, amountCents: cents(v), recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, pjGrossCents, sourceKey: `planilha:${month}:${row}` })
+      const usesImportedSource = !!(refRe && cell.f && refRe.test(cell.f))
+      lines.push({ row, kind, name, amountCents: cents(v), recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, usesImportedSource, sourceKey: `planilha:${month}:${row}` })
       rowCount.set(row, (rowCount.get(row) ?? 0) + 1)
     }
     if (lines.length) months.push({ month, lines })
   }
   for (const m of months) m.lines = (m.lines as (ImportLine & { row: number })[]).map(({ row, ...l }) => ({ ...l, recurring: rowCount.get(row)! >= 2 }))
-  return { months, pj: pj && { proLaborePct: pj.proLaborePct, irpjPct: pj.irpjPct, inssPct: pj.inssPct, contabilidadeCents: pj.contabilidadeCents, outrosCents: pj.outrosCents, grossCents: pj.grossCents }, warnings }
+  return { months, source: pj && { name: pj.name, kind: 'pj', grossCents: pj.grossCents, proLaborePct: pj.proLaborePct, irpjPct: pj.irpjPct, inssPct: pj.inssPct, contabilidadeCents: pj.contabilidadeCents, outrosCents: pj.outrosCents, netCents: null, sourceKey: 'planilha:pj' }, warnings }
 }
 
 // Bloco PJ: acha o rótulo "Salário Líquido" e lê, na mesma coluna acima, as fórmulas dos demais itens.
@@ -78,9 +79,8 @@ function parsePj(ws: WorkSheet, warnings: string[]) {
     if (ref[0] === '!' || normalizeDescription(String(cell.v ?? '')) !== 'salario liquido') continue
     const { c, r } = utils.decode_cell(ref)
     const cellAt = (col: number, row: number): CellObject | undefined => ws[utils.encode_cell({ c: col, r: row })]
-    const find = (name: string) => {
-      for (let i = r - 1; i >= 0; i--) if (normalizeDescription(String(cellAt(c, i)?.v ?? '')) === name) return cellAt(c + 1, i)
-    }
+    const findRow = (name: string) => { for (let i = r - 1; i >= 0; i--) if (normalizeDescription(String(cellAt(c, i)?.v ?? '')) === name) return i }
+    const find = (name: string) => { const i = findRow(name); return i === undefined ? undefined : cellAt(c + 1, i) }
     const pct = (name: string) => { const m = PCT_RE.exec(find(name)?.f ?? ''); return m && { pct: Math.round(+m[1] * 10000) / 100, ref: m[2] + m[3] } }
     const pro = pct('pro labore'), irpj = pct('irpj'), inss = pct('inss')
     const contab = find('contabilidade'), net = cellAt(c + 1, r)
@@ -92,29 +92,34 @@ function parsePj(ws: WorkSheet, warnings: string[]) {
     const inssCents = cents(Number(find('inss')!.v))
     let outrosCents = grossCents - irpjCents - inssCents - cents(contab.v) - netCents
     if (outrosCents < 0) { warnings.push('PJ: o líquido da planilha é maior que o calculado; outros descontos ficaram em zero'); outrosCents = 0 }
-    return { proLaborePct: pro.pct, irpjPct: irpj.pct, inssPct: inss.pct, contabilidadeCents: cents(contab.v), outrosCents, grossCents, netCol: utils.encode_col(c + 1), netRow: r + 1 }
+    const proRow = findRow('pro labore')!
+    const name = proRow > 0 ? String(cellAt(c, proRow - 1)?.v ?? '').trim() : ''
+    return { name: name || 'Salário PJ', proLaborePct: pro.pct, irpjPct: irpj.pct, inssPct: inss.pct, contabilidadeCents: cents(contab.v), outrosCents, grossCents, netCol: utils.encode_col(c + 1), netRow: r + 1 }
   }
   return miss()
 }
 
-export async function importOrcamento(db: Db, p: OrcamentoImport): Promise<{ months: number; lines: number; skipped: number }> {
-  let months = 0, lines = 0, skipped = 0
+export async function importOrcamento(db: Db, p: OrcamentoImport): Promise<{ months: number; lines: number; skipped: number; sourceCreated: boolean }> {
+  let months = 0, lines = 0, skipped = 0, sourceCreated = false
+  let sourceId: string | null = null
+  if (p.source) {
+    const found = await db.select<{ id: string }>('SELECT id FROM income_sources WHERE source_key = ?', [p.source.sourceKey])
+    sourceId = found[0]?.id ?? await saveSource(db, p.source)
+    sourceCreated = !found.length
+  }
+  const prep = ({ usesImportedSource, ...l }: ImportLine) => ({ ...l, sourceId: usesImportedSource ? sourceId : null })
   const existing = new Set((await db.select<{ month: Month }>('SELECT month FROM budget_months')).map(m => m.month))
   for (const { month, lines: ls } of p.months) {
     if (!existing.has(month)) {
-      if (await createMonth(db, month, ls.map((l, position) => ({ ...l, position }))) === 'criado') { months++; lines += ls.length }
+      if (await createMonth(db, month, ls.map((l, position) => ({ ...prep(l), position }))) === 'criado') { months++; lines += ls.length }
       continue
     }
     const keys = new Set((await db.select<{ k: string }>('SELECT source_key AS k FROM budget_lines WHERE month = ? AND source_key IS NOT NULL', [month])).map(r => r.k))
     for (const [position, l] of ls.entries()) {
       if (l.sourceKey && keys.has(l.sourceKey)) { skipped++; continue }
-      await saveLine(db, { ...l, month, position })
+      await saveLine(db, { ...prep(l), month, position })
       lines++
     }
   }
-  if (p.pj && !(await db.select('SELECT 1 FROM meta WHERE key = ?', ['orcamento.pj'])).length) {
-    const { grossCents: _, ...cfg } = p.pj
-    await savePjConfig(db, cfg)
-  }
-  return { months, lines, skipped }
+  return { months, lines, skipped, sourceCreated }
 }
