@@ -7,7 +7,7 @@ import type { Db } from './client'
 
 export type { Db }
 
-const MIGRATIONS = ['001_init.sql', '002_gastos.sql'].map(f => readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
+const MIGRATIONS = ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql'].map(f => readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
 
 function wrap(d: DatabaseSync): Db {
   d.exec('PRAGMA foreign_keys = ON')

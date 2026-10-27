@@ -1,11 +1,13 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useEffect, useState } from 'react'
-import { deleteAccount, deletePluggyItem, savePluggyItem, type Account } from '../../db/gastosRepo'
+import { deleteAccount, deletePluggyItem, saveOwnerNames, savePluggyItem, type Account } from '../../db/gastosRepo'
+import { validOwnerNames } from '../../domain/transferencias'
 import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
 import { clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } from '../../openfinance/secrets'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 import { parseItemId } from './build'
+import { PluggyGuia } from './PluggyGuia'
 
 const short = (id: string) => `${id.slice(0, 4)}…${id.slice(-4)}`
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -25,6 +27,7 @@ export function OpenFinance() {
   const [testing, setTesting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [guide, setGuide] = useState(false)
 
   useEffect(() => {
     getPluggyCredentials().then(c => setSaved(c !== null), () => setSaved(false))
@@ -80,69 +83,90 @@ export function OpenFinance() {
   const credsForm = saved === false || editing
   const confirmItem = typeof confirm === 'object' && confirm ? confirm : null
 
+  const credentials = saved === null ? null : credsForm ? (
+    <div className="field">
+      <label className="field"><span>Client ID</span><input className="in" autoComplete="off" value={clientId} onChange={e => setClientId(e.target.value)} /></label>
+      <label className="field" style={{ marginTop: 6 }}><span>Client Secret</span><input className="in" type="password" autoComplete="off" value={clientSecret} onChange={e => setClientSecret(e.target.value)} /></label>
+      <div className="btns" style={{ marginTop: 6 }}>
+        <button className="b pri" disabled={busy} onClick={() => void saveCreds()}>Salvar no cofre</button>
+        {editing && <button className="b" disabled={busy} onClick={() => { setEditing(false); setClientId(''); setClientSecret('') }}>Cancelar</button>}
+      </div>
+      {guide && error && <div className="note" style={{ marginTop: 8 }}>{error}</div>}
+    </div>
+  ) : (
+    <>
+      <div className="row" style={{ alignItems: 'center' }}>
+        <span className="t2">Client ID e Client Secret salvos no cofre do sistema</span>
+        <button className="b ghost" disabled={busy} onClick={() => setEditing(true)}>Trocar</button>
+        <button className="b ghost" disabled={busy} style={{ color: 'var(--negative)' }} onClick={() => setConfirm('apagar-creds')}>Apagar</button>
+      </div>
+      {confirm === 'apagar-creds' && (
+        <div className="note" style={{ marginTop: 8 }}>
+          Apagar o Client ID e o Client Secret do cofre? Sem eles o Yield não consegue sincronizar.
+          <div className="btns" style={{ marginTop: 8 }}>
+            <button className="b" disabled={busy} onClick={() => setConfirm(null)}>Cancelar</button>
+            <button className="b pri" disabled={busy} onClick={() => void clearCreds()}>Apagar</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  const banks = data.pluggyItems.length > 0 && (
+    <table>
+      <thead><tr><th>Banco</th><th>itemId</th><th>Situação</th><th></th></tr></thead>
+      <tbody>
+        {data.pluggyItems.map(it => {
+          const s = status(it.itemId)
+          return (
+            <tr key={it.itemId}>
+              <td>{it.label}</td><td className="t2">{short(it.itemId)}</td>
+              <td>{s ? <span className={`pill ${s.ok ? 'ok' : 'bad'}`}>{s.text}</span> : <span className="muted">—</span>}</td>
+              <td><button className="b ghost" disabled={busy} onClick={() => setConfirm(it)}>tirar</button></td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+
+  const addBank = (
+    <>
+      <div className="row">
+        <input className="in" style={{ width: 120 }} placeholder="nome do banco" aria-label="Nome do banco" value={name} onChange={e => setName(e.target.value)} />
+        <input className="in" style={{ flex: 1, minWidth: 200 }} placeholder="cole o itemId" aria-label="itemId" value={itemText} onChange={e => setItemText(e.target.value)} />
+        <button className="b pri" disabled={busy} onClick={() => void addItem()}>Adicionar</button>
+      </div>
+      {error && <div className="note" style={{ marginTop: 8 }}>{error}</div>}
+      {data.pluggyItems.length > 0 && <div style={{ marginTop: 8 }}>{banks}</div>}
+      {data.pluggyItems.length > 0 && (
+        <button className="b" style={{ marginTop: 8 }} disabled={testing || busy} onClick={() => void test()}>{testing ? 'Testando…' : 'Testar conexão'}</button>
+      )}
+    </>
+  )
+
+  const configured = saved === true || data.pluggyItems.length > 0
+  const done = [false, false, false, false, saved === true, data.pluggyItems.length > 0]
+
   return (
     <div className="card" style={{ marginTop: 12 }}>
-      <div className="bar"><b style={{ color: '#fff' }}>Open Finance (Pluggy + Meu Pluggy)</b><span className="pill ok">{plural(data.pluggyItems.length, 'banco conectado', 'bancos conectados')}</span></div>
-      <div className="info" style={{ marginTop: 8 }}><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele só lista contas e transações.</div>
-      <div className="grid2" style={{ marginTop: 10 }}>
-        <div>
-          <div className="muted"><b style={{ color: '#d6d8dd' }}>Como conectar</b> (uma vez)</div>
-          <ol>
-            <li>Crie sua conta em <b>meu.pluggy.ai</b> e conecte cada banco (uma autorização por banco).</li>
-            <li>Crie a conta de desenvolvedor em <b>dashboard.pluggy.ai</b> e adicione o conector <b>MeuPluggy</b>.</li>
-            <li>Conecte o MeuPluggy no dashboard e copie o <b>itemId</b> de cada banco.</li>
-            <li>Copie o <b>Client ID</b> e o <b>Client Secret</b> e cole aqui.</li>
-          </ol>
-          <div className="note" style={{ marginTop: 8 }}>Faça tudo dentro dos 15 dias do teste da Pluggy. Depois disso as conexões continuam lendo, mas não dá mais para adicionar bancos.</div>
+      <div className="bar">
+        <b style={{ color: '#fff' }}>Open Finance (Pluggy + Meu Pluggy)</b>
+        <div className="row" style={{ alignItems: 'center' }}>
+          <span className="pill ok">{plural(data.pluggyItems.length, 'banco conectado', 'bancos conectados')}</span>
+          {configured && <button className="b" onClick={() => setGuide(true)}>Passo a passo</button>}
         </div>
-        <div>
-          {saved === null ? null : credsForm ? (
-            <div className="field">
-              <label className="field"><span>Client ID</span><input className="in" autoComplete="off" value={clientId} onChange={e => setClientId(e.target.value)} /></label>
-              <label className="field" style={{ marginTop: 6 }}><span>Client Secret</span><input className="in" type="password" autoComplete="off" value={clientSecret} onChange={e => setClientSecret(e.target.value)} /></label>
-              <div className="btns" style={{ marginTop: 6 }}>
-                <button className="b pri" disabled={busy} onClick={() => void saveCreds()}>Salvar no cofre</button>
-                {editing && <button className="b" disabled={busy} onClick={() => { setEditing(false); setClientId(''); setClientSecret('') }}>Cancelar</button>}
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="field"><span>Client ID</span><span className="in">salvo no cofre do sistema</span></div>
-              <div className="field" style={{ marginTop: 6 }}><span>Client Secret</span><span className="in">salvo no cofre do sistema</span></div>
-              <div className="btns" style={{ marginTop: 6 }}>
-                <button className="b ghost" disabled={busy} onClick={() => setEditing(true)}>Trocar</button>
-                <button className="b ghost" disabled={busy} style={{ color: 'var(--negative)' }} onClick={() => setConfirm('apagar-creds')}>Apagar</button>
-              </div>
-              {confirm === 'apagar-creds' && (
-                <div className="note" style={{ marginTop: 8 }}>
-                  Apagar o Client ID e o Client Secret do cofre? Sem eles o Yield não consegue sincronizar.
-                  <div className="btns" style={{ marginTop: 8 }}>
-                    <button className="b" disabled={busy} onClick={() => setConfirm(null)}>Cancelar</button>
-                    <button className="b pri" disabled={busy} onClick={() => void clearCreds()}>Apagar</button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="muted" style={{ margin: '10px 0 4px' }}>Bancos (itemId do Meu Pluggy)</div>
-          {data.pluggyItems.length > 0 && (
-            <table>
-              <thead><tr><th>Nome</th><th>itemId</th><th>Situação</th><th></th></tr></thead>
-              <tbody>
-                {data.pluggyItems.map(it => {
-                  const s = status(it.itemId)
-                  return (
-                    <tr key={it.itemId}>
-                      <td>{it.label}</td><td className="t2">{short(it.itemId)}</td>
-                      <td>{s ? <span className={`pill ${s.ok ? 'ok' : 'bad'}`}>{s.text}</span> : <span className="muted">—</span>}</td>
-                      <td><button className="b ghost" disabled={busy} onClick={() => setConfirm(it)}>tirar</button></td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          )}
+      </div>
+      <div className="info" style={{ marginTop: 8 }}><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele só lista contas e transações.</div>
+      {!configured ? (
+        <div style={{ marginTop: 10 }}>
+          <div className="t2" style={{ marginBottom: 8 }}>Traga contas e cartões automaticamente, de graça, pelo Meu Pluggy. Leva uns 15 minutos, uma vez só.</div>
+          <button className="b pri" onClick={() => setGuide(true)}>Conectar bancos</button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 10 }}>
+          {credentials}
+          <div style={{ marginTop: 10 }}>{banks}</div>
           {confirmItem && (
             <div className="note" style={{ marginTop: 8 }}>
               Tirar {confirmItem.label}? As contas e os lançamentos já baixados continuam no Yield; só deixa de sincronizar.
@@ -152,23 +176,22 @@ export function OpenFinance() {
               </div>
             </div>
           )}
-          <div className="row" style={{ marginTop: 6 }}>
-            <input className="in" style={{ width: 110 }} placeholder="nome" aria-label="Nome do banco" value={name} onChange={e => setName(e.target.value)} />
-            <input className="in" style={{ flex: 1 }} placeholder="cole o itemId" aria-label="itemId" value={itemText} onChange={e => setItemText(e.target.value)} />
-            <button className="b" disabled={busy} onClick={() => void addItem()}>Adicionar</button>
-          </div>
           <div className="btns" style={{ marginTop: 8 }}>
-            <button className="b pri" disabled={testing || busy} onClick={() => void test()}>{testing ? 'Testando…' : 'Testar conexão'}</button>
-            <button className="b ghost" disabled={syncing} onClick={() => void syncNow()}>{syncing ? 'Sincronizando…' : '↻ Sincronizar agora'}</button>
+            <button className="b ghost" onClick={() => setGuide(true)}>+ Adicionar banco</button>
+            <button className="b" disabled={testing || busy} onClick={() => void test()}>{testing ? 'Testando…' : 'Testar conexão'}</button>
+            <button className="b pri" disabled={syncing} onClick={() => void syncNow()}>{syncing ? 'Sincronizando…' : '↻ Sincronizar agora'}</button>
           </div>
-          {error && <div className="note" style={{ marginTop: 8 }}>{error}</div>}
+          {!guide && error && <div className="note" style={{ marginTop: 8 }}>{error}</div>}
           {generalErrors.map(e => <div key={e.message} className="note" style={{ marginTop: 8 }}>{e.message}</div>)}
           {lastSyncResult && !syncing && lastSyncResult.errors.length === 0 && (
             <div className="info" style={{ marginTop: 8 }}>Sincronizado: {plural(lastSyncResult.accounts, 'conta', 'contas')}, {plural(lastSyncResult.inserted, 'lançamento novo', 'lançamentos novos')}.</div>
           )}
+          <div className="muted" style={{ marginTop: 8 }}>Sincroniza sozinho ao abrir o Yield (se passaram mais de 6 h). Os bancos atualizam no Meu Pluggy uma vez por dia.</div>
         </div>
-      </div>
-      <div className="info" style={{ marginTop: 8 }}>Sincroniza sozinho ao abrir o Yield (se passaram mais de 6 h) e pelo botão. Os bancos atualizam no Meu Pluggy uma vez por dia.</div>
+      )}
+      {guide && (
+        <PluggyGuia start={saved ? 5 : 0} done={done} credentials={credentials} addBank={addBank} onClose={() => { setGuide(false); setError(null) }} />
+      )}
     </div>
   )
 }
@@ -178,7 +201,18 @@ export function Contas() {
   const [del, setDel] = useState<Account | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [names, setNames] = useState(data.ownerNames.join(', '))
+  const [namesMsg, setNamesMsg] = useState<string | null>(null)
   const count = (id: string) => data.txns.filter(t => t.accountId === id).length
+
+  const salvarNomes = async () => {
+    const v = validOwnerNames(names)
+    if ('error' in v) return setNamesMsg(v.error)
+    setBusy(true)
+    try { await saveOwnerNames(db, v.names); await reload(); setNames(v.names.join(', ')); setNamesMsg('Salvo.') }
+    catch (e) { setNamesMsg(`Não foi possível salvar: ${errText(e)}`) }
+    setBusy(false)
+  }
 
   const apagar = async (a: Account) => {
     setBusy(true)
@@ -217,6 +251,18 @@ export function Contas() {
         </div>
       )}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
+      <div style={{ marginTop: 14 }}>
+        <b style={{ color: '#fff' }}>Transferências entre suas contas</b>
+        <div className="muted" style={{ margin: '4px 0 8px' }}>
+          Saída numa conta e entrada do mesmo valor noutra, até 3 dias depois, viram Transferência sozinhas e não contam como gasto nem como entrada.
+          Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência.
+        </div>
+        <div className="row">
+          <input className="in" style={{ flex: 1, minWidth: 220 }} placeholder="Seu nome nos extratos (variações separadas por vírgula)" aria-label="Seu nome nos extratos" value={names} onChange={e => { setNames(e.target.value); setNamesMsg(null) }} />
+          <button className="b" disabled={busy} onClick={() => void salvarNomes()}>Salvar</button>
+        </div>
+        {namesMsg && <div className={namesMsg === 'Salvo.' ? 'muted' : 'note'} style={{ marginTop: 6 }}>{namesMsg}</div>}
+      </div>
     </div>
   )
 }

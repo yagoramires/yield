@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
+import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource } from './build'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -29,23 +31,11 @@ describe('planilhaReplacedByB3', () => {
   })
 })
 
-describe('planilhaSummary', () => {
-  it('contagens e avisos (conflitos de tipo primeiro)', () => {
-    expect(planilhaSummary(
-      { notes: 214, notesSkipped: 3, dividends: 412, dividendsSkipped: 0, manualAssets: 1 },
-      { typeConflicts: ['HGLG11 aparece como FII e ETF; usei FII'], ignored: ['Notas, linha 9: sem data'] },
-    )).toEqual({
-      counts: '214 notas · 3 já existiam · 412 proventos · 0 pulados · 1 ativo manual',
-      warnings: ['HGLG11 aparece como FII e ETF; usei FII', 'Notas, linha 9: sem data'],
-    })
-  })
-})
-
 describe('b3Summary', () => {
   it('contagens, eventos aplicados e o que revisar', () => {
     expect(b3Summary(
       {
-        dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1,
+        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1,
         applied: [
           { kind: 'bonificacao', ticker: 'ITSA4', date: '2024-04-20', qtyDelta: 160, unitCostCents: null, sourceKey: 'a' },
           { kind: 'grupamento', ticker: 'MGLU3', date: '2024-05-02', qtyDelta: -1000, sourceKey: 'b' },
@@ -54,7 +44,7 @@ describe('b3Summary', () => {
       },
       { ignored: 7, toReview: [{ date: '2024-06-10', movimentacao: 'Amortização', produto: 'HGLG11 - CSHG LOGISTICA FII' }] },
     )).toEqual({
-      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 7 movimentações ignoradas (negociações entram pelas notas)',
+      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 7 movimentações ignoradas (liquidações; as compras e vendas vêm do relatório de Negociação)',
       applied: ['ITSA4 bonificação +160 (20/04/2024)', 'MGLU3 grupamento −1000 (02/05/2024)', 'BBAS3 desdobramento +0,5 (02/05/2024)'],
       toReview: ['Amortização HGLG11 (10/06/2024)'],
     })
@@ -112,4 +102,78 @@ describe('parseItemId', () => {
   it.each(['', 'abc', '3f1a2b3c-4d5e-6f70-8192-a3b4c5d6e7f', `${id}x`, '3f1a2b3c4d5e6f708192a3b4c5d6e7f8'])('recusa %j', text => {
     expect(() => parseItemId(text)).toThrow('itemId inválido: copie do painel da Pluggy')
   })
+})
+
+describe('validateSource', () => {
+  const pj = { name: ' Empresa Alfa ', kind: 'pj' as const, gross: '15.000,00', proLabore: '28', irpj: '6', inss: '11', contabilidade: '300,00', outros: '150,00', net: '' }
+  it('PJ ok: nome aparado, percentuais com vírgula, líquido fica nulo', () => {
+    expect(validateSource(pj)).toEqual({ name: 'Empresa Alfa', kind: 'pj', grossCents: 1500000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 15000 })
+    expect(validateSource({ ...pj, irpj: '6,5', contabilidade: '', outros: '0' })).toMatchObject({ irpjPct: 6.5, contabilidadeCents: 0, outrosCents: 0 })
+  })
+  it('exige nome', () => expect(() => validateSource({ ...pj, name: '  ' })).toThrow('Dê um nome para a fonte'))
+  it('percentual fora de 0–100 ou não numérico', () => {
+    for (const bad of ['120', 'abc', '-1', '']) expect(() => validateSource({ ...pj, inss: bad })).toThrow('Percentual inválido: use um número entre 0 e 100')
+  })
+  it('PJ sem bruto ou com líquido negativo', () => {
+    expect(() => validateSource({ ...pj, gross: '' })).toThrow('Bruto')
+    expect(() => validateSource({ ...pj, contabilidade: '20.000,00' })).toThrow('O líquido ficou negativo: confira os descontos')
+  })
+  it('fixo: só o líquido, PJ no padrão', () => {
+    expect(validateSource({ ...pj, kind: 'fixo', net: '6.500,00' })).toEqual({ name: 'Empresa Alfa', kind: 'fixo', grossCents: null, netCents: 650000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0 })
+    expect(() => validateSource({ ...pj, kind: 'fixo', net: '' })).toThrow('Líquido')
+  })
+})
+
+describe('orcamentoImportSummary', () => {
+  it('contagens e fonte criada', () => {
+    expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 }, true)).toBe('11 meses · 186 linhas · 0 já existiam · 1 fonte de renda PJ criada')
+    expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 }, false)).toBe('1 mês · 1 linha · 2 já existiam')
+  })
+})
+
+describe('saveSourceForm', () => {
+  it('se recalcular as entradas falhar, salvar de novo edita a mesma fonte em vez de criar outra', async () => {
+    const db = createTestDb()
+    const failing = { ...db, execute: (sql: string, p?: unknown[]) => (sql.startsWith('UPDATE budget_lines') ? Promise.reject(new Error('falhou')) : db.execute(sql, p)) }
+    const v = validateSource({ name: 'Freela', kind: 'fixo', gross: '', proLabore: '', irpj: '', inss: '', contabilidade: '', outros: '', net: '1000' })
+    let editing: IncomeSource | null = null
+    await expect(saveSourceForm(failing, v, editing, '2026-10', s => { editing = s })).rejects.toThrow('falhou')
+    expect(await saveSourceForm(db, v, editing, '2026-10', s => { editing = s })).toBe(0)
+    expect((await loadOrcamento(db)).sources).toHaveLength(1)
+  })
+})
+
+describe('tipos dos tickers da Negociação', () => {
+  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [] }
+  const old = [{ id: 't', noteId: 'n', seq: 1, broker: 'CLEAR', tradeDate: '2023-01-02', settleDate: '2023-01-04', side: 'C' as const, assetType: 'ETF' as const, ticker: 'BOVA11', qty: 1, priceCents: 1, feesCents: 0, irrfCents: 0 }]
+  it('pede confirmação só dos final 11 ainda sem operação, em ordem', () => {
+    expect(typesToConfirm(p, old)).toEqual({ ask: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }], inferred: [] })
+  })
+  it('deduz pelo nome do produto e pelos proventos; só pergunta o resto', () => {
+    const trades = ['HGLG11', 'IVVB11', 'TAXX11', 'KNXX11', 'SAPR11', 'AUXX11'].map(ticker => ({ ...p.trades[0], ticker }))
+    const names = { HGLG11: 'CSHG LOGÍSTICA FDO INV IMOB - FII', IVVB11: 'ISHARES S&P 500 FDO INV COTAS FDO INDICE', TAXX11: 'COMPANHIA TESTE DE ENERGIA S/A' }
+    const dividends = [{ ticker: 'KNXX11', kind: 'Rendimento' as const }, { ticker: 'SAPR11', kind: 'JCP' as const }]
+    expect(typesToConfirm({ ...p, trades, names }, [], dividends)).toEqual({
+      ask: [{ ticker: 'AUXX11', type: 'ETF' }],
+      inferred: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'IVVB11', type: 'ETF' }, { ticker: 'KNXX11', type: 'FII' }, { ticker: 'SAPR11', type: 'Ação' }, { ticker: 'TAXX11', type: 'Ação' }],
+    })
+  })
+  it('o tipo já usado nas operações vence o da tela', () => {
+    expect(typeMap(old, [{ ticker: 'BOVA11', type: 'FII' }, { ticker: 'HGLG11', type: 'Ação' }])).toEqual(new Map([['BOVA11', 'ETF'], ['HGLG11', 'Ação']]))
+  })
+})
+
+describe('b3Summary com operações', () => {
+  it('conta operações, dias e o que já estava em nota', () => {
+    expect(b3Summary(
+      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [] },
+      { ignored: 0, toReview: [] },
+    ).counts).toBe('12 operações em 3 dias · 1 dia já existia · 2 operações já estavam em notas · 0 proventos · 0 já existiam')
+  })
+})
+
+it('backupPasswordError: 8+ caracteres e confirmação igual', () => {
+  expect(backupPasswordError('curta', 'curta')).toBe('Use uma senha com pelo menos 8 caracteres.')
+  expect(backupPasswordError('senha-boa-1', 'senha-boa-2')).toBe('As duas senhas não são iguais.')
+  expect(backupPasswordError('senha-boa-1', 'senha-boa-1')).toBeNull()
 })

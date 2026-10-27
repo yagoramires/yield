@@ -109,3 +109,36 @@ tr.hl td { background: #1a1213; }
 .txn tr.clk:hover td { background: var(--surface); }
 .in.none, .chip.warn { color: #ffcf5c; border-color: #4a3c14; }
 .chip.warn.on { color: var(--bg); background: #ffcf5c; border-color: #ffcf5c; }
+
+/* Orçamento */
+.track { position: relative; height: 10px; background: #1f2125; border-radius: 4px; overflow: hidden; }
+.track .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #3987e5; border-radius: 0 4px 4px 0; }
+.track .fill.over { background: var(--negative); }
+.track .mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+.catrow { display: grid; grid-template-columns: 110px 1fr 150px; gap: 8px; align-items: center; font-size: 11px; padding: 4px 0; }
+.catrow > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sug { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--surface); font-size: 11px; }
+.sug:last-child { border-bottom: 0; }
+.sug .grow { flex: 1; min-width: 0; }
+.lt td { padding: 7px 5px; }
+.lt .d2, .lt .pj { color: var(--faint); font-size: 10px; margin-top: 2px; }
+.lt .pj { color: var(--text-2); }
+.lt tr.edit td { background: #16171a; border-bottom: 1px solid var(--border); }
+.ic { color: var(--faint); font-size: 11px; }
+.ic.on { color: var(--accent); }
+.in[readonly] { color: var(--text-2); }
+
+/* Passo a passo da Pluggy (Configurações › Open Finance) */
+.modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.modal { background: var(--sidebar); border: 1px solid var(--border); border-radius: 12px; padding: 16px; width: min(760px, 100%); max-height: 100%; overflow: auto; }
+.guide { display: grid; grid-template-columns: 220px 1fr; gap: 16px; margin-top: 14px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.step { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; background: none; color: var(--text-2); padding: 6px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; }
+.step .n { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); display: grid; place-items: center; font-size: 10px; }
+.step.on { background: var(--surface); color: #fff; }
+.step.on .n { border-color: var(--accent); color: var(--accent); }
+.step.done .n { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.step-body h3 { margin: 2px 0 8px; color: #fff; font-size: 15px; }
+.step-body p { margin: 0 0 8px; line-height: 1.5; }
+@media (max-width: 640px) { .guide { grid-template-columns: 1fr; } }
+.update-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }

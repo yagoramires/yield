@@ -1,7 +1,10 @@
 import { useRef, useState, type ReactNode } from 'react'
-import { importB3, parseB3Movimentacao, type B3Import } from '../../import/b3'
+import type { AssetType } from '../../domain/types'
+import { importB3, parseB3, type B3Import } from '../../import/b3'
 import { useData } from '../../state/DataProvider'
-import { b3Summary, planilhaReplacedByB3 } from './build'
+import { b3Summary, mergeB3, planilhaReplacedByB3, typeMap, typesToConfirm } from './build'
+
+const TYPES: AssetType[] = ['FII', 'ETF', 'Ação']
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -9,27 +12,30 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 export function useB3Import(): { button(label: string, className: string): ReactNode; panel: ReactNode } {
   const { data, db, reload } = useData()
   const input = useRef<HTMLInputElement>(null)
-  const [pending, setPending] = useState<{ parsed: B3Import; replaces: number; name: string } | null>(null)
+  const [pending, setPending] = useState<{ parsed: B3Import; replaces: number; name: string; types: { ticker: string; type: AssetType }[]; inferred: { ticker: string; type: AssetType }[] } | null>(null)
   const [summary, setSummary] = useState<ReturnType<typeof b3Summary> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const pick = async (file: File) => {
+  const pick = async (files: File[]) => {
     setPending(null); setSummary(null); setError(null)
-    try {
-      const parsed = parseB3Movimentacao(await file.arrayBuffer())
-      if (!parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored) {
-        return setError(`Nenhuma movimentação encontrada em ${file.name}. Use a planilha de Movimentação baixada da Área do Investidor da B3.`)
-      }
-      setPending({ parsed, replaces: planilhaReplacedByB3(data.dividends, parsed.dividends), name: file.name })
-    } catch (e) { setError(`Não foi possível ler ${file.name}: ${errText(e)}`) }
+    const list: B3Import[] = []
+    for (const file of files) {
+      try { list.push(parseB3(await file.arrayBuffer())) } catch (e) { return setError(`Não foi possível ler ${file.name}: ${errText(e)}`) }
+    }
+    const parsed = mergeB3(list)
+    const name = files.length === 1 ? files[0].name : `${files.length} arquivos`
+    if (!parsed.trades.length && !parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored) {
+      return setError(`Nada encontrado em ${name}. Use os relatórios de Negociação, Proventos Recebidos ou Movimentação da Área do Investidor da B3.`)
+    }
+    setPending({ parsed, replaces: planilhaReplacedByB3(data.dividends, parsed.dividends), name, ...(({ ask, inferred }) => ({ types: ask, inferred }))(typesToConfirm(parsed, data.trades, data.dividends)) })
   }
 
   const confirm = async () => {
     if (!pending) return
     setBusy(true)
     try {
-      setSummary(b3Summary(await importB3(db, pending.parsed), pending.parsed))
+      setSummary(b3Summary(await importB3(db, pending.parsed, typeMap(data.trades, [...pending.inferred, ...pending.types])), pending.parsed))
       setPending(null)
     } catch (e) { setError(`Não foi possível importar o extrato: ${errText(e)}`) }
     try { await reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
@@ -41,7 +47,7 @@ export function useB3Import(): { button(label: string, className: string): React
     button: (label, className) => (
       <>
         <button className={className} disabled={busy} onClick={() => input.current?.click()}>{label}</button>
-        <input ref={input} type="file" accept=".xlsx" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pick(f) }} />
+        <input ref={input} type="file" accept=".xlsx" multiple hidden onChange={e => { const f = [...(e.target.files ?? [])]; e.target.value = ''; if (f.length) void pick(f) }} />
       </>
     ),
     panel: (error || pending || summary) && (
@@ -49,8 +55,28 @@ export function useB3Import(): { button(label: string, className: string): React
         {error && <div className="note" style={{ marginBottom: 8 }}>{error}</div>}
         {pending && p && (
           <div className="note">
-            {pending.name}: {p.dividends.length} proventos, {p.events.length} eventos e {p.toReview.length} movimentações para revisar.{' '}
-            {pending.replaces === 1 ? '1 provento da planilha será substituído' : `${pending.replaces} proventos da planilha serão substituídos`} pelos do extrato.
+            {pending.name}: {p.trades.length} operações, {p.dividends.length} proventos, {p.events.length} eventos e {p.toReview.length} itens para revisar.
+            {pending.replaces > 0 && <> {pending.replaces === 1 ? '1 provento da planilha será substituído' : `${pending.replaces} proventos da planilha serão substituídos`} pelos do extrato.</>}
+            {p.trades.length > 0 && <> A B3 não informa as taxas: as operações entram sem custos; se tiver a nota do dia, ela vale no lugar.</>}
+            {pending.inferred.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                Tipo pelo nome ou pelos proventos: {pending.inferred.map(t => `${t.ticker} ${t.type === 'Ação' ? 'unit' : t.type}`).join(' · ')}
+              </div>
+            )}
+            {pending.types.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                Sem nome nem proventos para saber o tipo; confira (FII, ETF ou unit de ação):
+                <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                  {pending.types.map((t, i) => (
+                    <label key={t.ticker} className="t2">{t.ticker}{' '}
+                      <select value={t.type} disabled={busy} onChange={e => setPending({ ...pending, types: pending.types.map((x, j) => (j === i ? { ...x, type: e.target.value as AssetType } : x)) })}>
+                        {TYPES.map(o => <option key={o} value={o}>{o === 'Ação' ? 'Ação (unit)' : o}</option>)}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="btns" style={{ marginTop: 8 }}>
               <button className="b" disabled={busy} onClick={() => setPending(null)}>Cancelar</button>
               <button className="b pri" disabled={busy} onClick={() => void confirm()}>{busy ? 'Importando…' : 'Importar'}</button>
@@ -61,7 +87,7 @@ export function useB3Import(): { button(label: string, className: string): React
           <div className="info">
             Última importação<br />{summary.counts}
             {summary.applied.length > 0 && <><br />Eventos aplicados: {summary.applied.join(' · ')}</>}
-            {summary.toReview.length > 0 && <><br /><span className="warn">Movimentações não tratadas, revise e lance à mão:</span> {summary.toReview.join(' · ')}</>}
+            {summary.toReview.length > 0 && <><br /><span className="warn">Não importados, revise e lance à mão se fizer sentido:</span> {summary.toReview.join(' · ')}</>}
           </div>
         )}
       </div>

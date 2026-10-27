@@ -79,7 +79,7 @@ export function Notas() {
             <button className={`chip ${view === 'eventos' ? 'on' : ''}`} onClick={() => setView('eventos')}>Eventos</button>
           </div>
           {view === 'notas' ? (
-            notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe o PDF da Clear ou importe a planilha em Configurações.</div> : (
+            notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe o PDF da Clear ou a Negociação da B3 em Configurações.</div> : (
               <table>
                 <thead><tr><th>Pregão</th><th>Nº</th><th>Corretora</th><th>Itens</th><th className="r">Líquido</th><th /></tr></thead>
                 <tbody>
