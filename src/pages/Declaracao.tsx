@@ -36,7 +36,8 @@ export function Declaracao() {
   const brokers = new Map(cad.brokers.map(b => [b.code, b]))
   const bens = bensDoAno(data.trades, data.events, year)
   const issuerOf = (b: Bem) => issuers.get(b.ticker) ?? b.oldTickers.map(t => issuers.get(t)).find(Boolean)
-  const rendimentos = rendimentosDoAno(data.dividends, year, issuers)
+  const types = new Map(data.trades.map(t => [t.ticker, t.assetType]))
+  const rendimentos = rendimentosDoAno(data.dividends, year, issuers, t => types.get(t))
   const isento20 = lucroIsentoDoAno(derived.tax, year)
   const rv = rendaVariavelDoAno(derived.tax, data.payments, year)
   // o CNPJ também é achado pelo ticker antigo de uma mudança de ticker
@@ -45,7 +46,7 @@ export function Declaracao() {
   const pendCount = pend.tickers.length + pend.brokers.length
 
   const total = bens.reduce((s, b) => s + b.costCents, 0), totalPrev = bens.reduce((s, b) => s + b.costPrevCents, 0)
-  const isentos = rendimentos.filter(r => r.linha !== '10').reduce((s, r) => s + r.cents, 0) + isento20
+  const isentos = rendimentos.filter(r => r.linha === '09' || r.linha === '26').reduce((s, r) => s + r.cents, 0) + isento20
   const exclusiva = rendimentos.filter(r => r.linha === '10')
   const darf = [...rv.comum, ...rv.fii].reduce((s, l) => s + l.darfPaidCents, 0)
   const sel = bens.find(b => b.ticker === picked) ?? bens[0]
