@@ -13,7 +13,7 @@ export function suggestForMonth(month: Month, subscriptions: Subscription[], txn
     if (!s.active || (s.period === 'anual' && s.nextDate.slice(0, 7) !== month)) continue
     const desc = s.merchantKey.slice(s.merchantKey.indexOf('|') + 1)
     const last = txns.find(t => t.accountId === s.accountId && t.date === s.lastDate && normalizeDescription(t.description) === desc)
-    out.push({ key: 'sub:' + s.merchantKey, reason: 'assinatura', name: s.name, amountCents: s.amountCents, categoryId: (last && cat(last)?.id) ?? null, installmentCurrent: null, installmentTotal: null })
+    out.push({ key: `sub:${s.merchantKey}@${month}`, reason: 'assinatura', name: s.name, amountCents: s.amountCents, categoryId: (last && cat(last)?.id) ?? null, installmentCurrent: null, installmentTotal: null })
   }
 
   const groups = new Map<string, { t: Txn; n: number; total: number }>()
@@ -28,7 +28,7 @@ export function suggestForMonth(month: Month, subscriptions: Subscription[], txn
   }
   for (const [key, { t, n, total }] of groups) {
     const j = [...Array(total - n)].map((_, i) => i + 1).find(j => addMonths(monthOf(t.date), j) === month)
-    if (j) out.push({ key, reason: 'parcela', name: `${t.description.trim()} (${n + j}/${total})`, amountCents: Math.abs(t.amountCents), categoryId: cat(t)?.id ?? null, installmentCurrent: n + j, installmentTotal: total })
+    if (j) out.push({ key: `${key}@${month}`, reason: 'parcela', name: `${t.description.trim()} (${n + j}/${total})`, amountCents: Math.abs(t.amountCents), categoryId: cat(t)?.id ?? null, installmentCurrent: n + j, installmentTotal: total })
   }
 
   const hidden = new Set([...dismissed, ...lines.filter(l => l.month === month && l.sourceKey).map(l => l.sourceKey!)])

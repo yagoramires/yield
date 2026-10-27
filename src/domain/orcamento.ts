@@ -1,6 +1,7 @@
 import type { Category, Txn } from '../db/gastosRepo'
 import type { BudgetLine, IncomeSource, PjConfig } from '../db/orcamentoRepo'
 import { monthTotals } from './gastos'
+import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
 
 export interface PjBreakdown { grossCents: Cents; proLaboreCents: Cents; irpjCents: Cents; inssCents: Cents; contabilidadeCents: Cents; outrosCents: Cents; netCents: Cents }
@@ -22,20 +23,25 @@ export function monthSummary(lines: BudgetLine[]): { entradasCents: Cents; saida
 
 export const sourceNet = (s: IncomeSource): Cents => s.kind === 'pj' ? pjNet(s.grossCents ?? 0, s).netCents : s.netCents ?? 0
 
-// Recebe as linhas de UM mês; parcelas avançam, a última não é copiada, linhas de fonte são recalculadas.
-export function nextMonthLines(lines: BudgetLine[], sources: IncomeSource[]): Omit<BudgetLine, 'id' | 'month'>[] {
-  return lines
-    .filter(l => l.recurring && !(l.installmentCurrent !== null && l.installmentTotal !== null && l.installmentCurrent >= l.installmentTotal))
-    .map(({ id: _id, month: _month, ...l }) => {
-      const source = sources.find(s => s.id === l.sourceId)
-      return {
+// Recebe as linhas de UM mês e copia para `target`: parcelas avançam pela distância e as que já acabaram ficam,
+// linhas de fonte são recalculadas, chave de sugestão vai com o mês novo (para não sugerir de novo) e a da planilha cai.
+export function copyLines(lines: BudgetLine[], sources: IncomeSource[], target: Month): Omit<BudgetLine, 'id' | 'month'>[] {
+  return lines.flatMap(({ id: _id, month, ...l }) => {
+    const parcela = l.installmentCurrent !== null && l.installmentTotal !== null
+    const current = parcela ? l.installmentCurrent! + monthsBetween(month, target).length - 1 : l.installmentCurrent
+    if (!l.recurring || (parcela && current! > l.installmentTotal!)) return []
+    const source = sources.find(s => s.id === l.sourceId)
+    return [{
       ...l,
       amountCents: source ? sourceNet(source) : l.amountCents,
       sourceId: source ? l.sourceId : null,
-      installmentCurrent: l.installmentCurrent !== null && l.installmentTotal !== null ? l.installmentCurrent + 1 : l.installmentCurrent,
-      sourceKey: null,
-    }})
+      installmentCurrent: current,
+      sourceKey: l.sourceKey && /^(sub|parc):/.test(l.sourceKey) ? `${l.sourceKey.replace(/@\d{4}-\d{2}$/, '')}@${target}` : null,
+    }]
+  })
 }
+
+export const nextMonthLines = (lines: BudgetLine[], sources: IncomeSource[]) => (lines.length ? copyLines(lines, sources, addMonths(lines[0].month, 1)) : [])
 
 export interface PlanVsReal { plannedSaidasCents: Cents; realSpentCents: Cents; byCategory: { categoryId: string; plannedCents: Cents; realCents: Cents }[] }
 
