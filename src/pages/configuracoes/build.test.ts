@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup } from './build'
+import { b3Summary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup } from './build'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -101,5 +101,15 @@ describe('refreshLine', () => {
     expect(refreshLine({ ok: ['ITSA4.SA', 'BBAS3.SA'], failed: [] })).toBe('2 ok · 0 falharam')
     expect(refreshLine({ ok: ['ITSA4.SA'], failed: ['XXXX3.SA', 'YYYY3.SA'] })).toBe('1 ok · 2 falharam (XXXX3.SA, YYYY3.SA)')
     expect(refreshLine({ ok: [], failed: ['XXXX3.SA'] })).toBe('0 ok · 1 falhou (XXXX3.SA)')
+  })
+})
+
+describe('parseItemId', () => {
+  const id = '3F1A2B3C-4D5E-6F70-8192-A3B4C5D6E7F8'
+  it('aceita UUID com espaços e devolve em minúsculas', () => {
+    expect(parseItemId(`  ${id} `)).toBe(id.toLowerCase())
+  })
+  it.each(['', 'abc', '3f1a2b3c-4d5e-6f70-8192-a3b4c5d6e7f', `${id}x`, '3f1a2b3c4d5e6f708192a3b4c5d6e7f8'])('recusa %j', text => {
+    expect(() => parseItemId(text)).toThrow('itemId inválido: copie do painel da Pluggy')
   })
 })
