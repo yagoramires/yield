@@ -3,7 +3,7 @@ import type { Db } from './client'
 
 export type AccountKind = 'conta' | 'cartao'
 export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId: string; institution: string; name: string; kind: AccountKind; number: string | null; itemId: string | null; lastSyncAt: string | null }
-export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string }
+export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
 export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean }
 export interface CategoryRule { id: string; pattern: string; categoryId: string }
 export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */ }
@@ -11,7 +11,7 @@ export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Cate
 type TxnInput = Omit<Txn, 'id' | 'accountId'>
 
 const TXN_COLS = `id, account_id AS accountId, date, description, amount_cents AS amountCents, pending, installment,
-  operation_type AS operationType, fingerprint, source_key AS sourceKey`
+  operation_type AS operationType, fingerprint, source_key AS sourceKey, pluggy_category AS pluggyCategory`
 
 export async function loadGastos(db: Db): Promise<GastosData> {
   const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner] = await Promise.all([
@@ -60,8 +60,8 @@ export async function setLastSync(db: Db, accountId: string, at: string): Promis
 
 async function insertRow(db: Db, accountId: string, t: TxnInput & { id?: string }) {
   await db.execute(
-    'INSERT INTO transactions (id, account_id, date, description, amount_cents, pending, installment, operation_type, fingerprint, source_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [t.id ?? crypto.randomUUID(), accountId, t.date, t.description, t.amountCents, t.pending ? 1 : 0, t.installment, t.operationType, t.fingerprint, t.sourceKey],
+    'INSERT INTO transactions (id, account_id, date, description, amount_cents, pending, installment, operation_type, fingerprint, source_key, pluggy_category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [t.id ?? crypto.randomUUID(), accountId, t.date, t.description, t.amountCents, t.pending ? 1 : 0, t.installment, t.operationType, t.fingerprint, t.sourceKey, t.pluggyCategory ?? null],
   )
 }
 

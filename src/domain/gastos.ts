@@ -1,4 +1,5 @@
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
+import { pluggyCategoryId } from './categoriasPluggy'
 import { mentionsOwner } from './transferencias'
 import type { Cents, ISODate, Month } from './types'
 
@@ -51,7 +52,8 @@ export function categorize(t: Txn, account: Account, rules: CategoryRule[], over
   if (account.kind === 'conta' && t.amountCents < 0 && APLICACAO_NA_CONTA.test(desc)) return byId('investimento')
   // outra entrada no cartão (estorno) fica sem categoria e conta como receita
   if (account.kind === 'cartao' && t.amountCents > 0 && PAGAMENTO_NO_CARTAO.test(desc)) return byId('pagamento-de-fatura')
-  return null
+  const fromPluggy = pluggyCategoryId(t.pluggyCategory, t.amountCents)
+  return fromPluggy ? byId(fromPluggy) : null
 }
 
 export interface MonthTotals { spentCents: Cents; incomeCents: Cents; byCategory: { category: Category | null; cents: Cents }[] }

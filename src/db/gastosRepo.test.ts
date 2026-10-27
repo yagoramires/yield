@@ -125,7 +125,7 @@ describe('migração', () => {
     d.exec(readFileSync(new URL('../../src-tauri/migrations/001_init.sql', import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('4')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('5')
     expect((await loadGastos(migrado)).categories).toHaveLength(17)
   })
 })
@@ -135,4 +135,10 @@ test('nome do titular vai para o meta e volta no loadGastos', async () => {
   await saveOwnerNames(db, ['Ana Teste', 'ANA T S'])
   await saveOwnerNames(db, ['Ana Teste'])
   expect((await loadGastos(db)).ownerNames).toEqual(['Ana Teste'])
+})
+
+test('migração 005: categoria da Pluggy é gravada e lida', async () => {
+  const id = await upsertAccount(db, { source: 'pluggy', externalId: 'pluggy:a', institution: 'Banco', name: 'Conta', kind: 'conta', number: null, itemId: 'it', lastSyncAt: null })
+  await replaceWindow(db, id, '2026-01-01', [{ date: '2026-10-01', description: 'Mercado', amountCents: -100, pending: false, installment: null, operationType: null, fingerprint: 'f', sourceKey: 's', pluggyCategory: 'Groceries' }])
+  expect((await loadGastos(db)).txns[0].pluggyCategory).toBe('Groceries')
 })

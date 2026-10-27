@@ -118,3 +118,12 @@ describe('categorize com transferências', () => {
     expect(categorize(txn({ description: 'UBER' }), conta, [rule('uber', 'transporte')], {}, categories, { paired: true })?.id).toBe('transporte')
   })
 })
+
+describe('categorize com a categoria da Pluggy', () => {
+  it('usa a da Pluggy por último: regra e heurística de fatura vencem', () => {
+    expect(categorize(txn({ pluggyCategory: 'Groceries' }), conta, [], {}, [...categories, cat('mercado')])?.id).toBe('mercado')
+    expect(categorize(txn({ description: 'UBER', pluggyCategory: 'Groceries' }), conta, [rule('uber', 'transporte')], {}, [...categories, cat('mercado')])?.id).toBe('transporte')
+    expect(categorize(txn({ operationType: 'PAGAMENTO_FATURA', pluggyCategory: 'Groceries' }), conta, [], {}, [...categories, cat('mercado')])?.id).toBe('pagamento-de-fatura')
+    expect(categorize(txn({ pluggyCategory: 'Same person transfer' }), conta, [], {}, categories)?.id).toBe('transferencia')
+  })
+})

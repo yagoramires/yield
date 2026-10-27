@@ -115,6 +115,12 @@ pub fn run() {
             sql: include_str!("../migrations/004_fontes_renda.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 5,
+            description: "categoria da pluggy",
+            sql: include_str!("../migrations/005_categoria_pluggy.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
