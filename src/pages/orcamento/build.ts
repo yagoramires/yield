@@ -4,16 +4,17 @@ import { monthOf } from '../../domain/money'
 import type { Cents, ISODate, Month } from '../../domain/types'
 import { parseMoney } from '../notas/build'
 
-export function validateLine(input: { name: string; amount: string; installment: string }): { name: string; amountCents: Cents; installmentCurrent: number | null; installmentTotal: number | null } {
+// Parcela sempre passa para o mês seguinte (avança até a última), então a linha é recorrente.
+export function validateLine(input: { name: string; amount: string; installment: string; recurring: boolean }): { name: string; amountCents: Cents; installmentCurrent: number | null; installmentTotal: number | null; recurring: boolean } {
   const name = input.name.trim()
   if (!name) throw new Error('Informe o nome.')
   const amountCents = parseMoney(input.amount, 'Valor')
   const p = input.installment.trim()
-  if (!p) return { name, amountCents, installmentCurrent: null, installmentTotal: null }
+  if (!p) return { name, amountCents, installmentCurrent: null, installmentTotal: null, recurring: input.recurring }
   const m = p.match(/^(\d+)\/(\d+)$/)
   const n = Number(m?.[1]), total = Number(m?.[2])
   if (!m || n < 1 || n > total) throw new Error('Parcela: use n/total, por exemplo 3/10.')
-  return { name, amountCents, installmentCurrent: n, installmentTotal: total }
+  return { name, amountCents, installmentCurrent: n, installmentTotal: total, recurring: true }
 }
 
 export function monthProgress(month: Month, today: ISODate): number {

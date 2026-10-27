@@ -15,17 +15,17 @@ describe('suggestForMonth', () => {
   it('assinatura mensal ativa aparece com a categoria da última cobrança; parada não', () => {
     const t = [txn({ description: 'Netflix', date: '2026-09-05', amountCents: -3990 })]
     const r = suggestForMonth('2026-10', [sub({}), sub({ merchantKey: 'c1|velha', active: false })], t, () => cat, [], [])
-    expect(r).toEqual([{ key: 'sub:c1|netflix@2026-10', reason: 'assinatura', name: 'NETFLIX', amountCents: 3990, categoryId: 'lazer', installmentCurrent: null, installmentTotal: null }])
+    expect(r).toEqual([{ key: 'sub:c1|netflix@2026-10', reason: 'assinatura', name: 'NETFLIX', amountCents: 3990, categoryId: 'lazer', installmentCurrent: null, installmentTotal: null, recurring: true }])
   })
-  it('anual só no mês da próxima cobrança', () => {
+  it('anual só no mês da próxima cobrança e não é recorrente', () => {
     const s = sub({ period: 'anual', amountCents: 120000, nextDate: '2027-03-12' })
-    expect(suggestForMonth('2027-03', [s], [], semCat, [], [])[0].amountCents).toBe(120000)
+    expect(suggestForMonth('2027-03', [s], [], semCat, [], [])[0]).toMatchObject({ amountCents: 120000, recurring: false })
     expect(suggestForMonth('2027-04', [s], [], semCat, [], [])).toEqual([])
   })
   it('3/10 em setembro sugere 4/10 em outubro e 10/10 em abril, nada em maio', () => {
     const t = [compra(2, '2026-08-10'), compra(3, '2026-09-10')]
     const [o] = suggestForMonth('2026-10', [], t, semCat, [], [])
-    expect(o).toEqual({ key: 'parc:c1|loja x|10|10000@2026-10', reason: 'parcela', name: 'LOJA X (4/10)', amountCents: 10000, categoryId: null, installmentCurrent: 4, installmentTotal: 10 })
+    expect(o).toEqual({ key: 'parc:c1|loja x|10|10000@2026-10', reason: 'parcela', name: 'LOJA X', amountCents: 10000, categoryId: null, installmentCurrent: 4, installmentTotal: 10, recurring: true })
     expect(suggestForMonth('2027-04', [], t, semCat, [], [])[0].installmentCurrent).toBe(10)
     expect(suggestForMonth('2027-05', [], t, semCat, [], [])).toEqual([])
   })
@@ -46,8 +46,13 @@ describe('suggestForMonth', () => {
     const r = suggestForMonth('2026-10', [sub({ merchantKey: 'c1|b', name: 'B', amountCents: 500 }), sub({ merchantKey: 'c1|a', name: 'A', amountCents: 500 }), sub({})], [], semCat, [], [])
     expect(r.map(s => s.name)).toEqual(['NETFLIX', 'A', 'B'])
   })
+  it('total gigante vindo do banco não trava: calcula a parcela do mês direto', () => {
+    const t = [txn({ installment: '1/999999999', date: '2026-09-10' })]
+    expect(suggestForMonth('2026-10', [], t, semCat, [], [])[0].installmentCurrent).toBe(2)
+    expect(suggestForMonth('2026-09', [], t, semCat, [], [])).toEqual([])
+  })
   it('parcela malformada (11/10, 0/3) é ignorada sem derrubar as válidas', () => {
     const t = [txn({ installment: '11/10' }), txn({ description: 'OUTRA', installment: '0/3' }), compra(3, '2026-09-10')]
-    expect(suggestForMonth('2026-10', [], t, semCat, [], []).map(s => s.name)).toEqual(['LOJA X (4/10)'])
+    expect(suggestForMonth('2026-10', [], t, semCat, [], []).map(s => s.name)).toEqual(['LOJA X'])
   })
 })

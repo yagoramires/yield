@@ -115,13 +115,13 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     if (zeroSource(f)) throw new Error(NET_ZERO)
     const v = validateLine(f.kind === 'saida' ? f : { ...f, installment: '' })
     await saveLine(db, {
-      id: f.id, month, kind: f.kind, name: v.name, amountCents: v.amountCents, recurring: f.recurring, position: f.position,
+      id: f.id, month, kind: f.kind, name: v.name, amountCents: v.amountCents, recurring: v.recurring, position: f.position,
       categoryId: f.kind === 'saida' ? f.categoryId || null : null, installmentCurrent: v.installmentCurrent, installmentTotal: v.installmentTotal,
       sourceId: f.kind === 'entrada' ? f.sourceId || null : null, sourceKey: f.sourceKey,
     })
   }).then(ok => ok && setForm(null))
   const accept = (s: Suggestion) => void run('Não foi possível aceitar a sugestão', async () => {
-    await saveLine(db, { month, kind: 'saida', name: s.name, amountCents: s.amountCents, recurring: true, categoryId: s.categoryId, installmentCurrent: s.installmentCurrent, installmentTotal: s.installmentTotal, sourceId: null, sourceKey: s.key, position: 0 })
+    await saveLine(db, { month, kind: 'saida', name: s.name, amountCents: s.amountCents, recurring: s.recurring, categoryId: s.categoryId, installmentCurrent: s.installmentCurrent, installmentTotal: s.installmentTotal, sourceId: null, sourceKey: s.key, position: 0 })
   })
 
   const buttons = (f: Form) => (
@@ -130,9 +130,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       <button className="b pri" disabled={busy} onClick={() => save(f)}>Salvar</button>
     </span>
   )
-  const recurringBox = (f: Form) => (
-    <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11 }}>
-      <input type="checkbox" checked={f.recurring} onChange={e => setForm({ ...f, recurring: e.target.checked })} /> recorrente
+  const recurringBox = (f: Form, forced = false) => (
+    <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 11 }} title={forced ? 'parcelas são sempre recorrentes' : undefined}>
+      <input type="checkbox" checked={forced || f.recurring} disabled={forced} onChange={e => setForm({ ...f, recurring: e.target.checked })} /> recorrente
     </label>
   )
   const entradaForm = (f: Form) => {
@@ -169,7 +169,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           <option value="">sem categoria</option>
           {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        {recurringBox(f)}
+        {recurringBox(f, !!total)}
         {buttons(f)}
       </div>
       <div className="muted" style={{ marginTop: 4 }}>
@@ -236,11 +236,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           {suggestions.map(s => (
             <div key={s.key} className="sug">
               <span className="pill">{s.reason}</span>
-              <span className="grow"><b style={{ color: '#fff' }}>{s.name}</b> <span className="muted">· {catName(s.categoryId) ?? 'sem categoria'}</span></span>
+              <span className="grow"><b style={{ color: '#fff' }}>{s.name}</b> {s.installmentCurrent !== null && <span className="tag">{s.installmentCurrent}/{s.installmentTotal}</span>} <span className="muted">· {catName(s.categoryId) ?? 'sem categoria'}</span></span>
               <span className="r">{formatCents(s.amountCents)}</span>
               <button className="b" disabled={busy} onClick={() => accept(s)}>Aceitar</button>
               <button className="b ghost" disabled={busy} onClick={() => open('saida', {
-                name: s.name, amount: formatCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: true, sourceKey: s.key,
+                name: s.name, amount: formatCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.recurring, sourceKey: s.key,
                 installment: s.installmentCurrent !== null ? `${s.installmentCurrent}/${s.installmentTotal}` : '',
               })}>Ajustar</button>
               <button className="b ghost" disabled={busy} onClick={() => void run('Não foi possível descartar a sugestão', () => dismissSuggestion(db, month, s.key))}>Descartar</button>
