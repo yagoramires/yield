@@ -28,16 +28,16 @@ describe('backup', () => {
   })
 })
 
-describe('backup schema 6', () => {
-  test('banco novo é schema 6 e válido', async () => {
+describe('backup schema 7', () => {
+  test('banco novo é schema 7 e válido', async () => {
     const db = createTestDb()
-    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('6')
+    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('7')
     await validateBackup(db)
   })
-  test('backup v5 é recusado', async () => {
+  test('backup v6 é recusado', async () => {
     const db = createTestDb()
-    await db.execute("UPDATE meta SET value = '5' WHERE key = 'schema_version'")
-    await expect(validateBackup(db)).rejects.toThrow(new BackupError('Este backup é de outra versão do Yield (esquema 5) e não pode ser importado nesta versão.'))
+    await db.execute("UPDATE meta SET value = '6' WHERE key = 'schema_version'")
+    await expect(validateBackup(db)).rejects.toThrow(new BackupError('Este backup é de outra versão do Yield (esquema 6) e não pode ser importado nesta versão.'))
   })
   test('backup schema 2 é recusado com a mensagem de versão', async () => {
     const db = createTestDb()

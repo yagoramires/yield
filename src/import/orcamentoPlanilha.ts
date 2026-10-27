@@ -74,7 +74,7 @@ export function parseOrcamentoPlanilha(data: ArrayBuffer): OrcamentoImport {
     if (lines.length) months.push({ month, lines })
   }
   for (const m of months) m.lines = (m.lines as (ImportLine & { row: number })[]).map(({ row, ...l }) => ({ ...l, recurring: rowCount.get(row)! >= 2 }))
-  return { months, source: pj && { name: pj.name, kind: 'pj', grossCents: pj.grossCents, proLaborePct: pj.proLaborePct, irpjPct: pj.irpjPct, inssPct: pj.inssPct, contabilidadeCents: pj.contabilidadeCents, outrosCents: pj.outrosCents, netCents: null, sourceKey: 'planilha:pj' }, warnings }
+  return { months, source: pj && { name: pj.name, kind: 'pj', grossCents: pj.grossCents, proLaborePct: pj.proLaborePct, irpjPct: pj.irpjPct, inssPct: pj.inssPct, contabilidadeCents: pj.contabilidadeCents, outrosCents: pj.outrosCents, netCents: null, dependents: 0, sourceKey: 'planilha:pj' }, warnings }
 }
 
 // Bloco PJ: acha o rótulo "Salário Líquido" e lê, na mesma coluna acima, as fórmulas dos demais itens.
