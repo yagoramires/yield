@@ -136,6 +136,39 @@ tr.hl td { background: #1a1213; }
 .txn tr.clk { cursor: pointer; }
 .txn tr.clk:hover td { background: var(--surface); }
 
+/* Assinaturas */
+.sec-h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; color: var(--text-2); font-size: 12px; margin: 16px 2px 8px; }
+.sec-h span:last-child { color: var(--faint); font-size: 11px; text-align: right; }
+.next-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.next-c { min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; }
+.next-c .d { color: var(--text-2); font-size: 11px; }
+.next-c .n { color: #fff; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.next-c .v { color: var(--text-2); font-size: 12px; font-variant-numeric: tabular-nums; }
+.next-c.now { border-color: var(--accent); }
+.next-c.now .d { color: var(--accent); }
+.srow { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+.srow + .srow { border-top: 1px solid #222428; }
+.srow:hover { background: #1e1f24; }
+.srow:last-child { border-radius: 0 0 12px 12px; }
+.srow:first-child { border-radius: 12px 12px 0 0; }
+.srow.confirm { background: #24191a; }
+.stopped .srow:not(.confirm) > :not(.sact) { opacity: .5; }
+.sub-av { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; font-weight: 600; font-size: 14px; }
+.sname { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.badge { flex-shrink: 0; font-size: 10.5px; border-radius: 5px; padding: 1px 6px; font-weight: 500; background: #24262c; color: var(--text-2); }
+.badge.up-price { background: rgb(255 107 107 / .12); color: var(--negative); }
+.share { display: flex; align-items: center; gap: 8px; margin-top: 6px; max-width: 320px; }
+.share > div { flex: 1; height: 4px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.share i { display: block; height: 100%; border-radius: 3px; }
+.share span { color: var(--faint); font-size: 11px; width: 30px; }
+.sact { display: flex; gap: 4px; opacity: 0; transition: opacity .1s; }
+.srow:hover .sact, .srow:focus-within .sact { opacity: 1; }
+@media (hover: none) { .sact { opacity: 1; } }
+.icon-btn.sq { width: 28px; height: 28px; border-radius: 7px; background: var(--sidebar); }
+.icon-btn.del:hover { color: var(--negative); border-color: #5a2a2a; }
+.srow .lval small { display: block; color: var(--faint); font-size: 11px; font-weight: 400; }
+.b.danger { background: var(--negative); border-color: var(--negative); color: #1a0b0b; font-weight: 600; }
+
 /* Lançamentos */
 .icon-btn { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: none; color: var(--text-2); cursor: pointer; padding: 0; }
 .icon-btn:hover { color: #fff; }
@@ -214,24 +247,6 @@ tr.hl td { background: #1a1213; }
 
 /* Assinaturas */
 .page-description { max-width: 72ch; line-height: 1.6; }
-.subscription-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.subscription { display: flex; flex-direction: column; gap: 16px; }
-.subscription-heading { display: flex; align-items: flex-start; gap: 12px; justify-content: space-between; }
-.subscription-heading h2 { color: #fff; font-size: 13px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
-.subscription-heading .pill { flex-shrink: 0; padding: 3px 8px; }
-.subscription-price { color: #fff; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.subscription-price span { font-size: 12px; font-weight: 400; }
-.subscription-increase { font-size: 11px; margin-top: -10px; }
-.subscription-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: auto 0 0; }
-.subscription-details > div { min-width: 0; }
-.subscription-details dt { color: var(--text-2); font-size: 11px; margin-bottom: 5px; }
-.subscription-details dd { margin: 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
-.subscription-account { grid-column: 1 / -1; }
-.subscription-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--border); padding-top: 12px; }
-.subscription.stopped .subscription-price { color: var(--text-2); }
-.subscription-dialog { width: min(480px, calc(100% - 32px)); max-height: calc(100% - 32px); color: var(--text); line-height: 1.6; }
-.subscription-dialog::backdrop { background: rgb(0 0 0 / .7); }
-.subscription-dialog h2 { margin: 0 0 10px; color: #fff; font-size: 16px; }
 
 @media (max-width: 1100px) {
   .main { padding: 20px; }
@@ -239,7 +254,7 @@ tr.hl td { background: #1a1213; }
   .kpis { grid-auto-flow: row; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 }
 @media (max-width: 900px) {
-  .grid2, .subscription-list { grid-template-columns: minmax(0, 1fr); }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
   .sidebar { width: 170px; }
 }
 @media (max-width: 640px) {
@@ -265,11 +280,13 @@ tr.hl td { background: #1a1213; }
   .sug { flex-wrap: wrap; }
   .sug .grow { flex-basis: 60%; }
   .main .table-scroll td, .main .table-scroll th { padding-top: 10px; padding-bottom: 10px; }
-  .subscription-price { font-size: 22px; }
   .search-box { flex: 1 1 100%; width: auto; }
   .search-box input { min-height: 38px; font-size: 16px; }
   .cat-strip { flex-wrap: nowrap; overflow-x: auto; }
   .cat-pop { left: 0; }
+  .next-strip { display: flex; overflow-x: auto; }
+  .next-c { flex: 0 0 140px; }
+  .srow.confirm { flex-wrap: wrap; }
   .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
