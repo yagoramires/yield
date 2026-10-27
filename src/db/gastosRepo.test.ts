@@ -132,9 +132,9 @@ describe('migração', () => {
 
 test('nome do titular vai para o meta e volta no loadGastos', async () => {
   expect((await loadGastos(db)).ownerNames).toEqual([])
-  await saveOwnerNames(db, ['Yago Ramires', 'YAGO R M'])
-  await saveOwnerNames(db, ['Yago Ramires'])
-  expect((await loadGastos(db)).ownerNames).toEqual(['Yago Ramires'])
+  await saveOwnerNames(db, ['Ana Teste', 'ANA T S'])
+  await saveOwnerNames(db, ['Ana Teste'])
+  expect((await loadGastos(db)).ownerNames).toEqual(['Ana Teste'])
 })
 
 test('migração 005: categoria da Pluggy é gravada e lida', async () => {

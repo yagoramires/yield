@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { saveRule, setOverride, type Txn } from '../db/gastosRepo'
 import { pluggyCategoryId } from '../domain/categoriasPluggy'
 import { monthTotals, normalizeDescription } from '../domain/gastos'
+import { ownerMention } from '../domain/transferencias'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { filterTxns, groupByDay, NO_FILTER, ruleFor, suggestRulePattern, type TxnFilter } from './lancamentos/build'
@@ -48,7 +49,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
     const pattern = suggestRulePattern(t.description)
     const reach = pattern ? data.txns.filter(o => o.id !== t.id && !data.overrides[o.fingerprint] && normalizeDescription(o.description).includes(pattern)).length : 0
     return (
-      <tr className="expand"><td colSpan={3}>
+      <tr key={`edit-${t.id}`} className="expand"><td colSpan={3}>
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>
           <span className="muted">Categoria:</span>
           <select className="in" aria-label="Nova categoria" value={edit.categoryId} onChange={e => setEdit({ ...edit, categoryId: e.target.value })}>
@@ -95,7 +96,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
       </div>
 
       {list.length === 0 ? <div className="info">{filtered ? 'Nenhum lançamento com esses filtros neste mês.' : 'Nenhum lançamento neste mês.'}</div> : (
-        <table className="txn">
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="txn ledger-table">
           <tbody>
             {groupByDay(list, cat).map(g => [
               <tr key={g.date} className="day"><td colSpan={2}>{dayTitle(g.date)}</td><td className="r">{signed(g.totalCents)}</td></tr>,
@@ -105,12 +106,14 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
                 const rule = ruleFor(t, data.rules, data.overrides)
                 const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
                 const between = tr && `transferência ${tr.outgoing ? 'para' : 'de'} ${accountLabel(accounts.get(tr.otherAccountId))}`
-                const byPluggy = !rule && !between && !data.overrides[t.fingerprint] && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
-                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
+                const auto = !rule && !between && !data.overrides[t.fingerprint]
+                const company = auto && c?.id === 'receita' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
+                const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
+                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
                 return [
                   <tr key={t.id} className={off ? 'off' : ''}>
                     <td><div className="d1">{t.description}</div><div className="d2">{meta.filter(Boolean).join(' · ')}</div></td>
-                    <td style={{ width: 170 }}>
+                    <td>
                       <select className={`in ${c ? '' : 'none'}`} aria-label={`Categoria de ${t.description}`} value={edit?.txn.id === t.id ? edit.categoryId : c?.id ?? ''}
                         onChange={e => { if (e.target.value) { setEdit({ txn: t, categoryId: e.target.value, always: false }); setError(null) } }}>
                         {!c && <option value="">Sem categoria</option>}
@@ -124,7 +127,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
               }),
             ])}
           </tbody>
-        </table>
+        </table></div>
       )}
       <div className="muted" style={{ marginTop: 6 }}>{list.length === 1 ? '1 lançamento' : `${list.length} lançamentos`} em {monthName(month).toLowerCase()} · mostrando por dia, do mais recente</div>
     </>

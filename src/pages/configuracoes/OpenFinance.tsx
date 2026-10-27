@@ -113,7 +113,7 @@ export function OpenFinance() {
   )
 
   const banks = data.pluggyItems.length > 0 && (
-    <table>
+    <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
       <thead><tr><th>Banco</th><th>itemId</th><th>Situação</th><th></th></tr></thead>
       <tbody>
         {data.pluggyItems.map(it => {
@@ -127,7 +127,7 @@ export function OpenFinance() {
           )
         })}
       </tbody>
-    </table>
+    </table></div>
   )
 
   const addBank = (
@@ -226,7 +226,7 @@ export function Contas() {
       <b style={{ color: '#fff' }}>Contas</b>
       <div className="muted" style={{ margin: '4px 0 10px' }}>Contas e cartões trazidos da Pluggy ou de extratos. Apague uma conta repetida para o saldo não contar em dobro.</div>
       {data.accounts.length === 0 ? <div className="muted">Nenhuma conta ainda.</div> : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
           <thead><tr><th>Instituição</th><th>Conta</th><th>Origem</th><th>Lançamentos</th><th></th></tr></thead>
           <tbody>
             {data.accounts.map(a => (
@@ -239,7 +239,7 @@ export function Contas() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
       {del && (
         <div className="note" style={{ marginTop: 10 }}>
@@ -255,7 +255,7 @@ export function Contas() {
         <b style={{ color: '#fff' }}>Transferências entre suas contas</b>
         <div className="muted" style={{ margin: '4px 0 8px' }}>
           Saída numa conta e entrada do mesmo valor noutra, até 3 dias depois, viram Transferência sozinhas e não contam como gasto nem como entrada.
-          Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência.
+          Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência. Se o nome vier seguido de LTDA, Desenvolvimento, Serviços etc. (a sua PJ), o que ela paga conta como Receita.
         </div>
         <div className="row">
           <input className="in" style={{ flex: 1, minWidth: 220 }} placeholder="Seu nome nos extratos (variações separadas por vírgula)" aria-label="Seu nome nos extratos" value={names} onChange={e => { setNames(e.target.value); setNamesMsg(null) }} />

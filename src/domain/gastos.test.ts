@@ -112,8 +112,9 @@ describe('monthTotals', () => {
 describe('categorize com transferências', () => {
   it('par entre contas e Pix com o seu nome viram Transferência; escolha manual e regra vencem', () => {
     expect(categorize(txn({}), conta, [], {}, categories, { paired: true })?.id).toBe('transferencia')
-    expect(categorize(txn({ description: 'PIX ENVIADO YAGO RAMIRES' }), conta, [], {}, categories, { ownerNames: ['Yago Ramires'] })?.id).toBe('transferencia')
-    expect(categorize(txn({ description: 'PIX ENVIADO YAGO RAMIRES' }), cartao, [], {}, categories, { ownerNames: ['Yago Ramires'] })).toBeNull()
+    expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE' }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('transferencia')
+    expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE' }), cartao, [], {}, categories, { ownerNames: ['Ana Teste'] })).toBeNull()
+    expect(categorize(txn({ description: 'PIX RECEBIDO ANA TESTE TECNOLOGIA LTDA', amountCents: 500000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('receita')
     expect(categorize(txn({}), conta, [], { fp: 'alimentacao' }, categories, { paired: true })?.id).toBe('alimentacao')
     expect(categorize(txn({ description: 'UBER' }), conta, [rule('uber', 'transporte')], {}, categories, { paired: true })?.id).toBe('transporte')
   })

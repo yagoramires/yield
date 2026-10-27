@@ -20,9 +20,16 @@ const TITLES = Object.fromEntries(
 
 export default function App() {
   const [route, setRoute] = useState<Route>('carteira')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const navigate = (next: Route) => { setRoute(next); setMenuOpen(false) }
   return (
     <div className="app">
-      <Sidebar route={route} onNavigate={setRoute} />
+      <header className="mobile-header">
+        <div className="logo">yield<b>.</b></div>
+        <span className="t2">{TITLES[route]}</span>
+        <button className="b ghost" aria-controls="app-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? 'Fechar menu' : 'Menu'}</button>
+      </header>
+      <Sidebar route={route} onNavigate={navigate} open={menuOpen} />
       <main className="main">
         <UpdateBanner />
         {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenCarteira={() => setRoute('carteira')} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas /> : route === 'categorias' ? <Categorias /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos /> : route === 'imposto' ? <Imposto /> : route === 'configuracoes' ? <Configuracoes /> : (

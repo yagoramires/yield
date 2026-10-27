@@ -55,9 +55,9 @@ export function Categorias() {
           </div>
         </div>
       )}
-      <div className="grid2" style={{ marginTop: 12, gridTemplateColumns: '1.2fr 1fr' }}>
+      <div className="grid2" style={{ marginTop: 12 }}>
         <div>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
             <thead><tr><th>Categoria</th><th>Conta como gasto</th><th className="r">{monthName(month)}</th><th></th></tr></thead>
             <tbody>
               {rows.map(r => {
@@ -86,7 +86,7 @@ export function Categorias() {
                 )
               })}
             </tbody>
-          </table>
+          </table></div>
           <div className="muted" style={{ marginTop: 6 }}>Categorias que não contam como gasto mostram o que saiu, mas ficam fora dos totais do Resumo.</div>
           {del && impact && (
             <div className="note" style={{ marginTop: 10 }}>
@@ -101,7 +101,7 @@ export function Categorias() {
         <div className="card">
           <b style={{ color: '#fff' }}>Regras</b>
           <div className="muted" style={{ margin: '4px 0 8px' }}>"Sempre categorizar … como …". A regra mais específica ganha; a categoria escolhida à mão numa compra ganha de todas.</div>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
             <thead><tr><th>Quando a descrição tem</th><th>Categoria</th><th></th></tr></thead>
             <tbody>
               {data.rules.length === 0 && <tr><td colSpan={3} className="muted">Nenhuma regra ainda.</td></tr>}
@@ -110,7 +110,7 @@ export function Categorias() {
                   <td className="muted"><button className="link" disabled={busy} onClick={() => void run('Não foi possível apagar a regra', () => deleteRule(db, r.id))}>apagar</button></td></tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <div className="row" style={{ marginTop: 8 }}>
             <input className="in" style={{ flex: 1 }} placeholder="descrição contém…" aria-label="Descrição contém" value={pattern} onChange={e => setPattern(e.target.value)} />
             <select className="in" aria-label="Categoria da regra" value={ruleCat || data.categories[0]?.id || ''} onChange={e => setRuleCat(e.target.value)}>

@@ -30,13 +30,24 @@ export function pairTransfers(txns: Txn[], accounts: Account[], overrides: Recor
   return out
 }
 
-/** Pix/TED com o seu nome na descrição: dinheiro indo ou vindo de uma conta sua que não está no app. */
-export function mentionsOwner(description: string, names: string[]): boolean {
+// Depois do nome do titular, uma destas palavras indica a empresa dele ("ANA SOUZA DESENVOLVIMENTO DE SOFTWARE"), não ele.
+const COMPANY = /\b(ltda|me|mei|eireli|epp|s a|sa|desenvolvimento|servicos|software|consultoria|tecnologia|comercio|representacoes|solucoes|sistemas|holding|participacoes|negocios|digital)\b/
+
+/**
+ * Pix/TED com o seu nome na descrição. `pessoa`: você mesmo, numa conta que não está no app (Transferência);
+ * `empresa`: uma empresa com o seu nome, como a sua PJ (o que ela paga é Receita).
+ */
+export function ownerMention(description: string, names: string[]): 'pessoa' | 'empresa' | null {
   const desc = normalizeDescription(description)
-  return names.some(n => desc.includes(normalizeDescription(n)))
+  for (const n of names) {
+    const name = normalizeDescription(n)
+    const at = name ? desc.indexOf(name) : -1
+    if (at >= 0) return COMPANY.test(desc.slice(at + name.length)) ? 'empresa' : 'pessoa'
+  }
+  return null
 }
 
-/** "Yago Ramires, YAGO R M" → variações; cada uma precisa de nome e sobrenome para não pegar Pix de outras pessoas. */
+/** "Ana Souza, ANA S" → variações; cada uma precisa de nome e sobrenome para não pegar Pix de outras pessoas. */
 export function validOwnerNames(text: string): { names: string[] } | { error: string } {
   const names = text.split(',').map(s => s.trim().replace(/\s+/g, ' ')).filter(Boolean)
   const short = names.find(n => normalizeDescription(n).split(' ').length < 2)
