@@ -15,7 +15,7 @@ const KINDS: [TxnFilter['accountKind'], string][] = [['todas', 'Tudo'], ['conta'
 
 export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
   const { db, reload, gastos } = useData()
-  const { data, categorize: cat, month, filter, setFilter } = gastos
+  const { data, categorize: cat, transfers, month, filter, setFilter } = gastos
   const [edit, setEdit] = useState<{ txn: Txn; categoryId: string; always: boolean } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -102,7 +102,9 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
                 const c = cat(t)
                 const off = c !== null && !c.countsAsSpending && c.id !== 'receita' // fatura, transferência, investimento
                 const rule = ruleFor(t, data.rules, data.overrides)
-                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, off && 'não conta como gasto']
+                const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
+                const between = tr && `transferência ${tr.outgoing ? 'para' : 'de'} ${accountLabel(accounts.get(tr.otherAccountId))}`
+                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, off && 'não conta como gasto']
                 return [
                   <tr key={t.id} className={off ? 'off' : ''}>
                     <td><div className="d1">{t.description}</div><div className="d2">{meta.filter(Boolean).join(' · ')}</div></td>

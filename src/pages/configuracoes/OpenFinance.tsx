@@ -1,6 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useEffect, useState } from 'react'
-import { deleteAccount, deletePluggyItem, savePluggyItem, type Account } from '../../db/gastosRepo'
+import { deleteAccount, deletePluggyItem, saveOwnerNames, savePluggyItem, type Account } from '../../db/gastosRepo'
+import { validOwnerNames } from '../../domain/transferencias'
 import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
 import { clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } from '../../openfinance/secrets'
 import { useData } from '../../state/DataProvider'
@@ -200,7 +201,18 @@ export function Contas() {
   const [del, setDel] = useState<Account | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [names, setNames] = useState(data.ownerNames.join(', '))
+  const [namesMsg, setNamesMsg] = useState<string | null>(null)
   const count = (id: string) => data.txns.filter(t => t.accountId === id).length
+
+  const salvarNomes = async () => {
+    const v = validOwnerNames(names)
+    if ('error' in v) return setNamesMsg(v.error)
+    setBusy(true)
+    try { await saveOwnerNames(db, v.names); await reload(); setNames(v.names.join(', ')); setNamesMsg('Salvo.') }
+    catch (e) { setNamesMsg(`Não foi possível salvar: ${errText(e)}`) }
+    setBusy(false)
+  }
 
   const apagar = async (a: Account) => {
     setBusy(true)
@@ -239,6 +251,18 @@ export function Contas() {
         </div>
       )}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
+      <div style={{ marginTop: 14 }}>
+        <b style={{ color: '#fff' }}>Transferências entre suas contas</b>
+        <div className="muted" style={{ margin: '4px 0 8px' }}>
+          Saída numa conta e entrada do mesmo valor noutra, até 3 dias depois, viram Transferência sozinhas e não contam como gasto nem como entrada.
+          Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência.
+        </div>
+        <div className="row">
+          <input className="in" style={{ flex: 1, minWidth: 220 }} placeholder="Seu nome nos extratos (variações separadas por vírgula)" aria-label="Seu nome nos extratos" value={names} onChange={e => { setNames(e.target.value); setNamesMsg(null) }} />
+          <button className="b" disabled={busy} onClick={() => void salvarNomes()}>Salvar</button>
+        </div>
+        {namesMsg && <div className={namesMsg === 'Salvo.' ? 'muted' : 'note'} style={{ marginTop: 6 }}>{namesMsg}</div>}
+      </div>
     </div>
   )
 }

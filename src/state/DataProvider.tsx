@@ -10,6 +10,7 @@ import { REFRESH_MS, refreshQuotes, yahooSymbol } from '../quotes/yahoo'
 import { monthOf } from '../domain/money'
 import { loadGastos, type Category, type GastosData, type Txn } from '../db/gastosRepo'
 import { categorize } from '../domain/gastos'
+import { pairTransfers, type TransferLink } from '../domain/transferencias'
 import { detectSubscriptions, type Subscription } from '../domain/assinaturas'
 import type { Month } from '../domain/types'
 import { getPluggyCredentials } from '../openfinance/secrets'
@@ -21,6 +22,7 @@ import { defaultMonth } from '../pages/orcamento/build'
 export interface Gastos {
   data: GastosData
   categorize(t: Txn): Category | null
+  transfers: Map<string, TransferLink> // id do lançamento → o outro lado do par entre contas suas
   subscriptions: Subscription[]
   syncing: boolean
   lastSyncResult: SyncResult | null
@@ -162,10 +164,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const gastosDerived = useMemo(() => {
     if (!gastosData) return null
     const accounts = new Map(gastosData.accounts.map(a => [a.id, a]))
-    const of = (t: Txn) => { const a = accounts.get(t.accountId); return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories) : null }
+    const transfers = pairTransfers(gastosData.txns, gastosData.accounts, gastosData.overrides)
+    const of = (t: Txn) => {
+      const a = accounts.get(t.accountId)
+      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), ownerNames: gastosData.ownerNames }) : null
+    }
     const byId = new Map(gastosData.txns.map(t => [t.id, of(t)]))
     const cat = (t: Txn) => (byId.has(t.id) ? byId.get(t.id)! : of(t))
-    return { categorize: cat, subscriptions: detectSubscriptions(gastosData.txns, cat, gastosData.dismissed, todayISO()) }
+    return { categorize: cat, transfers, subscriptions: detectSubscriptions(gastosData.txns, cat, gastosData.dismissed, todayISO()) }
   }, [gastosData])
 
   const value = useMemo<AppData | null>(() => {
