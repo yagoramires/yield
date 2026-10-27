@@ -57,6 +57,15 @@ As transações chegam de dois jeitos:
   <img src="docs/screenshots/lancamentos.png" width="860" alt="Lista de lançamentos por dia com categorias">
 </p>
 
+### 🗓️ Orçamento mensal
+
+| | |
+|---|---|
+| **Mês atual** | Entradas, saídas e saldo do mês; planejado × gasto real até agora (com a marca de quanto do mês passou) e por categoria; criar o mês seguinte copiando as linhas recorrentes, com as parcelas avançando sozinhas. |
+| **Sugestões** | Assinaturas e parcelas que faltam, vindas dos seus gastos reais. Nada entra no plano sem você aceitar. |
+| **Fontes de renda** | Salário PJ calculado (pró-labore, IRPJ, INSS, contabilidade) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
+| **Importação** | Lê a aba de orçamento da planilha antiga, inclusive a calculadora de salário PJ, sem duplicar ao reimportar. |
+
 ### 📈 Investimentos
 
 | | |
@@ -127,7 +136,8 @@ Spec, planos e telas aprovadas estão em [`docs/`](docs).
 
 - [x] **Fase 1: Investimentos.** Carteira, notas, proventos, imposto, importação e backup.
 - [x] **Fase 3: Últimos gastos.** Open Finance só leitura, extratos, categorias, assinaturas e resumos com gráficos.
-- [ ] **Fase 2: Orçamento mensal.** Plano do mês com entradas e saídas (inclusive salário PJ líquido), meses que se repetem e planejado × real.
+- [x] **Fase 2: Orçamento mensal.** Plano do mês, fontes de renda (PJ calculado ou valor fixo), mês seguinte com recorrentes e parcelas, planejado × real e sugestões vindas dos gastos.
+- [ ] Planejamento (simulações) e milhas.
 
 ## Licença
 
