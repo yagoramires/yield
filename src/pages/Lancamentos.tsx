@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { saveRule, setOverride, type Txn } from '../db/gastosRepo'
+import { pluggyCategoryId } from '../domain/categoriasPluggy'
 import { monthTotals, normalizeDescription } from '../domain/gastos'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
@@ -104,7 +105,8 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
                 const rule = ruleFor(t, data.rules, data.overrides)
                 const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
                 const between = tr && `transferência ${tr.outgoing ? 'para' : 'de'} ${accountLabel(accounts.get(tr.otherAccountId))}`
-                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, off && 'não conta como gasto']
+                const byPluggy = !rule && !between && !data.overrides[t.fingerprint] && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
+                const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
                 return [
                   <tr key={t.id} className={off ? 'off' : ''}>
                     <td><div className="d1">{t.description}</div><div className="d2">{meta.filter(Boolean).join(' · ')}</div></td>

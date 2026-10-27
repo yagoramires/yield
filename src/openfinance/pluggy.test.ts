@@ -41,6 +41,10 @@ describe('toTxnRow', () => {
     expect(r).toMatchObject({ installment: '2/3', pending: true, description: 'Loja' })
     expect(toTxnRow({ ...base, creditCardMetadata: { installmentNumber: 1, totalInstallments: 1 } }, 'cartao').installment).toBeNull()
   })
+  it('guarda a categoria da Pluggy', () => {
+    expect(toTxnRow({ ...base, category: 'Groceries' }, 'conta').pluggyCategory).toBe('Groceries')
+    expect(toTxnRow(base, 'conta').pluggyCategory).toBeNull()
+  })
 })
 
 describe('porta só-leitura', () => {
