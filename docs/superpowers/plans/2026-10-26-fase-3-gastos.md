@@ -12,7 +12,9 @@
 
 **Ordem:** o Yago pediu a fase 3 antes da fase 2 (26/10/2026). Nada aqui depende da fase 2; a ligação "planejado × real" fica para a fase 2.
 
-**Fora desta fase:** investimentos vindos do Open Finance (spec: no máximo conferência; fica para depois); faturas de cartão (`GET /bills`) e PDF de fatura; categorização da própria Pluggy (exige plano Pro); webhooks; criar/atualizar/excluir item na Pluggy; seletor de intervalo de sincronização; gráficos.
+**Fora desta fase:** investimentos vindos do Open Finance (spec: no máximo conferência; fica para depois); faturas de cartão (`GET /bills`) e PDF de fatura; categorização da própria Pluggy (exige plano Pro); webhooks; criar/atualizar/excluir item na Pluggy; seletor de intervalo de sincronização.
+
+**Mudança depois dos mockups (26/10/2026):** o Yago pediu gráficos, separar o Resumo de Lançamentos e um Resumo também para Investimentos (`docs/design/telas-fase-3.md`). A Task 8 passa a construir também o Resumo de gastos e os componentes de gráfico; a Task 11 (nova) constrói o Resumo de Investimentos.
 
 ## Global Constraints
 
@@ -287,21 +289,34 @@ expect(pluggyDate('2026-10-06T01:30:00.000Z')).toBe('2026-10-05')
 
 ---
 
-### Task 8: Estado e tela de Lançamentos
+### Task 8: Estado, gráficos, Resumo de gastos e Lançamentos
 
 **Files:**
-- Create: `src/pages/Lancamentos.tsx`, `src/pages/lancamentos/build.ts`
-- Modify: `src/state/DataProvider.tsx` (carrega `GastosData`, deriva categorizador/totais/assinaturas, sincroniza ao abrir se a última sincronização de alguma conta Pluggy tiver mais de `SYNC_EVERY_MS` e houver credenciais, e expõe `syncNow()` e `lastSyncResult`), `src/ui/routes.ts` (rotas `lancamentos`, `assinaturas`, `categorias` habilitadas), `src/App.tsx`
+- Create: `src/ui/charts.tsx` (componentes SVG: `LineChart`, `BarChart` vertical com empilhamento opcional, `HBars`; dica ao passar o mouse; cores das séries `#3987e5`, `#d95926`, `#199e70`; marca "parcial" listrada), `src/pages/ResumoGastos.tsx`, `src/pages/Lancamentos.tsx`, `src/pages/lancamentos/build.ts`
+- Modify: `src/state/DataProvider.tsx` (carrega `GastosData`, deriva categorizador/assinaturas, sincroniza ao abrir se alguma conta Pluggy tiver `lastSyncAt` nulo ou mais velho que `SYNC_EVERY_MS`, ou se um item salvo ainda não tiver contas, e houver credenciais; expõe `syncNow()` e `lastSyncResult`), `src/ui/routes.ts` (rotas `gastos-resumo`, `lancamentos`, `assinaturas`, `categorias` habilitadas; Resumo primeiro), `src/App.tsx`
 - Test: `src/pages/lancamentos/build.test.ts`, `src/ui/routes.test.ts`
 
 **Interfaces:**
 - Consumes: Tasks 1–6.
-- Produces: `useData()` ganha `gastos: { data: GastosData; categorize(t: Txn): Category | null; subscriptions: Subscription[]; syncing: boolean; lastSyncResult: SyncResult | null; syncNow(): Promise<void> }`.
+- Produces: `useData()` ganha `gastos: { data: GastosData; categorize(t: Txn): Category | null; subscriptions: Subscription[]; syncing: boolean; lastSyncResult: SyncResult | null; syncNow(): Promise<void>; month: Month; setMonth(m: Month): void; filter: TxnFilter; setFilter(f: TxnFilter): void }` (mês e filtro compartilhados entre Resumo e Lançamentos, para o clique no gráfico abrir a lista filtrada). `charts.tsx` é reaproveitado pela Task 11.
 
-- [ ] **Step 1: Testes que falham** (funções puras de `build.ts`): filtro por conta, mês e categoria (inclusive "Sem categoria"); agrupamento por dia, mais recente primeiro; `suggestRulePattern(description)` = `normalizeDescription`; `duplicateAccountWarning(accounts)` acusa duas contas da mesma instituição e mesmo `number`, de origens diferentes.
-- [ ] **Step 2:** → FAIL. **Step 3:** implementar a página conforme o mockup aprovado: trocar a categoria salva um ajuste (`setOverride`); a caixa "sempre categorizar" salva uma regra (`saveRule`) em vez do ajuste; "Importar extrato" aceita `.ofx,.csv`, detecta o preset, pede o nome da conta quando o CSV não traz, mostra o resumo (`inserted`, `skipped`); erros de sincronização aparecem por item.
-- [ ] **Step 4:** → PASS. Conferir no app com print (sem clicar via automação): a página abre com o banco vazio.
-- [ ] **Step 5: Commit** `feat: tela de lançamentos com sincronização e importação`
+```ts
+// lancamentos/build.ts
+export interface TxnFilter { accountKind: 'todas' | 'conta' | 'cartao'; categoryId: string | 'sem' | null; search: string }
+export function filterTxns(txns: Txn[], accounts: Account[], cat: (t: Txn) => Category | null, month: Month, f: TxnFilter): Txn[]
+export function groupByDay(txns: Txn[]): { date: ISODate; totalCents: Cents; txns: Txn[] }[]   // mais recente primeiro; total = soma dos que contam como gasto/entrada
+export function suggestRulePattern(description: string): string                                // = normalizeDescription
+export function duplicateAccountWarning(accounts: Account[]): string[]                         // mesma instituição e mesmo number, origens diferentes
+export function cumulativeByDay(txns: Txn[], cat: (t: Txn) => Category | null, month: Month): Cents[]   // índice 0 = dia 1; só gasto
+export function spentByMonth(txns: Txn[], cat: (t: Txn) => Category | null, lastMonth: Month, n: number): { month: Month; cents: Cents }[]
+export function topSpending(txns: Txn[], cat: (t: Txn) => Category | null, month: Month, n: number): Txn[]
+export function comparePreviousMonth(txns: Txn[], cat: (t: Txn) => Category | null, month: Month, today: ISODate): { currentCents: Cents; previousSameDayCents: Cents }
+```
+
+- [ ] **Step 1: Testes que falham** (funções puras de `build.ts`): filtro por tipo de conta, mês, categoria (inclusive "Sem categoria") e busca sem acento; agrupamento por dia; `suggestRulePattern`; `duplicateAccountWarning`; `cumulativeByDay` não soma pagamento de fatura e é crescente; `spentByMonth` devolve `n` meses em ordem, com zero nos meses sem gasto; `topSpending` ordena pelo maior gasto; `comparePreviousMonth` para o dia 31 num mês anterior de 30 dias usa o mês inteiro. Rotas novas no `routes.test.ts`.
+- [ ] **Step 2:** → FAIL. **Step 3:** implementar conforme `docs/design/telas-fase-3.md`: Resumo (avisos, cartões, acumulado mês × anterior, por categoria com clique que filtra, gasto por mês, maiores gastos) e Lançamentos (filtros, lista por dia, troca de categoria em linha: só a compra → `setOverride`; "fazer isso sempre" → `saveRule(normalizeDescription(...))`; "Importar extrato" aceita `.ofx,.csv`, detecta o preset, pede o nome da conta quando é CSV, mostra o resumo `inserted`/`skipped`; erros de sincronização por item). O resumo da sincronização não diz "N novas" (`inserted` conta linhas regravadas).
+- [ ] **Step 4:** → PASS. Conferir no app com print (sem clicar via automação): as duas páginas abrem com o banco vazio.
+- [ ] **Step 5: Commit** `feat: resumo de gastos, gráficos e lançamentos`
 
 ---
 
@@ -335,3 +350,26 @@ expect(pluggyDate('2026-10-06T01:30:00.000Z')).toBe('2026-10-05')
 - [ ] **Step 2:** → FAIL. **Step 3:** implementar o cartão conforme o mockup: o passo a passo de `docs/pesquisa-open-finance.md` (criar conta em meu.pluggy.ai, conectar cada banco, adicionar o conector MeuPluggy no dashboard, copiar itemId, Client ID e Client Secret) com o aviso "Faça tudo dentro dos 15 dias do teste da Pluggy" e a frase de somente leitura; os campos de credencial nunca mostram o secret salvo (só "salvo no cofre do sistema" e "Trocar"/"Apagar" com confirmação); "Testar conexão" chama `listAccounts` de cada item e mostra quantas contas achou ou o erro. `docs/roteiro-pluggy.md`: o mesmo passo a passo, na ordem, para o Yago seguir no primeiro contato real, com o que conferir depois da primeira sincronização (contas certas, sinais, fatura não contada duas vezes).
 - [ ] **Step 4:** → PASS. `pnpm vitest run` e `pnpm exec tsc --noEmit` limpos.
 - [ ] **Step 5: Commit** `feat: conexão Open Finance só leitura nas configurações`
+
+---
+
+### Task 11: Resumo de Investimentos
+
+**Files:**
+- Create: `src/pages/ResumoInvestimentos.tsx`, `src/pages/resumoInvestimentos/build.ts`
+- Modify: `src/ui/routes.ts` (rota `investimentos-resumo` antes de Carteira), `src/App.tsx`
+- Test: `src/pages/resumoInvestimentos/build.test.ts`
+
+**Interfaces:**
+- Consumes: `useData().derived` (`replay`, `portfolio`, `darfs`), `data.trades`, `data.dividends`; `charts.tsx` (Task 8).
+
+```ts
+export function investedByMonth(trades: Trade[], events: CorporateEvent[], lastMonth: Month, n: number): { month: Month; cents: Cents }[]   // custo da posição aberta no fim de cada mês (replay até o fim do mês)
+export function dividendsByMonth(dividends: Dividend[], lastMonth: Month, n: number): { month: Month; byKind: Record<DividendKind, Cents> }[]
+export function topPositions(p: Portfolio, n: number): { name: string; cls: string; valueCents: Cents; pct: number; varPct: number | null; manual: boolean }[]
+```
+
+- [ ] **Step 1: Testes que falham**: `investedByMonth` com uma compra em jan e uma venda parcial em mar devolve o custo certo em cada mês (venda reduz pelo preço médio); `dividendsByMonth` separa por tipo e põe zero nos meses vazios; `topPositions` mistura ações e ativos manuais pelo valor e calcula o % do patrimônio.
+- [ ] **Step 2:** → FAIL. **Step 3:** implementar a página conforme `docs/design/telas-fase-3.md` (aviso de DARF/mês incompleto com link para Imposto; cartões; aportado × valor de hoje com a explicação de que não há cotação antiga; patrimônio por classe com clique para Carteira; proventos por mês empilhado com legenda; maiores posições).
+- [ ] **Step 4:** → PASS. `pnpm vitest run` e `pnpm exec tsc --noEmit` limpos. Conferir no app com print.
+- [ ] **Step 5: Commit** `feat: resumo de investimentos`
