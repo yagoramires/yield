@@ -39,7 +39,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         {header}
         <div className="card" style={{ marginTop: 12 }}>
           <b style={{ color: '#fff' }}>Ainda não há investimentos por aqui</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Importe a planilha antiga ou o extrato da B3 em Configurações, ou lance suas compras em Notas.</div>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Importe os relatórios da B3 em Configurações ou lance suas compras em Notas.</div>
           <div className="btns"><button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button><button className="b ghost" onClick={onOpenNotas}>Abrir Notas</button></div>
         </div>
       </>

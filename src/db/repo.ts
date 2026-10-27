@@ -106,6 +106,9 @@ export async function upsertDividends(db: Db, list: Omit<Dividend, 'id'>[]): Pro
     const ticker = normalizeTicker(d.ticker)
     const month = d.payDate.slice(0, 7)
     if (d.sourceKey && (await db.select('SELECT 1 FROM dividends WHERE source_key = ?', [d.sourceKey])).length) { out.skipped++; continue }
+    // O mesmo provento vem tanto na Movimentação (b3:) quanto em Proventos Recebidos (b3prov:): o segundo relatório é pulado.
+    const prefix = d.sourceKey?.split(':')[0]
+    if (d.source === 'b3' && (await db.select("SELECT 1 FROM dividends WHERE source = 'b3' AND ticker = ? AND kind = ? AND pay_date = ? AND amount_cents = ? AND coalesce(broker, '') = ? AND source_key NOT LIKE ?", [ticker, d.kind, d.payDate, d.amountCents, d.broker ?? '', `${prefix}:%`])).length) { out.skipped++; continue }
     // O extrato da B3 é mais preciso que a grade manual: B3 substitui planilha do mesmo ticker/mês, nunca o contrário.
     if (d.source === 'planilha' && (await db.select("SELECT 1 FROM dividends WHERE source = 'b3' AND ticker = ? AND substr(pay_date, 1, 7) = ?", [ticker, month])).length) { out.skipped++; continue }
     if (d.source === 'b3') out.replaced += (await db.execute("DELETE FROM dividends WHERE source = 'planilha' AND ticker = ? AND substr(pay_date, 1, 7) = ?", [ticker, month])).rowsAffected
