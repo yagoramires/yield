@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, tmpPath, type Db } from './testDb'
 import {
-  deleteAccount, deleteCategory, deletePluggyItem, deleteRule, dismissSubscription, insertTxns, loadGastos, renameCategory,
-  replaceWindow, saveCategory, savePluggyItem, saveRule, setLastSync, setOverride, upsertAccount,
+  deleteAccount, deleteCategory, deletePluggyItem, deleteRule, dismissRuleSuggestion, dismissSubscription, insertTxns, loadGastos,
+  replaceWindow, saveCategory, savePluggyItem, saveRule, setLastSync, setOverride, updateCategory, upsertAccount,
   saveOwnerNames,
 } from './gastosRepo'
+import { loadOrcamento, saveLine } from './orcamentoRepo'
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
@@ -86,16 +87,50 @@ describe('categorias, regras e demais tabelas', () => {
     expect(categories.every(c => c.builtin)).toBe(true)
   })
   test('deleteCategory de builtin lança; custom remove regras e ajustes', async () => {
-    await expect(deleteCategory(db, 'lazer')).rejects.toThrow('Categoria padrão não pode ser apagada')
+    await expect(deleteCategory(db, 'lazer', null)).rejects.toThrow('Categoria padrão não pode ser apagada')
     const id = await saveCategory(db, 'Pets', true)
-    await renameCategory(db, id, 'Animais')
     await saveRule(db, 'petz', id)
     await setOverride(db, 'fp-z', id)
-    await deleteCategory(db, id)
+    await deleteCategory(db, id, null)
     const d = await loadGastos(db)
     expect(d.categories.find(c => c.id === id)).toBeUndefined()
     expect(d.rules).toHaveLength(0)
     expect(d.overrides).toEqual({})
+  })
+  test('updateCategory grava nome, ícone e cor; conta como gasto só muda nas do usuário', async () => {
+    await updateCategory(db, 'lazer', { name: 'Diversão', icon: 'gamepad-2', color: '#ff8fd0', countsAsSpending: false })
+    const id = await saveCategory(db, 'Pets', true, { icon: 'paw-print', color: '#f5d76e' })
+    await updateCategory(db, id, { name: 'Animais', icon: 'paw-print', color: '#6fdc8c', countsAsSpending: false })
+    const { categories } = await loadGastos(db)
+    expect(categories.find(c => c.id === 'lazer')).toMatchObject({ name: 'Diversão', icon: 'gamepad-2', color: '#ff8fd0', countsAsSpending: true })
+    expect(categories.find(c => c.id === id)).toMatchObject({ name: 'Animais', icon: 'paw-print', color: '#6fdc8c', countsAsSpending: false })
+    expect(categories.find(c => c.id === 'mercado')).toMatchObject({ icon: null, color: null })
+  })
+  const linhaPets = (categoryId: string) => saveLine(db, { month: '2026-10', kind: 'saida', name: 'Ração', amountCents: 9000, recurring: false, position: 0, categoryId, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null })
+  test('deleteCategory move compras, regras e orçamento para outra categoria', async () => {
+    const pets = await saveCategory(db, 'Pets', true)
+    await saveRule(db, 'petz', pets); await saveRule(db, 'racao', 'outros')
+    await setOverride(db, 'fp-1', pets)
+    await linhaPets(pets)
+    await deleteCategory(db, pets, 'outros')
+    const d = await loadGastos(db)
+    expect(d.overrides).toEqual({ 'fp-1': 'outros' })
+    expect(d.rules.map(r => [r.pattern, r.categoryId])).toEqual([['petz', 'outros'], ['racao', 'outros']])
+    expect((await loadOrcamento(db)).lines.map(l => l.categoryId)).toEqual(['outros'])
+  })
+  test('deleteCategory sem destino tira as escolhas e deixa a linha do orçamento sem categoria', async () => {
+    const pets = await saveCategory(db, 'Pets', true)
+    await saveRule(db, 'petz', pets); await setOverride(db, 'fp-1', pets)
+    await linhaPets(pets)
+    await deleteCategory(db, pets, null)
+    const d = await loadGastos(db)
+    expect([d.overrides, d.rules]).toEqual([{}, []])
+    expect((await loadOrcamento(db)).lines.map(l => [l.name, l.categoryId])).toEqual([['Ração', null]])
+  })
+  test('recusa de sugestão de regra vai para o meta sem repetir', async () => {
+    expect((await loadGastos(db)).ruleSuggestionsDismissed).toEqual([])
+    await dismissRuleSuggestion(db, 'padaria sol'); await dismissRuleSuggestion(db, 'padaria sol')
+    expect((await loadGastos(db)).ruleSuggestionsDismissed).toEqual(['padaria sol'])
   })
   test('regra repetida substitui a categoria; deleteRule', async () => {
     await saveRule(db, 'uber', 'transporte')
@@ -125,7 +160,7 @@ describe('migração', () => {
     d.exec(readFileSync(new URL('../../src-tauri/migrations/001_init.sql', import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('5')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('6')
     expect((await loadGastos(migrado)).categories).toHaveLength(17)
   })
 })

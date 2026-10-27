@@ -4,25 +4,28 @@ import type { Db } from './client'
 export type AccountKind = 'conta' | 'cartao'
 export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId: string; institution: string; name: string; kind: AccountKind; number: string | null; itemId: string | null; lastSyncAt: string | null }
 export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
-export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean }
+export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean; icon: string | null /* nome Lucide */; color: string | null }
 export interface CategoryRule { id: string; pattern: string; categoryId: string }
-export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */ }
+export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */; ruleSuggestionsDismissed: string[] /* padrões que o usuário não quer virar regra */ }
 
 type TxnInput = Omit<Txn, 'id' | 'accountId'>
 
 const TXN_COLS = `id, account_id AS accountId, date, description, amount_cents AS amountCents, pending, installment,
   operation_type AS operationType, fingerprint, source_key AS sourceKey, pluggy_category AS pluggyCategory`
 
+const SUGGESTIONS_KEY = 'categorias.sugestoesRecusadas'
+
 export async function loadGastos(db: Db): Promise<GastosData> {
-  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner] = await Promise.all([
+  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner, refused] = await Promise.all([
     db.select<Account>('SELECT id, source, external_id AS externalId, institution, name, kind, number, item_id AS itemId, last_sync_at AS lastSyncAt FROM accounts ORDER BY institution, name'),
     db.select<Txn>(`SELECT ${TXN_COLS} FROM transactions ORDER BY date, id`),
-    db.select<Category>('SELECT id, name, counts_as_spending AS countsAsSpending, builtin FROM categories ORDER BY builtin DESC, rowid'),
+    db.select<Category>('SELECT id, name, counts_as_spending AS countsAsSpending, builtin, icon, color FROM categories ORDER BY builtin DESC, rowid'),
     db.select<CategoryRule>('SELECT id, pattern, category_id AS categoryId FROM category_rules ORDER BY pattern'),
     db.select<{ fingerprint: string; categoryId: string }>('SELECT fingerprint, category_id AS categoryId FROM category_overrides'),
     db.select<{ merchantKey: string }>('SELECT merchant_key AS merchantKey FROM subscription_dismissals ORDER BY merchant_key'),
     db.select<{ itemId: string; label: string }>('SELECT item_id AS itemId, label FROM pluggy_items ORDER BY label'),
     db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'gastos.titular'"),
+    db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [SUGGESTIONS_KEY]),
   ])
   return {
     accounts,
@@ -33,6 +36,7 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     dismissed: dismissed.map(d => d.merchantKey),
     pluggyItems,
     ownerNames: owner[0] ? JSON.parse(owner[0].value) as string[] : [],
+    ruleSuggestionsDismissed: refused[0] ? JSON.parse(refused[0].value) as string[] : [],
   }
 }
 
@@ -94,19 +98,38 @@ export async function insertTxns(db: Db, accountId: string, txns: TxnInput[]): P
   return { inserted, skipped: txns.length - inserted }
 }
 
-export async function saveCategory(db: Db, name: string, countsAsSpending: boolean): Promise<string> {
+export async function saveCategory(db: Db, name: string, countsAsSpending: boolean, look: { icon: string | null; color: string | null } = { icon: null, color: null }): Promise<string> {
   const id = crypto.randomUUID()
-  await db.execute('INSERT INTO categories (id, name, counts_as_spending, builtin) VALUES (?, ?, ?, 0)', [id, name, countsAsSpending ? 1 : 0])
+  await db.execute('INSERT INTO categories (id, name, counts_as_spending, builtin, icon, color) VALUES (?, ?, ?, 0, ?, ?)', [id, name, countsAsSpending ? 1 : 0, look.icon, look.color])
   return id
 }
 
-export async function renameCategory(db: Db, id: string, name: string): Promise<void> {
-  await db.execute('UPDATE categories SET name = ? WHERE id = ?', [name, id])
+// "Conta como gasto" só muda nas do usuário: o app trata receita, transferência, fatura e investimento pelo id.
+export async function updateCategory(db: Db, id: string, f: { name: string; icon: string | null; color: string | null; countsAsSpending: boolean }): Promise<void> {
+  await db.execute(
+    'UPDATE categories SET name = ?, icon = ?, color = ?, counts_as_spending = CASE WHEN builtin = 1 THEN counts_as_spending ELSE ? END WHERE id = ?',
+    [f.name, f.icon, f.color, f.countsAsSpending ? 1 : 0, id],
+  )
 }
 
-export async function deleteCategory(db: Db, id: string): Promise<void> {
+/**
+ * Apaga uma categoria do usuário. Com `moveTo`, as compras escolhidas à mão, as regras e as linhas do orçamento vão para ela;
+ * sem, as escolhas e regras somem (a compra volta para a categoria automática) e a linha do orçamento fica sem categoria.
+ * Move antes de apagar: sem transação no plugin, uma falha no meio deixa a categoria, nunca perde dado.
+ */
+export async function deleteCategory(db: Db, id: string, moveTo: string | null): Promise<void> {
   if ((await db.select('SELECT 1 FROM categories WHERE id = ? AND builtin = 1', [id])).length) throw new Error('Categoria padrão não pode ser apagada')
+  if (moveTo) {
+    for (const table of ['category_overrides', 'category_rules', 'budget_lines']) await db.execute(`UPDATE ${table} SET category_id = ? WHERE category_id = ?`, [moveTo, id])
+  }
   await db.execute('DELETE FROM categories WHERE id = ?', [id])
+}
+
+
+export async function dismissRuleSuggestion(db: Db, pattern: string): Promise<void> {
+  const [row] = await db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [SUGGESTIONS_KEY])
+  const list = row ? JSON.parse(row.value) as string[] : []
+  if (!list.includes(pattern)) await db.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', [SUGGESTIONS_KEY, JSON.stringify([...list, pattern])])
 }
 
 export async function saveRule(db: Db, pattern: string, categoryId: string): Promise<void> {
