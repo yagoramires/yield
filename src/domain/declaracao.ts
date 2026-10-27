@@ -3,15 +3,18 @@ import { replay } from './ledger'
 import type { TaxMonth } from './tax'
 import type { AssetType, Cents, CorporateEvent, DarfPayment, Dividend, Month, Trade } from './types'
 
-/** "11222333000181" ou "11.222.333/0001-81" → "11.222.333/0001-81"; recusa tamanho, dígito verificador e números repetidos. */
+/**
+ * "11222333000181" ou "11.222.333/0001-81" → "11.222.333/0001-81". Aceita o CNPJ alfanumérico (IN RFB 2.229/2024):
+ * letras nas 12 primeiras posições, valendo o código ASCII − 48 no cálculo; os dois verificadores são sempre números.
+ */
 export function formatCnpj(text: string): string {
-  const d = text.replace(/\D/g, '')
+  const d = text.toUpperCase().replace(/[^0-9A-Z]/g, '')
   const dv = (base: string) => {
     const w = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-    const r = [...base].reduce((s, c, i) => s + Number(c) * w[i], 0) % 11
+    const r = [...base].reduce((s, c, i) => s + (c.charCodeAt(0) - 48) * w[i], 0) % 11
     return r < 2 ? 0 : 11 - r
   }
-  if (d.length !== 14 || /^(\d)\1+$/.test(d) || dv(d.slice(0, 12)) !== Number(d[12]) || dv(d.slice(0, 13)) !== Number(d[13])) throw new Error('CNPJ inválido: confira os 14 números')
+  if (!/^[0-9A-Z]{12}\d{2}$/.test(d) || /^(.)\1+$/.test(d) || dv(d.slice(0, 12)) !== Number(d[12]) || dv(d.slice(0, 13)) !== Number(d[13])) throw new Error('CNPJ inválido: confira os 14 números')
   return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`
 }
 
@@ -40,8 +43,7 @@ export function bensDoAno(trades: Trade[], events: CorporateEvent[], year: numbe
     const prev = [...before.values()].filter(p => chain.has(p.ticker))
     const cur = now.get(key)
     const mine = trades.filter(t => chain.has(t.ticker) && t.settleDate <= end)
-    const bal = new Map<string, number>()
-    for (const t of mine) bal.set(t.broker, (bal.get(t.broker) ?? 0) + (t.side === 'C' ? t.qty : -t.qty))
+    const bal = brokerBalances(mine, events.filter(e => chain.has(e.ticker) && e.date <= end))
     const holding = [...bal].filter(([, q]) => q > 0).sort((a, b) => b[1] - a[1]).map(([b]) => b)
     return {
       ticker: key, oldTickers: olds, assetType: cur?.assetType ?? prev[0].assetType,
@@ -50,6 +52,20 @@ export function bensDoAno(trades: Trade[], events: CorporateEvent[], year: numbe
       brokers: holding.length ? holding : [...new Set(mine.map(t => t.broker))],
     }
   }).sort((a, b) => b.costCents - a.costCents || b.costPrevCents - a.costPrevCents || a.ticker.localeCompare(b.ticker))
+}
+
+/** Saldo por corretora: compras − vendas, e desdobramento/grupamento/bonificação mudam o saldo de todas na mesma proporção. */
+function brokerBalances(trades: Trade[], events: CorporateEvent[]): Map<string, number> {
+  const steps = [...events.map(e => ({ date: e.date, rank: 0, e })), ...trades.map(t => ({ date: t.tradeDate, rank: 1, t }))].sort((a, b) => a.date.localeCompare(b.date) || a.rank - b.rank)
+  const bal = new Map<string, number>()
+  for (const s of steps) {
+    if ('t' in s && s.t) bal.set(s.t.broker, (bal.get(s.t.broker) ?? 0) + (s.t.side === 'C' ? s.t.qty : -s.t.qty))
+    else if ('e' in s && s.e && 'qtyDelta' in s.e) {
+      const total = [...bal.values()].reduce((x, q) => x + Math.max(0, q), 0)
+      if (total > 0) for (const [b, q] of bal) if (q > 0) bal.set(b, q * (total + s.e.qtyDelta) / total)
+    }
+  }
+  return bal
 }
 
 const num = (n: number) => String(n).replace('.', ',')

@@ -5,7 +5,7 @@ import { todayISO, useData } from '../state/DataProvider'
 import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
 import { BarChart, LineChart } from '../ui/charts'
 import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
-import { categoryBars, cleanDescription, comparePreviousMonth, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
+import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
 
@@ -46,7 +46,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
   const byId = new Map(data.categories.map(c => [c.id, c]))
   const plannedFor = (m: string) => spendingPlan(orcamento.data.lines.filter(l => l.month === m), data.categories).plannedCents
   // No mês atual compara com o anterior até o mesmo dia; senão um mês pela metade pareceria sempre mais barato.
-  const prevTxns = isCurrent ? data.txns.filter(t => monthOf(t.date) !== prev || Number(t.date.slice(8, 10)) <= cmp.day) : data.txns
+  const prevTxns = isCurrent ? cutToDay(data.txns, prev, cmp.day) : data.txns
   const spendMap = (txns: typeof data.txns, m: string) => new Map(spentByCategory(txns, data.accounts, cat, data.categories, m).flatMap(r => (r.category && r.countsAsSpending ? [[r.category.id, r.cents] as const] : [])))
   const changes = biggestChanges(spendMap(data.txns, month), spendMap(prevTxns, prev), 2)
 

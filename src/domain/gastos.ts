@@ -48,7 +48,7 @@ export function categorize(t: Txn, account: Account, rules: CategoryRule[], over
   if (ctx.paired) return byId('transferencia')
   const owner = account.kind === 'conta' && ctx.ownerNames?.length ? ownerMention(t.description, ctx.ownerNames) : null
   if (owner === 'pessoa') return byId('transferencia')
-  if (owner === 'empresa' && t.amountCents > 0) return byId('receita')
+  if (owner === 'empresa') return byId(t.amountCents > 0 ? 'receita' : 'transferencia')
 
   if (t.operationType === 'PAGAMENTO_FATURA' || (account.kind === 'conta' && FATURA_NA_CONTA.test(desc))) return byId('pagamento-de-fatura')
   if (t.operationType === 'RENDIMENTO_APLIC_FINANCEIRA' || t.operationType === 'RESGATE_APLIC_FINANCEIRA') return byId('investimento')

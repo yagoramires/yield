@@ -189,3 +189,6 @@ export function monthForecast(spentCents: Cents, month: Month, today: ISODate): 
   if (monthOf(today) !== month || day < FORECAST_FROM_DAY) return null
   return Math.round((spentCents * daysInMonth(month)) / day)
 }
+
+/** Sem os lançamentos de `month` depois do dia `day`: para comparar o mês atual (pela metade) com o anterior até o mesmo dia. */
+export const cutToDay = (txns: Txn[], month: Month, day: number): Txn[] => txns.filter(t => monthOf(t.date) !== month || Number(t.date.slice(8, 10)) <= day)

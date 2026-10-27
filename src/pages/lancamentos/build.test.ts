@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Category, GastosData, Txn } from '../../db/gastosRepo'
 import {
-  categoryBars, categoryStrip, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
+  categoryBars, categoryStrip, cutToDay, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
   shortAccountLabel, spentByMonth, suggestRulePattern, topSpending, type TxnFilter,
 } from './build'
 
@@ -228,5 +228,12 @@ describe('monthForecast', () => {
     expect(monthForecast(100000, '2026-10', '2026-10-10')).toBe(310000)
     expect(monthForecast(100000, '2026-10', '2026-10-04')).toBeNull()
     expect(monthForecast(100000, '2026-09', '2026-10-10')).toBeNull()
+  })
+})
+
+describe('cutToDay', () => {
+  it('tira do mês anterior o que veio depois do mesmo dia; os outros meses ficam', () => {
+    const txns = [txn({ description: 'a', date: '2026-09-05' }), txn({ description: 'b', date: '2026-09-27' }), txn({ description: 'c', date: '2026-09-28' }), txn({ description: 'd', date: '2026-10-28' })]
+    expect(cutToDay(txns, '2026-09', 27).map(t => t.description)).toEqual(['a', 'b', 'd'])
   })
 })
