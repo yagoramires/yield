@@ -25,6 +25,8 @@ tauri-plugin-sql = { version = "2.6.0", features = ["sqlite"] }
 tauri-plugin-http = "2.8.3"
 tauri-plugin-dialog = "2.8.3"
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
+aes-gcm = "0.10"
+argon2 = "0.5"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
