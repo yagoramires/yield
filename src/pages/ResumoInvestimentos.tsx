@@ -6,7 +6,7 @@ import { BarChart, LineChart } from '../ui/charts'
 import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
-import { classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './resumoInvestimentos/build'
+import { classColor, classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 
 const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s.replace('-', '')}` : s)
 const tone = (c: number | null) => (c === null || c === 0 ? '' : c > 0 ? 'up' : 'dn')
@@ -18,9 +18,6 @@ const when = (iso: string) => {
 }
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
-// Cor fixa por classe (barra empilhada, bolinhas e o quadradinho do ticker).
-const CLASS_COLOR: Record<string, string> = { Ação: '#5fb3ff', FII: '#c79bff', ETF: '#f5d76e', BDR: '#ff9f5a', renda_fixa: '#4fd1a5', cripto: '#ff8fd0', dolar: '#6fdc8c', outro: '#9a9da6' }
-const classColor = (c: string) => CLASS_COLOR[c] ?? '#9a9da6'
 
 export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
   onOpenCarteira(): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
