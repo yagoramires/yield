@@ -1,17 +1,24 @@
+import { ArrowDownRight, ArrowUpRight, CircleHelp, PiggyBank, Target } from 'lucide-react'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
-import { BarChart, HBars, LineChart } from '../ui/charts'
-import { categoryBars, comparePreviousMonth, cumulativeByDay, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
-import { accountLabel, brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
+import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
+import { BarChart, LineChart } from '../ui/charts'
+import { barInfo, budgetByCategory, nextCharges } from './categorias/build'
+import { categoryBars, cleanDescription, comparePreviousMonth, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
+import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
+import { monthProgress, spendingPlan } from './orcamento/build'
 
-export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLancamentos(): void; onOpenSettings(): void }) {
-  const { gastos } = useData()
-  const { data, categorize: cat, month, setMonth, filter, setFilter } = gastos
+const WEEKDAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
+  const { gastos, orcamento } = useData()
+  const { data, categorize: cat, month, setMonth, setFilter, subscriptions } = gastos
   if (!data.txns.length) return <><GastosHeader title="Resumo" /><GastosVazio onOpenSettings={onOpenSettings} /></>
 
   const today = todayISO()
-  const isCurrent = month === monthOf(today)
+  const thisMonth = monthOf(today)
+  const isCurrent = month === thisMonth
   const prev = addMonths(month, -1)
   const [cur, prevName] = [monthName(month).toLowerCase(), monthName(prev).toLowerCase()]
   const totals = monthTotals(data.txns, data.accounts, cat, month)
@@ -19,49 +26,82 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
   const diff = cmp.currentCents - cmp.previousSameDayCents
   const left = totals.incomeCents - totals.spentCents
 
+  const lines = orcamento.data.lines.filter(l => l.month === month)
+  const planned = spendingPlan(lines, data.categories).plannedCents
+  const budget = budgetByCategory(orcamento.data.lines, month)
+  const forecast = monthForecast(totals.spentCents, month, today)
+  const progress = monthProgress(month, today)
+
   const curLine = cumulativeByDay(data.txns, cat, month)
   const prevLine = cumulativeByDay(data.txns, cat, prev)
   const n = Math.max(curLine.length, prevLine.length)
   const curShown = isCurrent ? curLine.map((v, i) => (i < cmp.day ? v : null)) : curLine
-  const accounts = new Map(data.accounts.map(a => [a.id, a]))
   const open = (f: Partial<typeof NO_FILTER>) => { setFilter({ ...NO_FILTER, ...f }); onOpenLancamentos() }
   // A janela fica nos 6 meses até hoje; só anda para trás quando o mês escolhido sai dela.
-  const thisMonth = monthOf(today)
   const months = spentByMonth(data.txns, cat, month < addMonths(thisMonth, -5) ? addMonths(month, 5) : thisMonth, 6)
   const top = topSpending(data.txns, cat, month, 5)
+  const sem = totals.byCategory.find(b => !b.category)
+  const semCount = data.txns.filter(t => monthOf(t.date) === month && t.amountCents < 0 && cat(t) === null).length
+  const soon = nextCharges(subscriptions, today).list.slice(0, 3)
+  const byId = new Map(data.categories.map(c => [c.id, c]))
 
   return (
     <>
       <GastosHeader title="Resumo" />
+      {sem && sem.cents > 0 && (
+        <div className="sem-alert" style={{ marginTop: 12 }}><CircleHelp size={15} aria-hidden />
+          <span>{formatBRL(sem.cents)} em {semCount === 1 ? '1 compra' : `${semCount} compras`} sem categoria — os números ficam mais certos depois de categorizar</span>
+          <button className="link" onClick={() => open({ categoryId: 'sem' })}>Categorizar</button>
+        </div>
+      )}
       <div className="kpis">
-        <div className="k"><div className="muted">Gasto no mês</div><div className="v">{formatBRL(totals.spentCents)}</div>
-          <div className="s muted">{diff === 0 ? `igual a ${prevName}` : `${formatBRL(Math.abs(diff))} a ${diff > 0 ? 'mais' : 'menos'} que ${prevName}`} até o dia {cmp.day}</div></div>
-        <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(totals.incomeCents)}</div></div>
-        <div className="k"><div className="muted">Sobrou</div><div className={`v ${left > 0 ? 'up' : left < 0 ? 'dn' : ''}`}>{formatBRL(left)}</div><div className="s muted">entradas − gasto</div></div>
+        <div className="k"><div className="muted k-l"><ArrowDownRight size={12} aria-hidden />Gasto no mês</div><div className="v">{formatBRL(totals.spentCents)}</div>
+          <div className="s muted">{diff === 0 ? `igual a ${prevName}` : <><span className={diff > 0 ? 'dn' : 'up'}>{diff > 0 ? '▲' : '▼'} {formatBRL(Math.abs(diff))}</span> a {diff > 0 ? 'mais' : 'menos'} que {prevName}</>} até o dia {cmp.day}</div></div>
+        <div className="k"><div className="muted k-l"><ArrowUpRight size={12} aria-hidden />Entradas</div><div className="v up">{formatBRL(totals.incomeCents)}</div><div className="s muted">receita do mês</div></div>
+        <div className="k"><div className="muted k-l"><PiggyBank size={12} aria-hidden />Sobrou</div><div className={`v ${left < 0 ? 'dn' : ''}`}>{formatBRL(left)}</div>
+          <div className="s muted">{totals.incomeCents > 0 ? `${Math.round((left / totals.incomeCents) * 100)}% do que entrou` : 'entradas − gasto'}</div></div>
+        <div className="k"><div className="muted k-l"><Target size={12} aria-hidden />Orçamento</div>
+          {planned > 0 ? <>
+            <div className="v">{formatBRL(totals.spentCents)} <span className="k-of">de {formatCents(planned)}</span></div>
+            <div className="meter" aria-hidden><i style={{ width: `${Math.min(100, (totals.spentCents / planned) * 100)}%`, background: totals.spentCents > planned ? 'var(--negative)' : undefined }} />{isCurrent && <b style={{ left: `${progress * 100}%` }} />}</div>
+            <div className="s muted">{forecast !== null ? <>no ritmo atual fecha em <b className={forecast > planned ? 'dn' : ''}>{formatBRL(forecast)}</b> · traço = hoje</> : totals.spentCents > planned ? `passou ${formatBRL(totals.spentCents - planned)}` : `sobraram ${formatBRL(planned - totals.spentCents)}`}</div>
+          </> : <>
+            <div className="v muted-v">sem orçamento</div>
+            <div className="s muted">{forecast !== null ? <>no ritmo atual {cur} fecha em <b>{formatBRL(forecast)}</b></> : `nenhum orçamento para ${cur}`}</div>
+          </>}
+        </div>
       </div>
 
       <div className="grid2">
         <div className="card stretch">
-          <h5 style={{ margin: 0 }}>Gasto acumulado no mês</h5>
+          <div className="bar"><h5 style={{ margin: 0 }}>Gasto acumulado no mês</h5><span className="muted">tracejado = {prevName}</span></div>
           <LineChart fill
             series={[{ label: cur, values: curShown }, { label: prevName, values: prevLine, dashed: true }]}
             xLabels={Array.from({ length: n }, (_, i) => String(i + 1))} xTicks={[0, 10, 20, n - 1]} tipTitle={i => `dia ${i + 1}`}
             marker={isCurrent ? cmp.day - 1 : undefined} format={formatCents}
             ariaLabel={`Gasto acumulado: ${cur} ${formatBRL(cmp.currentCents)} até o dia ${cmp.day}; ${prevName} ${formatBRL(cmp.previousSameDayCents)} no mesmo dia e ${formatBRL(prevLine[prevLine.length - 1])} no fim do mês`} />
-          <div className="muted">Passe o mouse para ver cada dia. A linha tracejada é {prevName}.</div>
         </div>
         <div className="card">
-          <div className="bar"><h5 style={{ margin: 0 }}>Por categoria</h5><span className="muted">clique para filtrar a lista</span></div>
-          <div style={{ marginTop: 6 }}>
-            {totals.byCategory.length === 0 ? <div className="muted">Nenhum gasto neste mês.</div> : (
-              <HBars ariaLabel={`Gasto por categoria em ${cur}`} format={formatCents}
-                rows={categoryBars(totals.byCategory, 6).map(b => ({
-                  label: b.label, cents: b.cents, striped: b.categoryId === 'sem', warn: b.categoryId === 'sem',
-                  selected: b.categoryId !== null && filter.categoryId === b.categoryId,
-                  onClick: b.categoryId === null ? undefined : () => open({ categoryId: b.categoryId }),
-                }))} />
-            )}
-          </div>
+          <div className="bar"><h5 style={{ margin: 0 }}>Por categoria</h5><span className="muted">clique para ver os lançamentos</span></div>
+          {totals.byCategory.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum gasto neste mês.</div> : (
+            <div className="sum-rows">
+              {categoryBars(totals.byCategory, 5).map(b => {
+                const c = b.categoryId && b.categoryId !== 'sem' ? byId.get(b.categoryId) ?? null : null
+                const look = b.categoryId === null ? { id: 'outros', icon: null, color: null } : c
+                const info = barInfo(b.cents, c ? budget.get(c.id) : undefined, totals.spentCents)
+                const go = b.categoryId === null ? undefined : () => open({ categoryId: b.categoryId })
+                return (
+                  <button key={b.categoryId ?? 'outras'} className="sum-row" disabled={!go} onClick={go}>
+                    <CategoryIcon category={look} size={28} />
+                    <span className="lmid"><span className="sum-name">{b.label}</span>
+                      <span className="tile-bar"><i style={{ width: `${info.pct}%`, background: info.over ? 'var(--negative)' : categoryLook(look).color }} /></span>
+                      <span className={`sum-cap ${info.over ? 'dn' : ''}`}>{b.categoryId === 'sem' ? `${semCount} ${semCount === 1 ? 'compra' : 'compras'}` : info.caption}</span></span>
+                    <span className="sum-val">{formatCents(b.cents)}</span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -70,25 +110,38 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
           <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5><span className="muted">clique num mês para ver o resumo dele{months.some(m => m.month === thisMonth) ? ` · ${monthName(thisMonth).toLowerCase()} até hoje (listrado)` : ''}</span></div>
           <BarChart fill format={formatBRL} selected={months.some(m => m.month === month) ? months.findIndex(m => m.month === month) : null} onSelect={i => setMonth(months[i].month)} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.cents)}`).join('; ')}`}
             bars={months.map(m => {
-              const partial = m.month === monthOf(today)
+              const partial = m.month === thisMonth
               return { label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.cents], partial, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${partial ? ' até hoje' : ''}` }
             })} />
         </div>
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Maiores gastos do mês</h5><span className="muted">clique para ver em Lançamentos</span></div>
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum gasto neste mês.</div> : (
-            <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="txn" style={{ marginTop: 4 }}>
-              <tbody>
-                {top.map(t => (
-                  <tr key={t.id} className="clk" tabIndex={0} onClick={() => open({ search: t.description })} onKeyDown={e => e.key === 'Enter' && open({ search: t.description })}>
-                    <td><div className="d1">{t.description}</div>
-                      <div className="d2">{[brDay(t.date), accountLabel(accounts.get(t.accountId)), cat(t)?.name ?? 'Sem categoria', t.pending && 'pendente'].filter(Boolean).join(' · ')}</div></td>
-                    <td className="r">−{formatCents(-t.amountCents)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table></div>
+            <div className="sum-rows">
+              {top.map(t => {
+                const c = cat(t)
+                return (
+                  <button key={t.id} className="sum-row" onClick={() => open({ search: t.description })}>
+                    <CategoryIcon category={c} size={28} />
+                    <span className="lmid"><span className="sum-name" title={t.description}>{cleanDescription(t.description).name}</span><span className="muted">{c?.name ?? 'Sem categoria'} · {brDay(t.date)}{t.pending ? ' · pendente' : ''}</span></span>
+                    <span className="sum-val">−{formatCents(-t.amountCents)}</span>
+                  </button>
+                )
+              })}
+            </div>
           )}
+          {soon.length > 0 && <>
+            <div className="bar" style={{ marginTop: 12 }}><h5 style={{ margin: 0 }}>Próximas cobranças</h5><button className="link muted" onClick={onOpenAssinaturas}>assinaturas</button></div>
+            <div className="next-strip three">
+              {soon.map(s => (
+                <div key={s.merchantKey} className={`next-c ${s.nextDate <= today ? 'now' : ''}`}>
+                  <div className="d">{s.nextDate === today ? 'Hoje' : s.nextDate < today ? 'Atrasada' : WEEKDAY[new Date(`${s.nextDate}T12:00:00`).getDay()]} · {brDay(s.nextDate)}</div>
+                  <div className="n">{cleanDescription(s.name).name}</div>
+                  <div className="v">{formatCents(s.amountCents)}</div>
+                </div>
+              ))}
+            </div>
+          </>}
         </div>
       </div>
       <div className="muted" style={{ marginTop: 8 }}>Pagamento de fatura, transferências e investimentos não entram no gasto.</div>

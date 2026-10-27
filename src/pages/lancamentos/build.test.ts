@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Category, GastosData, Txn } from '../../db/gastosRepo'
 import {
-  categoryBars, categoryStrip, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
+  categoryBars, categoryStrip, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
   shortAccountLabel, spentByMonth, suggestRulePattern, topSpending, type TxnFilter,
 } from './build'
 
@@ -219,5 +219,14 @@ describe('categoryStrip', () => {
       { id: 'receita', name: 'Receita', cents: 100000, count: 1, spending: false },
       { id: 'pagamento-de-fatura', name: 'pagamento-de-fatura', cents: 90000, count: 1, spending: false },
     ])
+  })
+})
+
+describe('monthForecast', () => {
+  it('projeta o mês atual pelo ritmo até hoje; mês passado, futuro ou começo do mês não projeta', () => {
+    expect(monthForecast(310000, '2026-10', '2026-10-31')).toBe(310000)
+    expect(monthForecast(100000, '2026-10', '2026-10-10')).toBe(310000)
+    expect(monthForecast(100000, '2026-10', '2026-10-04')).toBeNull()
+    expect(monthForecast(100000, '2026-09', '2026-10-10')).toBeNull()
   })
 })

@@ -3,6 +3,7 @@ import type { Subscription } from '../../domain/assinaturas'
 import type { BudgetLine } from '../../db/orcamentoRepo'
 import { monthTotals, normalizeDescription } from '../../domain/gastos'
 import { ruleFor, suggestRulePattern } from '../lancamentos/build'
+import { formatCents } from '../../domain/money'
 import type { Cents, Month } from '../../domain/types'
 
 export interface CategoryRow { category: Category | null; cents: Cents; countsAsSpending: boolean }
@@ -96,4 +97,14 @@ export function ruleSuggestions(txns: Txn[], overrides: Record<string, string>, 
     const [categoryId, count] = [...m].sort((a, b) => b[1] - a[1])[0]
     return count >= MIN_SUGGESTION ? [{ pattern, categoryId, count }] : []
   }).sort((a, b) => b.count - a.count || a.pattern.localeCompare(b.pattern))
+}
+
+/** Barra de uma categoria: com orçamento (> 0) é quanto do limite já foi; sem, o peso no gasto do mês. */
+export function barInfo(cents: Cents, budgetCents: Cents | undefined, totalCents: Cents): { pct: number; over: boolean; caption: string } {
+  if (budgetCents) {
+    const over = cents > budgetCents
+    return { pct: Math.min(100, Math.round((cents / budgetCents) * 100)), over, caption: over ? `passou ${formatCents(cents - budgetCents)} do orçamento` : `${Math.round((cents / budgetCents) * 100)}% do orçamento de ${formatCents(budgetCents)}` }
+  }
+  const pct = totalCents ? Math.round((cents / totalCents) * 100) : 0
+  return { pct, over: false, caption: `${pct}% do gasto do mês` }
 }

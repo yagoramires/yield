@@ -180,3 +180,12 @@ export function categoryStrip(txns: Txn[], cat: Cat, month: Month): StripItem[] 
   const rank = (i: StripItem) => (i.id === 'sem' ? 0 : i.spending ? 1 : 2)
   return [...by.values()].sort((a, b) => rank(a) - rank(b) || b.cents - a.cents)
 }
+
+const FORECAST_FROM_DAY = 5 // antes disso um gasto grande no dia 1 vira uma projeção absurda
+
+/** Quanto o mês fecha no ritmo de gasto até hoje; só para o mês atual, a partir do dia 5. */
+export function monthForecast(spentCents: Cents, month: Month, today: ISODate): Cents | null {
+  const day = Number(today.slice(8, 10))
+  if (monthOf(today) !== month || day < FORECAST_FROM_DAY) return null
+  return Math.round((spentCents * daysInMonth(month)) / day)
+}
