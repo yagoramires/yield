@@ -120,3 +120,63 @@ export function needsSync(g: GastosData, nowMs: number): boolean {
   return g.pluggyItems.some(i => !pluggy.some(a => a.itemId === i.itemId))
     || pluggy.some(a => !a.lastSyncAt || nowMs - Date.parse(a.lastSyncAt) > SYNC_EVERY_MS)
 }
+
+const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+// Prefixos que os bancos põem antes do "|" ("Transferência enviada pelo Pix|LOJA"); um prefixo novo aparece como veio.
+const VIA: Record<string, string> = {
+  'transferencia enviada pelo pix': 'Pix enviado', 'transferencia recebida': 'Transferência recebida', 'transferencia enviada': 'Transferência enviada',
+  'compra no debito': 'Débito', 'compra no debito via nupay': 'Débito via NuPay', 'pagamento efetuado': 'Pagamento',
+  'estorno - transferencia enviada pelo pix': 'Estorno de Pix', 'reembolso recebido pelo pix': 'Reembolso por Pix',
+}
+const COMPANY_SUFFIX = /[\s,.-]+(ltda|s\.? ?\/?a|me|mei|eireli|epp)\.?$/i
+const SMALL_WORDS = new Set(['de', 'da', 'do', 'das', 'dos', 'e'])
+
+function tidyName(raw: string): string {
+  let n = raw.trim()
+  const card = /^(\S{1,12}) ?\* ?(.+)$/.exec(n) // descritor de cartão: "XY*TAXIRAPIDO", "LOJA*LOJA", "Loja *Filial"
+  if (card) {
+    const [, pre, rest] = card
+    n = pre.length <= 3 || fold(rest).startsWith(fold(pre)) ? rest : `${pre} ${rest}`
+  }
+  n = n.replace(COMPANY_SUFFIX, '').trim() || n
+  if (/\p{Lu}/u.test(n) && !/\p{Ll}/u.test(n)) n = n.toLowerCase().split(/\s+/).map((w, i) => (i > 0 && SMALL_WORDS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
+  return n
+}
+
+/** Nome para mostrar ("Padaria Sol") e o tipo de operação ("Pix enviado"); a busca e as regras continuam no texto original. */
+export function cleanDescription(description: string): { name: string; via: string | null } {
+  const bar = description.indexOf('|')
+  const head = bar < 0 ? description : description.slice(0, bar)
+  const rest = bar < 0 ? '' : description.slice(bar + 1)
+  if (!rest.trim()) return { name: tidyName(head) || description, via: null }
+  return { name: tidyName(rest) || rest.trim(), via: VIA[fold(head)] ?? head.trim() }
+}
+
+/** "Banco Laranja ···1234", "Cartão Banco Laranja": o nome da conta só fica se for curto e citar o banco. */
+export function shortAccountLabel(a: Account | undefined): string {
+  if (!a) return '—'
+  const bank = a.institution.trim()
+  let n = !bank || (a.name.length <= 24 && fold(a.name).includes(fold(bank.split(/\s+/)[0]))) ? a.name : bank
+  if (a.kind === 'cartao' && !/cart[aã]o/i.test(n)) n = `Cartão ${n}`
+  return tail4(a) ? `${n} ···${tail4(a)}` : n
+}
+
+export interface StripItem { id: string | 'sem'; name: string; cents: Cents; count: number; spending: boolean }
+
+/** Faixa de categorias do mês: "sem categoria" (só gasto, como o filtro), gasto por valor, e depois o que não é gasto (soma em módulo). */
+export function categoryStrip(txns: Txn[], cat: Cat, month: Month): StripItem[] {
+  const by = new Map<string, StripItem>()
+  for (const t of txns) {
+    if (monthOf(t.date) !== month) continue
+    const c = cat(t)
+    if (c === null && t.amountCents >= 0) continue
+    const spending = c === null || c.countsAsSpending
+    const id = c?.id ?? 'sem'
+    const item = by.get(id) ?? { id, name: c?.name ?? 'Sem categoria', cents: 0, count: 0, spending }
+    item.count++
+    item.cents += spending ? Math.max(0, -t.amountCents) : Math.abs(t.amountCents)
+    by.set(id, item)
+  }
+  const rank = (i: StripItem) => (i.id === 'sem' ? 0 : i.spending ? 1 : 2)
+  return [...by.values()].sort((a, b) => rank(a) - rank(b) || b.cents - a.cents)
+}
