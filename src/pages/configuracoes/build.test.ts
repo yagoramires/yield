@@ -144,10 +144,19 @@ describe('saveSourceForm', () => {
 })
 
 describe('tipos dos tickers da Negociação', () => {
-  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), dividends: [], events: [], ignored: 0, toReview: [] }
+  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [] }
   const old = [{ id: 't', noteId: 'n', seq: 1, broker: 'CLEAR', tradeDate: '2023-01-02', settleDate: '2023-01-04', side: 'C' as const, assetType: 'ETF' as const, ticker: 'BOVA11', qty: 1, priceCents: 1, feesCents: 0, irrfCents: 0 }]
   it('pede confirmação só dos final 11 ainda sem operação, em ordem', () => {
-    expect(typesToConfirm(p, old)).toEqual([{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }])
+    expect(typesToConfirm(p, old)).toEqual({ ask: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }], inferred: [] })
+  })
+  it('deduz pelo nome do produto e pelos proventos; só pergunta o resto', () => {
+    const trades = ['HGLG11', 'IVVB11', 'TAXX11', 'KNXX11', 'SAPR11', 'AUXX11'].map(ticker => ({ ...p.trades[0], ticker }))
+    const names = { HGLG11: 'CSHG LOGÍSTICA FDO INV IMOB - FII', IVVB11: 'ISHARES S&P 500 FDO INV COTAS FDO INDICE', TAXX11: 'COMPANHIA TESTE DE ENERGIA S/A' }
+    const dividends = [{ ticker: 'KNXX11', kind: 'Rendimento' as const }, { ticker: 'SAPR11', kind: 'JCP' as const }]
+    expect(typesToConfirm({ ...p, trades, names }, [], dividends)).toEqual({
+      ask: [{ ticker: 'AUXX11', type: 'ETF' }],
+      inferred: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'IVVB11', type: 'ETF' }, { ticker: 'KNXX11', type: 'FII' }, { ticker: 'SAPR11', type: 'Ação' }, { ticker: 'TAXX11', type: 'Ação' }],
+    })
   })
   it('o tipo já usado nas operações vence o da tela', () => {
     expect(typeMap(old, [{ ticker: 'BOVA11', type: 'FII' }, { ticker: 'HGLG11', type: 'Ação' }])).toEqual(new Map([['BOVA11', 'ETF'], ['HGLG11', 'Ação']]))
