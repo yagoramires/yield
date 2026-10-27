@@ -154,7 +154,7 @@ it('ruleFor devolve a regra que categorizou, nunca quando há escolha manual', (
 describe('needsSync', () => {
   const now = Date.parse('2026-10-26T12:00:00Z')
   const pluggy: Account = { ...conta, id: 'p1', source: 'pluggy', externalId: 'pluggy:1', itemId: 'it1', lastSyncAt: '2026-10-26T10:00:00Z' }
-  const g = (o: Partial<GastosData>): GastosData => ({ accounts: [pluggy], txns: [], categories: [], rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'it1', label: 'Banco' }], ...o })
+  const g = (o: Partial<GastosData>): GastosData => ({ accounts: [pluggy], txns: [], categories: [], rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'it1', label: 'Banco' }], ownerNames: [], ...o })
   it('não sincroniza sem item salvo nem com tudo recente', () => {
     expect(needsSync(g({ pluggyItems: [] }), now)).toBe(false)
     expect(needsSync(g({}), now)).toBe(false)

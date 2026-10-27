@@ -1,4 +1,5 @@
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
+import { mentionsOwner } from './transferencias'
 import type { Cents, ISODate, Month } from './types'
 
 export function normalizeDescription(s: string): string {
@@ -31,7 +32,8 @@ const FATURA_NA_CONTA = /pagamento.*fatura|pag(to)? fatura|fatura.*cart|\bpag(to
 const PAGAMENTO_NO_CARTAO = /pagamento|pgto|pag fatura|pagto/
 const APLICACAO_NA_CONTA = /aplica|caixinha|guardad|rdb|cdb|invest/
 
-export function categorize(t: Txn, account: Account, rules: CategoryRule[], overrides: Record<string, string>, categories: Category[]): Category | null {
+/** `paired`: o lançamento casou com outro de uma conta sua (`pairTransfers`); `ownerNames`: variações do nome do titular. */
+export function categorize(t: Txn, account: Account, rules: CategoryRule[], overrides: Record<string, string>, categories: Category[], ctx: { paired?: boolean; ownerNames?: string[] } = {}): Category | null {
   const byId = (id: string) => categories.find(c => c.id === id) ?? null
   const overridden = overrides[t.fingerprint] ? byId(overrides[t.fingerprint]) : null
   if (overridden) return overridden
@@ -41,6 +43,8 @@ export function categorize(t: Txn, account: Account, rules: CategoryRule[], over
     .filter(r => r.pattern && desc.includes(r.pattern.toLowerCase()) && byId(r.categoryId))
     .sort((a, b) => b.pattern.length - a.pattern.length)[0]
   if (matched) return byId(matched.categoryId)
+
+  if (ctx.paired || (account.kind === 'conta' && ctx.ownerNames?.length && mentionsOwner(t.description, ctx.ownerNames))) return byId('transferencia')
 
   if (t.operationType === 'PAGAMENTO_FATURA' || (account.kind === 'conta' && FATURA_NA_CONTA.test(desc))) return byId('pagamento-de-fatura')
   if (t.operationType === 'RENDIMENTO_APLIC_FINANCEIRA' || t.operationType === 'RESGATE_APLIC_FINANCEIRA') return byId('investimento')
