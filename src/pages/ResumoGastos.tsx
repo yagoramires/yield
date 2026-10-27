@@ -4,7 +4,7 @@ import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
 import { BarChart, LineChart } from '../ui/charts'
-import { barInfo, budgetByCategory, nextCharges } from './categorias/build'
+import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
 import { categoryBars, cleanDescription, comparePreviousMonth, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
@@ -44,6 +44,11 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
   const semCount = data.txns.filter(t => monthOf(t.date) === month && t.amountCents < 0 && cat(t) === null).length
   const soon = nextCharges(subscriptions, today).list.slice(0, 3)
   const byId = new Map(data.categories.map(c => [c.id, c]))
+  const plannedFor = (m: string) => spendingPlan(orcamento.data.lines.filter(l => l.month === m), data.categories).plannedCents
+  // No mês atual compara com o anterior até o mesmo dia; senão um mês pela metade pareceria sempre mais barato.
+  const prevTxns = isCurrent ? data.txns.filter(t => monthOf(t.date) !== prev || Number(t.date.slice(8, 10)) <= cmp.day) : data.txns
+  const spendMap = (txns: typeof data.txns, m: string) => new Map(spentByCategory(txns, data.accounts, cat, data.categories, m).flatMap(r => (r.category && r.countsAsSpending ? [[r.category.id, r.cents] as const] : [])))
+  const changes = biggestChanges(spendMap(data.txns, month), spendMap(prevTxns, prev), 2)
 
   return (
     <>
@@ -71,6 +76,24 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
           </>}
         </div>
       </div>
+
+      {changes.length > 0 && (
+        <div className="card changes">
+          <div className="bar"><h5 style={{ margin: 0 }}>O que mais mudou vs {prevName}{isCurrent ? ` até o dia ${cmp.day}` : ''}</h5><span className="muted">clique para ver os lançamentos</span></div>
+          <div className="change-chips">
+            {changes.map(ch => {
+              const c = byId.get(ch.id) ?? null
+              return (
+                <button key={ch.id} className="change-chip" onClick={() => open({ categoryId: ch.id })}>
+                  <CategoryIcon category={c} size={22} />{c?.name ?? ch.id}
+                  <b className={ch.deltaCents > 0 ? 'dn' : 'up'}>{ch.deltaCents > 0 ? '▲' : '▼'} {formatBRL(Math.abs(ch.deltaCents))}</b>
+                  {ch.pct !== null && <span className="muted">{ch.pct > 0 ? '+' : '−'}{Math.round(Math.abs(ch.pct) * 100)}%</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid2">
         <div className="card stretch">
@@ -107,11 +130,12 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
 
       <div className="grid2" style={{ marginTop: 12 }}>
         <div className="card stretch">
-          <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5><span className="muted">clique num mês para ver o resumo dele{months.some(m => m.month === thisMonth) ? ` · ${monthName(thisMonth).toLowerCase()} até hoje (listrado)` : ''}</span></div>
+          <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5><span className="muted">clique num mês para ver o resumo dele{months.some(m => plannedFor(m.month) > 0) ? ' · traço = orçamento' : ''}{months.some(m => m.month === thisMonth) ? ` · ${monthName(thisMonth).toLowerCase()} até hoje (listrado)` : ''}</span></div>
           <BarChart fill format={formatBRL} selected={months.some(m => m.month === month) ? months.findIndex(m => m.month === month) : null} onSelect={i => setMonth(months[i].month)} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.cents)}`).join('; ')}`}
             bars={months.map(m => {
               const partial = m.month === thisMonth
-              return { label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.cents], partial, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${partial ? ' até hoje' : ''}` }
+              const target = plannedFor(m.month) || undefined
+              return { label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.cents], partial, target, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${partial ? ' até hoje' : ''}` }
             })} />
         </div>
         <div className="card">

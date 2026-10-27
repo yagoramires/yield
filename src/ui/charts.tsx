@@ -96,7 +96,7 @@ export function LineChart({ series, xLabels, xTicks, tipTitle, marker, format, t
   )
 }
 
-export interface Bar { label: string; values: number[] /* uma por série, empilhadas */; partial?: boolean /* listrada: período incompleto */; tip?: string }
+export interface Bar { label: string; values: number[] /* uma por série, empilhadas */; partial?: boolean /* listrada: período incompleto */; tip?: string; target?: number /* traço de meta; acima dele a barra fica vermelha */ }
 
 const roundTop = (x: number, y: number, w: number, h: number, r = 4) => {
   r = Math.min(r, h, w / 2)
@@ -131,7 +131,7 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
   const W = size?.w || 400, L = 8, R = 8, T = 16, B = 18
   const height = fill ? Math.max(minHeight, size?.h ?? 0) : minHeight
   const totals = bars.map(b => b.values.reduce((s, v) => s + v, 0))
-  const top = Math.max(1, ...totals)
+  const top = Math.max(1, ...totals, ...bars.map(b => b.target ?? 0))
   const slot = (W - L - R) / Math.max(1, bars.length)
   const bw = Math.min(34, slot * 0.6)
   const base = height - B
@@ -163,10 +163,11 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
                 if (v <= 0) return null
                 const y0 = base - h(acc + v), hh = h(v)
                 acc += v
-                const fill = b.partial ? `url(#${id}-p${j})` : color(j)
+                const fill = b.target !== undefined && totals[i] > b.target ? 'var(--negative)' : b.partial ? `url(#${id}-p${j})` : color(j)
                 return j === last ? <path key={j} d={roundTop(cx(i) - bw / 2, y0, bw, hh)} style={{ fill }} /> : <rect key={j} x={cx(i) - bw / 2} y={y0} width={bw} height={hh} style={{ fill }} />
               })}
-              {totals[i] > 0 && <text x={cx(i)} y={base - h(totals[i]) - 5} textAnchor="middle" className="vl">{valueLabel(totals[i])}</text>}
+              {b.target !== undefined && <line x1={cx(i) - bw / 2 - 6} x2={cx(i) + bw / 2 + 6} y1={base - h(b.target)} y2={base - h(b.target)} style={{ stroke: 'var(--text)' }} strokeWidth={2} strokeLinecap="round" />}
+              {totals[i] > 0 && <text x={cx(i)} y={base - h(Math.max(totals[i], b.target ?? 0)) - 5} textAnchor="middle" className="vl">{valueLabel(totals[i])}</text>}
               <text x={cx(i)} y={height - 5} textAnchor="middle" className="ax">{b.label}</text>
             </g>
           )
@@ -177,7 +178,7 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
         <Tip x={cx(hover)} w={W} title={bars[hover].tip ?? bars[hover].label}
           lines={nSeries > 1
             ? [...series.map((label, i) => ({ i, label, value: format(bars[hover].values[i] ?? 0) })), { label: 'total', value: format(totals[hover]) }]
-            : [{ label: '', value: format(totals[hover]) }]} />
+            : [{ label: '', value: format(totals[hover]) }, ...(bars[hover].target !== undefined ? [{ label: 'orçamento', value: format(bars[hover].target!) }] : [])]} />
       )}
     </div>
   )

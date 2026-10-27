@@ -108,3 +108,18 @@ export function barInfo(cents: Cents, budgetCents: Cents | undefined, totalCents
   const pct = totalCents ? Math.round((cents / totalCents) * 100) : 0
   return { pct, over: false, caption: `${pct}% do gasto do mês` }
 }
+
+const MIN_CHANGE = 1000 // menos de R$ 10 de diferença não é mudança que valha mostrar
+
+/** Categorias que mais subiram (até `n`) e mais caíram (até `n`) contra o mês anterior, em centavos. */
+export function biggestChanges(cur: Map<string, Cents>, prev: Map<string, Cents>, n: number): { id: string; deltaCents: Cents; pct: number | null }[] {
+  const all = [...new Set([...cur.keys(), ...prev.keys()])].map(id => {
+    const before = prev.get(id) ?? 0
+    const deltaCents = (cur.get(id) ?? 0) - before
+    return { id, deltaCents, pct: before ? deltaCents / before : null }
+  }).filter(c => Math.abs(c.deltaCents) >= MIN_CHANGE)
+  return [
+    ...all.filter(c => c.deltaCents > 0).sort((a, b) => b.deltaCents - a.deltaCents).slice(0, n),
+    ...all.filter(c => c.deltaCents < 0).sort((a, b) => a.deltaCents - b.deltaCents).slice(0, n),
+  ]
+}
