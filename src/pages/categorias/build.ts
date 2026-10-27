@@ -34,5 +34,12 @@ export function totalsOfSubscriptions(subs: Subscription[]) {
   return { monthlyCents: on.reduce((a, s) => a + s.monthlyCents, 0), yearlyCents: on.reduce((a, s) => a + s.yearlyCents, 0), active: on.length, stopped: subs.length - on.length }
 }
 
+/** Cobranças previstas das ativas até `days` dias à frente, por data; a prevista que já passou (atrasada) entra também. */
+export function nextCharges(subs: Subscription[], today: string, days = 30) {
+  const limit = new Date(Date.parse(`${today}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
+  const list = subs.filter(s => s.active && s.nextDate <= limit).sort((a, b) => a.nextDate.localeCompare(b.nextDate))
+  return { list, totalCents: list.reduce((a, s) => a + s.amountCents, 0) }
+}
+
 export const deleteImpact = (categoryId: string, rules: CategoryRule[], overrides: Record<string, string>) =>
   ({ rules: rules.filter(r => r.categoryId === categoryId).length, overrides: Object.values(overrides).filter(id => id === categoryId).length })
