@@ -3,6 +3,7 @@ import type { Cents, ISODate } from '../domain/types'
 
 export interface ParsedStatement {
   institution: string
+  name?: string // padrão: a instituição
   externalId: string
   kind: AccountKind
   number: string | null
