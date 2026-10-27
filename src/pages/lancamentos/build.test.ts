@@ -22,17 +22,22 @@ describe('filterTxns', () => {
     txn({ description: 'Pão de Açúcar', date: '2026-10-03', accountId: 'k1' }),
     txn({ description: 'Pag Fatura', date: '2026-10-04' }),
     txn({ description: 'Setembro', date: '2026-09-30' }),
+    txn({ description: 'Pix recebido 123', date: '2026-10-05', amountCents: 5000 }),
   ]
   const run = (f: Partial<TxnFilter>) => filterTxns(txns, [conta, cartao], catOf, '2026-10', { ...ALL, ...f }).map(t => t.description)
 
-  it('fica só no mês', () => expect(run({})).toEqual(['Mercado Bom', 'Pão de Açúcar', 'Pag Fatura']))
+  it('fica só no mês', () => expect(run({})).toEqual(['Mercado Bom', 'Pão de Açúcar', 'Pag Fatura', 'Pix recebido 123']))
   it('por tipo de conta', () => {
     expect(run({ accountKind: 'cartao' })).toEqual(['Pão de Açúcar'])
-    expect(run({ accountKind: 'conta' })).toEqual(['Mercado Bom', 'Pag Fatura'])
+    expect(run({ accountKind: 'conta' })).toEqual(['Mercado Bom', 'Pag Fatura', 'Pix recebido 123'])
   })
   it('por categoria e sem categoria', () => {
     expect(run({ categoryId: 'mercado' })).toEqual(['Mercado Bom'])
-    expect(run({ categoryId: 'sem' })).toEqual(['Pão de Açúcar'])
+    expect(run({ categoryId: 'sem' })).toEqual(['Pão de Açúcar']) // só gasto sem categoria, como a barra do Resumo
+  })
+  it('busca que normaliza para vazio cai na busca literal', () => {
+    expect(run({ search: '123' })).toEqual(['Pix recebido 123'])
+    expect(run({ search: '  ' })).toHaveLength(4)
   })
   it('busca sem acento nem caixa', () => expect(run({ search: 'PAO de acu' })).toEqual(['Pão de Açúcar']))
 })
@@ -146,5 +151,9 @@ describe('needsSync', () => {
     expect(needsSync(g({ accounts: [{ ...pluggy, lastSyncAt: '2026-10-26T05:00:00Z' }] }), now)).toBe(true)
     expect(needsSync(g({ accounts: [{ ...pluggy, lastSyncAt: null }] }), now)).toBe(true)
     expect(needsSync(g({ pluggyItems: [{ itemId: 'it1', label: 'Banco' }, { itemId: 'it2', label: 'Outro' }] }), now)).toBe(true)
+  })
+  it('ignora contas de item removido', () => {
+    const old: Account = { ...pluggy, id: 'p2', externalId: 'pluggy:2', itemId: 'removido', lastSyncAt: null }
+    expect(needsSync(g({ accounts: [pluggy, old] }), now)).toBe(false)
   })
 })

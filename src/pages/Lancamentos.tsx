@@ -27,13 +27,15 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
   const accounts = new Map(data.accounts.map(a => [a.id, a]))
   const filtered = filter.accountKind !== 'todas' || filter.categoryId !== null || filter.search !== ''
 
-  // A escolha manual vale sempre para esta compra; "fazer isso sempre" grava também a regra para as outras.
+  // "fazer isso sempre" grava a regra no lugar da escolha manual (e apaga uma antiga), para a compra seguir a regra.
   const save = async () => {
     if (!edit) return
     setBusy(true)
     try {
-      if (edit.always) await saveRule(db, suggestRulePattern(edit.txn.description), edit.categoryId)
-      await setOverride(db, edit.txn.fingerprint, edit.categoryId)
+      if (edit.always) {
+        await saveRule(db, suggestRulePattern(edit.txn.description), edit.categoryId)
+        await setOverride(db, edit.txn.fingerprint, null)
+      } else await setOverride(db, edit.txn.fingerprint, edit.categoryId)
       await reload()
       setEdit(null); setError(null)
     } catch (e) { setError(`Não foi possível salvar a categoria: ${errText(e)}`) }
@@ -98,7 +100,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
               <tr key={g.date} className="day"><td colSpan={2}>{dayTitle(g.date)}</td><td className="r">{signed(g.totalCents)}</td></tr>,
               ...g.txns.flatMap(t => {
                 const c = cat(t)
-                const off = c !== null && !c.countsAsSpending
+                const off = c !== null && !c.countsAsSpending && c.id !== 'receita' // fatura, transferência, investimento
                 const rule = ruleFor(t, data.rules, data.overrides)
                 const meta = [accountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, off && 'não conta como gasto']
                 return [
