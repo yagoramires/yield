@@ -1,4 +1,4 @@
-export type Route = 'carteira' | 'notas' | 'proventos' | 'imposto' | 'configuracoes'
+export type Route = 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'configuracoes'
 
 export const ROUTES: {
   page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Sistema'
@@ -6,7 +6,12 @@ export const ROUTES: {
 }[] = [
   {
     page: 'Últimos gastos',
-    items: ['Lançamentos', 'Assinaturas', 'Categorias'].map(label => ({ route: null, label, disabled: true })),
+    items: [
+      { route: 'gastos-resumo', label: 'Resumo', disabled: false },
+      { route: 'lancamentos', label: 'Lançamentos', disabled: false },
+      { route: 'assinaturas', label: 'Assinaturas', disabled: false },
+      { route: 'categorias', label: 'Categorias', disabled: false },
+    ],
   },
   { page: 'Orçamento mensal', items: [{ route: null, label: 'Mês atual', disabled: true }] },
   {
