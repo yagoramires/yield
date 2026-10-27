@@ -93,7 +93,7 @@ export function Imposto() {
       {groups.length === 0 ? <div className="info">Nenhuma venda apurada ainda. Lance notas ou importe a Negociação da B3 em Configurações.</div> : groups.map(g => (
         <div key={g.year}>
           <h5>{g.year}</h5>
-          <table>
+          <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
             <thead><tr>
               <th>Mês</th><th className="r">Vendas ações</th><th className="r">Resultado comum</th><th className="r">Isento</th><th className="r">Prejuízo a compensar</th>
               <th className="r">IR comum</th><th className="r">Resultado FII</th><th className="r">IR FII</th><th className="r">IRRF usado</th><th className="r">DARF</th><th>Vence</th><th>Situação</th><th />
@@ -155,7 +155,7 @@ export function Imposto() {
                 ]
               })}
             </tbody>
-          </table>
+          </table></div>
         </div>
       ))}
 

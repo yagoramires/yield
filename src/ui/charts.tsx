@@ -1,4 +1,4 @@
-import { useId, useState, type MouseEvent } from 'react'
+import { useEffect, useId, useRef, useState, type MouseEvent } from 'react'
 
 // Validadas para daltonismo sobre o fundo dos cartões; texto nunca usa estas cores.
 export const SERIES_COLORS = ['#3987e5', '#d95926', '#199e70']
@@ -99,13 +99,32 @@ const roundTop = (x: number, y: number, w: number, h: number, r = 4) => {
   return `M${x} ${y + h}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + w - r}Q${x + w} ${y} ${x + w} ${y + r}V${y + h}Z`
 }
 
-/** Barras verticais, empilhadas quando há mais de uma série (`series` dá os nomes da legenda). */
-export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ariaLabel, height = 132 }: {
-  bars: Bar[]; series?: string[]; format(v: number): string; valueLabel?(v: number): string; ariaLabel: string; height?: number
+/** Tamanho real do elemento em px; null até a primeira medida. */
+function useSize<T extends HTMLElement>() {
+  const ref = useRef<T>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setSize({ w: Math.round(e.contentRect.width), h: Math.round(e.contentRect.height) }))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return [ref, size] as const
+}
+
+/**
+ * Barras verticais, empilhadas quando há mais de uma série (`series` dá os nomes da legenda).
+ * `fill`: ocupa a altura que sobrar no cartão (o pai precisa ser flex em coluna); o desenho usa o tamanho real, sem esticar o texto.
+ */
+export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ariaLabel, height: minHeight = 132, fill = false }: {
+  bars: Bar[]; series?: string[]; format(v: number): string; valueLabel?(v: number): string; ariaLabel: string; height?: number; fill?: boolean
 }) {
   const id = useId().replace(/:/g, '')
   const [hover, setHover] = useState<number | null>(null)
-  const W = 400, L = 8, R = 8, T = 16, B = 18
+  const [box, size] = useSize<HTMLDivElement>()
+  const W = size?.w || 400, L = 8, R = 8, T = 16, B = 18
+  const height = fill ? Math.max(minHeight, size?.h ?? 0) : minHeight
   const totals = bars.map(b => b.values.reduce((s, v) => s + v, 0))
   const top = Math.max(1, ...totals)
   const slot = (W - L - R) / Math.max(1, bars.length)
@@ -115,9 +134,10 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
   const nSeries = Math.max(1, series.length, ...bars.map(b => b.values.length))
   const cx = (i: number) => L + slot * (i + 0.5)
   return (
-    <div className="chart">
+    <div className={`chart${fill ? ' chart-fill' : ''}`}>
       <Legend items={series.map(label => ({ label }))} />
-      <svg viewBox={`0 0 ${W} ${height}`} width="100%" role="img" aria-label={ariaLabel} onMouseLeave={() => setHover(null)}>
+      <div ref={box} className="chart-box" style={{ minHeight }}>
+      <svg viewBox={`0 0 ${W} ${height}`} width={W} height={height} role="img" aria-label={ariaLabel} onMouseLeave={() => setHover(null)}>
         <defs>
           {Array.from({ length: nSeries }, (_, i) => (
             <pattern key={i} id={`${id}-p${i}`} width={6} height={6} patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -145,6 +165,7 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
           )
         })}
       </svg>
+      </div>
       {hover !== null && (
         <Tip x={cx(hover)} w={W} title={bars[hover].tip ?? bars[hover].label}
           lines={nSeries > 1

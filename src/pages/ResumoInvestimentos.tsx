@@ -90,7 +90,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <div className="s muted">{dueTotal > 0 ? (nextDue?.dueDate ? `DARF · vence ${brDay(nextDue.dueDate)}` : `DARF · código ${DARF_CODE}`) : 'nenhum DARF a vencer ou em aberto'}</div></div>
       </div>
 
-      <div className="grid2" style={{ gridTemplateColumns: '1.15fr 1fr' }}>
+      <div className="grid2">
         <div className="card">
           <h5 style={{ margin: 0 }}>Aportado × valor de hoje</h5>
           <LineChart
@@ -129,7 +129,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Maiores posições</h5><span className="muted">clique para abrir a Carteira</span></div>
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhuma posição com valor ainda.</div> : (
-            <table className="txn" style={{ marginTop: 4 }}>
+            <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="txn" style={{ marginTop: 4 }}>
               <tbody>
                 {top.map(t => (
                   <tr key={`${t.manual}-${t.name}`} className="clk" tabIndex={0} onClick={onOpenCarteira} onKeyDown={e => e.key === 'Enter' && onOpenCarteira()}>
@@ -139,7 +139,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>

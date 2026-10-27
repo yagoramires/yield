@@ -90,7 +90,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
           {cur.dup && <div className="info" style={{ margin: '8px 0' }}>Já importada: essa nota já existe e não será salva de novo.</div>}
           {cur.done && <div className="info" style={{ margin: '8px 0' }}>Nota salva.</div>}
           {cur.draft.items.some((_, k) => !cur.resolved[k].ticker || !cur.resolved[k].assetType) && <div className="note" style={{ margin: '8px 0' }}>Há itens sem ticker ou sem tipo: preencha antes de salvar.</div>}
-          <table>
+          <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
             <thead><tr><th>C/V</th><th>Especificação</th><th>Tipo</th><th>Ticker</th><th className="r">Qtd</th><th className="r">Preço</th><th className="r">Taxa rateada</th></tr></thead>
             <tbody>
               {cur.draft.items.map((it, k) => (
@@ -110,7 +110,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <h5>Taxas lidas</h5>
           <div className="t2">{FEE_FIELDS.map(([k, name]) => `${name} ${formatCents(cur.draft.fees[k])}`).join(' · ')}</div>
           <div className="bar" style={{ marginTop: 12 }}>

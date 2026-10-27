@@ -82,7 +82,7 @@ export function Proventos() {
       </div>
 
       {groups.length === 0 ? <div className="info">{all.length === 0 ? 'Nenhum provento ainda. Lance um provento ou importe os Proventos Recebidos da B3 em Configurações.' : 'Nenhum provento com esses filtros.'}</div> : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
           <tbody>
             {groups.map(g => [
               <tr key={g.month} className="cls"><td>{monthLabel(g.month)}</td><td /><td /><td /><td /><td className="r">{formatCents(g.totalCents)}</td><td /></tr>,
@@ -97,7 +97,7 @@ export function Proventos() {
               )),
             ])}
           </tbody>
-        </table>
+        </table></div>
       )}
       {all.some(d => d.source === 'planilha') && <div className="muted" style={{ marginTop: 8 }}>Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>}
     </>
