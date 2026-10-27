@@ -90,7 +90,7 @@ export function Categorias() {
           <div className="muted" style={{ marginTop: 6 }}>Categorias que não contam como gasto mostram o que saiu, mas ficam fora dos totais do Resumo.</div>
           {del && impact && (
             <div className="note" style={{ marginTop: 10 }}>
-              Apagar "{del.name}"? Vão junto {plural(impact.rules, 'regra', 'regras')} e {plural(impact.overrides, 'categoria escolhida', 'categorias escolhidas')} à mão; essas compras voltam para "Sem categoria".
+              Apagar "{del.name}"? Vão junto {plural(impact.rules, 'regra', 'regras')} e {plural(impact.overrides, 'categoria escolhida', 'categorias escolhidas')} à mão; essas compras voltam para as regras ou a categoria automática.
               <span className="btns" style={{ marginTop: 8 }}>
                 <button className="b" disabled={busy} onClick={() => setDel(null)}>Cancelar</button>
                 <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível apagar a categoria', () => deleteCategory(db, del.id)).then(ok => ok && setDel(null))}>Apagar</button>

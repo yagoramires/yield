@@ -29,6 +29,15 @@ test('OFX sobrepostos somam só as linhas novas', async () => {
   expect((await loadGastos(db)).txns).toHaveLength(31)
 })
 
+test('FITID repetido no mesmo arquivo não perde a linha e reimportar pula todas', async () => {
+  const db = await createTestDb()
+  const s: ParsedStatement = { institution: 'X', externalId: 'ofx:1:2', kind: 'conta', number: '0002',
+    rows: [-500, -700, -900].map(amountCents => ({ date: '2025-03-01', description: 'Loja', amountCents, fitid: 'dup' })) }
+  expect(await importStatement(db, s)).toMatchObject({ inserted: 3, skipped: 0 })
+  expect(await importStatement(db, s)).toMatchObject({ inserted: 0, skipped: 3 })
+  expect((await loadGastos(db)).txns.map(t => t.sourceKey).sort()).toEqual(['ofx:1:2:dup', 'ofx:1:2:dup#1', 'ofx:1:2:dup#2'])
+})
+
 test('sem FITID usa o fingerprint e reimportar não duplica', async () => {
   const db = await createTestDb()
   const s: ParsedStatement = { institution: 'X', externalId: 'ofx:1:2', kind: 'conta', number: null,
