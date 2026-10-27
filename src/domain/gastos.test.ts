@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
 import { categorize, fingerprint, monthTotals, normalizeDescription, withFingerprints } from './gastos'
 
-const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true })
+const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const categories = [
   cat('pagamento-de-fatura', false), cat('investimento', false), cat('receita', false), cat('transferencia', false),
   cat('transporte'), cat('alimentacao'),

@@ -43,8 +43,8 @@ describe('defaultMonth', () => {
 
 describe('spendingPlan', () => {
   const cats: Category[] = [
-    { id: 'moradia', name: 'Moradia', countsAsSpending: true, builtin: true },
-    { id: 'investimento', name: 'Investimento', countsAsSpending: false, builtin: true },
+    { id: 'moradia', name: 'Moradia', countsAsSpending: true, builtin: true, icon: null, color: null },
+    { id: 'investimento', name: 'Investimento', countsAsSpending: false, builtin: true, icon: null, color: null },
   ]
   const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'x', amountCents: 0, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, ...o })
   it('tira do planejado as saídas em categorias que não contam como gasto', () => {

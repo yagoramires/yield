@@ -4,7 +4,7 @@ import type { Subscription } from '../../domain/assinaturas'
 import { monthTotals } from '../../domain/gastos'
 import { deleteImpact, nextCharges, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
 
-const c = (id: string, name: string, countsAsSpending = true): Category => ({ id, name, countsAsSpending, builtin: false })
+const c = (id: string, name: string, countsAsSpending = true): Category => ({ id, name, countsAsSpending, builtin: false, icon: null, color: null })
 const cats = [c('mercado', 'Mercado'), c('pet', 'Pet'), c('fatura', 'Pagamento de fatura', false)]
 const txn = (description: string, amountCents: number, date = '2026-10-10'): Txn => ({ id: description, accountId: 'a', date, description, amountCents, pending: false, installment: null, operationType: null, fingerprint: description, sourceKey: 's' })
 const byDesc: Record<string, Category> = { Super: cats[0], Fatura: cats[2] }

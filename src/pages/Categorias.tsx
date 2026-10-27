@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { deleteCategory, deleteRule, renameCategory, saveCategory, saveRule, type Category } from '../db/gastosRepo'
+import { deleteCategory, deleteRule, saveCategory, saveRule, updateCategory, type Category } from '../db/gastosRepo'
 import { normalizeDescription } from '../domain/gastos'
 import { formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
@@ -70,7 +70,7 @@ export function Categorias() {
                         <span className="row" style={{ flexWrap: 'nowrap' }}>
                           <input className="in" aria-label="Novo nome" autoFocus value={rename.name} onChange={e => setRename({ ...rename, name: e.target.value })} />
                           <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível renomear', async () => {
-                            await renameCategory(db, c.id, validateCategoryName(rename.name, data.categories, c.id))
+                            await updateCategory(db, c.id, { name: validateCategoryName(rename.name, data.categories, c.id), icon: c.icon, color: c.color, countsAsSpending: c.countsAsSpending })
                           }).then(ok => ok && setRename(null))}>Salvar</button>
                           <button className="b ghost" disabled={busy} onClick={() => { setRename(null); setError(null) }}>Cancelar</button>
                         </span>
@@ -93,7 +93,7 @@ export function Categorias() {
               Apagar "{del.name}"? Vão junto {plural(impact.rules, 'regra', 'regras')} e {plural(impact.overrides, 'categoria escolhida', 'categorias escolhidas')} à mão; essas compras voltam para as regras ou a categoria automática.
               <span className="btns" style={{ marginTop: 8 }}>
                 <button className="b" disabled={busy} onClick={() => setDel(null)}>Cancelar</button>
-                <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível apagar a categoria', () => deleteCategory(db, del.id)).then(ok => ok && setDel(null))}>Apagar</button>
+                <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível apagar a categoria', () => deleteCategory(db, del.id, null)).then(ok => ok && setDel(null))}>Apagar</button>
               </span>
             </div>
           )}

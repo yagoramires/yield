@@ -8,7 +8,7 @@ import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: 'k', ...o })
 const src = (o: Partial<IncomeSource> = {}): IncomeSource => ({ id: 's1', name: 'F', kind: 'pj', grossCents: 1_000_000, ...DEFAULT_PJ, contabilidadeCents: 30_000, netCents: null, sourceKey: null, ...o })
-const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true })
+const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const cats: Record<string, Category> = { mercado: cat('mercado'), fatura: cat('pagamento-de-fatura', false) }
 const txn = (o: Partial<Txn> & { cat?: string }): Txn => ({ id: 't', accountId: 'c1', date: '2026-03-10', description: 'LOJA', amountCents: -1000, pending: false, installment: null, operationType: null, fingerprint: 'fp', sourceKey: 's', ...o })
 const catOf = (t: Txn) => cats[t.description] ?? null

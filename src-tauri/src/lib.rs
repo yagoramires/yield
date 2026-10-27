@@ -185,6 +185,12 @@ pub fn run() {
             sql: include_str!("../migrations/005_categoria_pluggy.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "visual das categorias",
+            sql: include_str!("../migrations/006_categoria_visual.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
