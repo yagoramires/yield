@@ -109,6 +109,8 @@ tr.hl td { background: #1a1213; }
 .chart-fill { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .chart-fill .chart-box { flex: 1; }
 .card.stretch { display: flex; flex-direction: column; }
+.chart .pick { cursor: pointer; outline: none; }
+.chart .pick:focus-visible rect { stroke: var(--accent); }
 .chart .ax { fill: var(--faint); font-size: 9px; }
 .chart .vl { fill: var(--text); font-size: 9px; }
 .lg { display: flex; gap: 12px; justify-content: flex-end; font-size: 10px; color: var(--text-2); margin: 2px 0 4px; }
@@ -239,3 +241,7 @@ tr.hl td { background: #1a1213; }
   .ledger-table select { max-width: 240px; }
   .subscription-price { font-size: 22px; }
 }
+
+/* Proventos: "Por ano" estreito ao lado da lista */
+.prov-grid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2.4fr); gap: 12px; margin-top: 12px; align-items: start; }
+@media (max-width: 900px) { .prov-grid { grid-template-columns: 1fr; } }
