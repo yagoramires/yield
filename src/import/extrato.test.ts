@@ -43,3 +43,17 @@ test('CSV Nubank importa com chave csv:nubank:<id>', async () => {
   await importStatement(db, s)
   expect((await loadGastos(db)).txns.map(t => t.sourceKey)[0]).toBe('csv:nubank:aaaa1111-0000-4000-8000-000000000001')
 })
+
+test('CSV: conta leva o nome do rótulo', async () => {
+  const db = await createTestDb()
+  await importStatement(db, parseExtratoCsv(readFileSync('tests/fixtures/nubank-conta.csv', 'utf8'), 'nubank-conta', 'Minha Nu'))
+  expect((await loadGastos(db)).accounts[0].name).toBe('Minha Nu')
+})
+
+test('Mercado Pago: REFERENCE_ID repetido não perde linhas e reimportar pula todas', async () => {
+  const db = await createTestDb()
+  const csv = 'RELEASE_DATE;TRANSACTION_TYPE;REFERENCE_ID;TRANSACTION_NET_AMOUNT;PARTIAL_BALANCE\n01/03/2025;Pagamento;77;-50,00;1\n01/03/2025;Tarifa;77;-1,50;1\n01/03/2025;Tarifa;77;-1,50;1\n'
+  const s = () => parseExtratoCsv(csv, 'mercadopago', 'MP')
+  expect(await importStatement(db, s())).toMatchObject({ inserted: 3, skipped: 0 })
+  expect(await importStatement(db, s())).toMatchObject({ inserted: 0, skipped: 3 })
+})

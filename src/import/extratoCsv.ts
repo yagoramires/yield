@@ -29,9 +29,9 @@ function splitRow(line: string, sep: string): string[] {
 }
 
 // shortcut: campo entre aspas com quebra de linha não é suportado; extratos reais não trazem.
-function table(ls: string[], sep: string): Record<string, string>[] {
+function table(ls: string[], sep: string, offset: number): { r: Record<string, string>; line: number }[] {
   const head = splitRow(ls[0], sep)
-  return ls.slice(1).filter(l => l.trim()).map(l => Object.fromEntries(splitRow(l, sep).map((v, i) => [head[i], v])))
+  return ls.flatMap((l, i) => i && l.trim() ? [{ r: Object.fromEntries(splitRow(l, sep).map((v, j) => [head[j], v])), line: offset + i + 1 }] : [])
 }
 
 function mpDate(s: string): ISODate {
@@ -44,12 +44,26 @@ export function parseExtratoCsv(text: string, preset: CsvPreset, accountLabel: s
   const all = lines(text)
   const start = nu ? 0 : all.findIndex(l => l.startsWith('RELEASE_DATE'))
   if (start < 0) throw new Error('Cabeçalho RELEASE_DATE não encontrado: este não parece um extrato do Mercado Pago')
-  const recs = table(all.slice(start), nu ? ',' : ';')
-  const rows = recs.map(r => {
-    const id = (nu ? r['Identificador'] : r['REFERENCE_ID']) || undefined
-    return nu
-      ? { date: parseBRDate(r['Data']), description: r['Descrição'], amountCents: parseAmount(r['Valor']), fitid: null, sourceKey: id && `csv:nubank:${id}` }
-      : { date: mpDate(r['RELEASE_DATE']), description: r['TRANSACTION_TYPE'], amountCents: parseBRL(r['TRANSACTION_NET_AMOUNT']), fitid: null, sourceKey: id && `csv:mp:${id}` }
+  const seen = new Map<string, number>() // linhas idênticas no mesmo arquivo ganham #n
+  const rows = table(all.slice(start), nu ? ',' : ';', start).map(({ r, line }) => {
+    const col = (k: string) => r[Object.keys(r).find(h => h.startsWith(k)) ?? k]?.trim() ?? ''
+    const [dateK, amtK] = nu ? ['Data', 'Valor'] : ['RELEASE_DATE', 'TRANSACTION_NET_AMOUNT']
+    if (!col(dateK) || !col(amtK)) throw new Error(`Linha ${line}: data ou valor ausente`)
+    try {
+      const date = nu ? parseBRDate(col(dateK)) : mpDate(col(dateK))
+      const amountCents = nu ? parseAmount(col(amtK)) : parseBRL(col(amtK))
+      const id = col(nu ? 'Identificador' : 'REFERENCE_ID')
+      const description = col(nu ? 'Descri' : 'TRANSACTION_TYPE')
+      let sourceKey: string | undefined
+      if (nu) sourceKey = id ? `csv:nubank:${id}` : undefined
+      else if (id) {
+        const base = `csv:mp:${id}:${normalizeDescription(description)}:${amountCents}`
+        const n = seen.get(base) ?? 0
+        seen.set(base, n + 1)
+        sourceKey = `${base}#${n}`
+      }
+      return { date, description, amountCents, fitid: null, sourceKey }
+    } catch (e) { throw new Error(`Linha ${line}: ${(e as Error).message}`) }
   })
-  return { institution: nu ? 'Nubank' : 'Mercado Pago', externalId: `csv:${preset}:${normalizeDescription(accountLabel)}`, kind: 'conta', number: null, rows }
+  return { institution: nu ? 'Nubank' : 'Mercado Pago', name: accountLabel, externalId: `csv:${preset}:${normalizeDescription(accountLabel)}`, kind: 'conta', number: null, rows }
 }
