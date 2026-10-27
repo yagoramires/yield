@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createMonth, deleteLine, dismissSuggestion, saveLine, type BudgetLine, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
-import { monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from '../domain/orcamento'
+import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from '../domain/orcamento'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
@@ -10,6 +10,7 @@ import { monthProgress, spendingPlan, validateLine } from './orcamento/build'
 
 interface Form { id?: string; kind: LineKind; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
 
+const NET_ZERO = 'O líquido desta fonte está zerado ou negativo: confira a fonte em Configurações'
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
@@ -52,9 +53,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     <div className="bar">
       <div className="row" style={{ alignItems: 'center', gap: 10 }}>
         <h1 style={{ margin: 0 }}>Orçamento</h1>
-        <button className="chip" aria-label="Mês anterior" onClick={() => go(addMonths(month, -1))}>‹</button>
+        <button className="chip" aria-label="Mês anterior" disabled={busy} onClick={() => go(addMonths(month, -1))}>‹</button>
         <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
-        <button className="chip" aria-label="Próximo mês" onClick={() => go(next)}>›</button>
+        <button className="chip" aria-label="Próximo mês" disabled={busy} onClick={() => go(next)}>›</button>
       </div>
       {hasPlan && !data.months.includes(next) && (
         <div className="btns">
@@ -69,7 +70,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
 
   if (!hasPlan) {
     const prev = data.months.filter(m => m < month).at(-1)
-    const copy = prev ? nextMonthLines(data.lines.filter(l => l.month === prev), data.sources) : []
+    const copy = prev ? copyLines(data.lines.filter(l => l.month === prev), data.sources, month) : []
     return (
       <>
         {header}
@@ -77,10 +78,10 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div className="card" style={{ marginTop: 40, textAlign: 'center', padding: 28 }}>
           <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{monthName(month)} ainda não tem plano</div>
           <div className="muted" style={{ margin: '6px 0 14px' }}>
-            {prev ? `Copie as linhas recorrentes de ${lower(prev)} (${plural(copy.length, 'linha', 'linhas')}; parcelas avançam sozinhas) ou comece do zero.` : 'Comece do zero e adicione as entradas e saídas do mês.'}
+            {prev && copy.length ? `Copie as linhas recorrentes de ${lower(prev)} (${plural(copy.length, 'linha', 'linhas')}; parcelas avançam sozinhas) ou comece do zero.` : 'Comece do zero e adicione as entradas e saídas do mês.'}
           </div>
           <div className="btns" style={{ justifyContent: 'center' }}>
-            {prev && <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível copiar o mês', async () => { await createMonth(db, month, copy) })}>Copiar de {lower(prev)}</button>}
+            {prev && copy.length > 0 && <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível copiar o mês', async () => { await createMonth(db, month, copy) })}>Copiar de {lower(prev)}</button>}
             <button className="b" disabled={busy} onClick={() => void run('Não foi possível criar o mês', async () => { await createMonth(db, month, []) })}>Começar vazio</button>
           </div>
           <div className="muted" style={{ marginTop: 12 }}>Primeira vez? Importe sua planilha em <button className="link" onClick={onOpenSettings}>Configurações › Importar planilha de orçamento</button>.</div>
@@ -105,7 +106,13 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     id: l.id, name: l.name, amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
     installment: l.installmentCurrent !== null && l.installmentTotal !== null ? `${l.installmentCurrent}/${l.installmentTotal}` : '',
   })
+  // fonte com líquido ≤ 0 trazida para o formulário: o parseMoney daria um erro genérico
+  const zeroSource = (f: Form) => {
+    const s = f.kind === 'entrada' ? data.sources.find(x => x.id === f.sourceId) : undefined
+    return !!s && sourceNet(s) <= 0 && f.amount === formatCents(sourceNet(s))
+  }
   const save = (f: Form) => void run('Não foi possível salvar a linha', async () => {
+    if (zeroSource(f)) throw new Error(NET_ZERO)
     const v = validateLine(f.kind === 'saida' ? f : { ...f, installment: '' })
     await saveLine(db, {
       id: f.id, month, kind: f.kind, name: v.name, amountCents: v.amountCents, recurring: f.recurring, position: f.position,
@@ -114,7 +121,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     })
   }).then(ok => ok && setForm(null))
   const accept = (s: Suggestion) => void run('Não foi possível aceitar a sugestão', async () => {
-    await saveLine(db, { month, kind: 'saida', name: s.name, amountCents: s.amountCents, recurring: s.reason === 'assinatura', categoryId: s.categoryId, installmentCurrent: s.installmentCurrent, installmentTotal: s.installmentTotal, sourceId: null, sourceKey: s.key, position: 0 })
+    await saveLine(db, { month, kind: 'saida', name: s.name, amountCents: s.amountCents, recurring: true, categoryId: s.categoryId, installmentCurrent: s.installmentCurrent, installmentTotal: s.installmentTotal, sourceId: null, sourceKey: s.key, position: 0 })
   })
 
   const buttons = (f: Form) => (
@@ -145,7 +152,8 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           {recurringBox(f)}
           {buttons(f)}
         </div>
-        {source && <div className="muted" style={{ marginTop: 4 }}>O valor acompanha a fonte: mudar a fonte em Configurações recalcula este mês e os próximos.</div>}
+        {zeroSource(f) ? <div className="warn" style={{ marginTop: 4, fontSize: 11 }}>{NET_ZERO}</div>
+          : source && <div className="muted" style={{ marginTop: 4 }}>O valor acompanha a fonte: mudar a fonte em Configurações recalcula este mês e os próximos.</div>}
       </td></tr>
     )
   }
@@ -193,7 +201,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       <div className="kpis">
         <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'linha', 'linhas')}</div></div>
         <div className="k"><div className="muted">Saídas</div><div className="v">{formatBRL(sum.saidasCents)}</div>
-          <div className="s muted">{plural(saidas.length, 'linha', 'linhas')}{plan.reservedCents > 0 && ` · ${formatCents(plan.reservedCents)} em investimentos e reservas`}</div></div>
+          <div className="s muted">{plural(saidas.length, 'linha', 'linhas')}{plan.reservedCents > 0 && ` · ${formatBRL(plan.reservedCents)} em investimentos e reservas`}</div></div>
         <div className="k"><div className="muted">Saldo do mês</div><div className={`v ${sum.saldoCents > 0 ? 'up' : sum.saldoCents < 0 ? 'dn' : ''}`}>{sum.saldoCents > 0 ? '+' : ''}{formatBRL(sum.saldoCents)}</div><div className="s muted">entradas − saídas</div></div>
       </div>
 
@@ -232,7 +240,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               <span className="r">{formatCents(s.amountCents)}</span>
               <button className="b" disabled={busy} onClick={() => accept(s)}>Aceitar</button>
               <button className="b ghost" disabled={busy} onClick={() => open('saida', {
-                name: s.name, amount: formatCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.reason === 'assinatura', sourceKey: s.key,
+                name: s.name, amount: formatCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: true, sourceKey: s.key,
                 installment: s.installmentCurrent !== null ? `${s.installmentCurrent}/${s.installmentTotal}` : '',
               })}>Ajustar</button>
               <button className="b ghost" disabled={busy} onClick={() => void run('Não foi possível descartar a sugestão', () => dismissSuggestion(db, month, s.key))}>Descartar</button>
@@ -254,7 +262,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             {entradas.map(l => {
               if (form?.id === l.id) return entradaForm(form)
               const source = data.sources.find(s => s.id === l.sourceId)
-              const pj = source?.kind === 'pj' ? pjNet(source.grossCents ?? 0, source) : null
+              const pj = source?.kind === 'pj' && l.amountCents === sourceNet(source) ? pjNet(source.grossCents ?? 0, source) : null
               return (
                 <tr key={l.id}>
                   <td>

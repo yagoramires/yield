@@ -30,6 +30,11 @@ describe('meses', () => {
 })
 
 describe('linhas', () => {
+  test('a mesma assinatura aceita em dois meses não colide (chave por mês)', async () => {
+    await saveLine(db, { month: '2026-10', ...linha('Streaming', { sourceKey: 'sub:c1|streaming@2026-10' }) })
+    await saveLine(db, { month: '2026-11', ...linha('Streaming', { sourceKey: 'sub:c1|streaming@2026-11' }) })
+    expect((await loadOrcamento(db)).lines.map(l => l.sourceKey)).toEqual(['sub:c1|streaming@2026-10', 'sub:c1|streaming@2026-11'])
+  })
   test('saveLine sem id vai para o fim do mês, com id atualiza', async () => {
     await createMonth(db, '2026-03', [linha('A')])
     const id = await saveLine(db, { ...linha('B'), month: '2026-03', position: 99 })

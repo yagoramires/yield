@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
-import { monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from './orcamento'
+import type { Subscription } from './assinaturas'
+import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from './orcamento'
+import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: 'k', ...o })
 const src = (o: Partial<IncomeSource> = {}): IncomeSource => ({ id: 's1', name: 'F', kind: 'pj', grossCents: 1_000_000, ...DEFAULT_PJ, contabilidadeCents: 30_000, netCents: null, sourceKey: null, ...o })
@@ -57,6 +59,35 @@ describe('nextMonthLines', () => {
   it('fonte que sumiu: mantém o valor e solta o vínculo', () => {
     const l = line({ kind: 'entrada', sourceId: 'x', amountCents: 555 })
     expect(nextMonthLines([l], [src()])[0]).toMatchObject({ amountCents: 555, sourceId: null })
+  })
+  it('chave de sugestão vai junto com o mês novo; chave da planilha vira nula', () => {
+    const out = nextMonthLines([line({ sourceKey: 'sub:c1|netflix@2026-03' }), line({ sourceKey: 'parc:c1|loja|10|100@2026-03' }), line({ sourceKey: 'planilha:2026-03:3' })], [])
+    expect(out.map(l => l.sourceKey)).toEqual(['sub:c1|netflix@2026-04', 'parc:c1|loja|10|100@2026-04', null])
+  })
+  it('assinatura copiada esconde a sugestão no mês novo', () => {
+    const s: Subscription = { merchantKey: 'c1|netflix', name: 'NETFLIX', accountId: 'c1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-03-05', nextDate: '2026-04-05', active: true, charges: 3, previousAmountCents: null }
+    const [copied] = nextMonthLines([line({ sourceKey: suggestForMonth('2026-03', [s], [], () => null, [], [])[0].key })], [])
+    expect(suggestForMonth('2026-04', [s], [], () => null, [{ ...copied, id: 'n', month: '2026-04' }], [])).toEqual([])
+  })
+  it('parcela 4/10 aceita vira 5/10 no mês seguinte e esconde a sugestão 5/10', () => {
+    const t = [txn({ date: '2026-02-10', description: 'LOJA X', amountCents: -10000, installment: '3/10' })]
+    const [sug] = suggestForMonth('2026-03', [], t, () => null, [], [])
+    expect(sug.installmentCurrent).toBe(4)
+    const [copied] = nextMonthLines([line({ sourceKey: sug.key, installmentCurrent: 4, installmentTotal: 10 })], [])
+    expect(copied.installmentCurrent).toBe(5)
+    expect(suggestForMonth('2026-04', [], t, () => null, [{ ...copied, id: 'n', month: '2026-04' }], [])).toEqual([])
+    expect(suggestForMonth('2026-04', [], t, () => null, [], [])[0].installmentCurrent).toBe(5)
+  })
+})
+
+describe('copyLines', () => {
+  it('copiar de 3 meses antes avança a parcela 3 vezes e larga as que já acabaram', () => {
+    const out = copyLines([
+      line({ name: 'a', installmentCurrent: 2, installmentTotal: 10, sourceKey: 'parc:k@2026-03' }),
+      line({ name: 'b', installmentCurrent: 8, installmentTotal: 10 }),
+      line({ name: 'c' }),
+    ], [], '2026-06')
+    expect(out.map(l => [l.name, l.installmentCurrent, l.sourceKey])).toEqual([['a', 5, 'parc:k@2026-06'], ['c', null, null]])
   })
 })
 
