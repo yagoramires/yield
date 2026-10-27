@@ -194,6 +194,8 @@ pub fn run() {
         )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![swap_database, move_file, encrypt_backup, is_encrypted_backup, decrypt_backup, secret_get, secret_set, secret_delete])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
