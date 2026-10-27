@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup, saveSourceForm, validateSource } from './build'
+import { b3Summary, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource } from './build'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -31,23 +31,11 @@ describe('planilhaReplacedByB3', () => {
   })
 })
 
-describe('planilhaSummary', () => {
-  it('contagens e avisos (conflitos de tipo primeiro)', () => {
-    expect(planilhaSummary(
-      { notes: 214, notesSkipped: 3, dividends: 412, dividendsSkipped: 0, manualAssets: 1 },
-      { typeConflicts: ['HGLG11 aparece como FII e ETF; usei FII'], ignored: ['Notas, linha 9: sem data'] },
-    )).toEqual({
-      counts: '214 notas · 3 já existiam · 412 proventos · 0 pulados · 1 ativo manual',
-      warnings: ['HGLG11 aparece como FII e ETF; usei FII', 'Notas, linha 9: sem data'],
-    })
-  })
-})
-
 describe('b3Summary', () => {
   it('contagens, eventos aplicados e o que revisar', () => {
     expect(b3Summary(
       {
-        dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1,
+        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1,
         applied: [
           { kind: 'bonificacao', ticker: 'ITSA4', date: '2024-04-20', qtyDelta: 160, unitCostCents: null, sourceKey: 'a' },
           { kind: 'grupamento', ticker: 'MGLU3', date: '2024-05-02', qtyDelta: -1000, sourceKey: 'b' },
@@ -56,7 +44,7 @@ describe('b3Summary', () => {
       },
       { ignored: 7, toReview: [{ date: '2024-06-10', movimentacao: 'Amortização', produto: 'HGLG11 - CSHG LOGISTICA FII' }] },
     )).toEqual({
-      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 7 movimentações ignoradas (negociações entram pelas notas)',
+      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 7 movimentações ignoradas (liquidações; as compras e vendas vêm do relatório de Negociação)',
       applied: ['ITSA4 bonificação +160 (20/04/2024)', 'MGLU3 grupamento −1000 (02/05/2024)', 'BBAS3 desdobramento +0,5 (02/05/2024)'],
       toReview: ['Amortização HGLG11 (10/06/2024)'],
     })
@@ -152,5 +140,25 @@ describe('saveSourceForm', () => {
     await expect(saveSourceForm(failing, v, editing, '2026-10', s => { editing = s })).rejects.toThrow('falhou')
     expect(await saveSourceForm(db, v, editing, '2026-10', s => { editing = s })).toBe(0)
     expect((await loadOrcamento(db)).sources).toHaveLength(1)
+  })
+})
+
+describe('tipos dos tickers da Negociação', () => {
+  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), dividends: [], events: [], ignored: 0, toReview: [] }
+  const old = [{ id: 't', noteId: 'n', seq: 1, broker: 'CLEAR', tradeDate: '2023-01-02', settleDate: '2023-01-04', side: 'C' as const, assetType: 'ETF' as const, ticker: 'BOVA11', qty: 1, priceCents: 1, feesCents: 0, irrfCents: 0 }]
+  it('pede confirmação só dos final 11 ainda sem operação, em ordem', () => {
+    expect(typesToConfirm(p, old)).toEqual([{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }])
+  })
+  it('o tipo já usado nas operações vence o da tela', () => {
+    expect(typeMap(old, [{ ticker: 'BOVA11', type: 'FII' }, { ticker: 'HGLG11', type: 'Ação' }])).toEqual(new Map([['BOVA11', 'ETF'], ['HGLG11', 'Ação']]))
+  })
+})
+
+describe('b3Summary com operações', () => {
+  it('conta operações, dias e o que já estava em nota', () => {
+    expect(b3Summary(
+      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [] },
+      { ignored: 0, toReview: [] },
+    ).counts).toBe('12 operações em 3 dias · 1 dia já existia · 2 operações já estavam em notas · 0 proventos · 0 já existiam')
   })
 })

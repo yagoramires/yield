@@ -1,13 +1,11 @@
 import type { Db } from '../../db/client'
 import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
 import { pjNet, sourceNet } from '../../domain/orcamento'
-import type { Dividend, Month } from '../../domain/types'
-import type { B3Import, importB3 } from '../../import/b3'
-import type { importPlanilha, PlanilhaImport } from '../../import/planilha'
+import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
+import { assetTypeOf, type B3Import, type importB3 } from '../../import/b3'
 import { parseMoney } from '../notas/build'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
-type PlanilhaResult = Awaited<ReturnType<typeof importPlanilha>>
 
 const br = (iso: string) => iso.split('-').reverse().join('/')
 const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
@@ -21,18 +19,31 @@ export function planilhaReplacedByB3(existing: Dividend[], incoming: B3Import['d
   return existing.filter(d => d.source === 'planilha' && months.has(`${d.ticker}|${d.payDate.slice(0, 7)}`)).length
 }
 
-export function planilhaSummary(r: PlanilhaResult, p: Pick<PlanilhaImport, 'typeConflicts' | 'ignored'>) {
-  return {
-    counts: `${n(r.notes, 'nota', 'notas')} · ${r.notesSkipped} já existiam · ${n(r.dividends, 'provento', 'proventos')} · ${r.dividendsSkipped} pulados · ${n(r.manualAssets, 'ativo manual', 'ativos manuais')}`,
-    warnings: [...p.typeConflicts, ...p.ignored],
-  }
+/** Junta os relatórios escolhidos de uma vez num só import. */
+export const mergeB3 = (list: B3Import[]): B3Import => ({
+  trades: list.flatMap(p => p.trades), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
+  ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview),
+})
+
+/** Tickers final 11 que ainda não têm operação: FII, ETF ou unit, o usuário confirma. Os já conhecidos mantêm o tipo. */
+export function typesToConfirm(p: B3Import, existing: Trade[]): { ticker: string; type: AssetType }[] {
+  const known = new Set(existing.map(t => t.ticker))
+  return [...new Set(p.trades.map(t => t.ticker))].filter(t => !known.has(t) && /11$/.test(t)).sort().map(ticker => ({ ticker, type: assetTypeOf(ticker) }))
+}
+
+/** Tipo de cada ticker: o que já está nas operações vale; depois, o confirmado na tela. */
+export function typeMap(existing: Trade[], confirmed: { ticker: string; type: AssetType }[]): Map<string, AssetType> {
+  return new Map([...confirmed.map(c => [c.ticker, c.type] as const), ...existing.map(t => [t.ticker, t.assetType] as const)])
 }
 
 export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>) {
   const counts = [
-    n(r.dividends, 'provento', 'proventos'), `${r.replaced} substituíram os da planilha`, `${r.dividendsSkipped} já existiam`,
+    ...(r.trades || r.notesSkipped || r.tradesSkipped ? [`${n(r.trades, 'operação', 'operações')} em ${n(r.notes, 'dia', 'dias')}`] : []),
+    ...(r.notesSkipped ? [`${n(r.notesSkipped, 'dia já existia', 'dias já existiam')}`] : []),
+    ...(r.tradesSkipped ? [`${n(r.tradesSkipped, 'operação já estava numa nota', 'operações já estavam em notas')}`] : []),
+    n(r.dividends, 'provento', 'proventos'), ...(r.replaced ? [`${r.replaced} substituíram os da planilha`] : []), `${r.dividendsSkipped} já existiam`,
     ...(r.eventsSkipped ? [r.eventsSkipped === 1 ? '1 evento já existia' : `${r.eventsSkipped} eventos já existiam`] : []),
-    ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (negociações entram pelas notas)`] : []),
+    ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações; as compras e vendas vêm do relatório de Negociação)`] : []),
   ]
   return {
     counts: counts.join(' · '),

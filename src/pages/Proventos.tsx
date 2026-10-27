@@ -81,7 +81,7 @@ export function Proventos() {
           <option value="">Ano: todos</option>{totalsByYear(all).map(y => <option key={y.year}>{y.year}</option>)}</select>
       </div>
 
-      {groups.length === 0 ? <div className="info">{all.length === 0 ? 'Nenhum provento ainda. Lance um provento ou importe o extrato da B3 e a planilha em Configurações.' : 'Nenhum provento com esses filtros.'}</div> : (
+      {groups.length === 0 ? <div className="info">{all.length === 0 ? 'Nenhum provento ainda. Lance um provento ou importe os Proventos Recebidos da B3 em Configurações.' : 'Nenhum provento com esses filtros.'}</div> : (
         <table>
           <tbody>
             {groups.map(g => [
@@ -99,7 +99,7 @@ export function Proventos() {
           </tbody>
         </table>
       )}
-      <div className="muted" style={{ marginTop: 8 }}>Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>
+      {all.some(d => d.source === 'planilha') && <div className="muted" style={{ marginTop: 8 }}>Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>}
     </>
   )
 }

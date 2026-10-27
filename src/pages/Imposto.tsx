@@ -90,7 +90,7 @@ export function Imposto() {
         </div>
       ))}
 
-      {groups.length === 0 ? <div className="info">Nenhuma venda apurada ainda. Lance notas ou importe a planilha em Configurações.</div> : groups.map(g => (
+      {groups.length === 0 ? <div className="info">Nenhuma venda apurada ainda. Lance notas ou importe a Negociação da B3 em Configurações.</div> : groups.map(g => (
         <div key={g.year}>
           <h5>{g.year}</h5>
           <table>

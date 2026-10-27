@@ -64,7 +64,7 @@ As transações chegam de dois jeitos:
 | **Mês atual** | Entradas, saídas e saldo do mês; planejado × gasto real até agora (com a marca de quanto do mês passou) e por categoria; criar o mês seguinte copiando as linhas recorrentes, com as parcelas avançando sozinhas. |
 | **Sugestões** | Assinaturas e parcelas que faltam, vindas dos seus gastos reais. Nada entra no plano sem você aceitar. |
 | **Fontes de renda** | Salário PJ calculado (pró-labore, IRPJ, INSS, contabilidade) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
-| **Importação** | Lê a aba de orçamento da planilha antiga, inclusive a calculadora de salário PJ, sem duplicar ao reimportar. |
+| **Importação** | Lê a aba de orçamento de uma planilha, inclusive a calculadora de salário PJ, sem duplicar ao reimportar. |
 
 ### 📈 Investimentos
 
@@ -72,8 +72,8 @@ As transações chegam de dois jeitos:
 |---|---|
 | **Resumo** | Patrimônio, resultado, proventos e imposto num só lugar; aportado ao longo do tempo × valor de hoje; patrimônio por classe; proventos por mês (rendimento, dividendo, JCP); maiores posições. |
 | **Carteira** | Posições com preço médio, custo, cotação e variação, agrupadas por classe, mais ativos manuais (renda fixa, cripto, dólar). |
-| **Notas** | Notas de corretagem digitadas ou **lidas do PDF da Clear**, com taxas rateadas. Também operações sem nota e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
-| **Proventos** | Dividendos, JCP e rendimentos, importados do extrato da B3 ou lançados à mão. |
+| **Notas** | Compras e vendas **importadas do relatório de Negociação da B3**, notas de corretagem digitadas ou **lidas do PDF da Clear** (com taxas rateadas), e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
+| **Proventos** | Dividendos, JCP e rendimentos, importados dos Proventos Recebidos da B3 ou lançados à mão. |
 | **Imposto** | Apuração mensal de renda variável: isenção de R$ 20 mil para ações, prejuízo a compensar (comum e FII), IRRF, DARF (código 6015) com vencimento em dia útil e acompanhamento do que foi pago. |
 
 <p align="center">
@@ -82,7 +82,7 @@ As transações chegam de dois jeitos:
 
 ### ⚙️ Sistema
 
-- Importa a planilha antiga e o extrato de movimentação da B3.
+- Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos e Movimentação, vários de uma vez, sem duplicar.
 - Backup em um arquivo `.db`. Antes de importar um backup, o app guarda uma cópia de segurança do banco atual.
 - Cotações automáticas a cada 15 minutos.
 
@@ -119,7 +119,7 @@ O caminho gratuito é o conector **MeuPluggy**. O teste da Pluggy dura 15 dias e
 ```
 src/
   domain/        regras puras: preço médio, imposto, DARF, categorias, assinaturas
-  import/        planilha, extrato da B3, PDF da Clear, OFX e CSV
+  import/        relatórios da B3, PDF da Clear, planilha de orçamento, OFX e CSV
   openfinance/   cliente Pluggy só leitura, sincronização, cofre
   db/            SQLite (migrações em src-tauri/migrations)
   state/         DataProvider: carrega o banco e deriva tudo em memória
@@ -134,7 +134,7 @@ Spec, planos e telas aprovadas estão em [`docs/`](docs).
 
 ## Roadmap
 
-- [x] **Fase 1: Investimentos.** Carteira, notas, proventos, imposto, importação e backup.
+- [x] **Fase 1: Investimentos.** Carteira, notas, proventos, imposto, importação da B3 e backup.
 - [x] **Fase 3: Últimos gastos.** Open Finance só leitura, extratos, categorias, assinaturas e resumos com gráficos.
 - [x] **Fase 2: Orçamento mensal.** Plano do mês, fontes de renda (PJ calculado ou valor fixo), mês seguinte com recorrentes e parcelas, planejado × real e sugestões vindas dos gastos.
 - [ ] Planejamento (simulações) e milhas.
