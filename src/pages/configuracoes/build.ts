@@ -141,3 +141,10 @@ export async function saveSourceForm(db: Db, v: ReturnType<typeof validateSource
   onSaved(s) // antes do applySource: se ele falhar, o próximo Salvar edita esta fonte em vez de criar outra
   return applySource(db, s.id, fromMonth, sourceNet(s))
 }
+
+/** Senha do backup: mínimo de 8 caracteres e confirmação igual. */
+export function backupPasswordError(password: string, confirm: string): string | null {
+  if (password.length < 8) return 'Use uma senha com pelo menos 8 caracteres.'
+  if (password !== confirm) return 'As duas senhas não são iguais.'
+  return null
+}

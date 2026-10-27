@@ -83,12 +83,13 @@ As transações chegam de dois jeitos:
 ### ⚙️ Sistema
 
 - Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos e Movimentação, vários de uma vez, sem duplicar.
-- Backup em um arquivo `.db`. Antes de importar um backup, o app guarda uma cópia de segurança do banco atual.
+- Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). Antes de importar um backup, o app guarda uma cópia de segurança do banco atual.
 - Cotações automáticas a cada 15 minutos.
 
 ## 🔒 Privacidade e segurança
 
 - **Open Finance somente leitura.** O cliente da Pluggy só consegue fazer `POST /auth`, `GET /accounts` e `GET /v2/transactions`. Qualquer outra rota é recusada antes de sair da máquina, e há um teste que garante isso. O app nunca move dinheiro nem inicia pagamentos.
+- **Backup com senha.** O arquivo exportado só abre com a senha escolhida na hora; sem ela nem o Yield recupera os dados.
 - **Credenciais no cofre do sistema**: Keychain no macOS, Credential Manager no Windows. Elas nunca vão para o banco, para o backup ou para log.
 - **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance e `api.pluggy.ai`.
 - **Seus arquivos fora do git.** `planilhas/`, `notas/` e `extratos/` são ignorados; os testes usam só dados sintéticos.

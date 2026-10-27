@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource } from './build'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -170,4 +170,10 @@ describe('b3Summary com operações', () => {
       { ignored: 0, toReview: [] },
     ).counts).toBe('12 operações em 3 dias · 1 dia já existia · 2 operações já estavam em notas · 0 proventos · 0 já existiam')
   })
+})
+
+it('backupPasswordError: 8+ caracteres e confirmação igual', () => {
+  expect(backupPasswordError('curta', 'curta')).toBe('Use uma senha com pelo menos 8 caracteres.')
+  expect(backupPasswordError('senha-boa-1', 'senha-boa-2')).toBe('As duas senhas não são iguais.')
+  expect(backupPasswordError('senha-boa-1', 'senha-boa-1')).toBeNull()
 })
