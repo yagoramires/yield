@@ -62,7 +62,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Yield ${{ github.ref_name }}
-          releaseBody: Veja as mudanças nos commits desta versão.
+          releaseBody: "O que mudou nesta versão: https://github.com/yagoramires/yield/blob/main/CHANGELOG.md"
           releaseDraft: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
