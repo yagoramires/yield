@@ -23,7 +23,7 @@ export function monthSummary(lines: BudgetLine[]): { entradasCents: Cents; saida
 
 export const sourceNet = (s: IncomeSource): Cents => s.kind === 'pj' ? pjNet(s.grossCents ?? 0, s).netCents : s.netCents ?? 0
 
-// Recebe as linhas de UM mês e copia para `target`: parcelas avançam pela distância e as que já acabaram ficam,
+// Recebe as linhas de UM mês e copia para `target`: parcelas avançam pela distância e as que já acabaram não são copiadas,
 // linhas de fonte são recalculadas, chave de sugestão vai com o mês novo (para não sugerir de novo) e a da planilha cai.
 export function copyLines(lines: BudgetLine[], sources: IncomeSource[], target: Month): Omit<BudgetLine, 'id' | 'month'>[] {
   return lines.flatMap(({ id: _id, month, ...l }) => {

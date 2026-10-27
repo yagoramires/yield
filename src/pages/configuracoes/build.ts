@@ -1,6 +1,7 @@
-import { DEFAULT_PJ, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
-import { pjNet } from '../../domain/orcamento'
-import type { Dividend } from '../../domain/types'
+import type { Db } from '../../db/client'
+import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
+import { pjNet, sourceNet } from '../../domain/orcamento'
+import type { Dividend, Month } from '../../domain/types'
 import type { B3Import, importB3 } from '../../import/b3'
 import type { importPlanilha, PlanilhaImport } from '../../import/planilha'
 import { parseMoney } from '../notas/build'
@@ -101,4 +102,12 @@ export function validateSource(f: SourceForm): Omit<IncomeSource, 'id' | 'source
   const grossCents = parseMoney(f.gross, 'Bruto')
   if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
   return { name, kind: 'pj', grossCents, netCents: null, ...cfg }
+}
+
+/** Salva a fonte e recalcula as entradas a partir de `fromMonth`; devolve quantas mudaram. */
+export async function saveSourceForm(db: Db, v: ReturnType<typeof validateSource>, editing: IncomeSource | null, fromMonth: Month, onSaved: (s: IncomeSource) => void): Promise<number> {
+  const sourceKey = editing?.sourceKey ?? null
+  const s = { ...v, id: await saveSource(db, { ...v, ...(editing ? { id: editing.id } : {}), sourceKey }), sourceKey }
+  onSaved(s) // antes do applySource: se ele falhar, o próximo Salvar edita esta fonte em vez de criar outra
+  return applySource(db, s.id, fromMonth, sourceNet(s))
 }
