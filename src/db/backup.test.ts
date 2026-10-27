@@ -31,7 +31,7 @@ describe('backup', () => {
 describe('backup schema 3', () => {
   test('banco novo é schema 3 e válido', async () => {
     const db = createTestDb()
-    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('3')
+    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('4')
     await validateBackup(db)
   })
   test('backup schema 2 é recusado com a mensagem de versão', async () => {

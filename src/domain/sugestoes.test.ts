@@ -6,7 +6,7 @@ import { suggestForMonth } from './sugestoes'
 
 const txn = (o: Partial<Txn>): Txn => ({ id: 't', accountId: 'c1', date: '2026-09-10', description: 'LOJA X', amountCents: -10000, pending: false, installment: null, operationType: null, fingerprint: 'fp', sourceKey: 's', ...o })
 const sub = (o: Partial<Subscription>): Subscription => ({ merchantKey: 'c1|netflix', name: 'NETFLIX', accountId: 'c1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-05', active: true, charges: 3, previousAmountCents: null, ...o })
-const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-10', kind: 'saida', name: 'x', amountCents: 1, recurring: false, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, pjGrossCents: null, sourceKey: null, ...o })
+const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-10', kind: 'saida', name: 'x', amountCents: 1, recurring: false, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, ...o })
 const semCat = () => null
 const cat = { id: 'lazer', name: 'Lazer', countsAsSpending: true, builtin: false } as Category
 const compra = (n: number, date: string) => txn({ date, installment: `${n}/10` })

@@ -2,7 +2,7 @@ import { utils, write, type CellObject } from 'xlsx'
 
 // Planilha sintética no formato da aba de orçamento mensal: datas na linha 2, rótulos na coluna A,
 // linha "Saldo" com SUM das entradas menos SUM das saídas e bloco PJ em R:S. Rótulos e valores inventados.
-export interface OrcamentoFixture { semAba?: boolean; semSaldo?: boolean; semPj?: boolean }
+export interface OrcamentoFixture { semAba?: boolean; semSaldo?: boolean; semPj?: boolean; semRotuloPj?: boolean }
 
 const n = (v: number, f?: string): CellObject => ({ t: 'n', v, f })
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril']
@@ -36,7 +36,8 @@ export function makeOrcamento(o: OrcamentoFixture = {}): ArrayBuffer {
     cols.slice(0, 3).forEach((c, i) => put(`${c}32`, n(saldo[i], `SUM(${c}3:${c}5)-SUM(${c}6:${c}30)`)))
   }
   if (!o.semPj) {
-    put('R1', 'Faturamento'); put('S1', n(10000))
+    if (!o.semRotuloPj) put('R1', 'Empresa Teste')
+    put('S1', n(10000))
     put('R2', 'Pró Labore'); put('S2', n(2800, '0.28*S1'))
     put('R3', 'IRPJ'); put('S3', n(600, '0.06*S1'))
     put('R4', 'INSS'); put('S4', n(308, '0.11*S2'))
