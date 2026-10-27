@@ -18,11 +18,15 @@ export const daysInMonth = (m: Month) => new Date(Date.UTC(Number(m.slice(0, 4))
 export function filterTxns(txns: Txn[], accounts: Account[], cat: Cat, month: Month, f: TxnFilter): Txn[] {
   const kind = new Map(accounts.map(a => [a.id, a.kind]))
   const q = normalizeDescription(f.search)
+  const raw = f.search.trim().toLowerCase() // "123" ou "pg" normalizam para vazio: aí a busca é literal
   return txns.filter(t => {
     if (monthOf(t.date) !== month) return false
     if (f.accountKind !== 'todas' && kind.get(t.accountId) !== f.accountKind) return false
-    if (f.categoryId !== null && (cat(t)?.id ?? 'sem') !== f.categoryId) return false
-    return !q || normalizeDescription(t.description).includes(q)
+    // "sem" é só gasto sem categoria, o mesmo que soma a barra "Sem categoria" do Resumo
+    if (f.categoryId === 'sem' && !(cat(t) === null && t.amountCents < 0)) return false
+    if (f.categoryId !== null && f.categoryId !== 'sem' && cat(t)?.id !== f.categoryId) return false
+    if (q) return normalizeDescription(t.description).includes(q)
+    return !raw || t.description.toLowerCase().includes(raw)
   })
 }
 
@@ -100,7 +104,8 @@ export function ruleFor(t: Txn, rules: CategoryRule[], overrides: Record<string,
 /** Sincroniza ao abrir: algum item salvo sem conta, ou conta da Pluggy nunca sincronizada ou mais velha que SYNC_EVERY_MS. */
 export function needsSync(g: GastosData, nowMs: number): boolean {
   if (!g.pluggyItems.length) return false
-  const pluggy = g.accounts.filter(a => a.source === 'pluggy')
+  // contas de item removido ficam no banco; não podem disparar sincronização
+  const pluggy = g.accounts.filter(a => a.source === 'pluggy' && g.pluggyItems.some(i => i.itemId === a.itemId))
   return g.pluggyItems.some(i => !pluggy.some(a => a.itemId === i.itemId))
     || pluggy.some(a => !a.lastSyncAt || nowMs - Date.parse(a.lastSyncAt) > SYNC_EVERY_MS)
 }

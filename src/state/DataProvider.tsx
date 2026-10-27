@@ -75,13 +75,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Erros (inclusive credencial ausente) vão para lastSyncResult.errors e aparecem na linha de avisos.
-  const syncNow = useCallback(async () => {
+  // `known`: credenciais já lidas na abertura, para não pedir o Keychain duas vezes.
+  const syncNow = useCallback(async (known?: { clientId: string; clientSecret: string }) => {
     const d = dbRef.current
     if (!d || syncingRef.current) return
     syncingRef.current = true; setSyncing(true)
     const fail = (message: string): SyncResult => ({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message }] })
     try {
-      const creds = await getPluggyCredentials()
+      const creds = known ?? (await getPluggyCredentials())
       const items = (await loadGastos(d)).pluggyItems
       if (!creds) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Open Finance.'))
       else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Open Finance.'))
@@ -120,7 +121,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         void refreshQuotesNow()
         if (needsSync(g, Date.now())) {
           getPluggyCredentials().then(
-            c => { if (c && !cancelled) void syncNow() },
+            c => { if (c && !cancelled) void syncNow(c) },
             e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }] }),
           )
         }
