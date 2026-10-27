@@ -2,7 +2,7 @@ import { ROUTES } from './routes'
 
 test('todas as subseções estão ativas, inclusive o Mês atual do orçamento', () => {
   const inv = ROUTES.find(p => p.page === 'Investimentos')!
-  expect(inv.items.map(i => i.label)).toEqual(['Resumo', 'Carteira', 'Notas', 'Proventos', 'Imposto'])
+  expect(inv.items.map(i => i.label)).toEqual(['Resumo', 'Carteira', 'Notas', 'Proventos', 'Imposto', 'Declaração IR'])
   expect(inv.items.every(i => !i.disabled)).toBe(true)
   const gastos = ROUTES.find(p => p.page === 'Últimos gastos')!
   expect(gastos.items.map(i => [i.route, i.label])).toEqual([
