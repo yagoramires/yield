@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup } from './build'
+import { b3Summary, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, planilhaSummary, refreshLine, restoreBackup, validateSource } from './build'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -111,5 +111,32 @@ describe('parseItemId', () => {
   })
   it.each(['', 'abc', '3f1a2b3c-4d5e-6f70-8192-a3b4c5d6e7f', `${id}x`, '3f1a2b3c4d5e6f708192a3b4c5d6e7f8'])('recusa %j', text => {
     expect(() => parseItemId(text)).toThrow('itemId inválido: copie do painel da Pluggy')
+  })
+})
+
+describe('validateSource', () => {
+  const pj = { name: ' Empresa Alfa ', kind: 'pj' as const, gross: '15.000,00', proLabore: '28', irpj: '6', inss: '11', contabilidade: '300,00', outros: '150,00', net: '' }
+  it('PJ ok: nome aparado, percentuais com vírgula, líquido fica nulo', () => {
+    expect(validateSource(pj)).toEqual({ name: 'Empresa Alfa', kind: 'pj', grossCents: 1500000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 15000 })
+    expect(validateSource({ ...pj, irpj: '6,5', contabilidade: '', outros: '0' })).toMatchObject({ irpjPct: 6.5, contabilidadeCents: 0, outrosCents: 0 })
+  })
+  it('exige nome', () => expect(() => validateSource({ ...pj, name: '  ' })).toThrow('Dê um nome para a fonte'))
+  it('percentual fora de 0–100 ou não numérico', () => {
+    for (const bad of ['120', 'abc', '-1', '']) expect(() => validateSource({ ...pj, inss: bad })).toThrow('Percentual inválido: use um número entre 0 e 100')
+  })
+  it('PJ sem bruto ou com líquido negativo', () => {
+    expect(() => validateSource({ ...pj, gross: '' })).toThrow('Bruto')
+    expect(() => validateSource({ ...pj, contabilidade: '20.000,00' })).toThrow('O líquido ficou negativo: confira os descontos')
+  })
+  it('fixo: só o líquido, PJ no padrão', () => {
+    expect(validateSource({ ...pj, kind: 'fixo', net: '6.500,00' })).toEqual({ name: 'Empresa Alfa', kind: 'fixo', grossCents: null, netCents: 650000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0 })
+    expect(() => validateSource({ ...pj, kind: 'fixo', net: '' })).toThrow('Líquido')
+  })
+})
+
+describe('orcamentoImportSummary', () => {
+  it('contagens e fonte criada', () => {
+    expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 }, [], true)).toBe('11 meses · 186 linhas · 0 já existiam · 1 fonte de renda PJ criada')
+    expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 }, ['x'], false)).toBe('1 mês · 1 linha · 2 já existiam')
   })
 })
