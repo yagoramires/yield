@@ -8,7 +8,7 @@ export class PluggyError extends Error {
   constructor(message: string, public kind: 'credenciais' | 'item' | 'limite' | 'rede' | 'resposta') { super(message); this.name = 'PluggyError' }
 }
 export interface PluggyAccount { id: string; type: 'BANK' | 'CREDIT'; subtype: string; name: string; marketingName?: string | null; number?: string | null; itemId: string }
-export interface PluggyTxn { id: string; date: string; description: string; amount: number; type: 'DEBIT' | 'CREDIT'; status: 'PENDING' | 'POSTED'; operationType?: string | null; creditCardMetadata?: { installmentNumber?: number; totalInstallments?: number } | null }
+export interface PluggyTxn { id: string; date: string; description: string; amount: number; type: 'DEBIT' | 'CREDIT'; status: 'PENDING' | 'POSTED'; operationType?: string | null; category?: string | null; creditCardMetadata?: { installmentNumber?: number; totalInstallments?: number } | null }
 
 const FORMAT = () => new PluggyError('A Pluggy devolveu dados fora do formato esperado', 'resposta')
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
@@ -103,5 +103,6 @@ export function toTxnRow(t: PluggyTxn, kind: AccountKind) {
     pending: t.status === 'PENDING',
     installment: typeof n === 'number' && typeof total === 'number' && total > 1 ? `${n}/${total}` : null,
     operationType: t.operationType ?? null,
+    pluggyCategory: t.category ?? null,
   }
 }

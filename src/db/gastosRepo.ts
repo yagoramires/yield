@@ -3,18 +3,18 @@ import type { Db } from './client'
 
 export type AccountKind = 'conta' | 'cartao'
 export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId: string; institution: string; name: string; kind: AccountKind; number: string | null; itemId: string | null; lastSyncAt: string | null }
-export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string }
+export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
 export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean }
 export interface CategoryRule { id: string; pattern: string; categoryId: string }
-export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[] }
+export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */ }
 
 type TxnInput = Omit<Txn, 'id' | 'accountId'>
 
 const TXN_COLS = `id, account_id AS accountId, date, description, amount_cents AS amountCents, pending, installment,
-  operation_type AS operationType, fingerprint, source_key AS sourceKey`
+  operation_type AS operationType, fingerprint, source_key AS sourceKey, pluggy_category AS pluggyCategory`
 
 export async function loadGastos(db: Db): Promise<GastosData> {
-  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems] = await Promise.all([
+  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner] = await Promise.all([
     db.select<Account>('SELECT id, source, external_id AS externalId, institution, name, kind, number, item_id AS itemId, last_sync_at AS lastSyncAt FROM accounts ORDER BY institution, name'),
     db.select<Txn>(`SELECT ${TXN_COLS} FROM transactions ORDER BY date, id`),
     db.select<Category>('SELECT id, name, counts_as_spending AS countsAsSpending, builtin FROM categories ORDER BY builtin DESC, rowid'),
@@ -22,6 +22,7 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     db.select<{ fingerprint: string; categoryId: string }>('SELECT fingerprint, category_id AS categoryId FROM category_overrides'),
     db.select<{ merchantKey: string }>('SELECT merchant_key AS merchantKey FROM subscription_dismissals ORDER BY merchant_key'),
     db.select<{ itemId: string; label: string }>('SELECT item_id AS itemId, label FROM pluggy_items ORDER BY label'),
+    db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'gastos.titular'"),
   ])
   return {
     accounts,
@@ -31,7 +32,12 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     overrides: Object.fromEntries(overrides.map(o => [o.fingerprint, o.categoryId])),
     dismissed: dismissed.map(d => d.merchantKey),
     pluggyItems,
+    ownerNames: owner[0] ? JSON.parse(owner[0].value) as string[] : [],
   }
+}
+
+export async function saveOwnerNames(db: Db, names: string[]): Promise<void> {
+  await db.execute("INSERT INTO meta (key, value) VALUES ('gastos.titular', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [JSON.stringify(names)])
 }
 
 export async function upsertAccount(db: Db, a: Omit<Account, 'id'>): Promise<string> {
@@ -54,8 +60,8 @@ export async function setLastSync(db: Db, accountId: string, at: string): Promis
 
 async function insertRow(db: Db, accountId: string, t: TxnInput & { id?: string }) {
   await db.execute(
-    'INSERT INTO transactions (id, account_id, date, description, amount_cents, pending, installment, operation_type, fingerprint, source_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [t.id ?? crypto.randomUUID(), accountId, t.date, t.description, t.amountCents, t.pending ? 1 : 0, t.installment, t.operationType, t.fingerprint, t.sourceKey],
+    'INSERT INTO transactions (id, account_id, date, description, amount_cents, pending, installment, operation_type, fingerprint, source_key, pluggy_category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [t.id ?? crypto.randomUUID(), accountId, t.date, t.description, t.amountCents, t.pending ? 1 : 0, t.installment, t.operationType, t.fingerprint, t.sourceKey, t.pluggyCategory ?? null],
   )
 }
 

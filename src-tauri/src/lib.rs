@@ -31,7 +31,12 @@ fn swap_in_dir(dir: &Path, source: &Path) -> Result<PathBuf, String> {
 #[tauri::command]
 fn swap_database(app: tauri::AppHandle, source: String) -> Result<String, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    swap_in_dir(&dir, Path::new(&source)).map(|p| p.to_string_lossy().into_owned())
+    let source = Path::new(&source);
+    let backup = swap_in_dir(&dir, source)?;
+    if source == dir.join(RESTORE_FILE) {
+        let _ = std::fs::remove_file(source); // cópia aberta do backup com senha: já está no banco
+    }
+    Ok(backup.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
@@ -43,6 +48,65 @@ fn move_file(from: String, to: String) -> Result<(), String> {
     std::fs::copy(&from, &to).map_err(|e| e.to_string())?;
     std::fs::remove_file(&from).map_err(|e| e.to_string())
 }
+
+// Backup com senha: "YIELDBK1" + sal (16) + nonce (12) + AES-256-GCM(banco), chave = Argon2id(senha, sal).
+const BACKUP_MAGIC: &[u8; 8] = b"YIELDBK1";
+
+fn backup_key(password: &str, salt: &[u8]) -> Result<aes_gcm::Key<aes_gcm::Aes256Gcm>, String> {
+    let mut key = [0u8; 32];
+    argon2::Argon2::default().hash_password_into(password.as_bytes(), salt, &mut key).map_err(|e| e.to_string())?;
+    Ok(key.into())
+}
+
+fn seal(plain: &[u8], password: &str) -> Result<Vec<u8>, String> {
+    use aes_gcm::aead::{rand_core::RngCore, Aead, AeadCore, KeyInit, OsRng};
+    let mut salt = [0u8; 16];
+    OsRng.fill_bytes(&mut salt);
+    let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+    let cipher = aes_gcm::Aes256Gcm::new(&backup_key(password, &salt)?);
+    let body = cipher.encrypt(&nonce, plain).map_err(|_| "Não foi possível criptografar o backup".to_string())?;
+    Ok([BACKUP_MAGIC.as_slice(), &salt, nonce.as_slice(), &body].concat())
+}
+
+fn unseal(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
+    use aes_gcm::aead::{Aead, KeyInit};
+    if data.len() < 36 || !data.starts_with(BACKUP_MAGIC) {
+        return Err("Este arquivo não é um backup do Yield com senha.".into());
+    }
+    let (salt, rest) = data[8..].split_at(16);
+    let (nonce, body) = rest.split_at(12);
+    let cipher = aes_gcm::Aes256Gcm::new(&backup_key(password, salt)?);
+    cipher.decrypt(nonce.into(), body).map_err(|_| "Senha errada ou arquivo corrompido.".to_string())
+}
+
+/// Criptografa o banco exportado (`from`, temporário) em `to` e apaga o temporário.
+#[tauri::command]
+fn encrypt_backup(from: String, to: String, password: String) -> Result<(), String> {
+    let plain = std::fs::read(&from).map_err(|e| e.to_string())?;
+    let sealed = seal(&plain, &password);
+    std::fs::remove_file(&from).map_err(|e| e.to_string())?;
+    std::fs::write(&to, sealed?).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn is_encrypted_backup(path: String) -> Result<bool, String> {
+    use std::io::Read;
+    let mut head = [0u8; 8];
+    let n = std::fs::File::open(&path).and_then(|mut f| f.read(&mut head)).map_err(|e| e.to_string())?;
+    Ok(n == 8 && &head == BACKUP_MAGIC)
+}
+
+/// Descriptografa para `restore.db` na pasta do app; `swap_database` apaga esse arquivo depois de usar.
+#[tauri::command]
+fn decrypt_backup(app: tauri::AppHandle, from: String, password: String) -> Result<String, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let plain = unseal(&std::fs::read(&from).map_err(|e| e.to_string())?, &password)?;
+    let out = dir.join(RESTORE_FILE);
+    std::fs::write(&out, plain).map_err(|e| e.to_string())?;
+    Ok(out.to_string_lossy().into_owned())
+}
+
+const RESTORE_FILE: &str = "restore.db";
 
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
 const SECRET_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
@@ -103,6 +167,24 @@ pub fn run() {
             sql: include_str!("../migrations/002_gastos.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "orcamento",
+            sql: include_str!("../migrations/003_orcamento.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "fontes de renda",
+            sql: include_str!("../migrations/004_fontes_renda.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 5,
+            description: "categoria da pluggy",
+            sql: include_str!("../migrations/005_categoria_pluggy.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
@@ -112,7 +194,9 @@ pub fn run() {
         )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![swap_database, move_file, secret_get, secret_set, secret_delete])
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![swap_database, move_file, encrypt_backup, is_encrypted_backup, decrypt_backup, secret_get, secret_set, secret_delete])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -120,6 +204,20 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn backup_com_senha_volta_so_com_a_senha_certa() {
+        let sealed = seal(b"SQLite format 3 ...", "senha boa").unwrap();
+        assert!(sealed.starts_with(BACKUP_MAGIC));
+        assert!(!sealed.windows(6).any(|w| w == b"SQLite"));
+        assert_eq!(unseal(&sealed, "senha boa").unwrap(), b"SQLite format 3 ...");
+        assert_eq!(unseal(&sealed, "senha ruim").unwrap_err(), "Senha errada ou arquivo corrompido.");
+        let mut bad = sealed.clone();
+        *bad.last_mut().unwrap() ^= 1;
+        assert!(unseal(&bad, "senha boa").is_err());
+        assert_eq!(unseal(b"SQLite format 3", "x").unwrap_err(), "Este arquivo não é um backup do Yield com senha.");
+        assert_ne!(seal(b"a", "s").unwrap(), seal(b"a", "s").unwrap()); // sal e nonce novos a cada vez
+    }
 
     #[test]
     fn swap_troca_o_banco_e_guarda_copia_de_seguranca() {

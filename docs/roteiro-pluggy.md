@@ -2,21 +2,22 @@
 
 O Yield só lê seus dados (contas e transações). Não move dinheiro nem inicia pagamentos.
 
-> **Atenção, antes de tudo: faça os passos 1 a 4 dentro dos 15 dias do teste da Pluggy.** Depois do teste as conexões já feitas continuam lendo, mas a lista de conectores deixa de ser editável: não dá mais para adicionar bancos. (Actual Budget, citando o fluxo MeuPluggy: https://actualbudget.org/docs/advanced/bank-sync/pluggyai)
+> **Atenção, antes de tudo: faça os passos 1 a 5 dentro dos 15 dias do teste da Pluggy.** Depois do teste as conexões já feitas continuam lendo, mas a lista de conectores deixa de ser editável: não dá mais para adicionar bancos. (Actual Budget, citando o fluxo MeuPluggy: https://actualbudget.org/docs/advanced/bank-sync/pluggyai)
 
 Tenha à mão o app de cada banco, para autorizar o compartilhamento.
 
 ## Passo a passo
 
 1. **Crie sua conta em https://meu.pluggy.ai e conecte cada banco.** Cada banco pede uma autorização própria (uma por banco). Passo a passo oficial: https://github.com/pluggyai/meu-pluggy
-2. **Crie a conta de desenvolvedor em https://dashboard.pluggy.ai** (começa o teste de 15 dias) e adicione o conector **MeuPluggy**. Ele lê os dados que você já conectou no Meu Pluggy.
-3. **Conecte o MeuPluggy no dashboard** e copie o **itemId** de cada banco (um UUID, parecido com `3f1a2b3c-4d5e-6f70-8192-a3b4c5d69c02`).
-4. **Copie o Client ID e o Client Secret** da sua aplicação no dashboard.
-5. No Yield, abra **Configurações › Open Finance**:
+2. **Crie a conta de desenvolvedor em https://dashboard.pluggy.ai** (começa o teste de 15 dias).
+3. **Ligue o conector MeuPluggy:** no dashboard, **Dados Financeiros › Customização**, aba **Conectores**. Busque "MeuPluggy": ele fica em **Conectores Diretos**; deixe a chave ligada e clique em **Salvar**. Se ele não aparecer na Demo depois, desligue "Padrão para todos selecionados", ligue o MeuPluggy e salve de novo.
+4. **Conecte o MeuPluggy na Demo:** em **Visão Geral**, no item "Conecte um item demo", clique em **Conectar**; escolha MeuPluggy, entre com a conta do Meu Pluggy e autorize, uma vez por banco. Com o banco conectado, o menu **⋮** no canto superior direito da Demo tem **Copiar Item ID** (um UUID, parecido com `3f1a2b3c-4d5e-6f70-8192-a3b4c5d69c02`).
+5. **Copie o Client ID e o Client Secret** em **Aplicações**, na sua aplicação. Webhooks, acesso à produção, due diligence e o menu Pagamentos não são necessários.
+6. No Yield, abra **Configurações › Open Finance** e clique em **Conectar bancos** (o passo a passo do app repete estes passos):
    - cole o Client ID e o Client Secret e clique em **Salvar no cofre** (ficam no cofre do sistema, o Yield nunca os mostra de volta);
    - para cada banco, escreva um nome e cole o itemId, então **Adicionar**.
-6. Clique em **Testar conexão**: cada banco deve mostrar "n contas". Se aparecer erro, veja a seção "Se algo estiver estranho".
-7. Clique em **↻ Sincronizar agora**. O Yield também sincroniza sozinho ao abrir (se passaram mais de 6 h). Os bancos atualizam no Meu Pluggy uma vez por dia, então o dado não é em tempo real.
+7. Clique em **Testar conexão**: cada banco deve mostrar "n contas". Se aparecer erro, veja a seção "Se algo estiver estranho".
+8. Clique em **↻ Sincronizar agora**. O Yield também sincroniza sozinho ao abrir (se passaram mais de 6 h). Os bancos atualizam no Meu Pluggy uma vez por dia, então o dado não é em tempo real.
 
 ## O que conferir depois da primeira sincronização
 

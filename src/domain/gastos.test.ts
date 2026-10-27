@@ -108,3 +108,22 @@ describe('monthTotals', () => {
     expect(t.incomeCents).toBe(11900)
   })
 })
+
+describe('categorize com transferências', () => {
+  it('par entre contas e Pix com o seu nome viram Transferência; escolha manual e regra vencem', () => {
+    expect(categorize(txn({}), conta, [], {}, categories, { paired: true })?.id).toBe('transferencia')
+    expect(categorize(txn({ description: 'PIX ENVIADO YAGO RAMIRES' }), conta, [], {}, categories, { ownerNames: ['Yago Ramires'] })?.id).toBe('transferencia')
+    expect(categorize(txn({ description: 'PIX ENVIADO YAGO RAMIRES' }), cartao, [], {}, categories, { ownerNames: ['Yago Ramires'] })).toBeNull()
+    expect(categorize(txn({}), conta, [], { fp: 'alimentacao' }, categories, { paired: true })?.id).toBe('alimentacao')
+    expect(categorize(txn({ description: 'UBER' }), conta, [rule('uber', 'transporte')], {}, categories, { paired: true })?.id).toBe('transporte')
+  })
+})
+
+describe('categorize com a categoria da Pluggy', () => {
+  it('usa a da Pluggy por último: regra e heurística de fatura vencem', () => {
+    expect(categorize(txn({ pluggyCategory: 'Groceries' }), conta, [], {}, [...categories, cat('mercado')])?.id).toBe('mercado')
+    expect(categorize(txn({ description: 'UBER', pluggyCategory: 'Groceries' }), conta, [rule('uber', 'transporte')], {}, [...categories, cat('mercado')])?.id).toBe('transporte')
+    expect(categorize(txn({ operationType: 'PAGAMENTO_FATURA', pluggyCategory: 'Groceries' }), conta, [], {}, [...categories, cat('mercado')])?.id).toBe('pagamento-de-fatura')
+    expect(categorize(txn({ pluggyCategory: 'Same person transfer' }), conta, [], {}, categories)?.id).toBe('transferencia')
+  })
+})

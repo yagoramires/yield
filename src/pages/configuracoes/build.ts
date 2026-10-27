@@ -1,9 +1,11 @@
-import type { Dividend } from '../../domain/types'
-import type { B3Import, importB3 } from '../../import/b3'
-import type { importPlanilha, PlanilhaImport } from '../../import/planilha'
+import type { Db } from '../../db/client'
+import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
+import { pjNet, sourceNet } from '../../domain/orcamento'
+import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
+import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
+import { parseMoney } from '../notas/build'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
-type PlanilhaResult = Awaited<ReturnType<typeof importPlanilha>>
 
 const br = (iso: string) => iso.split('-').reverse().join('/')
 const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
@@ -17,18 +19,50 @@ export function planilhaReplacedByB3(existing: Dividend[], incoming: B3Import['d
   return existing.filter(d => d.source === 'planilha' && months.has(`${d.ticker}|${d.payDate.slice(0, 7)}`)).length
 }
 
-export function planilhaSummary(r: PlanilhaResult, p: Pick<PlanilhaImport, 'typeConflicts' | 'ignored'>) {
-  return {
-    counts: `${n(r.notes, 'nota', 'notas')} · ${r.notesSkipped} já existiam · ${n(r.dividends, 'provento', 'proventos')} · ${r.dividendsSkipped} pulados · ${n(r.manualAssets, 'ativo manual', 'ativos manuais')}`,
-    warnings: [...p.typeConflicts, ...p.ignored],
+/** Junta os relatórios escolhidos de uma vez num só import. */
+export const mergeB3 = (list: B3Import[]): B3Import => ({
+  trades: list.flatMap(p => p.trades), names: Object.assign({}, ...list.map(p => p.names)), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
+  ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview),
+})
+
+type TickerType = { ticker: string; type: AssetType }
+
+/**
+ * Tickers final 11 ainda sem operação podem ser FII, ETF ou unit. O tipo sai do nome do produto nos relatórios
+ * (Proventos, Movimentação) ou dos proventos já conhecidos (Rendimento → FII; Dividendo/JCP → unit).
+ * Sem nenhum provento, com proventos conhecidos, quase sempre é ETF (FII paga todo mês).
+ * `ask` é o que sobra para o usuário escolher; `inferred` já vem resolvido.
+ */
+export function typesToConfirm(p: B3Import, existing: Trade[], dividends: Pick<Dividend, 'ticker' | 'kind'>[] = []): { ask: TickerType[]; inferred: TickerType[] } {
+  const known = new Set(existing.map(t => t.ticker))
+  const kinds = new Map<string, Set<string>>()
+  for (const d of [...dividends, ...p.dividends]) kinds.set(d.ticker, (kinds.get(d.ticker) ?? new Set()).add(d.kind))
+  const byKind = (t: string): AssetType | null => {
+    const k = kinds.get(t)
+    return !k ? null : k.has('Dividendo') || k.has('JCP') ? 'Ação' : 'FII'
   }
+  const out = { ask: [] as TickerType[], inferred: [] as TickerType[] }
+  for (const ticker of [...new Set(p.trades.map(t => t.ticker))].filter(t => !known.has(t) && /11$/.test(t)).sort()) {
+    const type = (p.names[ticker] && typeFromName(p.names[ticker])) || byKind(ticker)
+    if (type) out.inferred.push({ ticker, type })
+    else out.ask.push({ ticker, type: kinds.size ? 'ETF' : 'FII' })
+  }
+  return out
+}
+
+/** Tipo de cada ticker: o que já está nas operações vale; depois, o deduzido ou confirmado na tela. */
+export function typeMap(existing: Trade[], confirmed: TickerType[]): Map<string, AssetType> {
+  return new Map([...confirmed.map(c => [c.ticker, c.type] as const), ...existing.map(t => [t.ticker, t.assetType] as const)])
 }
 
 export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>) {
   const counts = [
-    n(r.dividends, 'provento', 'proventos'), `${r.replaced} substituíram os da planilha`, `${r.dividendsSkipped} já existiam`,
+    ...(r.trades || r.notesSkipped || r.tradesSkipped ? [`${n(r.trades, 'operação', 'operações')} em ${n(r.notes, 'dia', 'dias')}`] : []),
+    ...(r.notesSkipped ? [`${n(r.notesSkipped, 'dia já existia', 'dias já existiam')}`] : []),
+    ...(r.tradesSkipped ? [`${n(r.tradesSkipped, 'operação já estava numa nota', 'operações já estavam em notas')}`] : []),
+    n(r.dividends, 'provento', 'proventos'), ...(r.replaced ? [`${r.replaced} substituíram os da planilha`] : []), `${r.dividendsSkipped} já existiam`,
     ...(r.eventsSkipped ? [r.eventsSkipped === 1 ? '1 evento já existia' : `${r.eventsSkipped} eventos já existiam`] : []),
-    ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (negociações entram pelas notas)`] : []),
+    ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações; as compras e vendas vêm do relatório de Negociação)`] : []),
   ]
   return {
     counts: counts.join(' · '),
@@ -74,4 +108,43 @@ export function parseItemId(text: string): string {
   const id = text.trim()
   if (!UUID.test(id)) throw new Error('itemId inválido: copie do painel da Pluggy')
   return id.toLowerCase()
+}
+
+/** Avisos aparecem em lista própria na tela; aqui só as contagens. */
+export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }, sourceCreated: boolean): string {
+  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`, ...(sourceCreated ? ['1 fonte de renda PJ criada'] : [])].join(' · ')
+}
+
+export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string }
+
+const pct = (text: string): number => {
+  const t = text.trim().replace(',', '.')
+  const x = /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN
+  if (!(x >= 0 && x <= 100)) throw new Error('Percentual inválido: use um número entre 0 e 100')
+  return x
+}
+
+export function validateSource(f: SourceForm): Omit<IncomeSource, 'id' | 'sourceKey'> {
+  const name = f.name.trim()
+  if (!name) throw new Error('Dê um nome para a fonte')
+  if (f.kind === 'fixo') return { name, kind: 'fixo', grossCents: null, netCents: parseMoney(f.net, 'Líquido'), ...DEFAULT_PJ }
+  const cfg = { proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
+  const grossCents = parseMoney(f.gross, 'Bruto')
+  if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
+  return { name, kind: 'pj', grossCents, netCents: null, ...cfg }
+}
+
+/** Salva a fonte e recalcula as entradas a partir de `fromMonth`; devolve quantas mudaram. */
+export async function saveSourceForm(db: Db, v: ReturnType<typeof validateSource>, editing: IncomeSource | null, fromMonth: Month, onSaved: (s: IncomeSource) => void): Promise<number> {
+  const sourceKey = editing?.sourceKey ?? null
+  const s = { ...v, id: await saveSource(db, { ...v, ...(editing ? { id: editing.id } : {}), sourceKey }), sourceKey }
+  onSaved(s) // antes do applySource: se ele falhar, o próximo Salvar edita esta fonte em vez de criar outra
+  return applySource(db, s.id, fromMonth, sourceNet(s))
+}
+
+/** Senha do backup: mínimo de 8 caracteres e confirmação igual. */
+export function backupPasswordError(password: string, confirm: string): string | null {
+  if (password.length < 8) return 'Use uma senha com pelo menos 8 caracteres.'
+  if (password !== confirm) return 'As duas senhas não são iguais.'
+  return null
 }

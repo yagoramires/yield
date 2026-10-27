@@ -147,11 +147,11 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
       </div>
       {data.notes.length === 0 ? (
         <div className="card">
-          <b style={{ color: '#fff' }}>Comece importando sua planilha</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Notas, proventos e ativos manuais da planilha antiga entram de uma vez. Depois, o extrato da B3 completa os proventos.</div>
+          <b style={{ color: '#fff' }}>Comece importando da B3</b>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Baixe os relatórios de Negociação e Proventos Recebidos na Área do Investidor e importe em Configurações. Renda fixa, cripto e dólar entram em Ativos manuais.</div>
           <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
         </div>
-      ) : p.rows.length === 0 ? <div className="info">Nenhuma posição ainda. Lance notas em Notas ou importe a planilha em Configurações.</div> : (
+      ) : p.rows.length === 0 ? <div className="info">Nenhuma posição ainda. Lance notas em Notas ou importe a Negociação da B3 em Configurações.</div> : (
         <table>
           <thead><tr><th>Ativo</th><th className="r">Qtd</th><th className="r">Preço médio</th><th className="r">Custo</th><th className="r">Cotação</th><th className="r">Valor atual</th><th className="r">Var. R$</th><th className="r">Var. %</th><th /></tr></thead>
           <tbody>
