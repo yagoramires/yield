@@ -10,6 +10,7 @@ import { ResumoInvestimentos } from './pages/ResumoInvestimentos'
 import { Lancamentos } from './pages/Lancamentos'
 import { Assinaturas } from './pages/Assinaturas'
 import { Categorias } from './pages/Categorias'
+import { Orcamento } from './pages/Orcamento'
 import { ROUTES, type Route } from './ui/routes'
 
 const TITLES = Object.fromEntries(
@@ -22,7 +23,7 @@ export default function App() {
     <div className="app">
       <Sidebar route={route} onNavigate={setRoute} />
       <main className="main">
-        {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenCarteira={() => setRoute('carteira')} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas /> : route === 'categorias' ? <Categorias /> : route === 'carteira' ? <Carteira onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos /> : route === 'imposto' ? <Imposto /> : route === 'configuracoes' ? <Configuracoes /> : (
+        {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenCarteira={() => setRoute('carteira')} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas /> : route === 'categorias' ? <Categorias /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos /> : route === 'imposto' ? <Imposto /> : route === 'configuracoes' ? <Configuracoes /> : (
           <>
             <h1>{TITLES[route]}</h1>
             <div className="muted">Em construção.</div>

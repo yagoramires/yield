@@ -15,6 +15,8 @@ import type { Month } from '../domain/types'
 import { getPluggyCredentials } from '../openfinance/secrets'
 import { syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
+import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
+import { defaultMonth } from '../pages/orcamento/build'
 
 export interface Gastos {
   data: GastosData
@@ -29,6 +31,13 @@ export interface Gastos {
   setFilter(f: TxnFilter): void
 }
 
+export interface Orcamento {
+  data: OrcamentoData
+  month: Month
+  setMonth(m: Month): void
+  reload(): Promise<void>
+}
+
 export interface AppData {
   data: Dataset
   derived: { replay: ReplayResult; tax: TaxMonth[]; darfs: DarfResult; portfolio: Portfolio }
@@ -38,6 +47,7 @@ export interface AppData {
   refreshQuotesNow(): Promise<void>
   lastRefresh: { at: string; ok: string[]; failed: string[] } | null
   gastos: Gastos
+  orcamento: Orcamento
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -64,14 +74,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
   const [month, setMonth] = useState<Month>(monthOf(todayISO()))
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
+  const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
+  const [orcMonth, setOrcMonth] = useState<Month | null>(null) // null: defaultMonth até o usuário navegar
   const dbRef = useRef<Db | null>(null)
   const syncingRef = useRef(false)
 
   const reload = useCallback(async () => {
     const d = dbRef.current
     if (!d) return
-    const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)])
-    setData(ds); setGastosData(g)
+    const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
+    setData(ds); setGastosData(g); setOrcData(o)
+  }, [])
+
+  const reloadOrcamento = useCallback(async () => {
+    if (dbRef.current) setOrcData(await loadOrcamento(dbRef.current))
   }, [])
 
   // Erros (inclusive credencial ausente) vão para lastSyncResult.errors e aparecem na linha de avisos.
@@ -116,8 +132,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         dbRef.current = d
         setDb(d)
-        const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)])
-        setData(ds); setGastosData(g)
+        const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
+        setData(ds); setGastosData(g); setOrcData(o)
         void refreshQuotesNow()
         if (needsSync(g, Date.now())) {
           getPluggyCredentials().then(
@@ -153,12 +169,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [gastosData])
 
   const value = useMemo<AppData | null>(() => {
-    if (!db || !data || !derived || !gastosData || !gastosDerived) return null
+    if (!db || !data || !derived || !gastosData || !gastosDerived || !orcData) return null
     return {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
+      orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
     }
-  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter])
+  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento])
 
   if (error) return <main className="main"><h1>Yield</h1><div className="note">{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>
