@@ -1,4 +1,4 @@
-export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'configuracoes'
+export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'orcamento' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'configuracoes'
 
 export const ROUTES: {
   page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Sistema'
@@ -13,7 +13,7 @@ export const ROUTES: {
       { route: 'categorias', label: 'Categorias', disabled: false },
     ],
   },
-  { page: 'Orçamento mensal', items: [{ route: null, label: 'Mês atual', disabled: true }] },
+  { page: 'Orçamento mensal', items: [{ route: 'orcamento', label: 'Mês atual', disabled: false }] },
   {
     page: 'Investimentos',
     items: [
