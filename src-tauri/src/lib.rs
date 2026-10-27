@@ -197,6 +197,12 @@ pub fn run() {
             sql: include_str!("../migrations/007_fonte_clt.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 8,
+            description: "cadastro da declaracao de ir",
+            sql: include_str!("../migrations/008_cadastro_ir.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
