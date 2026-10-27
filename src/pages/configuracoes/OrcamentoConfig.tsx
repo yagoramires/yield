@@ -29,7 +29,7 @@ export function ImportarOrcamento() {
     try {
       const p = parseOrcamentoPlanilha(await file.arrayBuffer())
       const r = await importOrcamento(db, p)
-      setResult({ text: orcamentoImportSummary(r, p.warnings, r.sourceCreated), warnings: p.warnings })
+      setResult({ text: orcamentoImportSummary(r, r.sourceCreated), warnings: [...p.warnings, ...r.warnings] })
     } catch (e) { setError(`Não foi possível importar ${file.name}: ${errText(e)}`) }
     try { await orcamento.reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
     setBusy(false)
@@ -38,7 +38,7 @@ export function ImportarOrcamento() {
   return (
     <div className="card">
       <b style={{ color: '#fff' }}>Importar planilha de orçamento</b>
-      <div className="muted" style={{ margin: '4px 0 10px' }}>Aba "Finanças" (.xlsx) · pode importar de novo: o que já existe é pulado e o que você mudou no app fica como está</div>
+      <div className="muted" style={{ margin: '4px 0 10px' }}>Aba "Finanças" (.xlsx) · pode importar de novo: o que já existe é pulado e o que você mudou no app fica como está, mas uma linha apagada no app volta se você importar de novo</div>
       <button className="b pri" disabled={busy} onClick={() => input.current?.click()}>Escolher arquivo…</button>
       <input ref={input} type="file" accept=".xlsx" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
       {busy && <span className="muted"> Importando…</span>}
