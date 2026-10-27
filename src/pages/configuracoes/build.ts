@@ -1,6 +1,6 @@
 import type { Db } from '../../db/client'
 import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
-import { pjNet, sourceNet } from '../../domain/orcamento'
+import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
 import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
 import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
 import { parseMoney } from '../notas/build'
@@ -115,7 +115,7 @@ export function orcamentoImportSummary(r: { months: number; lines: number; skipp
   return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`, ...(sourceCreated ? ['1 fonte de renda PJ criada'] : [])].join(' · ')
 }
 
-export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string }
+export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string }
 
 const pct = (text: string): number => {
   const t = text.trim().replace(',', '.')
@@ -127,11 +127,18 @@ const pct = (text: string): number => {
 export function validateSource(f: SourceForm): Omit<IncomeSource, 'id' | 'sourceKey'> {
   const name = f.name.trim()
   if (!name) throw new Error('Dê um nome para a fonte')
-  if (f.kind === 'fixo') return { name, kind: 'fixo', grossCents: null, netCents: parseMoney(f.net, 'Líquido'), ...DEFAULT_PJ }
+  if (f.kind === 'fixo') return { name, kind: 'fixo', grossCents: null, netCents: parseMoney(f.net, 'Líquido'), ...DEFAULT_PJ, dependents: 0 }
+  if (f.kind === 'clt') {
+    const d = f.dependents.trim()
+    if (d && !(/^\d+$/.test(d) && Number(d) <= 30)) throw new Error('Dependentes: use um número inteiro de 0 a 30')
+    const grossCents = parseMoney(f.gross, 'Bruto'), outrosCents = parseMoney(f.outros, 'Outros descontos', false), dependents = Number(d || 0)
+    if (cltNet(grossCents, dependents, outrosCents).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
+    return { name, kind: 'clt', grossCents, netCents: null, ...DEFAULT_PJ, outrosCents, dependents }
+  }
   const cfg = { proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
   const grossCents = parseMoney(f.gross, 'Bruto')
   if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
-  return { name, kind: 'pj', grossCents, netCents: null, ...cfg }
+  return { name, kind: 'pj', grossCents, netCents: null, ...cfg, dependents: 0 }
 }
 
 /** Salva a fonte e recalcula as entradas a partir de `fromMonth`; devolve quantas mudaram. */

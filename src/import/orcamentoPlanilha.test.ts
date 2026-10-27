@@ -33,7 +33,7 @@ test('o saldo de cada mês importado bate com a linha Saldo', async () => {
 
 test('PJ: fonte com porcentagens e nome do rótulo acima; linha do líquido é marcada', () => {
   const r = p()
-  expect(r.source).toEqual({ name: 'Empresa Teste', kind: 'pj', grossCents: 1000000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 80000, outrosCents: 19000, netCents: null, sourceKey: 'planilha:pj' })
+  expect(r.source).toEqual({ name: 'Empresa Teste', kind: 'pj', grossCents: 1000000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 80000, outrosCents: 19000, netCents: null, dependents: 0, sourceKey: 'planilha:pj' })
   expect(r.months[0].lines.map(l => l.usesImportedSource)).toEqual([true, false, false, false])
   expect(parseOrcamentoPlanilha(makeOrcamento({ semRotuloPj: true })).source?.name).toBe('Salário PJ')
 })

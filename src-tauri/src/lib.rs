@@ -191,6 +191,12 @@ pub fn run() {
             sql: include_str!("../migrations/006_categoria_visual.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 7,
+            description: "fonte de renda clt",
+            sql: include_str!("../migrations/007_fonte_clt.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(

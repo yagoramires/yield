@@ -3,11 +3,11 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from './orcamento'
+import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet, cltNet, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: 'k', ...o })
-const src = (o: Partial<IncomeSource> = {}): IncomeSource => ({ id: 's1', name: 'F', kind: 'pj', grossCents: 1_000_000, ...DEFAULT_PJ, contabilidadeCents: 30_000, netCents: null, sourceKey: null, ...o })
+const src = (o: Partial<IncomeSource> = {}): IncomeSource => ({ id: 's1', name: 'F', kind: 'pj', grossCents: 1_000_000, ...DEFAULT_PJ, contabilidadeCents: 30_000, netCents: null, dependents: 0, sourceKey: null, ...o })
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const cats: Record<string, Category> = { mercado: cat('mercado'), fatura: cat('pagamento-de-fatura', false) }
 const txn = (o: Partial<Txn> & { cat?: string }): Txn => ({ id: 't', accountId: 'c1', date: '2026-03-10', description: 'LOJA', amountCents: -1000, pending: false, installment: null, operationType: null, fingerprint: 'fp', sourceKey: 's', ...o })
@@ -110,5 +110,30 @@ describe('planVsReal', () => {
   it('categoria sem gasto real tem 0; ordena por planejado desc', () => {
     const r = planVsReal([line({ amountCents: 100, categoryId: 'x' }), line({ amountCents: 900, categoryId: 'mercado' })], [], catOf, '2026-03')
     expect(r.byCategory).toEqual([{ categoryId: 'mercado', plannedCents: 900, realCents: 0 }, { categoryId: 'x', plannedCents: 100, realCents: 0 }])
+  })
+})
+
+describe('CLT 2026', () => {
+  it('INSS progressivo por faixa, centavo truncado, e limitado ao teto', () => {
+    expect(inssEmpregado(150000)).toBe(11250) // só a 1ª faixa: 7,5%
+    expect(inssEmpregado(300000)).toBe(24859) // 121,575 + 115,3656 + 11,6592 = 248,5998
+    expect(inssEmpregado(1000000)).toBe(98809) // acima do teto de 8.475,55 paga o máximo
+  })
+  it('IRRF bate com os exemplos da Receita para a Lei 15.270/2025', () => {
+    expect(irrfMensal(303600, 25773, 0)).toBe(0) // desconto simplificado, 1ª faixa
+    expect(irrfMensal(400000, 37341, 0)).toBe(0) // até 5 mil: redução zera
+    expect(irrfMensal(500000, 50960, 0)).toBe(0)
+    expect(irrfMensal(600000, 64960, 0)).toBe(38288) // 562,63 − 179,75
+    expect(irrfMensal(800000, 80000, 0)).toBe(Math.round((800000 - 80000) * 0.275 - 90873)) // acima de 7.350 sem redução
+  })
+  it('dependentes entram nas deduções legais quando passam do desconto simplificado', () => {
+    expect(irrfMensal(800000, 80000, 2)).toBe(Math.round((800000 - 80000 - 2 * 18959) * 0.275 - 90873))
+  })
+  it('líquido = bruto − INSS − IRRF − outros descontos; FGTS 8% é só informativo', () => {
+    const b = cltNet(600000, 0, 15000)
+    expect(b.inssCents).toBe(inssEmpregado(600000))
+    expect(b.irrfCents).toBe(irrfMensal(600000, b.inssCents, 0))
+    expect(b.netCents).toBe(600000 - b.inssCents - b.irrfCents - 15000)
+    expect(b.fgtsCents).toBe(48000)
   })
 })
