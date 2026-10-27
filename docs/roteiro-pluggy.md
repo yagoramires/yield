@@ -24,7 +24,9 @@ Abra **Últimos gastos › Lançamentos** e **Configurações › Contas**.
 
 - **Contas certas:** cada banco aparece com as contas e cartões que você tem, sem conta sobrando nem em dobro.
 - **Sinais:** compra no cartão é negativa; salário é positivo.
-- **Fatura do cartão:** o pagamento da fatura na conta corrente não deve ser contado de novo como gasto (os gastos já estão nas compras do cartão).
+- **Fatura do cartão:** o pagamento da fatura na conta corrente não deve ser contado de novo como gasto (os gastos já estão nas compras do cartão). Confira que ele aparece como **Pagamento de fatura**. Se não aparecer, crie uma regra "sempre categorizar … como Pagamento de fatura" no próprio lançamento e mande para o Claude a descrição exata que o banco usou.
+- **Aplicações:** dinheiro guardado em caixinha, CDB ou RDB deve aparecer como **Investimento**, não como gasto.
+- **Conta em dobro:** se você também importou extrato (OFX/CSV) do mesmo banco, o aviso de "contada em dobro" deve aparecer no topo de Resumo e Lançamentos.
 - **Pendentes:** lançamentos ainda não confirmados pelo banco aparecem marcados como pendentes.
 - **Parcelas:** compras parceladas mostram n/total.
 - **Sem duplicados:** sincronize uma segunda vez; a lista não deve crescer nem repetir lançamentos.

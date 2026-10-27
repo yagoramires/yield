@@ -1,6 +1,6 @@
 import { renameSync, writeFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
-import { exportBackup, validateBackup } from './backup'
+import { BackupError, exportBackup, validateBackup } from './backup'
 import { loadAll, saveNote } from './repo'
 import { createRawDb, createTestDb, tmpPath } from './testDb'
 
@@ -16,7 +16,7 @@ describe('backup', () => {
   test('versão de schema diferente é recusada', async () => {
     const db = createTestDb()
     await db.execute("UPDATE meta SET value = '99' WHERE key = 'schema_version'")
-    await expect(validateBackup(db)).rejects.toThrow('não é um backup do Yield')
+    await expect(validateBackup(db)).rejects.toThrow('Este backup é de outra versão do Yield (esquema 99) e não pode ser importado nesta versão.')
   })
   test('exportar sobre arquivo existente funciona e o backup é válido', async () => {
     const db = createTestDb(); await saveNote(db, nota, trades)
@@ -37,6 +37,6 @@ describe('backup schema 2', () => {
   test('backup schema 1 é recusado', async () => {
     const db = createTestDb()
     await db.execute("UPDATE meta SET value = '1' WHERE key = 'schema_version'")
-    await expect(validateBackup(db)).rejects.toThrow('não é um backup do Yield')
+    await expect(validateBackup(db)).rejects.toThrow(new BackupError('Este backup é de outra versão do Yield (esquema 1) e não pode ser importado nesta versão.'))
   })
 })

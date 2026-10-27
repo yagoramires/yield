@@ -81,7 +81,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 
       <div className="kpis">
         <div className="k"><div className="muted">Patrimônio</div><div className="v">{formatBRL(p.totalValueCents)}</div>
-          <div className="s muted">aportado {formatBRL(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}</div></div>
+          <div className="s muted">custo {formatBRL(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}</div></div>
         <div className="k"><div className="muted">Resultado</div><div className={`v ${tone(varTotal)}`}>{sign(varTotal, formatBRL(varTotal))}</div>
           <div className={`s ${tone(varTotal)}`}>{costQuoted > 0 ? pct1(varTotal / costQuoted) : '—'}</div></div>
         <div className="k"><div className="muted">Proventos 12 meses</div><div className="v">{formatBRL(p.dividends12mCents)}</div><div className="s muted">média {formatBRL(avg12)}/mês</div></div>
