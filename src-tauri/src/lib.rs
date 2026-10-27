@@ -103,6 +103,12 @@ pub fn run() {
             sql: include_str!("../migrations/002_gastos.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "orcamento",
+            sql: include_str!("../migrations/003_orcamento.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     tauri::Builder::default()
         .plugin(
