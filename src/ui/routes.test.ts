@@ -2,7 +2,7 @@ import { ROUTES } from './routes'
 
 test('Últimos gastos e Investimentos têm as subseções ativas e o orçamento fica em breve', () => {
   const inv = ROUTES.find(p => p.page === 'Investimentos')!
-  expect(inv.items.map(i => i.label)).toEqual(['Carteira', 'Notas', 'Proventos', 'Imposto'])
+  expect(inv.items.map(i => i.label)).toEqual(['Resumo', 'Carteira', 'Notas', 'Proventos', 'Imposto'])
   expect(inv.items.every(i => !i.disabled)).toBe(true)
   const gastos = ROUTES.find(p => p.page === 'Últimos gastos')!
   expect(gastos.items.map(i => [i.route, i.label])).toEqual([
