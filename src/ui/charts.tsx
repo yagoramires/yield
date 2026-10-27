@@ -36,7 +36,7 @@ function Tip({ x, w, title, lines }: { x: number; w: number; title: string; line
 
 export interface LineSeries { label: string; values: (number | null)[]; dashed?: boolean }
 
-/** Linhas por índice (ex.: dia do mês), um eixo y em centavos. `marker` destaca um índice (ex.: hoje). */
+/** Linhas por índice (ex.: dia do mês), um eixo y em centavos. `marker` destaca um índice (ex.: hoje). Série com um único valor vira um ponto. */
 export function LineChart({ series, xLabels, xTicks, tipTitle, marker, format, tickFormat = shortBRL, ariaLabel, height = 140 }: {
   series: LineSeries[]; xLabels: string[]; xTicks: number[]; tipTitle?(i: number): string; marker?: number
   format(v: number): string; tickFormat?(v: number): string; ariaLabel: string; height?: number
@@ -73,6 +73,10 @@ export function LineChart({ series, xLabels, xTicks, tipTitle, marker, format, t
         {series.map((s, i) => ({ s, i })).reverse().map(({ s, i }) => (
           <path key={s.label} d={d(s.values)} fill="none" style={{ stroke: color(i) }} strokeWidth={2} strokeLinejoin="round" strokeDasharray={s.dashed ? '4 3' : undefined} />
         ))}
+        {series.map((s, i) => {
+          const pts = s.values.flatMap((v, k) => (v === null ? [] : [k]))
+          return pts.length === 1 && <circle key={s.label} cx={x(pts[0])} cy={y(s.values[pts[0]]!)} r={4} style={{ fill: color(i), stroke: 'var(--sidebar)' }} strokeWidth={2} />
+        })}
         {focus !== undefined && (
           <g>
             <line x1={x(focus)} x2={x(focus)} y1={T} y2={height - B} style={{ stroke: 'var(--border)' }} strokeDasharray="2 2" />
