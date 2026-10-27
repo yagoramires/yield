@@ -7,7 +7,7 @@ import type { Db } from './client'
 
 export type { Db }
 
-const MIGRATION = readFileSync(new URL('../../src-tauri/migrations/001_init.sql', import.meta.url), 'utf8')
+const MIGRATIONS = ['001_init.sql', '002_gastos.sql'].map(f => readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
 
 function wrap(d: DatabaseSync): Db {
   d.exec('PRAGMA foreign_keys = ON')
@@ -23,7 +23,9 @@ export const createRawDb = (path = ':memory:'): Db => wrap(new DatabaseSync(path
 
 export function createTestDb(path = ':memory:'): Db {
   const d = new DatabaseSync(path)
-  if (!d.prepare("SELECT 1 FROM sqlite_master WHERE name = 'meta'").get()) d.exec(MIGRATION)
+  const hasMeta = d.prepare("SELECT 1 FROM sqlite_master WHERE name = 'meta'").get()
+  const current = hasMeta ? Number((d.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string }).value) : 0
+  MIGRATIONS.slice(current).forEach(sql => d.exec(sql))
   return wrap(d)
 }
 

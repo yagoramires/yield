@@ -66,3 +66,12 @@ export async function restoreBackup(s: RestoreSteps): Promise<{ ok: boolean; mes
     return { ok: false, message }
   }
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** itemId da Pluggy é um UUID; minúsculo para não duplicar o mesmo banco por causa de caixa. */
+export function parseItemId(text: string): string {
+  const id = text.trim()
+  if (!UUID.test(id)) throw new Error('itemId inválido: copie do painel da Pluggy')
+  return id.toLowerCase()
+}

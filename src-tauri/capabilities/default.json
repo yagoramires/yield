@@ -12,7 +12,8 @@
       "identifier": "http:default",
       "allow": [
         { "url": "https://query1.finance.yahoo.com/*" },
-        { "url": "https://query2.finance.yahoo.com/*" }
+        { "url": "https://query2.finance.yahoo.com/*" },
+        { "url": "https://api.pluggy.ai/*" }
       ]
     },
     "dialog:default"
