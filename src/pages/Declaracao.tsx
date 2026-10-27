@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, CircleAlert, Coins, Landmark, ReceiptText, Wallet } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loadCadastro, type Broker, type Issuer } from '../db/irRepo'
 import { BEM_CODES, bensDoAno, discriminacao, LOCALIZACAO, lucroIsentoDoAno, pendencias, rendaVariavelDoAno, rendimentosDoAno, type Bem } from '../domain/declaracao'
 import { formatBRL, formatCents } from '../domain/money'
@@ -34,10 +34,13 @@ export function Declaracao() {
 
   const issuers = new Map(cad.issuers.map(i => [i.ticker, i]))
   const brokers = new Map(cad.brokers.map(b => [b.code, b]))
-  const bens = bensDoAno(data.trades, data.events, year)
+  // dois replays por ano: só refaz quando os dados ou o ano mudam, não a cada clique
+  const bens = useMemo(() => bensDoAno(data.trades, data.events, year), [data.trades, data.events, year])
   const issuerOf = (b: Bem) => issuers.get(b.ticker) ?? b.oldTickers.map(t => issuers.get(t)).find(Boolean)
-  const types = new Map(data.trades.map(t => [t.ticker, t.assetType]))
-  const rendimentos = rendimentosDoAno(data.dividends, year, issuers, t => types.get(t))
+  const types = useMemo(() => new Map(data.trades.map(t => [t.ticker, t.assetType])), [data.trades])
+  // provento pago com o ticker antigo de uma mudança de ticker acha a empresa pelo ticker novo
+  const issuersRend = new Map([...issuers, ...bens.flatMap(b => { const i = issuerOf(b); return i ? b.oldTickers.map(o => [o, i] as const) : [] })])
+  const rendimentos = rendimentosDoAno(data.dividends, year, issuersRend, t => types.get(t))
   const isento20 = lucroIsentoDoAno(derived.tax, year)
   const rv = rendaVariavelDoAno(derived.tax, data.payments, year)
   // o CNPJ também é achado pelo ticker antigo de uma mudança de ticker
@@ -50,6 +53,7 @@ export function Declaracao() {
   const exclusiva = rendimentos.filter(r => r.linha === '10')
   const darf = [...rv.comum, ...rv.fii].reduce((s, l) => s + l.darfPaidCents, 0)
   const sel = bens.find(b => b.ticker === picked) ?? bens[0]
+  const cadTickers = useMemo(() => [...new Set([...data.trades.map(t => t.ticker), ...data.dividends.map(d => d.ticker)])].sort().map(ticker => ({ ticker, cls: types.get(ticker) ?? '' })), [data.trades, data.dividends, types])
 
   const todas = bens.map(b => `${b.ticker} (${BEM_CODES[b.assetType].grupo}/${BEM_CODES[b.assetType].codigo})\n${discriminacao(b, year, issuerOf(b), brokers)}`).join('\n\n')
   const tabs: [Tab, string][] = [['bens', 'Bens e Direitos'], ['rendimentos', 'Rendimentos'], ['rv', 'Renda variável'], ['cadastro', 'Cadastro']]
@@ -136,7 +140,7 @@ export function Declaracao() {
       {tab === 'rv' && <RendaVariavel rv={rv} year={year} />}
       {tab === 'cadastro' && (
         <Cadastro issuers={issuers} brokers={brokers} pending={pend} onChanged={reloadCad}
-          tickers={[...new Map([...data.trades.map(t => [t.ticker, t.assetType] as const), ...data.dividends.map(d => [d.ticker, data.trades.find(t => t.ticker === d.ticker)?.assetType ?? ''] as const)]).entries()].map(([ticker, cls]) => ({ ticker, cls })).sort((a, b) => a.ticker.localeCompare(b.ticker))}
+          tickers={cadTickers}
           brokerCodes={[...new Set(data.trades.map(t => t.broker))].sort()} />
       )}
     </>

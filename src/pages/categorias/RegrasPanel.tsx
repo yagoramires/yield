@@ -95,6 +95,8 @@ export function RegrasPanel() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const sug = ruleSuggestions(data.txns, data.overrides, data.rules, data.ruleSuggestionsDismissed)[0]
+  // a regra vale para todo lançamento com o trecho, não só os que você escolheu à mão: mostra o alcance antes de criar
+  const reach = sug ? rulePreview(sug.pattern, data.txns, {}, () => null)?.count ?? 0 : 0
   const sugCat = sug ? data.categories.find(c => c.id === sug.categoryId) : undefined
 
   // Criar a regra apaga as escolhas à mão que ela substitui, igual ao "fazer isso sempre" de Lançamentos.
@@ -120,7 +122,7 @@ export function RegrasPanel() {
         {sug && sugCat && (
           <div className="rule-sug">
             <CategoryIcon category={sugCat} size={26} />
-            <div className="lmid"><div><code>{sug.pattern}</code> → {sugCat.name}?</div><div className="muted">você escolheu isso à mão {sug.count} vezes</div></div>
+            <div className="lmid"><div><code>{sug.pattern}</code> → {sugCat.name}?</div><div className="muted">você escolheu isso à mão {sug.count} vezes · a regra pegaria {plural(reach, 'compra', 'compras')}</div></div>
             <button className="b" disabled={busy} onClick={() => void refuse()}>Não</button>
             <button className="b pri" disabled={busy} onClick={() => void accept()}>Criar</button>
           </div>

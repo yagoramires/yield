@@ -14,6 +14,10 @@ describe('formatCnpj', () => {
     expect(formatCnpj('11222333000181')).toBe(A)
     expect(formatCnpj(' 11.222.333/0001-81 ')).toBe(A)
   })
+  test('aceita o CNPJ alfanumérico (letras nas 12 primeiras posições), em maiúsculas', () => {
+    expect(formatCnpj('12abc34501de35')).toBe('12.ABC.345/01DE-35')
+    expect(() => formatCnpj('12.ABC.345/01DE-36')).toThrow('CNPJ inválido')
+  })
   test('recusa dígito verificador errado, tamanho errado e vazio', () => {
     for (const bad of ['11.222.333/0001-82', '1122233300018', '', '00.000.000/0000-00', '11111111111111']) expect(() => formatCnpj(bad)).toThrow('CNPJ inválido: confira os 14 números')
   })

@@ -27,6 +27,12 @@ describe('bensDoAno', () => {
     const bens = bensDoAno([tr('VELH3', 'C', 50, 1000, '2024-03-01', { broker: 'BETA' })], ev, 2025)
     expect(bens.map(b => [b.ticker, b.oldTickers, b.qtyPrev, b.qty, b.costCents, b.brokers])).toEqual([['NOVA3', ['VELH3'], 50, 50, 50000, ['BETA']]])
   })
+  it('desdobramento entra no saldo de cada corretora na proporção', () => {
+    const ev: CorporateEvent[] = [{ id: 'e1', kind: 'desdobramento', ticker: 'AAAA3', date: '2025-03-01', qtyDelta: 900 }]
+    const bens = bensDoAno([tr('AAAA3', 'C', 100, 1000, '2025-01-10', { broker: 'ALFA' }), tr('AAAA3', 'C', 10, 100, '2025-04-01', { broker: 'BETA' }), tr('AAAA3', 'V', 10, 100, '2025-04-02', { broker: 'BETA' }),
+      tr('AAAA3', 'V', 500, 100, '2025-05-10', { broker: 'ALFA' })], ev, 2025)
+    expect(bens.map(b => [b.qty, b.brokers])).toEqual([[500, ['ALFA']]])
+  })
   it('corretoras pelo saldo de cada uma; sem saldo, as que negociaram', () => {
     const bens = bensDoAno([
       tr('AAAA3', 'C', 10, 1000, '2025-01-10', { broker: 'ALFA' }), tr('AAAA3', 'C', 10, 1000, '2025-01-11', { broker: 'BETA' }), tr('AAAA3', 'V', 10, 1000, '2025-02-11', { broker: 'BETA' }),

@@ -3,12 +3,12 @@ import { useState } from 'react'
 import type { Category, Txn } from '../db/gastosRepo'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
-import { useData } from '../state/DataProvider'
+import { todayISO, useData } from '../state/DataProvider'
 import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
 import { barInfo, budgetByCategory, monthDelta, spentByCategory } from './categorias/build'
 import { CategoriaPanel } from './categorias/CategoriaPanel'
 import { RegrasPanel } from './categorias/RegrasPanel'
-import { NO_FILTER } from './lancamentos/build'
+import { cutToDay, NO_FILTER } from './lancamentos/build'
 import { GastosHeader, monthName } from './lancamentos/GastosHeader'
 
 type Side = { mode: 'regras' } | { mode: 'editar'; id: string } | { mode: 'criar' }
@@ -27,9 +27,12 @@ export function Categorias({ onOpenLancamentos }: { onOpenLancamentos(): void })
   const prev = addMonths(month, -1)
   const prevShort = monthName(prev).slice(0, 3).toLowerCase()
   const rows = spentByCategory(data.txns, data.accounts, cat, data.categories, month)
-  const before = new Map(spentByCategory(data.txns, data.accounts, cat, data.categories, prev).map(r => [r.category?.id ?? null, r.cents]))
+  // no mês atual, o anterior entra só até o mesmo dia; senão o mês pela metade pareceria sempre mais barato
+  const today = todayISO()
+  const prevTxns = month === monthOf(today) ? cutToDay(data.txns, prev, Number(today.slice(8, 10))) : data.txns
+  const before = new Map(spentByCategory(prevTxns, data.accounts, cat, data.categories, prev).map(r => [r.category?.id ?? null, r.cents]))
   const spent = monthTotals(data.txns, data.accounts, cat, month).spentCents
-  const spentBefore = monthTotals(data.txns, data.accounts, cat, prev).spentCents
+  const spentBefore = monthTotals(prevTxns, data.accounts, cat, prev).spentCents
   const budget = budgetByCategory(orcamento.data.lines, month)
   const isSem = (t: Txn) => monthOf(t.date) === month && t.amountCents < 0 && cat(t) === null
   const sem = { cents: rows.find(r => !r.category)?.cents ?? 0, count: data.txns.filter(isSem).length }

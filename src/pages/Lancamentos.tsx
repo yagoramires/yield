@@ -59,7 +59,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
     const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
     const between = tr && `${tr.outgoing ? 'para' : 'de'} ${shortAccountLabel(accounts.get(tr.otherAccountId))}, entre suas contas`
     const auto = !rule && !between && !data.overrides[t.fingerprint]
-    const company = auto && c?.id === 'receita' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
+    const company = auto && c?.id === 'receita' && accounts.get(t.accountId)?.kind === 'conta' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
     const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
     const { name, via } = cleanDescription(t.description)
     const meta = [via, shortAccountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
