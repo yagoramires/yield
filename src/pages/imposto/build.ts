@@ -1,0 +1,62 @@
+// Lógica pura da tela de Imposto: agrupamento por ano, saldo de IRRF de dezembro, avisos e validação do pagamento.
+import type { DarfRow } from '../../domain/darf'
+import type { TaxMonth } from '../../domain/tax'
+import type { Cents, DarfPayment, ISODate, Month, Warning } from '../../domain/types'
+import { parseDate, parseMoney } from '../notas/build'
+
+export interface ImpostoRow { tax: TaxMonth; darf: DarfRow }
+export interface PaymentForm { paidAt: string; principal: string; total: string }
+
+const desc = <T>(xs: T[], key: (x: T) => string) => [...xs].sort((a, b) => (key(a) < key(b) ? 1 : -1))
+
+// tax e darfs vêm alinhados por mês (computeDarfs mapeia derived.tax 1:1).
+export function groupByYear(tax: TaxMonth[], darfs: DarfRow[]): { year: string; rows: ImpostoRow[] }[] {
+  const byMonth = new Map(darfs.map(d => [d.month, d]))
+  const by = new Map<string, ImpostoRow[]>()
+  for (const t of tax) {
+    const d = byMonth.get(t.month)
+    if (d) by.set(t.month.slice(0, 4), [...(by.get(t.month.slice(0, 4)) ?? []), { tax: t, darf: d }])
+  }
+  return desc([...by].map(([year, rows]) => ({ year, rows: desc(rows, r => r.tax.month) })), g => g.year)
+}
+
+// Saldo de IRRF que sobrou em dezembro (comum + FII): vai para a declaração. Só anos que têm dezembro apurado.
+export const irrfToDeclare = (tax: TaxMonth[]): { year: string; cents: Cents }[] =>
+  desc(tax.filter(t => t.month.endsWith('-12')).map(t => ({ year: t.month.slice(0, 4), cents: t.comum.irrfCarryOutCents + t.fii.irrfCarryOutCents })), x => x.year)
+
+export function lastDayOfMonth(m: Month): ISODate {
+  const [y, mo] = m.split('-').map(Number)
+  return `${m}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0')}`
+}
+
+export const dayTradeMonths = (ws: Warning[]): Set<Month> =>
+  new Set(ws.filter(w => w.kind === 'day_trade').map(w => w.date.slice(0, 7)))
+
+// Avisos do mês que explicam o "incompleto": venda maior que a posição e evento sem posição.
+export const incompleteWarnings = (ws: Warning[], m: Month): Warning[] =>
+  ws.filter(w => (w.kind === 'venda_maior_que_posicao' || w.kind === 'evento_sem_posicao') && w.date.startsWith(m))
+
+export function buildPayment(month: Month, f: PaymentForm): DarfPayment {
+  const paidAt = parseDate(f.paidAt, 'Data do pagamento')
+  const principalCents = parseMoney(f.principal, 'Principal')
+  const totalPaidCents = parseMoney(f.total, 'Total pago')
+  if (totalPaidCents < principalCents) throw new Error('Total pago: não pode ser menor que o principal.')
+  return { month, paidAt, principalCents, totalPaidCents }
+}
+
+const isOpen = (r: DarfRow) => r.status === 'em_aberto' || r.status === 'pago_a_menor'
+// Mesma regra de computeDarfs: openCents exclui meses incompletos, openIncompleteCents só conta eles.
+export const openCounts = (rows: DarfRow[]) => ({
+  complete: rows.filter(r => isOpen(r) && !r.incomplete).length,
+  incomplete: rows.filter(r => isOpen(r) && r.incomplete).length,
+})
+
+// Prejuízo comum e de FII nunca se compensam entre si: sempre separados (positivos).
+export const lossCarry = (t: TaxMonth): { comum: Cents; fii: Cents } => ({ comum: Math.abs(t.comum.lossOutCents), fii: Math.abs(t.fii.lossOutCents) })
+
+// Mês isento = o lucro de ações foi isentado (vendas <= R$ 20 mil e lucro > 0, ver computeTax).
+export const exemptSales = (tax: TaxMonth[], year: string): Cents =>
+  tax.filter(t => t.month.startsWith(year) && t.comum.exemptProfitCents > 0).reduce((a, t) => a + t.stockSalesCents, 0)
+
+export const isEmptyMonth = (r: ImpostoRow): boolean =>
+  r.tax.stockSalesCents === 0 && r.tax.comum.resultCents === 0 && r.tax.fii.resultCents === 0 && r.darf.darfCents === 0 && !r.darf.payment

@@ -1,0 +1,283 @@
+<style>
+.y{font-family:-apple-system,"SF Pro Display",Inter,"Segoe UI",sans-serif;background:#0b0c0d;color:#d6d8dd;border-radius:14px;overflow:hidden;display:flex;min-height:520px;font-size:12px;line-height:1.35}
+.y .sb{width:170px;flex-shrink:0;background:#121315;border-right:1px solid #26282e;padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.y .logo{font-weight:700;font-size:15px;color:#fff;margin:0 6px 14px}.y .logo b{color:#c6ff3d}
+.y .grp{margin-top:8px;padding:4px 8px;color:#d6d8dd;font-weight:600}.y .grp.on{color:#c6ff3d}
+.y .sub{padding:5px 8px 5px 22px;border-radius:6px;color:#5d6068;font-size:11px}.y .sub.on{color:#d6d8dd;background:#1a1b1f}
+.y .sub small{font-size:9px;margin-left:4px}
+.y .main{flex:1;padding:18px 22px;min-width:0}
+.y h4{margin:0 0 2px;color:#fff;font-size:17px}.y h5{margin:16px 0 8px;color:#d6d8dd;font-size:12px;font-weight:600}
+.y .muted{color:#5d6068;font-size:11px}.y .t2{color:#8a8d96}
+.y .bar{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.y .btns{display:flex;gap:6px}
+.y .b{border:1px solid #26282e;background:#1a1b1f;color:#d6d8dd;border-radius:7px;padding:5px 9px;font-size:11px;white-space:nowrap}
+.y .b.pri{background:#c6ff3d;color:#0b0c0d;border-color:#c6ff3d;font-weight:600}
+.y .b.ghost{background:none}
+.y .kpis{display:flex;gap:10px;margin:14px 0}
+.y .k{flex:1;background:#1a1b1f;border:1px solid #26282e;border-radius:10px;padding:10px}
+.y .k .v{font-size:16px;color:#fff;font-weight:600;margin-top:4px}.y .k .s{font-size:11px;margin-top:2px}
+.y .up{color:#c6ff3d}.y .dn{color:#ff6b6b}
+.y table{width:100%;border-collapse:collapse}.y td,.y th{padding:6px 5px;border-bottom:1px solid #1a1b1f;text-align:left;white-space:nowrap}
+.y th{color:#5d6068;font-weight:500;font-size:10px;text-transform:uppercase}.y .r{text-align:right}
+.y tr.cls td{color:#8a8d96;font-weight:600;background:#121315;border-bottom:1px solid #26282e}
+.y .pill{display:inline-block;border-radius:20px;padding:2px 8px;font-size:10px;border:1px solid #26282e;color:#8a8d96}
+.y .pill.ok{color:#c6ff3d;border-color:#2c3a14;background:#1c2410}.y .pill.bad{color:#ff6b6b;border-color:#4a2224;background:#2a1414}
+.y .pill.warn{color:#ffcf5c;border-color:#4a3c14;background:#241e0c}
+.y .tag{font-size:9px;color:#5d6068;border:1px solid #26282e;border-radius:4px;padding:1px 4px}
+.y .card{background:#121315;border:1px solid #26282e;border-radius:10px;padding:12px}
+.y .note{background:#241e0c;border:1px solid #4a3c14;color:#ffcf5c;border-radius:8px;padding:8px 10px;font-size:11px}
+.y .info{background:#121315;border:1px solid #26282e;color:#8a8d96;border-radius:8px;padding:8px 10px;font-size:11px}
+.y .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.y .field{display:flex;flex-direction:column;gap:3px}.y .field span{font-size:10px;color:#5d6068}
+.y .in{background:#0b0c0d;border:1px solid #26282e;border-radius:6px;padding:5px 7px;color:#d6d8dd;font-size:11px}
+.y .in.need{border-color:#ffcf5c}
+.y .row{display:flex;gap:8px;flex-wrap:wrap}
+.y tr.hl td{background:#2a1414}
+.y .chip{border:1px solid #26282e;border-radius:20px;padding:3px 9px;font-size:11px;color:#8a8d96}.y .chip.on{color:#0b0c0d;background:#d6d8dd;border-color:#d6d8dd}
+.y .sec{border-top:1px solid #26282e;padding-top:12px;margin-top:14px}
+.ap{margin:10px 0 34px}
+</style>
+
+<h2>Telas de Investimentos: fase 1</h2>
+<p class="subtitle">Cinco telas no tema Grafite, todas com números fictícios. Embaixo de cada uma, clique em <b>Aprovar</b> ou em <b>Quero ajustes</b>. Os ajustes você escreve no terminal (ex.: "Carteira: tirar a coluna Custo").</p>
+
+<!-- ============ 1. CARTEIRA ============ -->
+<h3>1 · Carteira</h3>
+<div class="mockup"><div class="mockup-header">Investimentos › Carteira</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo"><b>●</b> Yield</div>
+    <div class="grp">Últimos gastos</div><div class="sub">Lançamentos<small>em breve</small></div><div class="sub">Assinaturas<small>em breve</small></div><div class="sub">Categorias<small>em breve</small></div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp on">Investimentos</div><div class="sub on">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar"><div><h4>Carteira</h4><div class="muted">Cotações do Yahoo de 26/10 às 14:32 (atraso de ~15 min) · atualiza a cada 15 min</div></div>
+      <div class="btns"><span class="b ghost">↻ Atualizar cotações</span><span class="b">+ Ativo manual</span></div></div>
+    <div class="kpis">
+      <div class="k"><div class="muted">Patrimônio</div><div class="v">R$ 184.230,55</div><div class="s muted">custo R$ 163.910,20</div></div>
+      <div class="k"><div class="muted">Resultado</div><div class="v up">+R$ 20.320,35</div><div class="s up">+12,4%</div></div>
+      <div class="k"><div class="muted">Proventos 12 meses</div><div class="v">R$ 6.912,40</div><div class="s muted">média R$ 576/mês</div></div>
+    </div>
+    <div class="bar" style="margin-bottom:6px"><div class="row"><span class="chip on">Agrupar por classe</span><span class="chip">Lista única</span></div><span class="muted">Ordenar: valor atual ↓</span></div>
+    <table>
+      <tr><th>Ativo</th><th class="r">Qtd</th><th class="r">Preço médio</th><th class="r">Custo</th><th class="r">Cotação</th><th class="r">Valor atual</th><th class="r">Var. R$</th><th class="r">Var. %</th></tr>
+      <tr class="cls"><td>Ação · 41%</td><td></td><td></td><td class="r">68.420,00</td><td></td><td class="r">75.610,30</td><td class="r up">+7.190,30</td><td class="r up">+10,5%</td></tr>
+      <tr><td>ITSA4</td><td class="r">3.200</td><td class="r">9,85</td><td class="r">31.520,00</td><td class="r">10,92</td><td class="r">34.944,00</td><td class="r up">+3.424,00</td><td class="r up">+10,9%</td></tr>
+      <tr><td>BBAS3</td><td class="r">1.400</td><td class="r">26,36</td><td class="r">36.900,00</td><td class="r">29,05</td><td class="r">40.666,30</td><td class="r up">+3.766,30</td><td class="r up">+10,2%</td></tr>
+      <tr class="cls"><td>FII · 32%</td><td></td><td></td><td class="r">61.310,20</td><td></td><td class="r">59.344,00</td><td class="r dn">−1.966,20</td><td class="r dn">−3,2%</td></tr>
+      <tr><td>HGLG11</td><td class="r">250</td><td class="r">158,20</td><td class="r">39.550,00</td><td class="r">164,10</td><td class="r">41.025,00</td><td class="r up">+1.475,00</td><td class="r up">+3,7%</td></tr>
+      <tr><td>MXRF11</td><td class="r">1.900</td><td class="r">11,45</td><td class="r">21.760,20</td><td class="r">9,64</td><td class="r">18.319,00</td><td class="r dn">−3.441,20</td><td class="r dn">−15,8%</td></tr>
+      <tr class="cls"><td>ETF · 9%</td><td></td><td></td><td class="r">11.920,00</td><td></td><td class="r">16.390,00</td><td class="r up">+4.470,00</td><td class="r up">+37,5%</td></tr>
+      <tr><td>IVVB11</td><td class="r">48</td><td class="r">248,33</td><td class="r">11.920,00</td><td class="r">341,46</td><td class="r">16.390,00</td><td class="r up">+4.470,00</td><td class="r up">+37,5%</td></tr>
+    </table>
+    <h5>Ativos manuais <span class="muted">· valor que você informa, ou quantidade × cotação</span></h5>
+    <table>
+      <tr><th>Ativo</th><th>Classe</th><th class="r">Qtd</th><th class="r">Cotação</th><th class="r">Valor</th><th>Atualizado</th><th></th></tr>
+      <tr><td>Tesouro Selic 2029</td><td class="t2">Renda fixa</td><td class="r t2">—</td><td class="r t2">—</td><td class="r">22.300,00</td><td class="t2">01/10/2026 <span class="tag">à mão</span></td><td class="r t2">editar</td></tr>
+      <tr><td>Dólar</td><td class="t2">Dólar</td><td class="r">1.000</td><td class="r">5,62</td><td class="r">5.620,00</td><td class="t2">26/10 14:32 <span class="tag">Yahoo</span></td><td class="r t2">editar</td></tr>
+      <tr><td>BTC</td><td class="t2">Cripto</td><td class="r">0,0089</td><td class="r">560.700,00</td><td class="r">4.966,25</td><td class="t2">26/10 14:32 <span class="tag">Yahoo</span></td><td class="r t2">editar</td></tr>
+    </table>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="carteira-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Carteira</h3></div></div><div class="option" data-choice="carteira-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 2. NOTAS ============ -->
+<h3>2 · Notas</h3>
+<p class="subtitle">Lista à esquerda; à direita, o que abre ao clicar. Mostro três estados do painel da direita: nota manual, rascunho lido do PDF e eventos.</p>
+<div class="mockup"><div class="mockup-header">Investimentos › Notas: editar nota</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo"><b>●</b> Yield</div>
+    <div class="grp">Últimos gastos</div><div class="sub">Lançamentos<small>em breve</small></div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp on">Investimentos</div><div class="sub">Carteira</div><div class="sub on">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar"><h4>Notas</h4><div class="btns"><span class="b pri">+ Nota</span><span class="b">Importar PDF da Clear</span><span class="b">Operação sem nota</span><span class="b">Evento corporativo</span></div></div>
+    <div style="display:grid;grid-template-columns:240px 1fr;gap:14px;margin-top:12px">
+      <div>
+        <div class="row" style="margin-bottom:8px"><span class="chip on">Notas</span><span class="chip">Eventos</span></div>
+        <table>
+          <tr><th>Pregão</th><th>Nº</th><th>Corretora</th><th class="r">Líquido</th></tr>
+          <tr style="background:#1a1b1f"><td>14/10/26</td><td>8812</td><td>CLEAR <span class="tag">PDF</span></td><td class="r dn">−4.120,51</td></tr>
+          <tr><td>02/10/26</td><td>8790</td><td>CLEAR <span class="tag">manual</span></td><td class="r up">+2.903,66</td></tr>
+          <tr><td>19/09/26</td><td>—</td><td>INTER <span class="tag">sem nota</span></td><td class="r dn">−980,00</td></tr>
+          <tr><td>05/09/26</td><td>8701</td><td>CLEAR <span class="tag">planilha</span></td><td class="r dn">−1.640,40</td></tr>
+          <tr><td>22/08/26</td><td>8655</td><td>BTG <span class="tag">planilha</span></td><td class="r dn">−6.002,18</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <div class="bar"><b style="color:#fff">Nota 8812 · CLEAR</b><span class="muted">editar = apagar e salvar de novo; o histórico é recalculado</span></div>
+        <div class="row" style="margin:10px 0">
+          <label class="field"><span>Nº da nota</span><span class="in">8812</span></label>
+          <label class="field"><span>Corretora</span><span class="in">CLEAR</span></label>
+          <label class="field"><span>Pregão</span><span class="in">14/10/2026</span></label>
+          <label class="field"><span>Liquidação</span><span class="in">16/10/2026</span></label>
+        </div>
+        <table>
+          <tr><th>C/V</th><th>Tipo</th><th>Ticker</th><th class="r">Qtd</th><th class="r">Preço</th><th class="r">Total</th><th class="r">Taxa rateada</th></tr>
+          <tr><td>C</td><td>Ação</td><td>ITSA4</td><td class="r">200</td><td class="r">10,80</td><td class="r">2.160,00</td><td class="r t2">0,62</td></tr>
+          <tr><td>C</td><td>FII</td><td>HGLG11</td><td class="r">12</td><td class="r">163,20</td><td class="r">1.958,40</td><td class="r t2">0,56</td></tr>
+          <tr><td colspan="7" class="t2">+ adicionar item</td></tr>
+        </table>
+        <h5>Taxas da nota <span class="muted">· rateadas pelo valor de cada item</span></h5>
+        <div class="row">
+          <label class="field"><span>Liquidação</span><span class="in">1,02</span></label><label class="field"><span>Registro</span><span class="in">0,00</span></label>
+          <label class="field"><span>Emolumentos</span><span class="in">0,16</span></label><label class="field"><span>Operacional</span><span class="in">0,00</span></label>
+          <label class="field"><span>ISS</span><span class="in">0,00</span></label><label class="field"><span>IRRF</span><span class="in">0,00</span></label><label class="field"><span>Outros</span><span class="in">0,00</span></label>
+        </div>
+        <div class="bar" style="margin-top:12px"><span class="t2">Líquido: <b style="color:#ff6b6b">−4.120,51</b> para 16/10/2026</span><div class="btns"><span class="b ghost dn">Excluir…</span><span class="b">Cancelar</span><span class="b pri">Salvar</span></div></div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+
+<div class="split" style="margin-top:12px">
+<div class="mockup"><div class="mockup-header">Rascunho lido do PDF: confira antes de salvar</div><div class="mockup-body" style="padding:0">
+<div class="y" style="min-height:0"><div class="main">
+  <div class="bar"><b style="color:#fff">nota_clear_out.pdf · 2 notas encontradas</b><span class="muted">1 de 2</span></div>
+  <div class="note" style="margin:10px 0">2 especificações sem ticker conhecido. Escolha o ticker uma vez; o Yield lembra nas próximas notas.</div>
+  <div class="muted" style="margin-bottom:6px">Nota 9034 · CLEAR · pregão 21/10/2026 · liquidação 23/10/2026</div>
+  <table>
+    <tr><th>C/V</th><th>Especificação no PDF</th><th>Ticker</th><th class="r">Qtd</th><th class="r">Preço</th></tr>
+    <tr><td>C</td><td class="t2">ITAUSA PN N1</td><td><span class="in need">ITSA4 ▾</span> <span class="tag">lembrar</span></td><td class="r">300</td><td class="r">10,95</td></tr>
+    <tr><td>V</td><td class="t2">BRASIL ON NM</td><td><span class="in need">escolha… ▾</span></td><td class="r">100</td><td class="r">29,40</td></tr>
+    <tr><td>C</td><td class="t2">FII CSHG LOG HGLG11 CI</td><td>HGLG11 <span class="tag">FII</span></td><td class="r">5</td><td class="r">164,00</td></tr>
+  </table>
+  <div class="muted" style="margin-top:8px">Taxas lidas: liquidação 0,96 · emolumentos 0,15 · IRRF 0,14 · confere com o líquido ✓</div>
+  <div class="bar" style="margin-top:10px"><span class="muted">Nota já cadastrada é pulada (mesma corretora, nº e data).</span><div class="btns"><span class="b">Descartar</span><span class="b pri">Salvar nota</span></div></div>
+</div></div></div></div>
+
+<div class="mockup"><div class="mockup-header">Eventos corporativos e operação sem nota</div><div class="mockup-body" style="padding:0">
+<div class="y" style="min-height:0"><div class="main">
+  <table>
+    <tr><th>Data</th><th>Evento</th><th>Ativo</th><th class="r">Qtd</th><th>Origem</th></tr>
+    <tr><td>20/04/26</td><td>Bonificação</td><td>ITSA4</td><td class="r up">+160</td><td><span class="pill warn">informar custo</span></td></tr>
+    <tr><td>02/05/26</td><td>Desdobramento</td><td>BBAS3</td><td class="r up">+700</td><td><span class="tag">B3</span></td></tr>
+    <tr><td>11/03/25</td><td>Mudança de ticker</td><td>BIDI11 → INBR32</td><td class="r t2">—</td><td><span class="tag">manual</span></td></tr>
+  </table>
+  <div class="card" style="margin-top:12px">
+    <b style="color:#fff">Novo evento</b>
+    <div class="row" style="margin-top:8px">
+      <label class="field"><span>Tipo</span><span class="in">Bonificação ▾</span></label>
+      <label class="field"><span>Ativo</span><span class="in">ITSA4</span></label>
+      <label class="field"><span>Data</span><span class="in">20/04/2026</span></label>
+      <label class="field"><span>Qtd recebida</span><span class="in">160</span></label>
+      <label class="field"><span>Custo unitário (do comunicado)</span><span class="in need">R$ —</span></label>
+    </div>
+    <div class="muted" style="margin-top:8px">Outros tipos: desdobramento, grupamento, mudança de ticker, subscrição, IPO.</div>
+  </div>
+  <div class="info" style="margin-top:12px"><b>Operação sem nota</b>: compra ou venda sem nota de corretagem (ex.: transferência entre corretoras). Abre o mesmo formulário da nota, sem nº e sem taxas.</div>
+</div></div></div></div>
+</div>
+<div class="options ap"><div class="option" data-choice="notas-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Notas</h3></div></div><div class="option" data-choice="notas-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 3. PROVENTOS ============ -->
+<h3>3 · Proventos</h3>
+<div class="mockup"><div class="mockup-header">Investimentos › Proventos</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo"><b>●</b> Yield</div>
+    <div class="grp">Últimos gastos</div><div class="sub">Lançamentos<small>em breve</small></div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp on">Investimentos</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub on">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar"><h4>Proventos</h4><div class="btns"><span class="b">Importar extrato da B3</span><span class="b pri">+ Provento</span></div></div>
+    <div class="kpis">
+      <div class="k"><div class="muted">2026 (até out)</div><div class="v">R$ 5.840,12</div></div>
+      <div class="k"><div class="muted">2025</div><div class="v">R$ 6.204,77</div></div>
+      <div class="k"><div class="muted">2024</div><div class="v">R$ 4.911,30</div></div>
+      <div class="k"><div class="muted">2023</div><div class="v">R$ 3.388,05</div></div>
+    </div>
+    <div class="row" style="margin-bottom:10px"><span class="in">Ticker: todos ▾</span><span class="chip on">Todos</span><span class="chip">Dividendo</span><span class="chip">JCP</span><span class="chip">Rendimento</span><span class="in">Ano: 2026 ▾</span></div>
+    <table>
+      <tr class="cls"><td>Outubro de 2026</td><td></td><td></td><td></td><td class="r">612,40</td></tr>
+      <tr><td>14/10</td><td>HGLG11</td><td class="t2">Rendimento</td><td><span class="tag">B3</span></td><td class="r">275,00</td></tr>
+      <tr><td>14/10</td><td>MXRF11</td><td class="t2">Rendimento</td><td><span class="tag">B3</span></td><td class="r">190,00</td></tr>
+      <tr><td>01/10</td><td>ITSA4</td><td class="t2">JCP</td><td><span class="tag">B3</span></td><td class="r">147,40</td></tr>
+      <tr class="cls"><td>Setembro de 2026</td><td></td><td></td><td></td><td class="r">530,10</td></tr>
+      <tr><td>15/09</td><td>HGLG11</td><td class="t2">Rendimento</td><td><span class="tag">B3</span></td><td class="r">275,00</td></tr>
+      <tr><td>01/09</td><td>BBAS3</td><td class="t2">Dividendo</td><td><span class="tag">planilha</span></td><td class="r">255,10</td></tr>
+    </table>
+    <div class="muted" style="margin-top:8px">Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="proventos-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Proventos</h3></div></div><div class="option" data-choice="proventos-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 4. IMPOSTO ============ -->
+<h3>4 · Imposto</h3>
+<div class="mockup"><div class="mockup-header">Investimentos › Imposto</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo"><b>●</b> Yield</div>
+    <div class="grp">Últimos gastos</div><div class="sub">Lançamentos<small>em breve</small></div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp on">Investimentos</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub on">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar"><div><h4>Imposto</h4><div class="muted">Cobre só renda variável na B3 (ações, FIIs, ETFs, BDRs). Day trade não é calculado: aparece como aviso.</div></div><span class="in">Ano: 2026 ▾</span></div>
+    <div class="kpis">
+      <div class="k" style="border-color:#4a2224"><div class="muted">DARF em aberto</div><div class="v dn">R$ 182,40</div><div class="s muted">2 meses vencidos · código 6015</div></div>
+      <div class="k"><div class="muted">Prejuízo a compensar</div><div class="v">R$ 1.240,00</div><div class="s muted">comum R$ 0,00 · FII R$ 1.240,00</div></div>
+      <div class="k"><div class="muted">Vendas de ações isentas em 2026</div><div class="v">R$ 54.300,00</div><div class="s muted">meses abaixo de R$ 20 mil</div></div>
+    </div>
+    <table>
+      <tr><th>Mês</th><th class="r">Vendas ações</th><th class="r">Resultado comum</th><th class="r">Isento</th><th class="r">Resultado FII</th><th class="r">IR devido</th><th class="r">IRRF</th><th class="r">DARF</th><th>Vence</th><th>Situação</th><th></th></tr>
+      <tr><td>Out/26</td><td class="r">8.400,00</td><td class="r up">+620,00</td><td class="r">620,00</td><td class="r">—</td><td class="r">0,00</td><td class="r">0,42</td><td class="r t2">—</td><td class="t2">—</td><td><span class="pill">sem imposto</span></td><td></td></tr>
+      <tr><td>Set/26</td><td class="r">31.200,00</td><td class="r up">+1.100,00</td><td class="r">—</td><td class="r">—</td><td class="r">165,00</td><td class="r">1,56</td><td class="r">163,44</td><td>30/10/26</td><td><span class="pill">a vencer</span></td><td class="r"><span class="b">Marcar como pago</span></td></tr>
+      <tr class="hl"><td>Ago/26</td><td class="r">26.000,00</td><td class="r up">+850,00</td><td class="r">—</td><td class="r">—</td><td class="r">127,50</td><td class="r">1,30</td><td class="r dn">126,20</td><td class="dn">30/09/26</td><td><span class="pill bad">em aberto</span></td><td class="r"><span class="b">Marcar como pago</span></td></tr>
+      <tr class="hl"><td>Jun/26</td><td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r up">+281,00</td><td class="r">56,20</td><td class="r">0,00</td><td class="r dn">56,20</td><td class="dn">31/07/26</td><td><span class="pill bad">em aberto</span> <span class="pill warn">incompleto</span></td><td class="r"><span class="b">Marcar como pago</span></td></tr>
+      <tr><td>Mai/26</td><td class="r">22.100,00</td><td class="r up">+44,00</td><td class="r">—</td><td class="r">—</td><td class="r">6,60</td><td class="r">1,10</td><td class="r t2">—</td><td class="t2">—</td><td><span class="pill">acumulado (&lt; R$ 10)</span></td><td></td></tr>
+      <tr><td>Mar/26</td><td class="r">40.500,00</td><td class="r up">+2.300,00</td><td class="r">—</td><td class="r">—</td><td class="r">345,00</td><td class="r">2,03</td><td class="r">342,97</td><td>30/04/26</td><td><span class="pill ok">pago 28/04</span></td><td class="r t2">desfazer</td></tr>
+      <tr><td>Fev/26</td><td class="r">25.000,00</td><td class="r up">+700,00</td><td class="r">—</td><td class="r">—</td><td class="r">105,00</td><td class="r">1,25</td><td class="r">103,75</td><td>31/03/26</td><td><span class="pill warn">pago a menor: falta 3,75</span></td><td class="r"><span class="b">Complementar</span></td></tr>
+    </table>
+    <div class="note" style="margin-top:10px">Jun/26 incompleto: venda de XPTO11 maior que a posição registrada. Falta uma compra ou um evento corporativo, e o valor pode estar errado.</div>
+    <div class="info" style="margin-top:8px">Marcar como pago pede a data e o valor pago (principal; multa e juros à parte, se pagou atrasado).</div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="imposto-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Imposto</h3></div></div><div class="option" data-choice="imposto-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 5. CONFIGURAÇÕES ============ -->
+<h3>5 · Configurações</h3>
+<div class="mockup"><div class="mockup-header">Sistema › Configurações</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo"><b>●</b> Yield</div>
+    <div class="grp">Últimos gastos</div><div class="sub">Lançamentos<small>em breve</small></div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual<small>em breve</small></div>
+    <div class="grp">Investimentos</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp on">Sistema</div><div class="sub on">Configurações</div>
+  </div>
+  <div class="main">
+    <h4>Configurações</h4><div class="muted">Tudo fica neste computador. Nada é enviado para servidor; só as cotações vêm do Yahoo.</div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="card">
+        <b style="color:#fff">Importar planilha antiga</b><div class="muted" style="margin:4px 0 10px">Controle de Investimentos.xlsm · pode importar de novo: o que já existe é pulado</div>
+        <span class="b pri">Escolher arquivo…</span>
+        <div class="info" style="margin-top:10px">Última importação (26/10/2026)<br>214 notas · 3 já existiam · 412 proventos · 2 ativos manuais<br><span style="color:#ffcf5c">Avisos:</span> HGLG11 aparece como FII e ETF (usei FII) · 4 linhas sem data ignoradas · Dólar e BTC: lance a quantidade em Carteira › Ativos manuais</div>
+      </div>
+      <div class="card">
+        <b style="color:#fff">Importar extrato da B3</b><div class="muted" style="margin:4px 0 10px">Movimentação (.xlsx) baixada da Área do Investidor</div>
+        <span class="b pri">Escolher arquivo…</span>
+        <div class="info" style="margin-top:10px">Última importação<br>38 proventos · 12 substituíram os da planilha · 5 já existiam<br>Eventos aplicados: ITSA4 bonificação +160 (20/04) · BBAS3 desdobramento +700 (02/05)<br><span style="color:#ffcf5c">Revise e lance à mão:</span> Amortização HGLG11 (10/06) · Leilão de Fração ITSA4 (25/04)</div>
+      </div>
+      <div class="card">
+        <b style="color:#fff">Backup</b><div class="muted" style="margin:4px 0 10px">Um arquivo .db com todos os seus dados</div>
+        <div class="btns"><span class="b">Exportar backup…</span><span class="b">Importar backup…</span></div>
+        <div class="note" style="margin-top:10px">Importar backup substitui todos os dados atuais. Antes, o Yield guarda uma cópia de segurança do banco atual. [Cancelar] [Substituir dados]</div>
+      </div>
+      <div class="card">
+        <b style="color:#fff">Cotações</b><div class="muted" style="margin:4px 0 10px">Yahoo Finance, atraso de ~15 min</div>
+        <div class="row"><span class="in">Atualizar a cada 15 min ▾</span><span class="b ghost">↻ Atualizar agora</span></div>
+        <div class="muted" style="margin-top:8px">Última: 26/10 14:32 · 9 ok · 1 falhou (XXXX3)</div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="config-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Configurações</h3></div></div><div class="option" data-choice="config-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>

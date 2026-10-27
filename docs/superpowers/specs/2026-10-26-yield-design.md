@@ -62,6 +62,7 @@ O Yield é um app de desktop local que substitui as duas planilhas e acrescenta 
 12. **Nenhum DARF foi pago.** Todo DARF calculado começa como "em aberto"; não há pagamentos para importar.
 13. **Leitor de PDF de nota: só Clear na v1**, porque são os únicos PDFs que ele tem. O Yago coloca as notas em `yield/notas/` (fora do git) para construir e testar o leitor. XP, BTG e Inter ficam para quando houver amostras; até lá, essas notas entram pelo lançamento manual, que precisa ser rápido.
 14. **Sem day trade.** Não é a intenção dele operar assim; o app não apura day trade nem tem tela para isso.
+15. **Open Finance somente leitura.** A conexão (Pluggy/MeuPluggy) pede só escopos de leitura (contas, cartões, transações, investimentos); nada de iniciação de pagamento ou qualquer permissão que movimente dinheiro. A tela de conexão deixa isso explícito.
 
 ## 7. Escolhas minhas (podem ser vetadas)
 

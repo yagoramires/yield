@@ -1,0 +1,31 @@
+NOTA DE NEGOCIAÇÃO
+Nr. nota Folha Data pregão
+123456 1 05/01/2024
+CLEAR CORRETORA - GRUPO XP
+Cliente: FULANO DE TAL
+Negócios realizados
+Q Negociação C/V Tipo mercado Prazo Especificação do título Obs. (*) Quantidade Preço / Ajuste Valor Operação / Ajuste D/C
+1-BOVESPA C VISTA ITAUSA PN N1 100 10,50 1.050,00 D
+1-BOVESPA C VISTA FII CSHG LOG HGLG11 CI 2 160,00 320,00 D
+Resumo dos Negócios
+Debêntures 0,00
+Vendas à vista 0,00
+Compras à vista 1.370,00
+Valor das operações 1.370,00
+Resumo Financeiro
+Clearing
+Valor líquido das operações 1.370,00 D
+Taxa de liquidação 0,37 D
+Taxa de Registro 0,00 D
+Bolsa
+Taxa de termo/opções 0,00
+Taxa A.N.A. 0,00
+Emolumentos 0,07 D
+Corretora
+Taxa Operacional 0,00 D
+Execução 0,00
+Taxa de Custódia 0,00
+Impostos 0,00
+I.R.R.F. s/ operações, base R$ 0,00 0,00
+Outros 0,00
+Líquido para 09/01/2024 1.370,44 D
