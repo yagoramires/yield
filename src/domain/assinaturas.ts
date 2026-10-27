@@ -9,9 +9,11 @@ const ms = (d: ISODate) => Date.parse(`${d}T00:00:00Z`)
 const iso = (t: number) => new Date(t).toISOString().slice(0, 10)
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
 
-function addYear(d: ISODate): ISODate {
+// soma meses no calendário, limitando ao último dia do mês de destino (31/01 + 1 mês = 28/02)
+function addMonths(d: ISODate, n: number): ISODate {
   const [y, m, day] = d.split('-').map(Number)
-  return iso(Date.UTC(y + 1, m - 1, m === 2 && day === 29 ? 28 : day))
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate()
+  return iso(Date.UTC(y, m - 1 + n, Math.min(day, last)))
 }
 
 export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | null, dismissed: string[], today: ISODate): Subscription[] {
@@ -42,7 +44,7 @@ export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | nul
       monthlyCents: period === 'mensal' ? amountCents : Math.round(amountCents / 12),
       yearlyCents: period === 'mensal' ? amountCents * 12 : amountCents,
       lastDate: last.date,
-      nextDate: period === 'anual' ? addYear(last.date) : iso(ms(last.date) + Math.round(median(intervals)) * DAY),
+      nextDate: addMonths(last.date, period === 'anual' ? 12 : 1),
       active: sinceLast <= (period === 'mensal' ? 45 : 400), charges: g.length,
     })
   }
