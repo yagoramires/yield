@@ -2,7 +2,7 @@ import { utils, write, type CellObject } from 'xlsx'
 
 // Planilha sintética no formato da aba de orçamento mensal: datas na linha 2, rótulos na coluna A,
 // linha "Saldo" com SUM das entradas menos SUM das saídas e bloco PJ em R:S. Rótulos e valores inventados.
-export interface OrcamentoFixture { semAba?: boolean; semSaldo?: boolean; semPj?: boolean; semRotuloPj?: boolean }
+export interface OrcamentoFixture { semAba?: boolean; semSaldo?: boolean; semPj?: boolean; semRotuloPj?: boolean; novaLinha?: boolean; rotuloRepetido?: boolean; inssCelula?: number }
 
 const n = (v: number, f?: string): CellObject => ({ t: 'n', v, f })
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril']
@@ -20,7 +20,12 @@ export function makeOrcamento(o: OrcamentoFixture = {}): ArrayBuffer {
     put(`${c}2`, { t: 'd', v: new Date(Date.UTC(2024, i, 5)) })
   })
   const saldo = [0, 0, 0]
-  const rows = [...ENTRADAS.map(r => ({ r, sign: 1 })), ...SAIDAS.map(r => ({ r, sign: -1 }))]
+  // novaLinha: uma saída nova no meio (linha 6) empurra as demais uma linha para baixo.
+  // rotuloRepetido: "Mercado" passa a se chamar "Aluguel", o mesmo rótulo de outra saída.
+  const shift = o.novaLinha ? 1 : 0
+  const saidas: typeof SAIDAS = [...(o.novaLinha ? [[6, 'Academia', [200, 200, 200]] as typeof SAIDAS[number]] : []),
+    ...SAIDAS.map(([r, l, v]): typeof SAIDAS[number] => [r + shift, o.rotuloRepetido && l === 'Mercado' ? 'Aluguel' : l, v])]
+  const rows = [...ENTRADAS.map(r => ({ r, sign: 1 })), ...saidas.map(r => ({ r, sign: -1 }))]
   for (const { r: [row, label, vals], sign } of rows) {
     put(`A${row}`, label)
     vals.forEach((v, i) => {
@@ -40,7 +45,7 @@ export function makeOrcamento(o: OrcamentoFixture = {}): ArrayBuffer {
     put('S1', n(10000))
     put('R2', 'Pró Labore'); put('S2', n(2800, '0.28*S1'))
     put('R3', 'IRPJ'); put('S3', n(600, '0.06*S1'))
-    put('R4', 'INSS'); put('S4', n(308, '0.11*S2'))
+    put('R4', 'INSS'); put('S4', n(o.inssCelula ?? 308, '0.11*S2'))
     put('R5', 'Contabilidade'); put('S5', n(800))
     put('R6', 'Salário Líquido'); put('S6', n(8102, 'S1-SUM(S3:S5) - 190'))
   }

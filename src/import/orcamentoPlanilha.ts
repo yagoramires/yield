@@ -2,6 +2,7 @@ import { read, utils, type CellObject, type WorkSheet } from 'xlsx'
 import type { Db } from '../db/client'
 import { createMonth, saveLine, saveSource, type BudgetLine, type IncomeSource } from '../db/orcamentoRepo'
 import { normalizeDescription } from '../domain/gastos'
+import { pjNet } from '../domain/orcamento'
 import type { Month } from '../domain/types'
 
 // usesImportedSource: a fórmula da linha cita o líquido da fonte PJ; o import liga sourceId.
@@ -51,6 +52,7 @@ export function parseOrcamentoPlanilha(data: ArrayBuffer): OrcamentoImport {
   const rowCount = new Map<number, number>()
   for (const { c, month } of monthCols) {
     const lines: (ImportLine & { row: number })[] = []
+    const seen = new Map<string, number>()
     for (const { kind, row } of rows) {
       const name = label(row)
       const cell = at(c, row)
@@ -63,7 +65,10 @@ export function parseOrcamentoPlanilha(data: ArrayBuffer): OrcamentoImport {
       if (v === 0) continue
       if (v < 0) { warnings.push(`${month}, linha ${row}: valor negativo; linha ignorada`); continue }
       const usesImportedSource = !!(refRe && cell.f && refRe.test(cell.f))
-      lines.push({ row, kind, name, amountCents: cents(v), recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, usesImportedSource, sourceKey: `planilha:${month}:${row}` })
+      // Chave pelo rótulo, não pela linha: inserir uma linha no meio da planilha não desloca as outras.
+      const key = `planilha:${month}:${kind}:${normalizeDescription(name)}`, dup = seen.get(key) ?? 0
+      seen.set(key, dup + 1)
+      lines.push({ row, kind, name, amountCents: cents(v), recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, usesImportedSource, sourceKey: dup ? `${key}#${dup}` : key })
       rowCount.set(row, (rowCount.get(row) ?? 0) + 1)
     }
     if (lines.length) months.push({ month, lines })
@@ -86,21 +91,20 @@ function parsePj(ws: WorkSheet, warnings: string[]) {
     const contab = find('contabilidade'), net = cellAt(c + 1, r)
     const gross = pro && ws[pro.ref]
     if (!pro || !irpj || !inss || typeof contab?.v !== 'number' || typeof net?.v !== 'number' || typeof gross?.v !== 'number') continue
-    const grossCents = cents(gross.v), netCents = cents(net.v)
-    const irpjCents = cents(gross.v * irpj.pct / 100)
-    // O INSS é sobre o pró-labore; o valor calculado vem direto da célula.
-    const inssCents = cents(Number(find('inss')!.v))
-    let outrosCents = grossCents - irpjCents - inssCents - cents(contab.v) - netCents
+    const grossCents = cents(gross.v), netCents = cents(net.v), contabilidadeCents = cents(contab.v)
+    // Outros = o que falta para o líquido da planilha, com IRPJ e INSS recalculados por pjNet: assim sourceNet bate ao centavo.
+    let outrosCents = pjNet(grossCents, { proLaborePct: pro.pct, irpjPct: irpj.pct, inssPct: inss.pct, contabilidadeCents, outrosCents: 0 }).netCents - netCents
     if (outrosCents < 0) { warnings.push('PJ: o líquido da planilha é maior que o calculado; outros descontos ficaram em zero'); outrosCents = 0 }
     const proRow = findRow('pro labore')!
     const name = proRow > 0 ? String(cellAt(c, proRow - 1)?.v ?? '').trim() : ''
-    return { name: name || 'Salário PJ', proLaborePct: pro.pct, irpjPct: irpj.pct, inssPct: inss.pct, contabilidadeCents: cents(contab.v), outrosCents, grossCents, netCol: utils.encode_col(c + 1), netRow: r + 1 }
+    return { name: name || 'Salário PJ', proLaborePct: pro.pct, irpjPct: irpj.pct, inssPct: inss.pct, contabilidadeCents, outrosCents, grossCents, netCol: utils.encode_col(c + 1), netRow: r + 1 }
   }
   return miss()
 }
 
-export async function importOrcamento(db: Db, p: OrcamentoImport): Promise<{ months: number; lines: number; skipped: number; sourceCreated: boolean }> {
+export async function importOrcamento(db: Db, p: OrcamentoImport): Promise<{ months: number; lines: number; skipped: number; sourceCreated: boolean; warnings: string[] }> {
   let months = 0, lines = 0, skipped = 0, sourceCreated = false
+  const warnings: string[] = []
   let sourceId: string | null = null
   if (p.source) {
     const found = await db.select<{ id: string }>('SELECT id FROM income_sources WHERE source_key = ?', [p.source.sourceKey])
@@ -115,11 +119,17 @@ export async function importOrcamento(db: Db, p: OrcamentoImport): Promise<{ mon
       continue
     }
     const keys = new Set((await db.select<{ k: string }>('SELECT source_key AS k FROM budget_lines WHERE month = ? AND source_key IS NOT NULL', [month])).map(r => r.k))
+    // Mês sem nenhuma linha da planilha foi criado no app (linhas copiadas não têm chave): importar duplicaria tudo.
+    if (![...keys].some(k => k.startsWith('planilha:'))) {
+      warnings.push(`${month} já foi criado no app e não foi importado de novo`)
+      skipped += ls.length
+      continue
+    }
     for (const [position, l] of ls.entries()) {
       if (l.sourceKey && keys.has(l.sourceKey)) { skipped++; continue }
       await saveLine(db, { ...prep(l), month, position })
       lines++
     }
   }
-  return { months, lines, skipped, sourceCreated }
+  return { months, lines, skipped, sourceCreated, warnings }
 }
