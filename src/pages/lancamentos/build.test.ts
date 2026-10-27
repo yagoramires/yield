@@ -57,10 +57,22 @@ describe('groupByDay', () => {
 it('suggestRulePattern normaliza a descrição', () => expect(suggestRulePattern('PG *Padaria Central 123')).toBe('padaria central'))
 
 describe('duplicateAccountWarning', () => {
-  it('mesma instituição e mesmo final de número, origens diferentes', () => {
-    const pluggy: Account = { ...conta, id: 'p1', source: 'pluggy', externalId: 'pluggy:1', institution: 'banco laranja', number: '0001234821' }
-    expect(duplicateAccountWarning([conta, pluggy, cartao])).toEqual(['Banco Laranja ···4821 pode estar em dobro (Pluggy e extrato)'])
-    expect(duplicateAccountWarning([conta, { ...conta, id: 'c2', externalId: 'z' }])).toEqual([])
+  it('mesmo tipo e mesmo final de número, origens diferentes, ignorando a instituição', () => {
+    const pluggy: Account = { ...conta, id: 'p1', source: 'pluggy', externalId: 'pluggy:1', institution: 'Laranja S.A.', name: 'Conta Corrente', number: '0001234821' }
+    expect(duplicateAccountWarning([conta, pluggy, cartao], [])).toEqual(['"Conta ···4821" (extrato) e "Conta Corrente ···4821" (Pluggy) podem ser a mesma conta, contada em dobro'])
+    expect(duplicateAccountWarning([conta, { ...conta, id: 'c2', externalId: 'z' }], [])).toEqual([])
+  })
+  it('dois cartões com finais diferentes não avisam', () => {
+    const k2: Account = { ...cartao, id: 'k2', source: 'pluggy', externalId: 'pluggy:k2', number: '9999' }
+    expect(duplicateAccountWarning([{ ...cartao, number: '1111' }, k2], [])).toEqual([])
+  })
+  it('extrato sem número com as mesmas linhas de uma conta da Pluggy', () => {
+    const nu: Account = { ...conta, id: 'n1', externalId: 'csv:nubank-conta:minha nu', institution: 'Nubank', name: 'Minha Nu', number: null }
+    const pl: Account = { ...conta, id: 'p1', source: 'pluggy', externalId: 'pluggy:1', institution: 'Nubank', name: 'NuConta', number: '77' }
+    const rows = (accountId: string, descs: string[]) => descs.map((d, i) => txn({ accountId, description: d, date: `2026-10-0${i + 1}`, amountCents: -100 * (i + 1) }))
+    const txns = [...rows('n1', ['PIX MERCADO', 'Padaria 12', 'Loja']), ...rows('p1', ['Pix mercado', 'PADARIA', 'Outra'])]
+    expect(duplicateAccountWarning([nu, pl], txns)).toEqual(['"Minha Nu" (extrato) e "NuConta ···77" (Pluggy) podem ser a mesma conta, contada em dobro'])
+    expect(duplicateAccountWarning([nu, pl], [...rows('n1', ['A', 'B', 'C']), ...rows('p1', ['A', 'X', 'Y'])])).toEqual([])
   })
 })
 

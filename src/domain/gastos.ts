@@ -26,7 +26,10 @@ export function withFingerprints<T extends { date: ISODate; amountCents: Cents; 
   })
 }
 
-const FATURA_NA_CONTA = /pagamento.*fatura|pag(to)? fatura|fatura.*cart/
+// \b no fim: "pag fatima" é um Pix, não fatura
+const FATURA_NA_CONTA = /pagamento.*fatura|pag(to)? fatura|fatura.*cart|\bpag(to|amento)?\s*(de\s*)?(fat|fatura|cart|cartao)\b/
+const PAGAMENTO_NO_CARTAO = /pagamento|pgto|pag fatura|pagto/
+const APLICACAO_NA_CONTA = /aplica|caixinha|guardad|rdb|cdb|invest/
 
 export function categorize(t: Txn, account: Account, rules: CategoryRule[], overrides: Record<string, string>, categories: Category[]): Category | null {
   const byId = (id: string) => categories.find(c => c.id === id) ?? null
@@ -41,7 +44,9 @@ export function categorize(t: Txn, account: Account, rules: CategoryRule[], over
 
   if (t.operationType === 'PAGAMENTO_FATURA' || (account.kind === 'conta' && FATURA_NA_CONTA.test(desc))) return byId('pagamento-de-fatura')
   if (t.operationType === 'RENDIMENTO_APLIC_FINANCEIRA' || t.operationType === 'RESGATE_APLIC_FINANCEIRA') return byId('investimento')
-  if (account.kind === 'cartao' && t.amountCents > 0) return byId('pagamento-de-fatura')
+  if (account.kind === 'conta' && t.amountCents < 0 && APLICACAO_NA_CONTA.test(desc)) return byId('investimento')
+  // outra entrada no cartão (estorno) fica sem categoria e conta como receita
+  if (account.kind === 'cartao' && t.amountCents > 0 && PAGAMENTO_NO_CARTAO.test(desc)) return byId('pagamento-de-fatura')
   return null
 }
 
