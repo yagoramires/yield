@@ -74,7 +74,8 @@ export async function replaceWindow(db: Db, accountId: string, from: ISODate, tx
     for (const t of old) await insertRow(db, accountId, t)
     throw e
   }
-  return { inserted: txns.length, removed: old.length }
+  const before = new Set(old.map(t => t.sourceKey)), now = new Set(keys)
+  return { inserted: keys.filter(k => !before.has(k)).length, removed: old.filter(t => !now.has(t.sourceKey)).length }
 }
 
 export async function insertTxns(db: Db, accountId: string, txns: TxnInput[]): Promise<{ inserted: number; skipped: number }> {

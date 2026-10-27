@@ -29,7 +29,12 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
 
   async function send(method: 'GET' | 'POST', url: string, init: RequestInit = {}): Promise<Response> {
     const u = pluggyRequest(method, url)
-    try { return await fetchFn(u.toString(), { ...init, method }) } catch { throw new PluggyError('Sem conexão com a Pluggy', 'rede') }
+    const signal = AbortSignal.timeout(30_000)
+    try { return await fetchFn(u.toString(), { ...init, method, signal }) } catch (e) {
+      // o fetch da plugin-http rejeita com Error('Request cancelled') ou string do Rust: o sinal é a prova
+      const timedOut = signal.aborted || (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError'))
+      throw new PluggyError(timedOut ? 'A Pluggy não respondeu a tempo; tente de novo' : 'Sem conexão com a Pluggy', 'rede')
+    }
   }
   const BAD_CREDS = () => new PluggyError('Client ID ou Client Secret inválidos', 'credenciais')
 
@@ -81,9 +86,11 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
 }
 
 export function pluggyDate(iso: string): ISODate {
-  if (/T00:00:00(\.000)?Z$/.test(iso)) return iso.slice(0, 10)
+  const d = new Date(iso)
+  // Meia-noite UTC (Z ou +00:00) é data sem hora: o próprio dia.
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) return d.toISOString().slice(0, 10)
   // Brasília não tem horário de verão: UTC−3 fixo.
-  return new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(0, 10)
+  return new Date(d.getTime() - 3 * 3600_000).toISOString().slice(0, 10)
 }
 
 export function toTxnRow(t: PluggyTxn, kind: AccountKind) {

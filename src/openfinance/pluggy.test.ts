@@ -21,6 +21,11 @@ describe('pluggyDate', () => {
     expect(pluggyDate('2026-10-05T00:00:00Z')).toBe('2026-10-05')
     expect(pluggyDate('2026-10-06T01:30:00.000Z')).toBe('2026-10-05')
   })
+  it('meia-noite UTC com offset explícito também é o próprio dia', () => {
+    expect(pluggyDate('2026-10-05T00:00:00+00:00')).toBe('2026-10-05')
+    expect(pluggyDate('2026-10-05T00:00:00.000+00:00')).toBe('2026-10-05')
+    expect(pluggyDate('2026-10-05T10:00:00-03:00')).toBe('2026-10-05')
+  })
 })
 
 describe('toTxnRow', () => {
@@ -102,6 +107,15 @@ describe('cliente', () => {
     await expect(bad.listAccounts('i')).rejects.toMatchObject({ kind: 'credenciais' })
     const net = createPluggyClient(creds, (async () => { throw new TypeError('boom') }) as typeof fetch)
     await expect(net.listAccounts('i')).rejects.toMatchObject({ kind: 'rede', message: 'Sem conexão com a Pluggy' })
+    const calls: (AbortSignal | null | undefined)[] = []
+    const slow = createPluggyClient(creds, (async (_: RequestInfo | URL, init?: RequestInit) => {
+      calls.push(init?.signal)
+      throw new DOMException('The operation timed out.', 'TimeoutError')
+    }) as typeof fetch)
+    await expect(slow.listAccounts('i')).rejects.toMatchObject({ kind: 'rede', message: 'A Pluggy não respondeu a tempo; tente de novo' })
+    expect(calls[0]).toBeInstanceOf(AbortSignal)
+    const aborted = createPluggyClient(creds, (async () => { throw new DOMException('aborted', 'AbortError') }) as typeof fetch)
+    await expect(aborted.listAccounts('i')).rejects.toMatchObject({ kind: 'rede', message: 'A Pluggy não respondeu a tempo; tente de novo' })
     const odd = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ foo: 1 })).fn)
     await expect(odd.listAccounts('i')).rejects.toMatchObject({ kind: 'resposta' })
   })
