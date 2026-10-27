@@ -31,6 +31,13 @@ describe('contas e transações', () => {
     expect(txns.map(t => t.sourceKey).sort()).toEqual(['a', 'd'])
     expect(txns.find(t => t.sourceKey === 'd')!.pending).toBe(true)
   })
+  test('replaceWindow conta como novo só o sourceKey que não existia e como removido só o que não voltou', async () => {
+    const id = await upsertAccount(db, conta)
+    const janela = [tx('a', '2026-02-10'), tx('b', '2026-02-20')]
+    expect(await replaceWindow(db, id, '2026-02-01', janela)).toEqual({ inserted: 2, removed: 0 })
+    expect(await replaceWindow(db, id, '2026-02-01', janela)).toEqual({ inserted: 0, removed: 0 })
+    expect(await replaceWindow(db, id, '2026-02-01', [tx('b', '2026-02-20'), tx('c', '2026-02-25')])).toEqual({ inserted: 1, removed: 1 })
+  })
   test('replaceWindow remove também a linha cujo sourceKey volta com data anterior a from', async () => {
     const id = await upsertAccount(db, conta)
     await insertTxns(db, id, [tx('a', '2026-02-01')])

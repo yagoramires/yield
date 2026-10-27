@@ -44,6 +44,7 @@ describe('syncPluggy', () => {
     expect(g.accounts.every(a => a.lastSyncAt)).toBe(true)
     expect(g.txns.find(t => t.description === 'Salario Ficticio')).toMatchObject({ date: '2026-10-05', pending: true, amountCents: 500000 })
     expect(g.txns.find(t => t.description === 'Loja Inventada')).toMatchObject({ amountCents: -7500, installment: '2/3' })
+    expect(await syncPluggy(db, creds, fake().fn, today)).toMatchObject({ accounts: 2, inserted: 0, removed: 0, errors: [] })
   })
 
   it('2ª sincronização não duplica e usa lastSyncAt − 35 dias, nunca além de hoje − 365', async () => {
