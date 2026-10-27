@@ -9,7 +9,7 @@ const netflix = [txn({ date: '2026-07-05' }), txn({ date: '2026-08-05' }), txn({
 describe('detectSubscriptions', () => {
   it('três cobranças mensais viram assinatura com próxima data', () => {
     const [s] = detectSubscriptions(netflix, semCat, [], '2026-09-20')
-    expect(s).toMatchObject({ merchantKey: 'c1|netflix', name: 'NETFLIX', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-06', active: true, charges: 3 })
+    expect(s).toMatchObject({ merchantKey: 'c1|netflix', name: 'NETFLIX', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-05', active: true, charges: 3 })
   })
   it('aumento de até 15% continua assinatura e usa a última cobrança', () => {
     const t = [netflix[0], netflix[1], txn({ date: '2026-09-05', amountCents: -4490 })]
@@ -22,6 +22,10 @@ describe('detectSubscriptions', () => {
   it('compras no mercado com valores diferentes não viram', () => {
     const t = [txn({ description: 'MERCADO', date: '2026-07-05', amountCents: -8000 }), txn({ description: 'MERCADO', date: '2026-08-04', amountCents: -23000 }), txn({ description: 'MERCADO', date: '2026-09-06', amountCents: -12000 })]
     expect(detectSubscriptions(t, semCat, [], '2026-09-20')).toEqual([])
+  })
+  it('próxima cobrança mensal limita ao último dia do mês', () => {
+    const t = [txn({ date: '2025-11-30' }), txn({ date: '2025-12-31' }), txn({ date: '2026-01-31' })]
+    expect(detectSubscriptions(t, semCat, [], '2026-02-01')[0].nextDate).toBe('2026-02-28')
   })
   it('anual: duas cobranças com ~1 ano', () => {
     const t = [txn({ description: 'SEGURO', date: '2025-03-10', amountCents: -120000 }), txn({ description: 'SEGURO', date: '2026-03-12', amountCents: -120000 })]
