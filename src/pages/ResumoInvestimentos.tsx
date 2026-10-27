@@ -1,7 +1,9 @@
+import { Coins, Landmark, RefreshCw, TrendingUp, Wallet } from 'lucide-react'
 import { DARF_CODE } from '../domain/darf'
 import { formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
-import { BarChart, HBars, LineChart } from '../ui/charts'
+import { BarChart, LineChart } from '../ui/charts'
+import { summary, yieldOnCost } from './proventos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
 import { classLabel, dividendsByMonth, investedByMonth, topPositions } from './resumoInvestimentos/build'
 
@@ -15,8 +17,12 @@ const when = (iso: string) => {
 }
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
-export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenSettings }: {
-  onOpenCarteira(): void; onOpenImposto(): void; onOpenNotas(): void; onOpenSettings(): void
+// Cor fixa por classe (barra empilhada, bolinhas e o quadradinho do ticker).
+const CLASS_COLOR: Record<string, string> = { Ação: '#5fb3ff', FII: '#c79bff', ETF: '#f5d76e', BDR: '#ff9f5a', renda_fixa: '#4fd1a5', cripto: '#ff8fd0', dolar: '#6fdc8c', outro: '#9a9da6' }
+const classColor = (c: string) => CLASS_COLOR[c] ?? '#9a9da6'
+
+export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
+  onOpenCarteira(): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
 }) {
   const { data, derived, refreshing, refreshQuotesNow } = useData()
   const { portfolio: p, darfs } = derived
@@ -30,7 +36,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         <h1>Resumo</h1>
         <div className="muted">{lastQuote ? `Cotações do Yahoo de ${when(lastQuote)} (atraso de ~15 min)` : 'Sem cotações do Yahoo ainda'}</div>
       </div>
-      <div className="btns"><button className="b ghost" disabled={refreshing} onClick={() => void refreshQuotesNow()}>{refreshing ? 'Atualizando…' : '↻ Atualizar cotações'}</button></div>
+      <div className="btns"><button className="b ghost with-ico" disabled={refreshing} onClick={() => void refreshQuotesNow()}><RefreshCw size={13} aria-hidden />{refreshing ? 'Atualizando…' : 'Atualizar cotações'}</button></div>
     </div>
   )
   if (!data.trades.length && !data.manualAssets.length && !data.dividends.length) {
@@ -65,27 +71,29 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
   const classes = [...p.byClass].sort((a, b) => b.valueCents - a.valueCents)
   const divs = dividendsByMonth(data.dividends, thisMonth, 12)
   const top = topPositions(p, 5)
+  const yoc = yieldOnCost(summary(data.dividends, today).last12, p.rows.map(r => ({ ticker: r.ticker, costCents: r.costCents }))).total
+  // topPositions devolve o rótulo da classe nos manuais; volta para a chave da cor
+  const clsKey = (t: (typeof top)[number]) => (t.manual ? p.manual.find(m => m.name === t.name)?.assetClass ?? 'outro' : t.cls)
 
   return (
     <>
       {header}
-      {(due.length > 0 || incomplete.length > 0) && (
-        <div className="note" style={{ marginTop: 10 }}>
-          {due.map(r => (
-            <div key={r.month}>DARF de {monLabel(r.month)} {r.status === 'a_vencer' ? 'a vencer' : 'em aberto'}: {formatBRL(dueCents(r))}{r.dueDate && ` · vence ${brDay(r.dueDate)}/${r.dueDate.slice(0, 4)}`} · código {DARF_CODE}</div>
-          ))}
-          {incomplete.length > 0 && <div>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas.</div>}
+      {due.map(r => (
+        <div key={r.month} className="alert-bad"><Landmark size={15} aria-hidden />
+          <span>DARF de {monLabel(r.month)} {r.status === 'a_vencer' ? 'a vencer' : 'em aberto'}: {formatBRL(dueCents(r))}{r.dueDate && ` · vence ${brDay(r.dueDate)}/${r.dueDate.slice(0, 4)}`} · código {DARF_CODE}</span>
           <button className="link" onClick={onOpenImposto}>Abrir Imposto</button>
         </div>
-      )}
+      ))}
+      {incomplete.length > 0 && <div className="note" style={{ marginTop: 10 }}>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas. <button className="link" onClick={onOpenImposto}>Abrir Imposto</button></div>}
 
       <div className="kpis">
-        <div className="k"><div className="muted">Patrimônio</div><div className="v">{formatBRL(p.totalValueCents)}</div>
-          <div className="s muted">custo {formatBRL(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}</div></div>
-        <div className="k"><div className="muted">Resultado</div><div className={`v ${tone(varTotal)}`}>{sign(varTotal, formatBRL(varTotal))}</div>
-          <div className={`s ${tone(varTotal)}`}>{costQuoted > 0 ? pct1(varTotal / costQuoted) : '—'}</div></div>
-        <div className="k"><div className="muted">Proventos 12 meses</div><div className="v">{formatBRL(p.dividends12mCents)}</div><div className="s muted">média {formatBRL(avg12)}/mês</div></div>
-        <div className="k"><div className="muted">Imposto</div>
+        <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{formatBRL(p.totalValueCents)}</div>
+          <div className="s muted">aportado {formatBRL(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}</div></div>
+        <div className="k"><div className="muted k-l"><TrendingUp size={12} aria-hidden />Resultado</div><div className={`v ${tone(varTotal)}`}>{sign(varTotal, formatBRL(varTotal))}</div>
+          <div className={`s ${tone(varTotal)}`}>{costQuoted > 0 ? `${pct1(varTotal / costQuoted)} sobre o aportado` : '—'}</div></div>
+        <div className="k"><div className="muted k-l"><Coins size={12} aria-hidden />Proventos 12 meses</div><div className="v">{formatBRL(p.dividends12mCents)}</div>
+          <div className="s muted">média {formatBRL(avg12)}/mês{yoc !== null && ` · ${(yoc * 100).toFixed(1).replace('.', ',')}% sobre o custo`}</div></div>
+        <div className="k"><div className="muted k-l"><Landmark size={12} aria-hidden />Imposto</div>
           <div className={`v ${dueTotal > 0 ? 'dn' : ''}`}>{dueTotal > 0 ? formatBRL(dueTotal) : 'nada a pagar'}</div>
           <div className="s muted">{dueTotal > 0 ? (nextDue?.dueDate ? `DARF · vence ${brDay(nextDue.dueDate)}` : `DARF · código ${DARF_CODE}`) : 'nenhum DARF a vencer ou em aberto'}</div></div>
       </div>
@@ -106,20 +114,29 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           </div>
         </div>
         <div className="card">
-          <div className="bar"><h5 style={{ margin: 0 }}>Patrimônio por classe</h5><span className="muted">clique para abrir a Carteira</span></div>
-          <div style={{ marginTop: 6 }}>
-            {classes.length === 0 ? <div className="muted">Nenhum ativo com valor ainda.</div> : (
-              <HBars ariaLabel="Patrimônio por classe" format={c => `${formatCents(c)} · ${pct1(c / p.totalValueCents).replace('+', '')}`}
-                rows={classes.map(c => ({ label: classLabel(c.cls), cents: c.valueCents, onClick: onOpenCarteira }))} />
-            )}
-          </div>
+          <div className="bar"><h5 style={{ margin: 0 }}>Por classe</h5><span className="muted">clique para abrir a Carteira</span></div>
+          {classes.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum ativo com valor ainda.</div> : <>
+            <div className="class-stack" aria-hidden>{classes.map(c => <i key={c.cls} style={{ width: `${(c.valueCents / p.totalValueCents) * 100}%`, background: classColor(c.cls) }} />)}</div>
+            <div className="sum-rows">
+              {classes.map(c => {
+                const gain = c.costCents ? (c.valueCents - c.costCents) / c.costCents : null
+                return (
+                  <button key={c.cls} className="sum-row" onClick={onOpenCarteira}>
+                    <span className="class-dot" style={{ background: classColor(c.cls) }} />
+                    <span className="lmid"><span className="sum-name">{classLabel(c.cls)} <span className="muted">{pct1(c.valueCents / p.totalValueCents).replace('+', '')}</span></span></span>
+                    <span className="sum-val">{formatCents(c.valueCents)}<small className={tone(gain)}>{gain === null ? 'valor informado' : pct1(gain)}</small></span>
+                  </button>
+                )
+              })}
+            </div>
+          </>}
         </div>
       </div>
 
       <div className="grid2" style={{ marginTop: 12 }}>
         <div className="card">
-          <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">{monthName(thisMonth).toLowerCase()} até hoje (listrado)</span></div>
-          <BarChart series={['Rendimento', 'Dividendo', 'JCP']} format={formatBRL}
+          <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para ver em Proventos · {monthName(thisMonth).toLowerCase()} até hoje (listrado)</span></div>
+          <BarChart onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP']} format={formatBRL}
             ariaLabel={`Proventos por mês: ${divs.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP)}`).join('; ')}`}
             bars={divs.map(m => ({
               label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP],
@@ -129,17 +146,15 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Maiores posições</h5><span className="muted">clique para abrir a Carteira</span></div>
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhuma posição com valor ainda.</div> : (
-            <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="txn" style={{ marginTop: 4 }}>
-              <tbody>
-                {top.map(t => (
-                  <tr key={`${t.manual}-${t.name}`} className="clk" tabIndex={0} onClick={onOpenCarteira} onKeyDown={e => e.key === 'Enter' && onOpenCarteira()}>
-                    <td><div className="d1">{t.name}</div><div className="d2">{t.cls}</div></td>
-                    <td className="r">{formatCents(t.valueCents)}<div className="d2">{pct1(t.pct).replace('+', '')} do patrimônio</div></td>
-                    <td className={`r ${tone(t.varPct)}`}>{t.varPct === null ? (t.manual ? 'à mão' : '—') : pct1(t.varPct)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table></div>
+            <div className="sum-rows">
+              {top.map(t => (
+                <button key={`${t.manual}-${t.name}`} className="sum-row" onClick={onOpenCarteira}>
+                  <span className="tk-av" style={{ background: `${classColor(clsKey(t))}22`, color: classColor(clsKey(t)) }} aria-hidden>{t.name.slice(0, 4).toUpperCase()}</span>
+                  <span className="lmid"><span className="sum-name">{t.name}</span><span className="muted">{t.manual ? t.cls : classLabel(t.cls)} · {pct1(t.pct).replace('+', '')} do patrimônio</span></span>
+                  <span className="sum-val">{formatCents(t.valueCents)}<small className={tone(t.varPct)}>{t.varPct === null ? (t.manual ? 'à mão' : '—') : pct1(t.varPct)}</small></span>
+                </button>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -3,7 +3,7 @@ import type { Category, CategoryRule, Txn } from '../../db/gastosRepo'
 import type { BudgetLine } from '../../db/orcamentoRepo'
 import type { Subscription } from '../../domain/assinaturas'
 import { monthTotals } from '../../domain/gastos'
-import { budgetByCategory, deleteImpact, monthDelta, nextCharges, rulePreview, ruleSuggestions, ruleUsage, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
+import { barInfo, budgetByCategory, deleteImpact, monthDelta, nextCharges, rulePreview, ruleSuggestions, ruleUsage, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
 
 const c = (id: string, name: string, countsAsSpending = true): Category => ({ id, name, countsAsSpending, builtin: false, icon: null, color: null })
 const cats = [c('mercado', 'Mercado'), c('pet', 'Pet'), c('fatura', 'Pagamento de fatura', false)]
@@ -93,5 +93,15 @@ describe('tela de categorias', () => {
     expect(ruleSuggestions(txns, ov, [], [])).toEqual([{ pattern: 'padaria sol', categoryId: 'alimentacao', count: 3 }])
     expect(ruleSuggestions(txns, ov, [], ['padaria sol'])).toEqual([])
     expect(ruleSuggestions(txns, ov, [{ id: 'r', pattern: 'padaria sol', categoryId: 'mercado' }], [])).toEqual([])
+  })
+})
+
+describe('barInfo', () => {
+  it('com orçamento mostra quanto do limite já foi; passou fica vermelho; sem orçamento (ou orçamento 0) é o peso no mês', () => {
+    expect(barInfo(82040, 100000, 342230)).toEqual({ pct: 82, over: false, caption: '82% do orçamento de 1.000,00' })
+    expect(barInfo(51290, 40000, 342230)).toEqual({ pct: 100, over: true, caption: 'passou 112,90 do orçamento' })
+    expect(barInfo(28800, undefined, 342230)).toEqual({ pct: 8, over: false, caption: '8% do gasto do mês' })
+    expect(barInfo(500, 0, 1000)).toEqual({ pct: 50, over: false, caption: '50% do gasto do mês' })
+    expect(barInfo(0, undefined, 0)).toEqual({ pct: 0, over: false, caption: '0% do gasto do mês' })
   })
 })

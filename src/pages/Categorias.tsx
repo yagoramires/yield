@@ -5,7 +5,7 @@ import { monthTotals } from '../domain/gastos'
 import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
-import { budgetByCategory, monthDelta, spentByCategory } from './categorias/build'
+import { barInfo, budgetByCategory, monthDelta, spentByCategory } from './categorias/build'
 import { CategoriaPanel } from './categorias/CategoriaPanel'
 import { RegrasPanel } from './categorias/RegrasPanel'
 import { NO_FILTER } from './lancamentos/build'
@@ -45,10 +45,7 @@ export function Categorias({ onOpenLancamentos }: { onOpenLancamentos(): void })
   const edit = (id: string) => setSide({ mode: 'editar', id })
 
   const tile = ({ category: c, cents }: { category: Category; cents: number }) => {
-    const b = budget.get(c.id)
-    const over = b !== undefined && cents > b
-    const pct = b ? Math.min(100, Math.round((cents / b) * 100)) : spent ? Math.round((cents / spent) * 100) : 0
-    const caption = b === undefined ? `${pct}% do gasto do mês` : over ? `passou ${formatCents(cents - b)} do orçamento` : `${pct}% do orçamento de ${formatCents(b)}`
+    const { pct, over, caption } = barInfo(cents, budget.get(c.id), spent)
     return (
       <div key={c.id} className={`cat-tile ${editing?.id === c.id ? 'picked' : ''}`}>
         <button className="tile-main" onClick={() => openTxns(c.id)} aria-label={`${c.name}: ${formatBRL(cents)} em ${monthName(month).toLowerCase()}, ${caption}. Abrir lançamentos`}>

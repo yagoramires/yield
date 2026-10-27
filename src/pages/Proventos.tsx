@@ -15,9 +15,9 @@ type Period = string // '12m', 'tudo' ou um ano ('2025')
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const emptyForm = (): DividendForm => ({ ticker: '', kind: 'Dividendo', payDate: '', broker: '', amount: '' })
 
-export function Proventos() {
+export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const { data, db, derived, reload } = useData()
-  const [filter, setFilter] = useState<Filter>({ ticker: '', kind: '', month: '' })
+  const [filter, setFilter] = useState<Filter>({ ticker: '', kind: '', month: initialMonth })
   const [period, setPeriod] = useState<Period>('12m')
   const [showAll, setShowAll] = useState(false)
   const [form, setForm] = useState<DividendForm | null>(null)
