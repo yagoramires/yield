@@ -127,3 +127,17 @@ tr.hl td { background: #1a1213; }
 .ic { color: var(--faint); font-size: 11px; }
 .ic.on { color: var(--accent); }
 .in[readonly] { color: var(--text-2); }
+
+/* Passo a passo da Pluggy (Configurações › Open Finance) */
+.modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.modal { background: var(--sidebar); border: 1px solid var(--border); border-radius: 12px; padding: 16px; width: min(760px, 100%); max-height: 100%; overflow: auto; }
+.guide { display: grid; grid-template-columns: 220px 1fr; gap: 16px; margin-top: 14px; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.step { display: flex; gap: 8px; align-items: center; width: 100%; text-align: left; border: 0; background: none; color: var(--text-2); padding: 6px 8px; border-radius: 7px; font-size: 12px; cursor: pointer; }
+.step .n { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--border); display: grid; place-items: center; font-size: 10px; }
+.step.on { background: var(--surface); color: #fff; }
+.step.on .n { border-color: var(--accent); color: var(--accent); }
+.step.done .n { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+.step-body h3 { margin: 2px 0 8px; color: #fff; font-size: 15px; }
+.step-body p { margin: 0 0 8px; line-height: 1.5; }
+@media (max-width: 640px) { .guide { grid-template-columns: 1fr; } }
