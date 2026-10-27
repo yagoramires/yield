@@ -18,6 +18,8 @@
 - "Nada entra no plano sem confirmação. Gasto avulso não entra no plano." (spec §8.2)
 - Mockup aprovado pelo Yago antes de construir as telas (Task 5).
 
+**Mudança depois dos mockups (27/10/2026):** o Yago pediu **fontes de renda** no lugar de um "Salário PJ" único (`docs/design/telas-fase-2.md`). A Task 6 (nova) troca a config PJ única e o `pjGrossCents` das linhas por uma tabela de fontes; as antigas Tasks 6 e 7 viram 7 e 8. A migração 003 já rodou no banco do Yago, então a mudança vai numa 004.
+
 ## Review Focus
 
 1. **Importar a planilha duas vezes** não duplica linhas nem sobrescreve linhas que o usuário já mudou no app. Teste na Task 4.
@@ -170,7 +172,38 @@ Regras de leitura (aba `Finanças`; sem ela → erro `'Aba "Finanças" não enco
 
 ---
 
-### Task 6: Tela Orçamento › Mês atual
+### Task 6: Fontes de renda
+
+**Files:**
+- Create: `src-tauri/migrations/004_fontes_renda.sql`
+- Modify: `src-tauri/src/lib.rs` (`Migration { version: 4, … }`), `src/db/testDb.ts` (lista com 004), `src/db/client.ts` (`SCHEMA_VERSION = 4`), `src/db/orcamentoRepo.ts`, `src/domain/orcamento.ts`, `src/import/orcamentoPlanilha.ts` (+ testes de todos; asserções de `schema_version` para `'4'`)
+
+**Interfaces:**
+- Produces (substitui `PjConfig` em `OrcamentoData`, `savePjConfig` e `BudgetLine.pjGrossCents`):
+
+```ts
+export type SourceKind = 'pj' | 'fixo'
+export interface IncomeSource { id: string; name: string; kind: SourceKind; grossCents: Cents | null /* pj */; proLaborePct: number; irpjPct: number; inssPct: number; contabilidadeCents: Cents; outrosCents: Cents; netCents: Cents | null /* fixo */; sourceKey: string | null }
+// BudgetLine: troca pjGrossCents por sourceId: string | null
+// OrcamentoData: troca pj por sources: IncomeSource[]
+export function saveSource(db: Db, s: Omit<IncomeSource, 'id'> & { id?: string }): Promise<string>
+export function deleteSource(db: Db, id: string): Promise<void>     // linhas ficam com o último valor (FK ON DELETE SET NULL)
+export function applySource(db: Db, sourceId: string, fromMonth: Month, amountCents: Cents): Promise<number>   // atualiza o valor das linhas ligadas em meses >= fromMonth; devolve quantas
+// orcamento.ts
+export function sourceNet(s: IncomeSource): Cents                  // pj → pjNet(gross, s).netCents; fixo → netCents
+export function nextMonthLines(lines: BudgetLine[], sources: IncomeSource[]): Omit<BudgetLine, 'id' | 'month'>[]   // linha com fonte existente usa sourceNet
+// orcamentoPlanilha.ts: OrcamentoImport.pj vira source: Omit<IncomeSource, 'id'> | null (kind 'pj', name = rótulo na célula acima de "Pró Labore" ou 'Salário PJ', sourceKey 'planilha:pj'); linhas que citam o líquido levam sourceKey da fonte e o import liga sourceId
+```
+
+Esquema 004: `income_sources(id PK, name, kind CHECK IN ('pj','fixo'), gross_cents, pro_labore_pct REAL, irpj_pct REAL, inss_pct REAL, contabilidade_cents, outros_cents, net_cents, source_key UNIQUE)`; `ALTER TABLE budget_lines ADD COLUMN source_id TEXT REFERENCES income_sources(id) ON DELETE SET NULL`; `ALTER TABLE budget_lines DROP COLUMN pj_gross_cents`; `DELETE FROM meta WHERE key = 'orcamento.pj'`; `schema_version = '4'`. `pjNet(gross, cfg)` fica como está (recebe a fonte, que tem os mesmos campos de `PjConfig`).
+
+- [ ] **Step 1: Testes que falham** — salvar/editar/apagar fonte; apagar fonte deixa `sourceId = null` e o valor da linha intacto; `applySource` muda só meses >= fromMonth; `sourceNet` (PJ do exemplo da Task 2 = 879_200; fixo = netCents); `nextMonthLines` recalcula pela fonte e mantém o valor quando a fonte sumiu; importação cria **uma** fonte PJ (reimportar não cria outra) e liga as linhas que citam o líquido; banco v3 recebe a 004 e passa a `'4'`.
+- [ ] **Step 2:** → FAIL. **Step 3:** implementar. **Step 4:** → PASS; `cargo check`.
+- [ ] **Step 5: Commit** `feat: fontes de renda no orçamento`
+
+---
+
+### Task 7: Tela Orçamento › Mês atual
 
 **Files:**
 - Create: `src/pages/Orcamento.tsx`, `src/pages/orcamento/build.ts`
@@ -178,7 +211,7 @@ Regras de leitura (aba `Finanças`; sem ela → erro `'Aba "Finanças" não enco
 - Test: `src/pages/orcamento/build.test.ts`, `src/ui/routes.test.ts`
 
 **Interfaces:**
-- Consumes: Tasks 1–3; `useData().gastos` (categorias, txns, assinaturas, categorizador).
+- Consumes: Tasks 1–4 e 6; `useData().gastos` (categorias, txns, assinaturas, categorizador). Entrada nova escolhe uma fonte (valor = `sourceNet`) ou valor avulso. O planejado do "planejado × real" geral exclui saídas ligadas a categorias que não contam como gasto.
 
 ```ts
 // orcamento/build.ts
@@ -194,21 +227,21 @@ export function defaultMonth(months: Month[], today: ISODate): Month   // o mês
 
 ---
 
-### Task 7: Configurações do orçamento
+### Task 8: Configurações do orçamento
 
 **Files:**
 - Create: `src/pages/configuracoes/OrcamentoConfig.tsx`
 - Modify: `src/pages/Configuracoes.tsx`, `src/pages/configuracoes/build.ts` (+ teste)
 
 **Interfaces:**
-- Consumes: `parseOrcamentoPlanilha`, `importOrcamento` (Task 4); `savePjConfig`, `saveLine` (Task 1); `pjNet` (Task 2).
+- Consumes: `parseOrcamentoPlanilha`, `importOrcamento` (Task 4/6); `saveSource`, `deleteSource`, `applySource` (Task 6); `pjNet`, `sourceNet`; `DEFAULT_PJ` (valores iniciais de uma fonte PJ nova).
 
 ```ts
-export function validatePjConfig(input: { proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string }): PjConfig   // % entre 0 e 100 com vírgula; R$ via parseMoney; erro em pt-BR
-export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }, warnings: string[]): string
+export function validateSource(input: { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string }): Omit<IncomeSource, 'id' | 'sourceKey'>   // nome obrigatório; % entre 0 e 100 com vírgula; R$ via parseMoney; PJ exige bruto e líquido > 0; fixo exige líquido; erro em pt-BR
+export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }, warnings: string[], sourceCreated: boolean): string
 ```
 
-- [ ] **Step 1: Testes que falham** — `validatePjConfig` ("28" ok, "28,5" ok, "120" erro, "abc" erro); resumo da importação.
-- [ ] **Step 2:** → FAIL. **Step 3:** cartão "Importar planilha de orçamento" (`.xlsx`, mesmo fluxo de arquivo da planilha de investimentos, resumo e avisos) e cartão "Salário PJ" (salvar recalcula com `pjNet` as linhas PJ do mês de hoje e dos meses seguintes; meses passados ficam como estão — o texto diz isso).
+- [ ] **Step 1: Testes que falham** — `validateSource` (PJ ok; "120" em % erro; "abc" erro; PJ com descontos maiores que o bruto → 'O líquido ficou negativo: confira os descontos'; fixo sem líquido erro); resumo da importação.
+- [ ] **Step 2:** → FAIL. **Step 3:** cartão "Importar planilha de orçamento" e cartão "Fontes de renda" conforme o mockup (salvar fonte chama `applySource` a partir do mês de hoje; apagar com confirmação na tela).
 - [ ] **Step 4:** → PASS. `pnpm vitest run` e `pnpm exec tsc --noEmit` limpos. Print do harness.
-- [ ] **Step 5: Commit** `feat: importação e salário PJ nas configurações`
+- [ ] **Step 5: Commit** `feat: importação e fontes de renda nas configurações`

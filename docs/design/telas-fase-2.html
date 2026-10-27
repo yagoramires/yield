@@ -1,0 +1,246 @@
+<style>
+.y{font-family:-apple-system,"SF Pro Display",Inter,"Segoe UI",sans-serif;background:#0b0c0d;color:#d6d8dd;border-radius:14px;overflow:hidden;display:flex;min-height:520px;font-size:12px;line-height:1.35}
+.y .sb{width:170px;flex-shrink:0;background:#121315;border-right:1px solid #26282e;padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.y .logo{font-weight:800;font-size:16px;color:#fff;margin:0 6px 14px;letter-spacing:-.02em}.y .logo b{color:#c6ff3d}
+.y .grp{margin-top:8px;padding:4px 8px;color:#d6d8dd;font-weight:600}.y .grp.on{color:#c6ff3d}
+.y .sub{padding:5px 8px 5px 22px;border-radius:6px;color:#5d6068;font-size:11px}.y .sub.on{color:#d6d8dd;background:#1a1b1f}
+.y .sub small{font-size:9px;margin-left:4px}
+.y .main{flex:1;padding:18px 22px;min-width:0}
+.y h4{margin:0 0 2px;color:#fff;font-size:17px}.y h5{margin:16px 0 8px;color:#d6d8dd;font-size:12px;font-weight:600}
+.y .muted{color:#5d6068;font-size:11px}.y .t2{color:#8a8d96}
+.y .bar{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.y .btns{display:flex;gap:6px}
+.y .b{border:1px solid #26282e;background:#1a1b1f;color:#d6d8dd;border-radius:7px;padding:5px 9px;font-size:11px;white-space:nowrap}
+.y .b.pri{background:#c6ff3d;color:#0b0c0d;border-color:#c6ff3d;font-weight:600}
+.y .b.ghost{background:none}
+.y .kpis{display:flex;gap:10px;margin:14px 0}
+.y .k{flex:1;background:#1a1b1f;border:1px solid #26282e;border-radius:10px;padding:10px}
+.y .k .v{font-size:16px;color:#fff;font-weight:600;margin-top:4px}.y .k .s{font-size:11px;margin-top:2px}
+.y .up{color:#c6ff3d}.y .dn{color:#ff6b6b}
+.y table{width:100%;border-collapse:collapse}.y td,.y th{padding:6px 5px;border-bottom:1px solid #1a1b1f;text-align:left;white-space:nowrap}
+.y th{color:#5d6068;font-weight:500;font-size:10px;text-transform:uppercase}.y .r{text-align:right}
+.y tr.cls td{color:#8a8d96;font-weight:600;background:#121315;border-bottom:1px solid #26282e}
+.y .pill{display:inline-block;border-radius:20px;padding:2px 8px;font-size:10px;border:1px solid #26282e;color:#8a8d96}
+.y .pill.ok{color:#c6ff3d;border-color:#2c3a14;background:#1c2410}.y .pill.bad{color:#ff6b6b;border-color:#4a2224;background:#2a1414}
+.y .pill.warn{color:#ffcf5c;border-color:#4a3c14;background:#241e0c}
+.y .tag{font-size:9px;color:#5d6068;border:1px solid #26282e;border-radius:4px;padding:1px 4px}
+.y .card{background:#121315;border:1px solid #26282e;border-radius:10px;padding:12px}
+.y .note{background:#241e0c;border:1px solid #4a3c14;color:#ffcf5c;border-radius:8px;padding:8px 10px;font-size:11px}
+.y .info{background:#121315;border:1px solid #26282e;color:#8a8d96;border-radius:8px;padding:8px 10px;font-size:11px}
+.y .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.y .field{display:flex;flex-direction:column;gap:3px}.y .field span{font-size:10px;color:#5d6068}
+.y .in{background:#0b0c0d;border:1px solid #26282e;border-radius:6px;padding:5px 7px;color:#d6d8dd;font-size:11px}
+.y .in.need{border-color:#ffcf5c}
+.y .row{display:flex;gap:8px;flex-wrap:wrap}
+.y tr.hl td{background:#2a1414}
+.y .chip{border:1px solid #26282e;border-radius:20px;padding:3px 9px;font-size:11px;color:#8a8d96}.y .chip.on{color:#0b0c0d;background:#d6d8dd;border-color:#d6d8dd}
+.y .sec{border-top:1px solid #26282e;padding-top:12px;margin-top:14px}
+.ap{margin:10px 0 34px}
+</style>
+<style>
+.y .day td{color:#8a8d96;font-weight:600;background:#121315;font-size:10px;border-bottom:1px solid #26282e}
+.y .sel{display:inline-flex;align-items:center;gap:4px;border:1px solid #26282e;border-radius:6px;padding:2px 6px;font-size:10px;color:#d6d8dd;background:#0b0c0d}
+.y .sel.none{color:#ffcf5c;border-color:#4a3c14}
+.y .pop{position:absolute;right:20px;top:36px;width:250px;background:#1a1b1f;border:1px solid #3a3d44;border-radius:10px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.y .ok{background:#1c2410;border:1px solid #2c3a14;color:#c6ff3d;border-radius:8px;padding:8px 10px;font-size:11px}
+.y ol{margin:6px 0 0 16px;padding:0}.y ol li{margin:3px 0;color:#8a8d96}
+</style>
+<style>
+.y{--s1:#3987e5;--s2:#d95926}
+.y .lc{background:#121315;border:1px solid #26282e;border-radius:10px;padding:12px}
+.y .lc h6{margin:0;font-size:12px;color:#d6d8dd;font-weight:600}
+.y .lg{display:flex;gap:12px;font-size:10px;color:#8a8d96;margin-top:2px}
+.y .lg i{display:inline-block;width:10px;height:2px;vertical-align:middle;margin-right:4px;border-radius:1px}
+.y svg text{font-family:inherit}
+.y .alert{display:flex;align-items:center;gap:8px;background:#241e0c;border:1px solid #4a3c14;color:#ffcf5c;border-radius:8px;padding:6px 10px;font-size:11px;margin-top:10px}
+.y .alert b{color:#ffcf5c}.y .alert .lnk{margin-left:auto;text-decoration:underline}
+.y .txn td{padding:7px 5px}.y .txn td:nth-child(2){width:150px}
+.y .txn .d1{color:#e8e9ec}.y .txn .d2{color:#5d6068;font-size:10px;margin-top:1px}
+.y .txn tr.off td{opacity:.55}
+.y .expand td{background:#16171a;border-bottom:1px solid #26282e}
+.y .search{flex:1;max-width:220px}
+.y .mini{display:flex;align-items:flex-end;gap:3px;height:26px;margin-top:6px}
+.y .mini span{width:12px;background:#3a3d44;border-radius:3px 3px 0 0}
+.y .mini span.cur{background:var(--s1)}
+.y .barrow{display:grid;grid-template-columns:92px 1fr 64px;align-items:center;gap:8px;font-size:11px;padding:3px 0}
+.y .barrow .tr{height:12px;background:var(--s1);border-radius:0 4px 4px 0}
+.y .barrow .tr.unc{background:repeating-linear-gradient(45deg,#ffcf5c 0 3px,#3a3214 3px 6px)}
+.y .barrow.sel{background:#1a1b1f;border-radius:6px}
+</style>
+
+<style>
+.y .lt td{padding:7px 5px}.y .lt .d2{color:#5d6068;font-size:10px;margin-top:1px}
+.y .ic{color:#5d6068;font-size:11px}.y .ic.on{color:#c6ff3d}
+.y .catrow{display:grid;grid-template-columns:110px 1fr 150px;gap:8px;align-items:center;font-size:11px;padding:4px 0}
+.y .track{position:relative;height:10px;background:#1f2125;border-radius:4px;overflow:hidden}
+.y .track .fill{position:absolute;left:0;top:0;bottom:0;background:#3987e5;border-radius:0 4px 4px 0}
+.y .track .over{background:#ff6b6b}
+.y .track .mark{position:absolute;top:-2px;bottom:-2px;width:2px;background:#d6d8dd}
+.y .sug{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #1a1b1f;font-size:11px}
+.y .sug .grow{flex:1}
+.y .edit td{background:#16171a;border-bottom:1px solid #26282e}
+.y .pj{font-size:10px;color:#8a8d96;margin-top:2px}
+</style>
+
+<h2>Orçamento mensal: fase 2</h2>
+<p class="subtitle">Três telas no tema Grafite, com números e nomes inventados. Embaixo de cada uma, clique em <b>Aprovar</b> ou em <b>Quero ajustes</b> e escreva os ajustes no terminal.</p>
+
+<!-- ============ 1. MÊS ATUAL ============ -->
+<h3>1 · Orçamento › Mês atual</h3>
+<div class="mockup"><div class="mockup-header">Orçamento mensal › Mês atual</div><div class="mockup-body" style="padding:0">
+<div class="y">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp">Últimos gastos</div><div class="sub">Resumo</div><div class="sub">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp on">Orçamento mensal</div><div class="sub on">Mês atual</div>
+    <div class="grp">Investimentos</div><div class="sub">Resumo</div><div class="sub">Carteira</div><div class="sub">Notas</div><div class="sub">Proventos</div><div class="sub">Imposto</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="bar">
+      <div class="row" style="align-items:center;gap:10px"><h4 style="margin:0">Orçamento</h4><span class="chip">‹</span><b style="color:#fff;font-size:13px">Outubro 2026</b><span class="chip">›</span></div>
+      <div class="btns"><span class="b pri">Criar novembro</span></div>
+    </div>
+
+    <div class="kpis">
+      <div class="k"><div class="muted">Entradas</div><div class="v">R$ 14.880,00</div><div class="s muted">2 linhas</div></div>
+      <div class="k"><div class="muted">Saídas</div><div class="v">R$ 12.430,00</div><div class="s muted">16 linhas · 3.500,00 em investimentos</div></div>
+      <div class="k"><div class="muted">Saldo do mês</div><div class="v up">+R$ 2.450,00</div><div class="s muted">entradas − saídas</div></div>
+    </div>
+
+    <div class="grid2" style="grid-template-columns:1fr 1fr">
+      <div class="lc">
+        <div class="bar"><h6>Planejado × gasto real até agora</h6><span class="muted">84% do mês passou</span></div>
+        <div style="margin:10px 0 4px;font-size:12px"><b style="color:#fff">R$ 6.482,17</b> <span class="t2">gastos de R$ 8.930,00 planejados</span></div>
+        <div class="track" style="height:12px"><div class="fill" style="width:72.6%"></div><div class="mark" style="left:84%"></div></div>
+        <div class="muted" style="margin-top:6px">A marca branca é o quanto do mês já passou. Investimentos e reservas não entram no gasto, igual ao Resumo de gastos.</div>
+      </div>
+      <div class="lc">
+        <div class="bar"><h6>Por categoria</h6><span class="muted">planejado × real</span></div>
+        <div style="margin-top:6px">
+          <div class="catrow"><span>Moradia</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="r">3.450,00 de 3.450,00</span></div>
+          <div class="catrow"><span>Mercado</span><div class="track"><div class="fill over" style="width:100%"></div></div><span class="r" style="color:#ff6b6b">1.618,40 de 1.500,00</span></div>
+          <div class="catrow"><span>Alimentação</span><div class="track"><div class="fill" style="width:61%"></div></div><span class="r">549,00 de 900,00</span></div>
+          <div class="catrow"><span>Transporte</span><div class="track"><div class="fill" style="width:44%"></div></div><span class="r">220,00 de 500,00</span></div>
+          <div class="catrow"><span>Contas</span><div class="track"><div class="fill" style="width:83%"></div></div><span class="r">332,10 de 400,00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lc" style="margin-top:12px;border-color:#2c3a14">
+      <div class="bar"><h6>Sugestões dos seus gastos <span class="muted">(3)</span></h6><span class="muted">nada entra no plano sem você aceitar</span></div>
+      <div class="sug"><span class="pill">assinatura</span><span class="grow"><b style="color:#e8e9ec">Streamflix</b> <span class="muted">· mensal · Cartão Roxo · Assinaturas</span></span><span class="r">44,90</span><span class="b">Aceitar</span><span class="b ghost">Ajustar</span><span class="b ghost">Descartar</span></div>
+      <div class="sug"><span class="pill">parcela</span><span class="grow"><b style="color:#e8e9ec">Loja de Móveis Acme (4/10)</b> <span class="muted">· Cartão Roxo · Compras</span></span><span class="r">189,90</span><span class="b">Aceitar</span><span class="b ghost">Ajustar</span><span class="b ghost">Descartar</span></div>
+      <div class="sug" style="border:0"><span class="pill">assinatura</span><span class="grow"><b style="color:#e8e9ec">Nuvem Fotos</b> <span class="muted">· anual, cobra em outubro · Cartão Roxo</span></span><span class="r">358,80</span><span class="b">Aceitar</span><span class="b ghost">Ajustar</span><span class="b ghost">Descartar</span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:12px">
+      <div class="lc">
+        <div class="bar"><h6>Entradas</h6><span class="b ghost">+ Entrada</span></div><div class="muted" style="margin-top:2px">Uma entrada pode usar uma fonte de renda (o valor acompanha a fonte) ou ser um valor avulso.</div>
+        <table class="lt" style="margin-top:6px">
+          <tr><th>Nome</th><th class="r">Valor</th></tr><tr><td><div style="color:#e8e9ec">Empresa Alfa <span class="pill">fonte PJ</span> <span class="ic on" title="recorrente">↻</span></div><div class="pj">bruto 15.000,00 − IRPJ 900,00 − INSS 462,00 − contabilidade 300,00 − outros 150,00 · pró-labore 4.200,00</div></td><td class="r">13.188,00</td></tr>
+          <tr><td><div style="color:#e8e9ec">Freela site</div><div class="d2">valor avulso · só este mês</div></td><td class="r">1.692,00</td></tr>
+        </table>
+      </div>
+      <div class="lc">
+        <div class="bar"><h6>Saídas</h6><span class="b ghost">+ Saída</span></div>
+        <table class="lt" style="margin-top:6px">
+          <tr><th>Nome</th><th>Categoria</th><th class="r">Valor</th><th></th></tr>
+          <tr><td>Aluguel <span class="ic on">↻</span></td><td class="t2">Moradia</td><td class="r">2.800,00</td><td class="muted">editar · apagar</td></tr>
+          <tr><td>Condomínio <span class="ic on">↻</span></td><td class="t2">Moradia</td><td class="r">650,00</td><td class="muted">editar · apagar</td></tr>
+          <tr><td>Mercado <span class="ic on">↻</span></td><td class="t2">Mercado</td><td class="r">1.500,00</td><td class="muted">editar · apagar</td></tr>
+          <tr><td>Restaurantes <span class="ic on">↻</span></td><td class="t2">Alimentação</td><td class="r">900,00</td><td class="muted">editar · apagar</td></tr>
+          <tr><td>Investimentos <span class="ic on">↻</span></td><td class="t2">Investimento</td><td class="r">3.000,00</td><td class="muted">editar · apagar</td></tr>
+          <tr><td>Reserva viagem <span class="ic on">↻</span></td><td class="t2">Investimento</td><td class="r">500,00</td><td class="muted">editar · apagar</td></tr>
+          <tr><td>Ajuda família <span class="ic on">↻</span></td><td class="muted">sem categoria</td><td class="r">800,00</td><td class="muted">editar · apagar</td></tr>
+          <tr class="edit"><td colspan="4">
+            <div class="row" style="align-items:center;gap:8px">
+              <span class="in" style="width:110px">Notebook</span><span class="in" style="width:70px">380,00</span>
+              <span class="in" style="width:44px">3/10</span><span class="in">Compras ▾</span>
+              <label style="font-size:11px"><span style="color:#c6ff3d">☑</span> recorrente</label>
+              <span style="margin-left:auto" class="btns"><span class="b ghost">Cancelar</span><span class="b pri">Salvar</span></span>
+            </div>
+            <div class="muted" style="margin-top:4px">Parcela 3/10: o mês seguinte já nasce com 4/10, e a linha some depois da 10/10.</div>
+          </td></tr>
+          <tr><td colspan="4" class="muted">… mais 8 linhas</td></tr>
+        </table>
+        <div class="note" style="margin-top:8px">Apagar "Presentes" deste mês? Os outros meses não mudam. [Cancelar] [Apagar]</div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="mes-v2-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Mês atual</h3></div></div><div class="option" data-choice="mes-v2-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 2. MÊS SEM PLANO ============ -->
+<h3>2 · Mês ainda sem plano</h3>
+<div class="mockup"><div class="mockup-header">Orçamento mensal › Mês atual (dezembro)</div><div class="mockup-body" style="padding:0">
+<div class="y" style="min-height:300px">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp">Últimos gastos</div><div class="sub">Resumo</div><div class="sub">Lançamentos</div><div class="sub">Assinaturas</div><div class="sub">Categorias</div>
+    <div class="grp on">Orçamento mensal</div><div class="sub on">Mês atual</div>
+    <div class="grp">Investimentos</div><div class="sub">Resumo</div><div class="sub">Carteira</div>
+    <div class="grp">Sistema</div><div class="sub">Configurações</div>
+  </div>
+  <div class="main">
+    <div class="row" style="align-items:center;gap:10px"><h4 style="margin:0">Orçamento</h4><span class="chip">‹</span><b style="color:#fff;font-size:13px">Dezembro 2026</b><span class="chip">›</span></div>
+    <div class="card" style="margin-top:40px;text-align:center;padding:28px">
+      <div style="color:#fff;font-size:14px;font-weight:600">Dezembro ainda não tem plano</div>
+      <div class="muted" style="margin:6px 0 14px">Copie as linhas recorrentes de novembro (14 linhas; parcelas avançam sozinhas) ou comece do zero.</div>
+      <div class="btns" style="justify-content:center"><span class="b pri">Copiar de novembro</span><span class="b">Começar vazio</span></div>
+      <div class="muted" style="margin-top:12px">Primeira vez? Importe sua planilha em Configurações › Importar planilha de orçamento.</div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="vazio-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar mês sem plano</h3></div></div><div class="option" data-choice="vazio-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
+
+<!-- ============ 3. CONFIGURAÇÕES ============ -->
+<h3>3 · Configurações (cartões novos)</h3>
+<div class="mockup"><div class="mockup-header">Sistema › Configurações</div><div class="mockup-body" style="padding:0">
+<div class="y" style="min-height:300px">
+  <div class="sb">
+    <div class="logo">yield<b>.</b></div>
+    <div class="grp">Últimos gastos</div><div class="sub">Resumo</div>
+    <div class="grp">Orçamento mensal</div><div class="sub">Mês atual</div>
+    <div class="grp">Investimentos</div><div class="sub">Resumo</div>
+    <div class="grp on">Sistema</div><div class="sub on">Configurações</div>
+  </div>
+  <div class="main">
+    <h4>Configurações</h4>
+    <div class="grid2" style="margin-top:14px">
+      <div class="card">
+        <b style="color:#fff">Importar planilha de orçamento</b><div class="muted" style="margin:4px 0 10px">Aba "Finanças" (.xlsx) · pode importar de novo: o que já existe é pulado e o que você mudou no app fica como está</div>
+        <span class="b pri">Escolher arquivo…</span>
+        <div class="info" style="margin-top:10px">Última importação<br>11 meses · 186 linhas · 0 já existiam · 1 fonte de renda PJ criada a partir da calculadora da planilha</div>
+      </div>
+      <div class="card">
+        <div class="bar"><b style="color:#fff">Fontes de renda</b><span class="b ghost">+ Fonte de renda</span></div>
+        <div class="muted" style="margin:4px 0 8px">As entradas do orçamento podem usar uma fonte. Mudar uma fonte recalcula este mês e os próximos; meses que já passaram ficam como estão.</div>
+        <table>
+          <tr><th>Fonte</th><th>Tipo</th><th class="r">Bruto</th><th class="r">Líquido/mês</th><th></th></tr>
+          <tr><td>Empresa Alfa</td><td><span class="pill">PJ</span></td><td class="r">15.000,00</td><td class="r">13.188,00</td><td class="muted">editar</td></tr>
+          <tr><td>Empresa Beta</td><td><span class="pill">valor fixo</span></td><td class="r t2">—</td><td class="r">6.500,00</td><td class="muted">editar · apagar</td></tr>
+        </table>
+        <div class="card" style="margin-top:10px;background:#16171a">
+          <div class="muted" style="margin-bottom:6px">Editando <b style="color:#e8e9ec">Empresa Alfa</b></div>
+          <div class="row">
+            <div class="field"><span>Nome</span><span class="in">Empresa Alfa</span></div>
+            <div class="field"><span>Tipo</span><span class="in">PJ ▾</span></div>
+            <div class="field"><span>Bruto (R$)</span><span class="in">15.000,00</span></div>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <div class="field"><span>Pró-labore (% do bruto)</span><span class="in">28</span></div>
+            <div class="field"><span>IRPJ (% do bruto)</span><span class="in">6</span></div>
+            <div class="field"><span>INSS (% do pró-labore)</span><span class="in">11</span></div>
+            <div class="field"><span>Contabilidade (R$)</span><span class="in">300,00</span></div>
+            <div class="field"><span>Outros descontos (R$)</span><span class="in">150,00</span></div>
+          </div>
+          <div class="info" style="margin-top:8px">Líquido: <b style="color:#e8e9ec">R$ 13.188,00</b> (pró-labore 4.200,00 · IRPJ 900,00 · INSS 462,00 · contabilidade 300,00 · outros 150,00)</div>
+          <div class="btns" style="margin-top:8px;justify-content:flex-end"><span class="b ghost">Cancelar</span><span class="b pri">Salvar</span></div>
+          <div class="muted" style="margin-top:6px">Tipo "valor fixo" pede só o líquido do mês (CLT, freela recorrente, aluguel recebido…). Apagar uma fonte mantém as entradas que a usavam, com o último valor.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div></div>
+<div class="options ap"><div class="option" data-choice="config-v2-ok" onclick="toggleSelect(this)"><div class="letter">✓</div><div class="content"><h3>Aprovar Configurações</h3></div></div><div class="option" data-choice="config-v2-ajustar" onclick="toggleSelect(this)"><div class="letter">✎</div><div class="content"><h3>Quero ajustes</h3><p>Descreva no terminal</p></div></div></div>
