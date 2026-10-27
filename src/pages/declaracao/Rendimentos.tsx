@@ -52,6 +52,11 @@ export function Rendimentos({ rendimentos, isento20 }: { rendimentos: Rendimento
       <div>
         <div className="sec-h"><span>Rendimentos sujeitos à tributação exclusiva</span></div>
         {of('10').length ? <Grupo titulo={`Exclusiva · ${RENDIMENTO_LABEL['10']}`} linhas={of('10')} /> : <div className="muted">Nenhum JCP neste ano.</div>}
+        {of('bdr').length > 0 && <>
+          <div className="sec-h"><span>Rendimentos tributáveis do exterior</span></div>
+          <Grupo titulo={RENDIMENTO_LABEL.bdr} linhas={of('bdr')} />
+          <div className="muted">Dividendo de BDR não é isento: entra como rendimento recebido do exterior (carnê-leão no mês do pagamento ou ajuste anual). Confira a ficha no programa da Receita.</div>
+        </>}
       </div>
     </div>
   )

@@ -60,7 +60,7 @@ describe('rendimentos e renda variável', () => {
   it('agrupa por CNPJ da pagadora e mapeia 09/26/10; sem CNPJ agrupa pelo ticker', () => {
     const issuers = new Map<string, Issuer>([['AAAA3', { ticker: 'AAAA3', name: 'EMPRESA EXEMPLO', cnpj: A }], ['AAAA4', { ticker: 'AAAA4', name: 'EMPRESA EXEMPLO', cnpj: A }]])
     const r = rendimentosDoAno([dv('AAAA3', 'Dividendo', '2025-03-01', 1000), dv('AAAA4', 'Dividendo', '2025-04-01', 500), dv('AAAA3', 'JCP', '2025-05-01', 300),
-      dv('BBBB11', 'Rendimento', '2025-06-01', 700), dv('AAAA3', 'Dividendo', '2024-12-31', 9999)], 2025, issuers)
+      dv('BBBB11', 'Rendimento', '2025-06-01', 700), dv('AAAA3', 'Dividendo', '2024-12-31', 9999)], 2025, issuers, () => 'Ação')
     expect(r).toEqual([
       { linha: '09', payerKey: A, name: 'EMPRESA EXEMPLO', cnpj: A, tickers: ['AAAA3', 'AAAA4'], cents: 1500 },
       { linha: '26', payerKey: 'BBBB11', name: null, cnpj: null, tickers: ['BBBB11'], cents: 700 },
@@ -70,6 +70,10 @@ describe('rendimentos e renda variável', () => {
   const pot = (o: Partial<TaxMonth['comum']> = {}): TaxMonth['comum'] => ({ resultCents: 0, exemptProfitCents: 0, lossInCents: 0, baseCents: 0, taxDueCents: 0, irrfMonthCents: 0, irrfUsedCents: 0, irrfCarryOutCents: 0, lossOutCents: 0, taxPayableCents: 0, ...o })
   const tm = (month: string, stockSalesCents: number, comum: Partial<TaxMonth['comum']>, fii: Partial<TaxMonth['comum']> = {}): TaxMonth => ({ month, stockSalesCents, comum: pot(comum), fii: pot(fii), incomplete: false })
   const tax = [tm('2025-01', 0, {}), tm('2025-03', 500000, { resultCents: 182000, taxPayableCents: 27209, irrfMonthCents: 91 }), tm('2025-06', 100000, { resultCents: -64000, exemptProfitCents: 3000 }), tm('2025-07', 0, {}, { resultCents: 5000, taxPayableCents: 1000 }), tm('2024-12', 100, { exemptProfitCents: 999 })]
+  it('dividendo de BDR é renda do exterior: sai dos isentos e vai num grupo tributável próprio', () => {
+    const r = rendimentosDoAno([dv('FFFF39', 'Dividendo', '2025-03-01', 800), dv('AAAA3', 'Dividendo', '2025-03-01', 1000)], 2025, new Map(), t => (t === 'FFFF39' ? 'BDR' : 'Ação'))
+    expect(r.map(x => [x.linha, x.payerKey, x.cents])).toEqual([['09', 'AAAA3', 1000], ['bdr', 'FFFF39', 800]])
+  })
   it('lucro isento soma só o ano', () => expect(lucroIsentoDoAno(tax, 2025)).toBe(3000))
   it('só meses com operação; DARF pago pelo mês de competência', () => {
     const pay: DarfPayment[] = [{ month: '2025-03', paidAt: '2025-04-30', principalCents: 27209, totalPaidCents: 27209 }, { month: '2025-07', paidAt: '2026-01-10', principalCents: 1000, totalPaidCents: 1100 }]
@@ -79,7 +83,7 @@ describe('rendimentos e renda variável', () => {
   })
   it('pendências: tickers sem cadastro (bens e rendimentos) e corretoras sem cadastro', () => {
     const bens = bensDoAno([tr('AAAA3', 'C', 1, 100, '2025-01-01', { broker: 'ALFA' })], [], 2025)
-    const rend = rendimentosDoAno([dv('BBBB11', 'Rendimento', '2025-06-01', 700)], 2025, new Map())
+    const rend = rendimentosDoAno([dv('BBBB11', 'Rendimento', '2025-06-01', 700)], 2025, new Map(), () => 'FII')
     expect(pendencias(bens, rend, new Map(), new Map())).toEqual({ tickers: ['AAAA3', 'BBBB11'], brokers: ['ALFA'] })
   })
 })

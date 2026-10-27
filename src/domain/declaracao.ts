@@ -64,16 +64,19 @@ export function discriminacao(b: Bem, year: number, issuer: Issuer | undefined, 
   return `${num(b.qty)} ${unit} de ${name} ao custo de R$ ${(b.costCents / b.qty / 100).toFixed(4).replace('.', ',')} cada - Ticker: ${b.ticker}${where}`
 }
 
-export type LinhaRendimento = '09' | '26' | '10'
-export const RENDIMENTO_LABEL: Record<LinhaRendimento, string> = { '09': '09 – Lucros e dividendos recebidos', '26': '26 – Outros (rendimentos de FII)', '10': '10 – Juros sobre capital próprio' }
+export type LinhaRendimento = '09' | '26' | '10' | 'bdr'
+export const RENDIMENTO_LABEL: Record<LinhaRendimento, string> = { '09': '09 – Lucros e dividendos recebidos', '26': '26 – Outros (rendimentos de FII)', '10': '10 – Juros sobre capital próprio', bdr: 'Dividendos de BDR (renda do exterior, tributável)' }
 export interface Rendimento { linha: LinhaRendimento; payerKey: string; name: string | null; cnpj: string | null; tickers: string[]; cents: Cents }
 
-/** Proventos pagos no ano, somados por linha da ficha e por fonte pagadora (CNPJ; sem cadastro, o ticker). */
-export function rendimentosDoAno(dividends: Dividend[], year: number, issuers: Map<string, Issuer>): Rendimento[] {
+/**
+ * Proventos pagos no ano, somados por linha da ficha e por fonte pagadora (CNPJ; sem cadastro, o ticker).
+ * Provento de BDR é renda do exterior (tributável, carnê-leão/ajuste anual): fica num grupo à parte, fora dos isentos.
+ */
+export function rendimentosDoAno(dividends: Dividend[], year: number, issuers: Map<string, Issuer>, typeOf: (ticker: string) => AssetType | undefined): Rendimento[] {
   const by = new Map<string, Rendimento>()
   for (const d of dividends) {
     if (!d.payDate.startsWith(`${year}-`)) continue
-    const linha: LinhaRendimento = d.kind === 'JCP' ? '10' : d.kind === 'Rendimento' ? '26' : '09'
+    const linha: LinhaRendimento = typeOf(d.ticker) === 'BDR' ? 'bdr' : d.kind === 'JCP' ? '10' : d.kind === 'Rendimento' ? '26' : '09'
     const i = issuers.get(d.ticker)
     const payerKey = i?.cnpj ?? d.ticker
     const r = by.get(`${linha}|${payerKey}`) ?? { linha, payerKey, name: i?.name ?? null, cnpj: i?.cnpj ?? null, tickers: [], cents: 0 }
@@ -81,7 +84,7 @@ export function rendimentosDoAno(dividends: Dividend[], year: number, issuers: M
     r.cents += d.amountCents
     by.set(`${linha}|${payerKey}`, r)
   }
-  const order: LinhaRendimento[] = ['09', '26', '10']
+  const order: LinhaRendimento[] = ['09', '26', '10', 'bdr']
   return [...by.values()].map(r => ({ ...r, tickers: [...r.tickers].sort() })).sort((a, b) => order.indexOf(a.linha) - order.indexOf(b.linha) || b.cents - a.cents)
 }
 
