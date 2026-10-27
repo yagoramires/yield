@@ -66,7 +66,7 @@ describe('cliente', () => {
   it('segue `next` até acabar', async () => {
     const f = fake((u) => {
       if (u.pathname === '/auth') return json({ apiKey: 'K' })
-      return u.searchParams.get('after') ? json({ results: [{ id: 'b' }], next: null }) : json({ results: [{ id: 'a' }], next: '?accountId=acc&after=zzz' })
+      return u.searchParams.get('after') ? json({ results: [{ id: 'b', date: '2026-01-01T00:00:00.000Z', description: 'x', amount: 1 }], next: null }) : json({ results: [{ id: 'a', date: '2026-01-01T00:00:00.000Z', description: 'x', amount: 1 }], next: '?accountId=acc&after=zzz' })
     })
     const r = await createPluggyClient(creds, f.fn).listTransactions('acc', '2026-01-01', '2026-02-01')
     expect(r.map(t => t.id)).toEqual(['a', 'b'])

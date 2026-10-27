@@ -9,7 +9,7 @@ export interface SyncResult { accounts: number; inserted: number; removed: numbe
 
 const addDays = (d: ISODate, n: number): ISODate => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10)
 
-export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret: string }, fetchFn: typeof fetch, today: ISODate): Promise<SyncResult> {
+export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret: string }, fetchFn: typeof fetch, today: ISODate, now: () => Date = () => new Date()): Promise<SyncResult> {
   const client = createPluggyClient(creds, fetchFn)
   const result: SyncResult = { accounts: 0, inserted: 0, removed: 0, errors: [] }
   const items = (await loadGastos(db)).pluggyItems
@@ -25,7 +25,8 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
         const kind = pa.type === 'CREDIT' ? 'cartao' as const : 'conta' as const
         const externalId = `pluggy:${pa.id}`
         const stored = (await loadGastos(db)).accounts.find(a => a.externalId === externalId)
-        const dateFrom = stored?.lastSyncAt ? addDays(stored.lastSyncAt.slice(0, 10), -35) : addDays(today, -365)
+        const floor = addDays(today, -365) // a Pluggy não devolve além disso; ir mais longe apagaria linhas que não voltam
+        const dateFrom = stored?.lastSyncAt ? [addDays(stored.lastSyncAt.slice(0, 10), -35), floor].sort()[1] : floor
         const txns = await client.listTransactions(pa.id, dateFrom, dateTo)
         fetched.push({ pa, kind, externalId, dateFrom, rows: txns.map(t => toTxnRow(t, kind)) })
       }
@@ -33,7 +34,7 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
         const id = await upsertAccount(db, { source: 'pluggy', externalId: f.externalId, institution: item.label, name: f.pa.marketingName || f.pa.name, kind: f.kind, number: f.pa.number ?? null, itemId: item.itemId, lastSyncAt: null })
         const rows = withFingerprints(id, f.rows).map(r => ({ ...r, sourceKey: `pluggy:${r.fingerprint}` }))
         const { inserted, removed } = await replaceWindow(db, id, f.dateFrom, rows)
-        await setLastSync(db, id, new Date().toISOString())
+        await setLastSync(db, id, now().toISOString())
         result.accounts++; result.inserted += inserted; result.removed += removed
       }
     } catch (e) {

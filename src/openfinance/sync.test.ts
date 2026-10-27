@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { loadGastos, savePluggyItem, setOverride } from '../db/gastosRepo'
+import { loadGastos, savePluggyItem, setLastSync, setOverride } from '../db/gastosRepo'
 import { createTestDb } from '../db/testDb'
 import { syncPluggy } from './sync'
 
@@ -46,15 +46,18 @@ describe('syncPluggy', () => {
     expect(g.txns.find(t => t.description === 'Loja Inventada')).toMatchObject({ amountCents: -7500, installment: '2/3' })
   })
 
-  it('2ª sincronização com as mesmas respostas não duplica e usa lastSyncAt − 35 dias', async () => {
+  it('2ª sincronização não duplica e usa lastSyncAt − 35 dias, nunca além de hoje − 365', async () => {
     const db = await setup()
-    await syncPluggy(db, creds, fake().fn, today)
+    await syncPluggy(db, creds, fake().fn, today, () => new Date('2026-09-01T12:00:00.000Z'))
     const before = (await loadGastos(db)).txns.length
     const f = fake()
     await syncPluggy(db, creds, f.fn, today)
     expect((await loadGastos(db)).txns).toHaveLength(before)
-    const from = new Date(Date.now() - 35 * 864e5).toISOString().slice(0, 10)
-    expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain(`dateFrom=${from}`)
+    expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2026-07-28')
+    for (const a of (await loadGastos(db)).accounts) await setLastSync(db, a.id, '2024-01-01T00:00:00.000Z')
+    const g = fake()
+    await syncPluggy(db, creds, g.fn, today)
+    expect(g.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2025-10-26')
   })
 
   it('compra de cartão reemitida com outro id continua uma linha e mantém o ajuste', async () => {
@@ -69,6 +72,7 @@ describe('syncPluggy', () => {
     const g2 = await loadGastos(db)
     const rows = g2.txns.filter(x => x.description === 'Loja Inventada')
     expect(rows).toHaveLength(1)
+    expect(rows[0].sourceKey).toBe('pluggy:' + rows[0].fingerprint)
     expect(g2.overrides[rows[0].fingerprint]).toBe(cat)
   })
 
@@ -91,5 +95,18 @@ describe('syncPluggy', () => {
     const r2 = await syncPluggy(db2, creds, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json({}, 500) : null).fn, today)
     expect(r2.errors).toHaveLength(1)
     expect((await loadGastos(db2)).txns).toHaveLength(0)
+  })
+
+  it('resposta fora do formato e `next` repetido viram erro resposta sem tocar nos dados', async () => {
+    const db = await setup()
+    await syncPluggy(db, creds, fake().fn, today)
+    const before = (await loadGastos(db)).txns
+    const bad = fx('transactions-cartao'); delete bad.results[0].description
+    const r = await syncPluggy(db, creds, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json(bad) : null).fn, today)
+    expect(r.errors[0].message).toBe('A Pluggy devolveu dados fora do formato esperado')
+    const loop = fx('transactions-banco'); loop.next = '?accountId=x&after=1'
+    const r2 = await syncPluggy(db, creds, fake(u => u.pathname === '/v2/transactions' ? json(loop) : null).fn, today)
+    expect(r2.errors[0].message).toBe('A Pluggy devolveu dados fora do formato esperado')
+    expect((await loadGastos(db)).txns).toEqual(before)
   })
 })
