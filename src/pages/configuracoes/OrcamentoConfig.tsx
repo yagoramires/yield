@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { DEFAULT_PJ, deleteSource, type IncomeSource } from '../../db/orcamentoRepo'
-import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
+import { cltNet, cltTabelaAno, pjNet, sourceNet } from '../../domain/orcamento'
 import { formatBRL, monthOf } from '../../domain/money'
 import { decodeStatement } from '../../import/ofx'
 import { importOrcamentoCsv, ORCAMENTO_CSV_EXEMPLO, parseOrcamentoCsv } from '../../import/orcamentoCsv'
@@ -68,12 +68,13 @@ export function FontesRenda() {
   const open = (s: IncomeSource | null) => { setEditing(s); setForm(s ? toForm(s) : NEW); setError(null); setMsg(null); setDel(null) }
   const set = (k: keyof SourceForm) => (e: { target: { value: string } }) => setForm(f => f && { ...f, [k]: e.target.value })
 
+  const month = monthOf(todayISO()), year = Number(month.slice(0, 4)), tabelaAno = cltTabelaAno(year)
   let preview: ReturnType<typeof pjNet> | null = null
   let clt: ReturnType<typeof cltNet> | null = null
   try {
     const v = form && form.kind !== 'fixo' ? validateSource(form) : null
     if (v?.kind === 'pj') preview = pjNet(v.grossCents!, v)
-    if (v?.kind === 'clt') clt = cltNet(v.grossCents!, v.dependents, v.outrosCents)
+    if (v?.kind === 'clt') clt = cltNet(v.grossCents!, v.dependents, v.outrosCents, year)
   } catch { /* inválido: sem prévia */ }
 
   const salvar = async () => {
@@ -115,7 +116,7 @@ export function FontesRenda() {
                 <td>{s.name}</td>
                 <td><span className="pill">{KIND_LABEL[s.kind]}</span></td>
                 <td className={`r${s.grossCents == null ? ' t2' : ''}`}>{s.grossCents == null ? '—' : brl(s.grossCents)}</td>
-                <td className="r">{brl(sourceNet(s))}</td>
+                <td className="r">{brl(sourceNet(s, month))}</td>
                 <td><button className="b ghost" disabled={busy} onClick={() => open(s)}>editar</button> <button className="b ghost" disabled={busy} onClick={() => { setDel(s); setForm(null); setMsg(null) }}>apagar</button></td>
               </tr>
             ))}
@@ -168,7 +169,9 @@ export function FontesRenda() {
                   Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
                 </div>
               )}
-              <div className="muted" style={{ marginTop: 6 }}>INSS e IRRF pelas tabelas de 2026, com a isenção até R$ 5.000. Outros descontos: plano de saúde, VT, VR… do seu holerite.</div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                INSS e IRRF pelas tabelas de {tabelaAno}{tabelaAno === 2026 && ', com a isenção até R$ 5.000'}.{tabelaAno !== year && ` A tabela de ${year} ainda não está no app: usando a tabela de ${tabelaAno}.`} Outros descontos: plano de saúde, VT, VR… do seu holerite.
+              </div>
             </>
           )}
           <div className="btns" style={{ marginTop: 8, justifyContent: 'flex-end' }}>

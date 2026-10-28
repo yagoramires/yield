@@ -3,7 +3,7 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet, cltNet, inssEmpregado, irrfMensal } from './orcamento'
+import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: 'k', ...o })
@@ -135,5 +135,21 @@ describe('CLT 2026', () => {
     expect(b.irrfCents).toBe(irrfMensal(600000, b.inssCents, 0))
     expect(b.netCents).toBe(600000 - b.inssCents - b.irrfCents - 15000)
     expect(b.fgtsCents).toBe(48000)
+  })
+})
+
+describe('tabelas CLT por ano', () => {
+  it('ano com tabela usa a dele; ano sem tabela usa a mais recente conhecida', () => {
+    expect(cltTabelaAno(2026)).toBe(2026)
+    expect(cltTabelaAno(2027)).toBe(2026)
+    expect(cltTabelaAno(2024)).toBe(2026) // não há tabela mais antiga no app
+  })
+  it('o ano escolhe a tabela no cálculo', () => {
+    expect(inssEmpregado(300000, 2027)).toBe(inssEmpregado(300000, 2026))
+    expect(cltNet(600000, 0, 0, 2030)).toEqual(cltNet(600000, 0, 0, 2026))
+  })
+  it('sourceNet de CLT usa o ano do mês informado', () => {
+    const s = src({ kind: 'clt', grossCents: 600000 })
+    expect(sourceNet(s, '2027-03')).toBe(cltNet(600000, 0, 0, 2026).netCents)
   })
 })

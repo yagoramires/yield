@@ -155,7 +155,7 @@ export async function saveSourceForm(db: Db, v: ReturnType<typeof validateSource
   const sourceKey = editing?.sourceKey ?? null
   const s = { ...v, id: await saveSource(db, { ...v, ...(editing ? { id: editing.id } : {}), sourceKey }), sourceKey }
   onSaved(s) // antes do applySource: se ele falhar, o próximo Salvar edita esta fonte em vez de criar outra
-  return applySource(db, s.id, fromMonth, sourceNet(s))
+  return applySource(db, s.id, fromMonth, sourceNet(s, fromMonth))
 }
 
 /** Senha do backup: mínimo de 8 caracteres e confirmação igual. */
