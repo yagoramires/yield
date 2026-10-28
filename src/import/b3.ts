@@ -1,10 +1,12 @@
 import { read, utils } from 'xlsx'
 import type { Db } from '../db/client'
 import { loadAll, saveEvent, saveNote, upsertDividends } from '../db/repo'
+import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
 import { normalizeTicker, replay } from '../domain/ledger'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
+import { isRendaFixa, parsePosicao, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
 
 export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents }
 export interface B3Import {
@@ -18,6 +20,8 @@ export interface B3Import {
   // "Leilão de Fração": a B3 vendeu a fração e pagou, então vira venda
   sales: { kind: 'Leilão de Fração'; date: ISODate; ticker: string; qty: number; valueCents: Cents; broker: string; produto: string }[]
   subscriptions: { base: string; date: ISODate }[] // subscrição exercida: explica uma "Atualização" que credita cotas
+  rfMoves: Omit<RfMove, 'id'>[] // renda fixa da Movimentação (Tesouro, CDB…)
+  rfPositions: RfPosition[] // valor de hoje de cada título, do relatório Posição
 }
 
 type Cell = string | number | boolean | null
@@ -57,6 +61,15 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
     const sourceKey = uniqueKey(seen, `b3:${date}:${mov}:${produto}:${inst}:${text(qtyCell)}:${text(valueCell)}`)
     const qty = parseQty(str(qtyCell))
     const sign = /^d/i.test(text(get('Entrada/Saída'))) ? -1 : 1
+
+    if (isRendaFixa(produto)) {
+      const kind = rfMoveKind(mov, sign > 0)
+      const value = parseBRL(str(valueCell))
+      if (!kind) out.toReview.push({ date, movimentacao: mov, produto, nota: 'movimentação de renda fixa que o Yield não conhece' })
+      // "VENCIMENTO" vem com valor 0: a B3 não informa quanto foi resgatado
+      else out.rfMoves.push({ key: rfKey(produto), product: produto, date, kind, qty, valueCents: value > 0 ? value : null, sourceKey: uniqueKey(seen, `b3rf:${date}:${mov}:${produto}:${inst}:${text(qtyCell)}:${text(valueCell)}`) })
+      continue
+    }
 
     const amountCents = PROVENTOS[mov] ? parseBRL(str(valueCell)) : 0
     // Provento sem valor ou Grupamento a crédito (sinal não confirmado num extrato real) vão para revisão.
@@ -123,12 +136,18 @@ function parseProventos(rows: Cell[][], out: B3Import) {
   }
 }
 
-/** Lê os relatórios da Área do Investidor: Movimentação, Negociação ou Proventos Recebidos (reconhecidos pelo cabeçalho). */
-export function parseB3(data: ArrayBuffer): B3Import {
+const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+
+/** Lê os relatórios da Área do Investidor: Movimentação, Negociação, Proventos Recebidos (pelo cabeçalho) ou Posição (pelas abas). */
+export function parseB3(data: ArrayBuffer, fileName = '', today: ISODate = localToday()): B3Import {
   const wb = read(data, { cellDates: false })
+  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  if (wb.SheetNames.includes('Tesouro Direto') || wb.SheetNames.includes('Renda Fixa')) {
+    out.rfPositions = parsePosicao(wb, posicaoDate(fileName) ?? today)
+    return out
+  }
   const rows = utils.sheet_to_json<Cell[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false })
   const header = new Set(rows[0]?.map(text))
-  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [] }
   if (header.has('Código de Negociação')) parseNegociacao(rows, out)
   else if (header.has('Tipo de Evento')) parseProventos(rows, out)
   else if (header.has('Movimentação')) parseMovimentacao(rows, out)
@@ -213,5 +232,7 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
       review.push({ date: c.date, movimentacao: 'Atualização', produto: c.produto, nota: sub ? `provável crédito de subscrição (+${q(c.qty)}): lance a compra em Notas com o preço pago` : `B3: ${q(c.qty)}, Yield: ${q(have)}` })
     }
   }
-  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped, sales, checked, review }
+  const rfMoves = await upsertRfMoves(db, p.rfMoves)
+  const rfPositions = await upsertRfPositions(db, p.rfPositions)
+  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped, sales, checked, review, rfMoves, rfPositions }
 }
