@@ -113,7 +113,7 @@ const QUOTES = ['BRL', 'USDT', 'FDUSD', 'USDC', 'BUSD']
  * Uma fonte que falha (sem permissão, rede, limite) vai para `failed` e as outras seguem.
  */
 export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn: typeof fetch, now: () => number = Date.now,
-  sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))): Promise<{ swaps: Swap[]; failed: { source: string; error: unknown }[] }> {
+  sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))): Promise<{ swaps: Swap[]; failed: { source: string; error: unknown }[]; found: Record<string, number> }> {
   const read = (path: string, params: string, key?: string) => readRows(path, params, creds, fetchFn, now, sleep, key)
   const fiats = new Set(['BRL'])
 
@@ -152,7 +152,10 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
 
   const failed: { source: string; error: unknown }[] = []
   const swaps: Swap[] = []
-  const settle = async (source: string, run: () => Promise<Swap[]>) => { try { swaps.push(...await run()) } catch (error) { failed.push({ source, error }) } }
+  const found: Record<string, number> = {}
+  const settle = async (source: string, run: () => Promise<Swap[]>) => {
+    try { const got = await run(); found[source] = got.length; swaps.push(...got) } catch (error) { failed.push({ source, error }) }
+  }
   await Promise.all([settle('compras com PIX/cartão', fiat), settle('Convert', convert)])
 
   // myTrades exige o par: cada moeda com saldo ou vista acima × as moedas de cotação em real e dólar
@@ -182,6 +185,6 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
     }
     return out
   }
-  await settle('negociações spot', spot)
-  return { swaps, failed }
+  await settle('negociações à vista', spot)
+  return { swaps, failed, found }
 }

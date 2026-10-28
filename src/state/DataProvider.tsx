@@ -19,7 +19,7 @@ import { fetchBinanceBalances } from '../cripto/binance'
 import { getBinanceCredentials } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
 import { syncCryptoCosts } from '../cripto/aportado'
-import { binanceErrorText, historyFailText } from '../pages/configuracoes/build'
+import { binanceErrorText, costSummaryText } from '../pages/configuracoes/build'
 import { syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
@@ -143,9 +143,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const creds = await getBinanceCredentials()
       if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.' })
-      const failed = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch)
+      const r = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch)
       setData(await loadAll(d))
-      setCostState({ loading: false, note: historyFailText(failed) })
+      setCostState({ loading: false, note: costSummaryText(r) })
     } catch (e) { setCostState({ loading: false, note: binanceErrorText(e) }) }
   }, [])
 

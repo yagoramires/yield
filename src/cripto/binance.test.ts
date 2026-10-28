@@ -166,6 +166,6 @@ describe('histórico para o aportado', () => {
   test('spot: 418 sem Retry-After espera 60 s; falhando de novo, só o spot vai para failed', async () => {
     const r = await run({ ...empty, '/api/v3/myTrades': () => new Response('{}', { status: 418 }) })
     expect(r.sleeps.filter(s => s.ms === 60_000)).toHaveLength(1)
-    expect(r.failed.map(f => f.source)).toEqual(['negociações spot'])
+    expect(r.failed.map(f => f.source)).toEqual(['negociações à vista'])
   })
 })
