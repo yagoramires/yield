@@ -7,6 +7,7 @@ import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
 import { errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan, validateLine } from './orcamento/build'
+import { Select } from '../ui/Select'
 
 interface Form { id?: string; kind: LineKind; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
 
@@ -140,13 +141,10 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     return (
       <tr className="edit" key="form"><td colSpan={3}>
         <div className="row" style={{ alignItems: 'center' }}>
-          <select className="in" aria-label="Fonte" value={f.sourceId} onChange={e => {
-            const s = data.sources.find(x => x.id === e.target.value)
+          <Select ariaLabel="Fonte" value={f.sourceId} onChange={v => {
+            const s = data.sources.find(x => x.id === v)
             setForm(s ? { ...f, sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s)) } : { ...f, sourceId: '' })
-          }}>
-            {data.sources.map(s => <option key={s.id} value={s.id}>Fonte: {s.name}</option>)}
-            <option value="">Valor avulso</option>
-          </select>
+          }} options={[...data.sources.map(s => ({ value: s.id, label: `Fonte: ${s.name}` })), { value: '', label: 'Valor avulso' }]} />
           <input className="in" aria-label="Nome" placeholder="nome" style={{ width: 140 }} value={f.name} onChange={e => setForm({ ...f, name: e.target.value })} />
           <input className="in" aria-label="Valor" placeholder="0,00" style={{ width: 90 }} readOnly={!!source} value={f.amount} onChange={e => setForm({ ...f, amount: e.target.value })} />
           {recurringBox(f)}
@@ -165,10 +163,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <input className="in" aria-label="Nome" placeholder="nome" autoFocus style={{ width: 140 }} value={f.name} onChange={e => setForm({ ...f, name: e.target.value })} />
         <input className="in" aria-label="Valor" placeholder="0,00" style={{ width: 90 }} value={f.amount} onChange={e => setForm({ ...f, amount: e.target.value })} />
         <input className="in" aria-label="Parcela" placeholder="n/total" style={{ width: 60 }} value={f.installment} onChange={e => setForm({ ...f, installment: e.target.value })} />
-        <select className="in" aria-label="Categoria" value={f.categoryId} onChange={e => setForm({ ...f, categoryId: e.target.value })}>
-          <option value="">sem categoria</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+        <Select ariaLabel="Categoria" value={f.categoryId} onChange={v => setForm({ ...f, categoryId: v })} options={[{ value: '', label: 'sem categoria' }, ...categories.map(c => ({ value: c.id, label: c.name }))]} />
         {recurringBox(f, !!total)}
         {buttons(f)}
       </div>

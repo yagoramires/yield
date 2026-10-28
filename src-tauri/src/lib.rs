@@ -132,7 +132,8 @@ fn menu_pt(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry
 }
 
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
-const SECRET_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
+// "yield.credentials" guarda tudo num item só; os outros são os itens antigos, lidos uma vez para migrar.
+const SECRET_KEYS: [&str; 3] = ["yield.credentials", "pluggy.clientId", "pluggy.clientSecret"];
 
 fn entry_for(key: &str) -> Result<keyring::Entry, String> {
     if !SECRET_KEYS.contains(&key) {
@@ -226,6 +227,18 @@ pub fn run() {
             sql: include_str!("../migrations/008_cadastro_ir.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 9,
+            description: "renda fixa, exterior e cripto",
+            sql: include_str!("../migrations/009_renda_fixa_cripto.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 10,
+            description: "aportado dos ativos manuais",
+            sql: include_str!("../migrations/010_aportado_manual.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).
@@ -292,6 +305,7 @@ mod tests {
     fn cofre_rejeita_key_desconhecida_antes_de_tocar_no_cofre() {
         assert!(entry_for("outra.coisa").is_err());
         assert!(entry_for("pluggy.clientId").is_ok());
+        assert!(entry_for("yield.credentials").is_ok());
     }
 
     #[test]

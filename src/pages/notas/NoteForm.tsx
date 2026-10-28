@@ -3,6 +3,8 @@ import type { Note } from '../../db/repo'
 import { formatCents } from '../../domain/money'
 import type { Side } from '../../domain/types'
 import { ASSET_TYPES, buildNote, emptyItem, FEE_FIELDS, noteNet, type Built, type ItemRow, type NoteForm as Form } from './build'
+import { DateField } from '../../ui/DateField'
+import { Select } from '../../ui/Select'
 
 interface Props {
   mode: 'manual' | 'sem_nota'
@@ -39,8 +41,8 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
       <div className="row" style={{ margin: '10px 0' }}>
         {!semNota && <label className="field"><span>Nº da nota</span><input className="in" autoFocus value={f.number} onChange={e => setF({ ...f, number: e.target.value })} /></label>}
         <label className="field"><span>Corretora</span><input className="in" value={f.broker} onChange={e => setF({ ...f, broker: e.target.value })} /></label>
-        <label className="field"><span>{semNota ? 'Data' : 'Pregão'}</span><input className="in" type="date" value={f.tradeDate} onChange={e => setF({ ...f, tradeDate: e.target.value })} /></label>
-        {!semNota && <label className="field"><span>Liquidação</span><input className="in" type="date" value={f.settleDate} onChange={e => setF({ ...f, settleDate: e.target.value })} /></label>}
+        <div className="field"><span>{semNota ? 'Data' : 'Pregão'}</span><DateField ariaLabel={semNota ? 'Data' : 'Pregão'} value={f.tradeDate} onChange={v => setF({ ...f, tradeDate: v })} /></div>
+        {!semNota && <div className="field"><span>Liquidação</span><DateField ariaLabel="Liquidação" value={f.settleDate} onChange={v => setF({ ...f, settleDate: v })} /></div>}
         {semNota && <label className="field"><span>Motivo</span><input className="in" autoFocus placeholder="IPO, subscrição…" value={f.label} onChange={e => setF({ ...f, label: e.target.value })} /></label>}
       </div>
       <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
@@ -50,8 +52,8 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
             const total = /^\d+$/.test(r.qty.trim()) && /^[\d.]+(,\d{1,2})?$/.test(r.price.trim()) ? Number(r.qty) * Math.round(Number(r.price.replace(/\./g, '').replace(',', '.')) * 100) : null
             return (
               <tr key={i}>
-                <td><select className="in" disabled={semNota} value={r.side} onChange={e => setItem(i, { side: e.target.value as Side })}><option value="C">C</option><option value="V">V</option></select></td>
-                <td><select className="in" value={r.assetType} onChange={e => setItem(i, { assetType: e.target.value as ItemRow['assetType'] })}>{ASSET_TYPES.map(t => <option key={t}>{t}</option>)}</select></td>
+                <td><Select small ariaLabel="Compra ou venda" disabled={semNota} value={r.side} onChange={v => setItem(i, { side: v as Side })} options={[{ value: 'C', label: 'C' }, { value: 'V', label: 'V' }]} /></td>
+                <td><Select small ariaLabel="Tipo do ativo" value={r.assetType} onChange={v => setItem(i, { assetType: v as ItemRow['assetType'] })} options={ASSET_TYPES.map(t => ({ value: t, label: t }))} /></td>
                 <td><input className="in" style={{ width: 90 }} autoFocus={focus === i} value={r.ticker} onChange={e => setItem(i, { ticker: e.target.value.toUpperCase() })} onKeyDown={onEnter} /></td>
                 <td className="r"><input className="in" style={{ width: 70, textAlign: 'right' }} inputMode="numeric" value={r.qty} onChange={e => setItem(i, { qty: e.target.value })} onKeyDown={onEnter} /></td>
                 <td className="r"><input className="in" style={{ width: 90, textAlign: 'right' }} inputMode="decimal" placeholder="0,00" value={r.price} onChange={e => setItem(i, { price: e.target.value })} onKeyDown={onEnter} /></td>

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText } from './build'
+import { BinanceError } from '../../cripto/binance'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
   ({ id: sourceKey ?? payDate, ticker, kind: 'Rendimento', payDate, amountCents: 100, broker: null, source, sourceKey })
@@ -35,7 +36,8 @@ describe('b3Summary', () => {
   it('contagens, eventos aplicados e o que revisar', () => {
     expect(b3Summary(
       {
-        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1,
+        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1, sales: 2, checked: 9, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 },
+        review: [{ date: '2024-06-12', movimentacao: 'Atualização', produto: 'WEGE3 - WEG S.A.', nota: 'B3: 125, Yield: 100' }],
         applied: [
           { kind: 'bonificacao', ticker: 'ITSA4', date: '2024-04-20', qtyDelta: 160, unitCostCents: null, sourceKey: 'a' },
           { kind: 'grupamento', ticker: 'MGLU3', date: '2024-05-02', qtyDelta: -1000, sourceKey: 'b' },
@@ -44,9 +46,9 @@ describe('b3Summary', () => {
       },
       { ignored: 7, toReview: [{ date: '2024-06-10', movimentacao: 'Amortização', produto: 'HGLG11 - CSHG LOGISTICA FII' }] },
     )).toEqual({
-      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 7 movimentações ignoradas (liquidações; as compras e vendas vêm do relatório de Negociação)',
+      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 2 leilões de fração lançados como venda · 9 posições conferidas com a B3 · 7 movimentações ignoradas (liquidações e frações; as compras e vendas vêm do relatório de Negociação)',
       applied: ['ITSA4 bonificação +160 (20/04/2024)', 'MGLU3 grupamento −1000 (02/05/2024)', 'BBAS3 desdobramento +0,5 (02/05/2024)'],
-      toReview: ['Amortização HGLG11 (10/06/2024)'],
+      toReview: ['Amortização HGLG11 (10/06/2024)', 'Atualização WEGE3 (12/06/2024): B3: 125, Yield: 100'],
     })
   })
 })
@@ -150,7 +152,7 @@ describe('saveSourceForm', () => {
 })
 
 describe('tipos dos tickers da Negociação', () => {
-  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [] }
+  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
   const old = [{ id: 't', noteId: 'n', seq: 1, broker: 'CLEAR', tradeDate: '2023-01-02', settleDate: '2023-01-04', side: 'C' as const, assetType: 'ETF' as const, ticker: 'BOVA11', qty: 1, priceCents: 1, feesCents: 0, irrfCents: 0 }]
   it('pede confirmação só dos final 11 ainda sem operação, em ordem', () => {
     expect(typesToConfirm(p, old)).toEqual({ ask: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }], inferred: [] })
@@ -169,10 +171,20 @@ describe('tipos dos tickers da Negociação', () => {
   })
 })
 
+describe('b3Summary com renda fixa', () => {
+  it('conta movimentações e títulos, e o que já existia', () => {
+    const base = { notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [] }
+    expect(b3Summary({ ...base, rfMoves: { inserted: 7, skipped: 2 }, rfPositions: { updated: 0, older: 0 } }, { ignored: 0, toReview: [] }).counts)
+      .toBe('0 proventos · 0 já existiam · 7 movimentações de renda fixa · 2 já existiam')
+    expect(b3Summary({ ...base, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 3, older: 1 } }, { ignored: 0, toReview: [] }).counts)
+      .toBe('0 proventos · 0 já existiam · 3 títulos de renda fixa atualizados · 1 de uma Posição mais antiga ignorado')
+  })
+})
+
 describe('b3Summary com operações', () => {
   it('conta operações, dias e o que já estava em nota', () => {
     expect(b3Summary(
-      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [] },
+      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 } },
       { ignored: 0, toReview: [] },
     ).counts).toBe('12 operações em 3 dias · 1 dia já existia · 2 operações já estavam em notas · 0 proventos · 0 já existiam')
   })
@@ -182,4 +194,12 @@ it('backupPasswordError: 8+ caracteres e confirmação igual', () => {
   expect(backupPasswordError('curta', 'curta')).toBe('Use uma senha com pelo menos 8 caracteres.')
   expect(backupPasswordError('senha-boa-1', 'senha-boa-2')).toBe('As duas senhas não são iguais.')
   expect(backupPasswordError('senha-boa-1', 'senha-boa-1')).toBeNull()
+})
+
+describe('binanceErrorText', () => {
+  it('chave, rede e o resto', () => {
+    expect(binanceErrorText(new BinanceError('x', 'chave'))).toBe('Binance: chave inválida ou sem permissão de leitura')
+    expect(binanceErrorText(new BinanceError('x', 'rede'))).toBe('Sem conexão com a Binance')
+    expect(binanceErrorText(new Error('HTTP 500'))).toBe('Binance: HTTP 500')
+  })
 })

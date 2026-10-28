@@ -5,6 +5,7 @@ import { formatBRL, monthOf } from '../../domain/money'
 import { importOrcamento, parseOrcamentoPlanilha } from '../../import/orcamentoPlanilha'
 import { todayISO, useData } from '../../state/DataProvider'
 import { orcamentoImportSummary, saveSourceForm, validateSource, type SourceForm } from './build'
+import { Select } from '../../ui/Select'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const num = (x: number) => String(x).replace('.', ',')
@@ -135,11 +136,9 @@ export function FontesRenda() {
           <div className="muted" style={{ marginBottom: 6 }}>{editing ? <>Editando <b style={{ color: '#e8e9ec' }}>{editing.name}</b></> : 'Nova fonte de renda'}</div>
           <div className="row">
             {field('Nome', 'name', 180)}
-            <label className="field"><span>Tipo</span>
-              <select className="in" value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as SourceForm['kind'] })}>
-                <option value="pj">PJ</option><option value="clt">CLT</option><option value="fixo">valor fixo</option>
-              </select>
-            </label>
+            <div className="field"><span>Tipo</span>
+              <Select ariaLabel="Tipo" value={form.kind} onChange={v => setForm({ ...form, kind: v as SourceForm['kind'] })} options={[{ value: 'pj', label: 'PJ' }, { value: 'clt', label: 'CLT' }, { value: 'fixo', label: 'valor fixo' }]} />
+            </div>
             {form.kind === 'fixo' ? field('Líquido do mês (R$)', 'net') : field('Bruto (R$)', 'gross')}
           </div>
           {form.kind === 'pj' && (

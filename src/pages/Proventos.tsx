@@ -7,6 +7,9 @@ import { useB3Import } from './configuracoes/useB3Import'
 import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
+import { rfJuros, rfJurosByMonth } from '../domain/rendaFixa'
+import { DateField } from '../ui/DateField'
+import { Select } from '../ui/Select'
 
 const pct = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const signedPct = (p: number) => `${p >= 0 ? '+' : '−'}${pct(Math.abs(p))}`
@@ -44,6 +47,9 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const yoc = yieldOnCost(sm.last12, derived.portfolio.rows)
   const years = yearTable(all)
   const months = dividendsByMonth(all, thisMonth, 24)
+  const juros = rfJurosByMonth(data.rfMoves, thisMonth, 24)
+  // juros de Tesouro e CDB: só leitura, fora da Declaração IR (vêm da Movimentação da B3)
+  const jurosList = filter.ticker || filter.kind ? [] : rfJuros(data.rfMoves).filter(j => !filter.month || monthOf(j.date) === filter.month).reverse()
   const periodList = period === '12m' ? sm.last12 : period === 'tudo' ? all : all.filter(d => d.payDate.startsWith(period))
   const ranking = byTicker(periodList)
   const filtered = filterDividends(all, filter)
@@ -53,7 +59,7 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const payMonths = [...new Set([...data.dividends.map(d => monthOf(d.payDate)), ...(filter.month ? [filter.month] : [])])].sort().reverse()
   const shown = showAll || filtering ? groups : groups.slice(0, 3)
   const ytdDiff = sm.ytdPrevCents ? sm.ytdCents / sm.ytdPrevCents - 1 : null
-  const total = (m: (typeof months)[number]) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP
+  const total = (m: (typeof months)[number], i: number) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP + juros[i].cents
   const pickMonth = (m: string) => { setFilter({ ...filter, month: filter.month === m ? '' : m }); setShowAll(false) }
   const pickTicker = (t: string) => setFilter({ ...filter, ticker: filter.ticker === t ? '' : t })
 
@@ -71,9 +77,9 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
           <b style={{ color: '#fff' }}>Novo provento</b>
           <div className="row" style={{ margin: '10px 0' }}>
             <label className="field"><span>Ativo</span><input className="in" autoFocus style={{ width: 90 }} value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} /></label>
-            <label className="field"><span>Tipo</span>
-              <select className="in" value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as DividendForm['kind'] })}>{KINDS.map(k => <option key={k}>{k}</option>)}</select></label>
-            <label className="field"><span>Data do pagamento</span><input className="in" type="date" value={form.payDate} onChange={e => setForm({ ...form, payDate: e.target.value })} /></label>
+            <div className="field"><span>Tipo</span>
+              <Select ariaLabel="Tipo" value={form.kind} onChange={v => setForm({ ...form, kind: v as DividendForm['kind'] })} options={KINDS.map(k => ({ value: k, label: k }))} /></div>
+            <div className="field"><span>Data do pagamento</span><DateField ariaLabel="Data do pagamento" value={form.payDate} onChange={v => setForm({ ...form, payDate: v })} /></div>
             <label className="field"><span>Corretora (opcional)</span><input className="in" style={{ width: 110 }} value={form.broker} onChange={e => setForm({ ...form, broker: e.target.value })} /></label>
             <label className="field"><span>Valor</span><input className="in" style={{ width: 100 }} inputMode="decimal" placeholder="0,00" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} onKeyDown={e => e.key === 'Enter' && void save()} /></label>
           </div>
@@ -94,22 +100,20 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
         <div className="grid2">
           <div className="card stretch">
             <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para filtrar a lista</span></div>
-            <BarChart fill height={170} series={['Rendimento', 'Dividendo', 'JCP']} format={formatBRL}
+            <BarChart fill height={170} series={['Rendimento', 'Dividendo', 'JCP', 'Juros RF']} format={formatBRL}
               selected={filter.month ? months.findIndex(m => m.month === filter.month) : null} onSelect={i => pickMonth(months[i].month)}
-              ariaLabel={`Proventos por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${m.month.slice(0, 4)} ${formatBRL(total(m))}`).join('; ')}`}
-              bars={months.map(m => ({
+              ariaLabel={`Proventos por mês: ${months.map((m, i) => `${monthName(m.month).toLowerCase()} ${m.month.slice(0, 4)} ${formatBRL(total(m, i))}`).join('; ')}`}
+              bars={months.map((m, i) => ({
                 // 24 barras: rótulo só no início de cada trimestre, janeiro com o ano
                 label: m.month.endsWith('-01') ? `jan ${m.month.slice(2, 4)}` : ['04', '07', '10'].includes(m.month.slice(5)) ? monthName(m.month).slice(0, 3).toLowerCase() : '',
-                values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP], partial: m.month === thisMonth,
+                values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP, juros[i].cents], partial: m.month === thisMonth,
                 tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${m.month === thisMonth ? ' até hoje' : ''}`,
               }))} valueLabel={() => ''} />
           </div>
           <div className="card">
             <div className="bar">
               <h5 style={{ margin: 0 }}>Por ativo</h5>
-              <select className="in" aria-label="Período" value={period} onChange={e => setPeriod(e.target.value)}>
-                <option value="12m">Últimos 12 meses</option>{years.map(y => <option key={y.year} value={y.year}>{y.year}</option>)}<option value="tudo">Tudo</option>
-              </select>
+              <Select ariaLabel="Período" value={period} onChange={setPeriod} options={[{ value: '12m', label: 'Últimos 12 meses' }, ...years.map(y => ({ value: y.year, label: y.year })), { value: 'tudo', label: 'Tudo' }]} />
             </div>
             <div className="muted" style={{ margin: '4px 0 8px' }}>clique para filtrar a lista · % = rendimento sobre o custo em 12 meses</div>
             <HBars ariaLabel="Proventos por ativo" format={formatCents}
@@ -140,10 +144,8 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
           <div className="card">
             <div className="row" style={{ alignItems: 'center', marginBottom: 8 }}>
               <h5 style={{ margin: 0, marginRight: 'auto' }}>Lançamentos</h5>
-              <select className="in" aria-label="Ativo" value={filter.ticker} onChange={e => setFilter({ ...filter, ticker: e.target.value })}>
-                <option value="">Todos os ativos</option>{tickers.map(t => <option key={t}>{t}</option>)}</select>
-              <select className="in" aria-label="Mês" value={filter.month} onChange={e => { setFilter({ ...filter, month: e.target.value }); setShowAll(false) }}>
-                <option value="">Todos os meses</option>{payMonths.map(m => <option key={m} value={m}>{monthName(m)} {m.slice(0, 4)}</option>)}</select>
+              <Select ariaLabel="Ativo" value={filter.ticker} onChange={v => setFilter({ ...filter, ticker: v })} options={[{ value: '', label: 'Todos os ativos' }, ...tickers.map(t => ({ value: t, label: t }))]} />
+              <Select ariaLabel="Mês" value={filter.month} onChange={v => { setFilter({ ...filter, month: v }); setShowAll(false) }} options={[{ value: '', label: 'Todos os meses' }, ...payMonths.map(m => ({ value: m, label: `${monthName(m)} ${m.slice(0, 4)}` }))]} />
               <button className={`chip ${filter.kind === '' ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: '' })}>Todos</button>
               {KINDS.map(k => <button key={k} className={`chip ${filter.kind === k ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: k })}>{k}</button>)}
             </div>
@@ -170,6 +172,14 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
               <button className="b ghost" style={{ marginTop: 8 }} onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar só os últimos 3 meses' : `Ver todos os ${groups.length} meses`}</button>
             )}
             {filtering && <div className="muted" style={{ marginTop: 8 }}>{filtered.length} proventos · {formatBRL(filtered.reduce((s, d) => s + d.amountCents, 0))}</div>}
+            {jurosList.length > 0 && <>
+              <h5 style={{ margin: '14px 0 6px' }}>Juros da renda fixa <span className="muted">· da Movimentação da B3, fora da declaração de IR</span></h5>
+              <table><tbody>
+                {(showAll || filtering ? jurosList : jurosList.slice(0, 6)).map((j, i) => (
+                  <tr key={`${j.date}-${i}`}><td className="t2">{brDate(j.date)}</td><td>{j.product.split(' - ').filter((_, k, a) => a.length < 3 || k !== 1).join(' ')}</td><td className="t2">Juros RF</td><td className="r">{formatCents(j.valueCents)}</td></tr>
+                ))}
+              </tbody></table>
+            </>}
           </div>
         </div>
         {all.some(d => d.source === 'planilha') && <div className="muted" style={{ marginTop: 8 }}>Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>}
