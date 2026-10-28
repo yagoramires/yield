@@ -77,9 +77,17 @@ export async function fetchBinanceBalances(creds: Creds, fetchFn: typeof fetch, 
 type Row = Record<string, unknown>
 const DAY = 86_400_000
 
-/** Linhas da resposta (`key`: onde a lista está); null quando o símbolo não existe (-1121). */
-async function readRows(path: string, params: string, creds: Creds, fetchFn: typeof fetch, now: () => number, key?: string): Promise<Row[] | null> {
-  const res = await signedGet(path, creds, fetchFn, now, params)
+/**
+ * Linhas da resposta (`key`: onde a lista está); null quando o símbolo não existe (-1121).
+ * No limite de consultas (429/418) espera o Retry-After (60 s sem ele, no máximo 120 s) e tenta de novo uma vez.
+ */
+async function readRows(path: string, params: string, creds: Creds, fetchFn: typeof fetch, now: () => number, sleep: (ms: number) => Promise<void>, key?: string): Promise<Row[] | null> {
+  let res = await signedGet(path, creds, fetchFn, now, params)
+  if (res.status === 429 || res.status === 418) {
+    const s = Number(res.headers.get('Retry-After') || 60)
+    await sleep(Math.min(Number.isFinite(s) && s >= 0 ? s : 60, 120) * 1000)
+    res = await signedGet(path, creds, fetchFn, now, params)
+  }
   const body = await res.json().catch(() => null) as Row | Row[] | null
   if (res.ok && body) {
     const rows = Array.isArray(body) ? body : body[key ?? ''] ?? []
@@ -87,6 +95,7 @@ async function readRows(path: string, params: string, creds: Creds, fetchFn: typ
   }
   if (!Array.isArray(body) && body?.code === -1121) return null
   if (res.status === 401 || res.status === 403) throw new BinanceError('Chave da Binance sem permissão para este histórico', 'chave')
+  if (res.status === 429 || res.status === 418) throw new BinanceError('A Binance limitou as consultas; tente de novo mais tarde', 'resposta')
   throw new BinanceError(`A Binance respondeu com erro (HTTP ${res.status})`, 'resposta')
 }
 
@@ -105,7 +114,7 @@ const QUOTES = ['BRL', 'USDT', 'FDUSD', 'USDC', 'BUSD']
  */
 export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn: typeof fetch, now: () => number = Date.now,
   sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))): Promise<{ swaps: Swap[]; failed: { source: string; error: unknown }[] }> {
-  const read = (path: string, params: string, key?: string) => readRows(path, params, creds, fetchFn, now, key)
+  const read = (path: string, params: string, key?: string) => readRows(path, params, creds, fetchFn, now, sleep, key)
   const fiats = new Set(['BRL'])
 
   // sem beginTime/endTime a Binance só devolve 30 dias; o limite da janela não é documentado, 90 dias por segurança
@@ -150,9 +159,13 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
   const spot = async () => {
     const out: Swap[] = []
     const bases = new Set([...assets, ...swaps.flatMap(s => [s.get, s.pay])].filter(a => !fiats.has(a)))
+    let first = true
     for (const base of bases) for (const quote of QUOTES) {
       if (base === quote) continue
       for (let fromId = 0; ;) {
+        // peso 20 por chamada (limite 6000/min): um respiro entre as chamadas para não estourar com muitas moedas
+        if (!first) await sleep(250)
+        first = false
         const rows = await read(TRADES, `symbol=${base}${quote}&fromId=${fromId}&limit=1000&`)
         if (!rows) break
         for (const r of rows) {

@@ -66,12 +66,14 @@ describe('histórico para o aportado', () => {
   type Route = (q: URLSearchParams) => Response
   const run = (routes: Record<string, Route>, assets = ['BTC']) => {
     const calls: { path: string; q: URLSearchParams; key: string | null }[] = []
+    const sleeps: { ms: number; after: string }[] = []
     const fetchFn = (async (url: string, init?: RequestInit) => {
       const u = new URL(url)
       calls.push({ path: u.pathname, q: u.searchParams, key: new Headers(init?.headers).get('X-MBX-APIKEY') })
       return (routes[u.pathname] ?? (() => json({ code: -1121, msg: 'Invalid symbol.' }, 400)))(u.searchParams)
     }) as typeof fetch
-    return fetchBinanceSwaps(creds, assets, fetchFn, () => NOW, async () => {}).then(r => ({ ...r, calls }))
+    const sleep = async (ms: number) => { sleeps.push({ ms, after: calls.at(-1)?.q.get('symbol') ?? '' }) }
+    return fetchBinanceSwaps(creds, assets, fetchFn, () => NOW, sleep).then(r => ({ ...r, calls, sleeps }))
   }
   const covers = (ws: [number, number][], from: number, maxDays: number) => {
     const sorted = [...ws].sort((a, b) => a[0] - b[0])
@@ -145,5 +147,25 @@ describe('histórico para o aportado', () => {
     })
     expect(r.swaps).toEqual([{ time: NOW, get: 'BTC', getQty: 1, pay: 'BRL', payQty: 100 }])
     expect(r.failed.map(f => [f.source, (f.error as BinanceError).kind]).sort()).toEqual([['Convert', 'rede'], ['compras com PIX/cartão', 'chave']])
+  })
+
+  test('spot: espera entre um par e outro e, no 429, aguarda o Retry-After e tenta de novo uma vez', async () => {
+    let hits = 0
+    const r = await run({ ...empty, '/api/v3/myTrades': q => {
+      if (q.get('symbol') !== 'BTCUSDT') return json([])
+      if (hits++ === 0) return new Response('{"code":-1003}', { status: 429, headers: { 'Retry-After': '7' } })
+      return json([{ id: 1, qty: '1', quoteQty: '100', commission: '0', commissionAsset: 'BNB', time: NOW, isBuyer: true }])
+    } })
+    expect(r.failed).toEqual([])
+    expect(r.swaps).toEqual([{ time: NOW, get: 'BTC', getQty: 1, pay: 'USDT', payQty: 100 }])
+    expect(r.sleeps.filter(s => s.ms === 7000)).toEqual([{ ms: 7000, after: 'BTCUSDT' }])
+    // um intervalo antes de cada par depois do primeiro
+    expect(r.sleeps.filter(s => s.ms === 250)).toHaveLength(4)
+  })
+
+  test('spot: 418 sem Retry-After espera 60 s; falhando de novo, só o spot vai para failed', async () => {
+    const r = await run({ ...empty, '/api/v3/myTrades': () => new Response('{}', { status: 418 }) })
+    expect(r.sleeps.filter(s => s.ms === 60_000)).toHaveLength(1)
+    expect(r.failed.map(f => f.source)).toEqual(['negociações spot'])
   })
 })
