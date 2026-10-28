@@ -136,9 +136,9 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       <Rentabilidade trades={data.trades} events={data.events} dividends={data.dividends} thisMonth={thisMonth} />
 
       <div className="grid2">
-        <div className="card">
+        <div className="card stretch">
           <h5 style={{ margin: 0 }}>Aportado × valor de hoje</h5>
-          <LineChart
+          <LineChart fill
             series={[
               { label: 'bolsa', values: invested.map(m => m.cents) },
               ...(hasRf ? [{ label: 'bolsa + renda fixa', values: invested.map((m, i) => m.cents + rfApplied[i].cents) }] : []),
@@ -169,9 +169,9 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       </div>
 
       <div className="grid2" style={{ marginTop: 12 }}>
-        <div className="card">
+        <div className="card stretch">
           <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para abrir em Proventos</span></div>
-          <BarChart onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP', 'Juros RF']} format={brl} valueLabel={short}
+          <BarChart fill onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP', 'Juros RF']} format={brl} valueLabel={short}
             ariaLabel={`Proventos por mês: ${divs.map((m, i) => `${monthName(m.month).toLowerCase()} ${brl(m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP + juros[i].cents)}`).join('; ')}`}
             bars={divs.map((m, i) => ({
               label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP, juros[i].cents],
