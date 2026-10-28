@@ -12,7 +12,7 @@ import { errText } from './lancamentos/GastosHeader'
 import { classColor } from './resumoInvestimentos/build'
 
 type Tab = 'bens' | 'rendimentos' | 'rv' | 'cadastro'
-const CLASSES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR']
+const CLASSES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']
 const money = (c: number) => formatCents(c)
 
 const Avatar = ({ b, size = 32 }: { b: Bem; size?: number }) => (
