@@ -19,7 +19,7 @@ type Item = { value: Cents | null; cost: Cents | null; usd?: Cents | null; usdCo
 export function carteiraClasses(p: Portfolio): ClassSummary[] {
   const items = new Map<ClassKey, Item[]>()
   const push = (k: ClassKey, it: Item) => items.set(k, [...(items.get(k) ?? []), it])
-  for (const r of p.rows) if (r.assetType) push(r.assetType, { value: r.valueCents, cost: r.valueCents === null ? null : r.costCents })
+  for (const r of p.rows) push(r.assetType ?? 'outro', { value: r.valueCents, cost: r.valueCents === null ? null : r.costCents })
   for (const h of p.rf) if (!h.closed) push('renda_fixa', { value: h.valueCents, cost: h.gainCents === null ? null : h.investedCents })
   for (const c of p.crypto) push('cripto', { value: c.valueCents, cost: c.costCents })
   for (const m of p.manual) push(m.assetClass, { value: m.valueCents, cost: m.costCents, usd: m.usdCents, usdCost: m.usdCostCents })
