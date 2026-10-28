@@ -100,7 +100,7 @@ export function Configuracoes() {
   return (
     <>
       <h1>Configurações</h1>
-      <div className="muted">Tudo fica neste computador. Saem da máquina só as cotações do Yahoo e a leitura dos seus bancos na Pluggy.</div>
+      <div className="muted">Tudo fica neste computador. O app só fala com o Yahoo Finance (cotações), o Banco Central em api.bcb.gov.br (CDI), a Pluggy em api.pluggy.ai (leitura dos seus bancos), a Binance em api.binance.com (saldos de cripto) e o GitHub (atualizações do app).</div>
       <div className="grid2" style={{ marginTop: 14 }}>
         <ImportarOrcamento />
 

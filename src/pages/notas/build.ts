@@ -22,7 +22,7 @@ export interface Built { note: NoteArgs; trades: TradeArgs[] }
 
 export const emptyItem = (): ItemRow => ({ side: 'C', assetType: 'Ação', ticker: '', qty: '', price: '' })
 export const emptyFees = (): Record<keyof NoteFees, string> => Object.fromEntries(FEE_FIELDS.map(([k]) => [k, ''])) as Record<keyof NoteFees, string>
-export const emptyForm = (): NoteForm => ({ number: '', broker: 'CLEAR', tradeDate: '', settleDate: '', label: '', items: [emptyItem()], fees: emptyFees() })
+export const emptyForm = (): NoteForm => ({ number: '', broker: '', tradeDate: '', settleDate: '', label: '', items: [emptyItem()], fees: emptyFees() })
 
 export function parsePosInt(text: string, what: string): number {
   const t = text.trim()

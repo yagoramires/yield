@@ -25,6 +25,10 @@ describe('buildNote', () => {
     expect(note).toMatchObject({ number: '8812', broker: 'CLEAR', source: 'manual', sourceKey: 'manual:CLEAR:8812:2026-10-14', label: null })
     expect(trades).toEqual([{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'ITSA4', qty: 200, priceCents: 1080, feesCents: 100, irrfCents: 0 }])
   })
+  it('nota nova começa sem corretora e pede para informar', () => {
+    expect(emptyForm().broker).toBe('')
+    expect(() => buildNote({ ...base(), broker: emptyForm().broker }, 'manual')).toThrow('Corretora: informe a corretora.')
+  })
   it('erros em pt-BR: sem itens, qtd fracionada, IRRF sem venda, data', () => {
     expect(() => buildNote({ ...base(), items: [] }, 'manual')).toThrow(/ao menos um item/)
     const frac = base(); frac.items[0].qty = '1,5'
