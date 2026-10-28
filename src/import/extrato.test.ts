@@ -83,8 +83,28 @@ test.each([
   ['LOJA 1/1', null],
   ['LOJA 123/456', null],
   ['SUPERMERCADO', null],
-])('parcela em "%s" → %s', (description, installment) => {
-  expect(parseInstallment(description)).toBe(installment)
+  ['RSHOP-PADARIA-05/11', null], // data colada no nome
+  ['LOJA 05/11 SAO PAULO', null], // dd/mm no meio é data, não parcela
+])('cartão: parcela em "%s" → %s', (description, installment) => {
+  expect(parseInstallment(description, 'cartao')).toBe(installment)
+})
+
+test.each([
+  ['PIX TRANSF FULANO 05/11', null],
+  ['RSHOP-PADARIA-05/11', null],
+  ['NETFLIX 12/12', null],
+  ['LOJA 12/48', null], // conta corrente sem marcador não tem parcela
+  ['PARC 3/10 LOJA', '3/10'],
+  ['LOJA PARCELA 2 DE 12', '2/12'],
+  ['LOJA 3 de 10', '3/10'],
+])('conta: parcela em "%s" → %s', (description, installment) => {
+  expect(parseInstallment(description, 'conta')).toBe(installment)
+})
+
+test('importStatement de conta corrente não inventa parcela com dd/mm', async () => {
+  const db = await createTestDb()
+  await importStatement(db, { institution: 'Banco Laranja', externalId: 'csv:y', kind: 'conta', number: null, rows: [{ date: '2024-03-01', description: 'PIX TRANSF FULANO 05/11', amountCents: -1000, fitid: null }] })
+  expect((await loadGastos(db)).txns[0].installment).toBeNull()
 })
 
 test('importStatement grava a parcela lida da descrição', async () => {
