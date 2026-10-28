@@ -10,7 +10,6 @@ const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const monLabel = (m: string) => `${MON[Number(m.slice(5)) - 1]}/${m.slice(2, 4)}`
 const brDay = (iso: string) => iso.split('-').reverse().join('/')
-const money = (c: number) => (c ? formatCents(c) : '')
 const NOTA_SEM_NOTA = 'Comprou antes do período do relatório da B3? Lance a compra em Notas › Operação sem nota (data, quantidade e preço médio) ou a nota da corretora, se tiver.'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const dash = (c: number, f: (c: number) => string = formatCents) => (c === 0 ? '—' : f(c))
@@ -56,7 +55,7 @@ export function Imposto() {
   }
   const startOpening = () => {
     const o = data.openingLoss
-    setOpening(o ? { month: `${o.month.slice(5)}/${o.month.slice(0, 4)}`, comum: money(o.comumCents), fii: money(o.fiiCents) } : { month: '', comum: '', fii: '' }); setOpeningError(null)
+    setOpening(o ? { month: `${o.month.slice(5)}/${o.month.slice(0, 4)}`, comum: o.comumCents === null ? '' : formatCents(o.comumCents), fii: o.fiiCents === null ? '' : formatCents(o.fiiCents) } : { month: '', comum: '', fii: '' }); setOpeningError(null)
   }
   const saveOpening = async (v: OpeningLossForm | null) => {
     try { await saveOpeningLoss(db, v && buildOpeningLoss(v)); await reload(); setOpening(null); setConfirm(null) }
@@ -101,7 +100,7 @@ export function Imposto() {
         </div>
         <div className="muted" style={{ margin: '4px 0 0' }}>
           {data.openingLoss
-            ? <>Em {monLabel(data.openingLoss.month)}: comum {formatBRL(data.openingLoss.comumCents)} · FII {formatBRL(data.openingLoss.fiiCents)}. Entra como prejuízo a compensar nesse mês e vai sendo usado pelos lucros seguintes.</>
+            ? <>Em {monLabel(data.openingLoss.month)}: comum {data.openingLoss.comumCents === null ? 'o calculado' : formatBRL(data.openingLoss.comumCents)} · FII {data.openingLoss.fiiCents === null ? 'o calculado' : formatBRL(data.openingLoss.fiiCents)}. Entra como prejuízo a compensar nesse mês e vai sendo usado pelos lucros seguintes.</>
             : <>A Negociação da B3 só cobre os últimos anos. Se você já tinha prejuízo a compensar antes disso, informe o saldo uma vez (da última declaração, ficha Renda Variável, ou da sua planilha) e o mês a partir do qual ele vale.</>}
         </div>
         {opening && (

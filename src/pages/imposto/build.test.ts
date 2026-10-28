@@ -64,8 +64,8 @@ describe('buildPayment', () => {
 })
 
 describe('buildOpeningLoss', () => {
-  it('lê mês mm/aaaa e os dois valores; vazio vale zero', () => {
-    expect(buildOpeningLoss({ month: '01/2019', comum: '1.234,56', fii: '' })).toEqual({ month: '2019-01', comumCents: 123456, fiiCents: 0 })
+  it('lê mês mm/aaaa e os dois valores; vazio fica não informado', () => {
+    expect(buildOpeningLoss({ month: '01/2019', comum: '1.234,56', fii: '' })).toEqual({ month: '2019-01', comumCents: 123456, fiiCents: null })
   })
   it('rejeita mês inválido, valor inválido e os dois zerados', () => {
     expect(() => buildOpeningLoss({ month: '13/2019', comum: '10', fii: '' })).toThrow('Mês')

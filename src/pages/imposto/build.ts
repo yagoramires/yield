@@ -43,8 +43,10 @@ export function buildOpeningLoss(f: OpeningLossForm, now = new Date()): OpeningL
   if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) throw new Error('Mês: use mm/aaaa, por exemplo 01/2019.')
   // a apuração vai só até o mês atual: prejuízo de um mês futuro nunca entraria na conta
   if (`${m[2]}-${m[1]}` > `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`) throw new Error('Mês: o prejuízo inicial não pode ser de um mês futuro.')
-  const comumCents = parseMoney(f.comum, 'Prejuízo comum', false), fiiCents = parseMoney(f.fii, 'Prejuízo FII', false)
-  if (comumCents + fiiCents === 0) throw new Error('Informe o valor do prejuízo comum, de FII ou dos dois.')
+  // campo vazio = não informado (fica o prejuízo calculado daquele lado); zero digitado zera
+  const read = (t: string, what: string) => (t.trim() ? parseMoney(t, what, false) : null)
+  const comumCents = read(f.comum, 'Prejuízo comum'), fiiCents = read(f.fii, 'Prejuízo FII')
+  if (!comumCents && !fiiCents) throw new Error('Informe o valor do prejuízo comum, de FII ou dos dois.')
   return { month: `${m[2]}-${m[1]}`, comumCents, fiiCents }
 }
 

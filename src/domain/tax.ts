@@ -7,8 +7,8 @@ export interface PotMonth {
   irrfCarryOutCents: Cents; lossOutCents: Cents /* ≤ 0 */; taxPayableCents: Cents
 }
 export interface TaxMonth { month: Month; stockSalesCents: Cents; comum: PotMonth; fii: PotMonth; incomplete: boolean }
-/** Prejuízo a compensar no início de `month`, informado pela pessoa (valores positivos). */
-export interface OpeningLoss { month: Month; comumCents: Cents; fiiCents: Cents }
+/** Prejuízo a compensar no início de `month`, informado pela pessoa (valores positivos; null = não informado, fica o calculado). */
+export interface OpeningLoss { month: Month; comumCents: Cents | null; fiiCents: Cents | null }
 
 const EXEMPT_LIMIT_CENTS = 2_000_000
 
@@ -48,8 +48,8 @@ export function computeTax(sales: Sale[], warnings: Warning[], from: Month, to: 
     out.push({
       month,
       stockSalesCents,
-      comum: potMonth(sum(sold.filter(comum).map((x) => x.resultCents)), exempt, sum(settled.filter(comum).map((x) => x.irrfCents)), 15, prev?.comum, january, start ? -opening.comumCents : undefined),
-      fii: potMonth(sum(sold.filter((x) => !comum(x)).map((x) => x.resultCents)), 0, sum(settled.filter((x) => !comum(x)).map((x) => x.irrfCents)), 20, prev?.fii, january, start ? -opening.fiiCents : undefined),
+      comum: potMonth(sum(sold.filter(comum).map((x) => x.resultCents)), exempt, sum(settled.filter(comum).map((x) => x.irrfCents)), 15, prev?.comum, january, start && opening.comumCents !== null ? -opening.comumCents : undefined),
+      fii: potMonth(sum(sold.filter((x) => !comum(x)).map((x) => x.resultCents)), 0, sum(settled.filter((x) => !comum(x)).map((x) => x.irrfCents)), 20, prev?.fii, january, start && opening.fiiCents !== null ? -opening.fiiCents : undefined),
       incomplete: warnings.some((w) => w.kind === 'venda_maior_que_posicao' && monthOf(w.date) === month),
     })
   }

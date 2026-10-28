@@ -157,4 +157,21 @@ describe('computeTax', () => {
     expect(fev.comum.lossInCents).toBe(-80_000)
     expect(fev.comum.baseCents).toBe(20_000)
   })
+  test('prejuízo inicial só de FII mantém o comum calculado, e vice-versa', () => {
+    const sales = [
+      s({ date: '2024-01-10', type: 'ETF', result: -30_000 }),
+      s({ date: '2024-01-11', type: 'FII', result: -20_000 }),
+      s({ date: '2024-02-10', type: 'ETF', result: 100_000 }),
+      s({ date: '2024-02-11', type: 'FII', result: 100_000 }),
+    ]
+    const [, soFii] = computeTax(sales, [], '2024-01', '2024-02', { month: '2024-02', comumCents: null, fiiCents: 80_000 })
+    expect(soFii.comum.lossInCents).toBe(-30_000)
+    expect(soFii.fii.lossInCents).toBe(-80_000)
+    const [, soComum] = computeTax(sales, [], '2024-01', '2024-02', { month: '2024-02', comumCents: 50_000, fiiCents: null })
+    expect(soComum.comum.lossInCents).toBe(-50_000)
+    expect(soComum.fii.lossInCents).toBe(-20_000)
+    // zero informado substitui de verdade
+    const [, zero] = computeTax(sales, [], '2024-01', '2024-02', { month: '2024-02', comumCents: 0, fiiCents: 80_000 })
+    expect(zero.comum.lossInCents).toBe(-0)
+  })
 })
