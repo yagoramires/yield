@@ -21,6 +21,11 @@ describe('rentabilidade', () => {
     const idx = portfolioIndex([tr('C', 10, 1000, '2025-12-10')], [], div, closes([['2026-01', 1000], ['2026-02', 1000], ['2026-03', 1000], ['2026-04', 1000]]), months)
     expect(idx[1]).toBeCloseTo(105)
   })
+  it('vender tudo no começo do mês dá o retorno da venda, e recomprar depois de zerado não dobra', () => {
+    const idx = portfolioIndex([tr('C', 10, 1000, '2025-12-10'), tr('V', 10, 1020, '2026-02-02'), tr('C', 10, 1000, '2026-03-20')], [], [],
+      closes([['2026-01', 1000], ['2026-02', 1000], ['2026-03', 1100], ['2026-04', 1100]]), months)
+    expect(idx.map(v => v && Math.round(v * 100) / 100)).toEqual([100, 102, 112.2, 112.2])
+  })
   it('antes de ter carteira fica vazio; sem preço repete o último conhecido', () => {
     const idx = portfolioIndex([tr('C', 10, 1000, '2026-02-05')], [], [], closes([['2026-02', 1000], ['2026-04', 1200]]), months)
     expect(idx).toEqual([null, 100, 100, 120])

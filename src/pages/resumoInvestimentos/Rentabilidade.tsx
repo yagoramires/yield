@@ -1,5 +1,6 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useEffect, useState } from 'react'
+import { normalizeTicker } from '../../domain/ledger'
 import { addMonths } from '../../domain/money'
 import { cdiIndex, closeIndex, portfolioIndex } from '../../domain/rentabilidade'
 import type { Cents, CorporateEvent, Dividend, Month, Trade } from '../../domain/types'
@@ -22,6 +23,9 @@ function loadHist(tickers: string[], from: Month, to: Month): Promise<Hist> {
       const closes = new Map<string, Map<Month, Cents>>()
       const missing: string[] = []
       each.forEach((r, i) => (r.status === 'fulfilled' && r.value.size ? closes.set(tickers[i], r.value) : missing.push(tickers[i])))
+      if (cdi.status === 'rejected' && ibov.status === 'rejected' && !closes.size) throw new Error('sem conexão com o Yahoo nem com o Banco Central')
+      // algo falhou (rede, limite do Yahoo): não guarda, para tentar de novo na próxima vez que a tela abrir
+      if (missing.length || cdi.status === 'rejected' || ibov.status === 'rejected') cache.delete(key)
       return { closes, missing, cdi: cdi.status === 'fulfilled' ? cdi.value : new Map(), ibov: ibov.status === 'fulfilled' ? ibov.value : new Map() }
     })()
     cache.set(key, p)
@@ -36,7 +40,8 @@ const last = (vs: (number | null)[]) => [...vs].reverse().find((v): v is number 
 /** Carteira de bolsa × CDI × Ibovespa nos últimos 12 meses, os três começando em 100. */
 export function Rentabilidade({ trades, events, dividends, thisMonth }: { trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; thisMonth: Month }) {
   const months = Array.from({ length: 13 }, (_, i) => addMonths(thisMonth, i - 12))
-  const tickers = [...new Set(trades.map(t => t.ticker))].sort()
+  // mesmos nomes do replay (PETR4F → PETR4) e o ticker novo de cada mudança de ticker
+  const tickers = [...new Set([...trades.map(t => normalizeTicker(t.ticker)), ...events.flatMap(e => (e.kind === 'mudanca_ticker' ? [normalizeTicker(e.newTicker)] : []))])].sort()
   const [hist, setHist] = useState<Hist | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
