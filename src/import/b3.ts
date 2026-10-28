@@ -180,7 +180,7 @@ export function typeFromName(name: string): AssetType | null {
   return null
 }
 
-function settleDate(d: ISODate): ISODate { // D+2 em dias úteis
+export function settleDate(d: ISODate): ISODate { // D+2 em dias úteis
   let t = Date.parse(`${d}T00:00:00Z`)
   for (let n = 0; n < 2;) { t += 86_400_000; if (isBusinessDay(new Date(t).toISOString().slice(0, 10))) n++ }
   return new Date(t).toISOString().slice(0, 10)
@@ -194,11 +194,16 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
   for (const [key, list] of days) {
     const [date, broker] = key.split('|')
     const fresh: B3Trade[] = []
-    for (const t of list) {
-      // Já lançada por nota (PDF ou à mão) no mesmo dia: a nota tem as taxas, então ela vale.
-      const dup = await db.select("SELECT 1 FROM trades t JOIN notes n ON n.id = t.note_id WHERE n.trade_date = ? AND t.ticker = ? AND t.side = ? AND coalesce(n.source_key, '') NOT LIKE 'b3neg:%'", [t.date, t.ticker, t.side])
-      if (dup.length) tradesSkipped++
-      else fresh.push(t)
+    const same = new Map<string, B3Trade[]>()
+    for (const t of list) { const k = `${t.ticker}|${t.side}`; same.set(k, [...(same.get(k) ?? []), t]) }
+    for (const group of same.values()) {
+      const t = group[0]
+      // Já lançada por nota (PDF, à mão ou Pluggy) no mesmo dia: a nota tem as taxas e vale até a quantidade dela; a sobra entra numa operação só, a preço médio.
+      const [{ have }] = await db.select<{ have: number }>("SELECT coalesce(sum(t.qty), 0) AS have FROM trades t JOIN notes n ON n.id = t.note_id WHERE n.trade_date = ? AND t.ticker = ? AND t.side = ? AND coalesce(n.source_key, '') NOT LIKE 'b3neg:%'", [t.date, t.ticker, t.side])
+      const qty = group.reduce((a, x) => a + x.qty, 0)
+      if (have >= qty - 1e-9) tradesSkipped += group.length
+      else if (have === 0) fresh.push(...group)
+      else fresh.push({ ...t, qty: qty - have, priceCents: Math.round(group.reduce((a, x) => a + x.qty * x.priceCents, 0) / qty) })
     }
     if (!fresh.length) continue
     const typeOf = (t: B3Trade) => t.assetType ?? types.get(t.ticker) ?? assetTypeOf(t.ticker)

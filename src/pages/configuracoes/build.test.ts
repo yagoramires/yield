@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText, costSummaryText, investmentLine } from './build'
 import { BinanceError } from '../../cripto/binance'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
@@ -217,4 +217,27 @@ describe('binanceErrorText', () => {
 it('typesToConfirm: ETF de renda fixa já vem com o tipo e não pergunta', () => {
   const p = { trades: [{ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker: 'ABCD11', qty: 1, priceCents: 100, assetType: 'ETF RF' as const }], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [], issuers: [] }
   expect(typesToConfirm(p, [])).toEqual({ ask: [], inferred: [{ ticker: 'ABCD11', type: 'ETF RF' }] })
+})
+
+it('costSummaryText: diz o que achou em cada fonte e o que ficou sem histórico', () => {
+  expect(costSummaryText({ failed: [], found: { 'compras com PIX/cartão': 3, Convert: 0, 'negociações à vista': 1 }, computed: ['BTC'], missing: ['BNB'] }))
+    .toBe('Histórico da Binance: 3 compras com PIX/cartão, 0 Convert, 1 negociações à vista. Aportado calculado: BTC. Sem compra no histórico: BNB (informe à mão).')
+  expect(costSummaryText({ failed: [], found: { 'compras com PIX/cartão': 0, Convert: 0, 'negociações à vista': 0 }, computed: [], missing: ['BTC'] }))
+    .toBe('Histórico da Binance: nenhuma compra encontrada. Sem compra no histórico: BTC (informe à mão).')
+})
+
+it('costSummaryText: com fonte não lida, não manda informar à mão o que pode estar nela', () => {
+  expect(costSummaryText({ failed: [{ source: 'Convert', error: new BinanceError('x', 'rede') }], found: { 'compras com PIX/cartão': 1, Convert: 0, 'negociações à vista': 0 }, computed: ['BTC'], missing: ['ETH'] }))
+    .toBe('Histórico da Binance: 1 compras com PIX/cartão, 0 Convert, 0 negociações à vista. Aportado calculado: BTC. Sem compra no histórico lido: ETH (alguma fonte não foi lida; tente de novo antes de informar à mão). Não lido: Convert (sem conexão).')
+})
+
+describe('investmentLine', () => {
+  const c = { itemId: 'i', label: 'Corretora Azul', found: 2, inserted: 3, updated: 2, existing: 12 }
+  it('conta novas, atualizadas e as que já existiam', () => {
+    expect(investmentLine(c)).toBe('Corretora Azul: 3 operações novas, 2 atualizadas com taxas, 12 já existiam')
+    expect(investmentLine({ ...c, inserted: 1, updated: 1, existing: 1 })).toBe('Corretora Azul: 1 operação nova, 1 atualizada com taxas, 1 já existia')
+  })
+  it('sem investimento de renda variável', () => {
+    expect(investmentLine({ ...c, found: 0, inserted: 0, updated: 0, existing: 0 })).toBe('Corretora Azul: nenhum investimento de renda variável na Pluggy')
+  })
 })

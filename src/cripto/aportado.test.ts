@@ -83,7 +83,10 @@ describe('buscar aportado na Binance', () => {
 
   test('grava o calculado (USDT pelo dólar do mês) e não toca no informado à mão', async () => {
     const db = await setup()
-    expect(await syncCryptoCosts(db, { apiKey: 'k', secret: 's' }, fetchFn(true), () => NOW, async () => {})).toEqual([])
+    const r = await syncCryptoCosts(db, { apiKey: 'k', secret: 's' }, fetchFn(true), () => NOW, async () => {})
+    expect(r.failed).toEqual([])
+    expect(r.computed).toEqual(['ETH'])
+    expect(Object.values(r.found).reduce((s, n) => s + n, 0)).toBeGreaterThan(0)
     const m = await byAsset(db)
     expect(m.get('ETH')).toMatchObject({ costCents: 20_000 + 5_000, costManual: 0, costPartial: 0 })
     expect(m.get('BTC')).toMatchObject({ costCents: 1234, costManual: 1 })
@@ -91,7 +94,7 @@ describe('buscar aportado na Binance', () => {
 
   test('fonte que falhou deixa o calculado como parcial e é devolvida', async () => {
     const db = await setup()
-    const failed = await syncCryptoCosts(db, { apiKey: 'k', secret: 's' }, fetchFn(false), () => NOW, async () => {})
+    const { failed } = await syncCryptoCosts(db, { apiKey: 'k', secret: 's' }, fetchFn(false), () => NOW, async () => {})
     expect(failed.map(f => f.source)).toEqual(['Convert'])
     expect((await byAsset(db)).get('ETH')).toMatchObject({ costCents: 20_000, costPartial: 1 })
   })

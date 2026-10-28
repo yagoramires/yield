@@ -4,6 +4,7 @@ import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind
 import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
 import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
 import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
+import type { InvestmentCounts } from '../../openfinance/sync'
 import { parseMoney } from '../notas/build'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
@@ -119,6 +120,10 @@ export function parseItemId(text: string): string {
   return id.toLowerCase()
 }
 
+export const investmentLine = (c: InvestmentCounts) => c.found
+  ? `${c.label}: ${n(c.inserted, 'operação nova', 'operações novas')}, ${n(c.updated, 'atualizada com taxas', 'atualizadas com taxas')}, ${n(c.existing, 'já existia', 'já existiam')}`
+  : `${c.label}: nenhum investimento de renda variável na Pluggy`
+
 /** Avisos aparecem em lista própria na tela; aqui só as contagens. */
 export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }): string {
   return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`].join(' · ')
@@ -181,4 +186,17 @@ export function binanceErrorText(e: unknown): string {
 export function historyFailText(failed: { source: string; error: unknown }[]): string | null {
   const why = (e: unknown) => (e instanceof BinanceError && e.kind === 'chave' ? 'a chave não tem acesso' : e instanceof BinanceError && e.kind === 'rede' ? 'sem conexão' : errText(e))
   return failed.length ? `Não lido: ${failed.map(f => `${f.source} (${why(f.error)})`).join('; ')}.` : null
+}
+
+/** Resumo da busca do aportado na Binance: o que achou em cada fonte e o que ficou sem histórico. */
+export function costSummaryText(r: { failed: { source: string; error: unknown }[]; found: Record<string, number>; computed: string[]; missing: string[] }): string {
+  const total = Object.values(r.found).reduce((s, n) => s + n, 0)
+  const parts = [total ? `Histórico da Binance: ${Object.entries(r.found).map(([src, n]) => `${n} ${src}`).join(', ')}.` : 'Histórico da Binance: nenhuma compra encontrada.']
+  if (r.computed.length) parts.push(`Aportado calculado: ${r.computed.join(', ')}.`)
+  if (r.missing.length) parts.push(r.failed.length
+    ? `Sem compra no histórico lido: ${r.missing.join(', ')} (alguma fonte não foi lida; tente de novo antes de informar à mão).`
+    : `Sem compra no histórico: ${r.missing.join(', ')} (informe à mão).`)
+  const fail = historyFailText(r.failed)
+  if (fail) parts.push(fail)
+  return parts.join(' ')
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createPluggyClient, PluggyError, pluggyDate, pluggyRequest, toTxnRow, type PluggyTxn } from './pluggy'
+import { createPluggyClient, PluggyError, pluggyDate, pluggyRequest, rendaVariavel, toTradeRow, toTxnRow, type PluggyInvestment, type PluggyInvestmentTxn, type PluggyTxn } from './pluggy'
 
 const creds = { clientId: 'cid', clientSecret: 'segredo-xyz' }
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -54,13 +54,69 @@ describe('toTxnRow', () => {
   })
 })
 
+describe('rendaVariavel', () => {
+  const inv = (o: Partial<PluggyInvestment>): PluggyInvestment => ({ id: 'i', code: 'AAAA3', name: 'AAAA3 ON NM', type: 'EQUITY', subtype: 'STOCK', ...o })
+  it('ação, FII, BDR e ETF; derivativo, opção e renda fixa ficam de fora', () => {
+    expect(rendaVariavel(inv({}))).toEqual({ ticker: 'AAAA3', assetType: 'Ação' })
+    expect(rendaVariavel(inv({ code: 'FIIA11', subtype: 'REAL_ESTATE_FUND' }))).toEqual({ ticker: 'FIIA11', assetType: 'FII' })
+    expect(rendaVariavel(inv({ code: 'BBBB34', subtype: 'BDR' }))).toEqual({ ticker: 'BBBB34', assetType: 'BDR' })
+    expect(rendaVariavel(inv({ code: 'ETFA11', subtype: 'ETF' }))).toEqual({ ticker: 'ETFA11', assetType: 'ETF' })
+    expect(rendaVariavel(inv({ code: 'ETFB11', type: 'ETF', subtype: null }))).toEqual({ ticker: 'ETFB11', assetType: 'ETF' })
+    expect(rendaVariavel(inv({ subtype: 'DERIVATIVES' }))).toBeNull()
+    expect(rendaVariavel(inv({ subtype: 'OPTION' }))).toBeNull()
+    expect(rendaVariavel(inv({ type: 'FIXED_INCOME', subtype: 'CDB' }))).toBeNull()
+    expect(rendaVariavel(inv({ type: 'MUTUAL_FUND', subtype: 'STOCK_FUND' }))).toBeNull()
+  })
+  it('ticker do code, senão a 1ª palavra do nome; sem subtipo o tipo fica para depois', () => {
+    expect(rendaVariavel(inv({ code: 'BRAAAAACNOR1', name: 'aaaa3f ON' }))).toEqual({ ticker: 'AAAA3', assetType: 'Ação' })
+    expect(rendaVariavel(inv({ code: null, name: 'FIIA11 Fundo Imobiliário', subtype: null }))).toEqual({ ticker: 'FIIA11', assetType: null })
+    expect(rendaVariavel(inv({ code: null, name: 'Ações Diversas' }))).toBeNull()
+  })
+})
+
+describe('toTradeRow', () => {
+  const base: PluggyInvestmentTxn = { id: 't', type: 'BUY', quantity: 100, value: 12.34, amount: 1234, tradeDate: '2026-03-10T00:00:00.000Z', date: '2026-03-12T00:00:00.000Z', expenses: { brokerageFee: 4.9, settlementFee: 0.31, stockExchangeFee: 0.06, incomeTax: null, iof: null } }
+  it('compra: data do pregão, preço unitário, taxas somadas', () => {
+    expect(toTradeRow(base)).toEqual({ date: '2026-03-10', side: 'C', qty: 100, priceCents: 1234, feesCents: 527, irrfCents: 0 })
+  })
+  it('venda: IR na fonte fica fora das taxas; sem tradeDate usa date; sem value usa amount ÷ quantidade', () => {
+    expect(toTradeRow({ ...base, type: 'SELL', tradeDate: null, value: null, amount: 1500, expenses: { brokerageFee: 2, incomeTax: 0.08 } }))
+      .toEqual({ date: '2026-03-12', side: 'V', qty: 100, priceCents: 1500, feesCents: 200, irrfCents: 8 })
+  })
+  it('IOF provisionado não soma às taxas (só o IOF pago)', () => {
+    expect(toTradeRow({ ...base, expenses: { brokerageFee: 1, iof: 0.5, iofProvision: 0.5 } })?.feesCents).toBe(150)
+  })
+  it('compra ou venda sem quantidade é pulada, sem derrubar o resto', () => {
+    expect(toTradeRow({ ...base, quantity: 0 })).toBeNull()
+    expect(toTradeRow({ ...base, quantity: null })).toBeNull()
+  })
+  it('outros tipos não viram operação', () => {
+    expect(toTradeRow({ ...base, type: 'TAX' })).toBeNull()
+    expect(toTradeRow({ ...base, type: 'TRANSFER' })).toBeNull()
+  })
+})
+
 describe('porta só-leitura', () => {
-  it('recusa fora de POST /auth, GET /accounts, GET /v2/transactions', () => {
+  it('recusa fora de POST /auth e GET de contas, transações e investimentos', () => {
     expect(() => pluggyRequest('PATCH', 'https://api.pluggy.ai/items/x')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/payments')).toThrow(/não permitida/)
     expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/accounts')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://evil.example/accounts')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/v2/transactions?a=1')).not.toThrow()
+  })
+  it('investimentos: só GET da lista e das operações de um id UUID', () => {
+    const id = '33333333-3333-4333-8333-333333333333'
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments?itemId=${id}&page=1`)).not.toThrow()
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments/${id}/transactions?page=2`)).not.toThrow()
+    expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/investments')).toThrow(/não permitida/)
+    expect(() => pluggyRequest('POST', `https://api.pluggy.ai/investments/${id}/transactions`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('DELETE', `https://api.pluggy.ai/investments/${id}`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments/${id}`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments/${id}/transactions/x`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/investments/abc/transactions')).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments/${id}%2F..%2Fpayments/transactions`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments/${id}/../../payments`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', `https://evil.example/investments/${id}/transactions`)).toThrow(/não permitida/)
   })
   it('um `next` malicioso não chama fetchFn', async () => {
     const f = fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [], next: '/../payments' }))
@@ -112,6 +168,36 @@ describe('cliente', () => {
     expect(await kind(429)).toEqual(['limite', 'A Pluggy pediu para esperar; tente mais tarde'])
     expect((await kind(500))[0]).toBe('resposta')
     expect((await kind(404, '/v2/transactions'))[0]).toBe('resposta')
+  })
+  it('400/404 nos investimentos não vira "item não encontrado"', async () => {
+    for (const status of [400, 404]) {
+      const c = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({}, status)).fn)
+      await expect(c.listInvestments('i1')).rejects.toMatchObject({ kind: 'resposta', message: `a Pluggy não tem investimentos para este banco (HTTP ${status})` })
+    }
+  })
+  it('investimentos e operações seguem totalPages', async () => {
+    const INV = '33333333-3333-4333-8333-333333333333'
+    const f = fake((u) => {
+      if (u.pathname === '/auth') return json({ apiKey: 'K' })
+      const page = Number(u.searchParams.get('page'))
+      if (u.pathname === '/investments') return json({ page, total: 2, totalPages: 2, results: [{ id: page === 1 ? INV : 'x2', code: 'AAAA3', name: 'AAAA3 ON', type: 'EQUITY', subtype: 'STOCK' }] })
+      return json({ page, total: 0, totalPages: 0, results: [] })
+    })
+    const c = createPluggyClient(creds, f.fn)
+    expect((await c.listInvestments('i1')).map(i => i.id)).toEqual([INV, 'x2'])
+    expect(await c.listInvestmentTransactions(INV)).toEqual([])
+    expect(f.calls.slice(1).map(x => x.url)).toEqual([
+      'https://api.pluggy.ai/investments?itemId=i1&page=1&pageSize=500',
+      'https://api.pluggy.ai/investments?itemId=i1&page=2&pageSize=500',
+      `https://api.pluggy.ai/investments/${INV}/transactions?page=1&pageSize=500`,
+    ])
+    const bad = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [], totalPages: 'muitas' })).fn)
+    await expect(bad.listInvestments('i1')).rejects.toMatchObject({ kind: 'resposta' })
+    const noQty = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [{ id: 't', type: 'BUY', date: '2026-01-02T00:00:00.000Z', value: 10 }], totalPages: 1 })).fn)
+    // sem quantidade a lista vem inteira; toTradeRow pula só essa operação
+    expect((await noQty.listInvestmentTransactions(INV)).map(t => toTradeRow(t))).toEqual([null])
+    // id fora do formato não sai pela porta
+    await expect(c.listInvestmentTransactions('../payments')).rejects.toMatchObject({ message: /não permitida/ })
   })
   it('auth 401, rede e JSON fora do formato', async () => {
     const bad = createPluggyClient(creds, fake(() => json({}, 401)).fn)

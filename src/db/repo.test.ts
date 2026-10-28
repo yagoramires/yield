@@ -56,6 +56,32 @@ describe('notas', () => {
     expect(d.notes.map(n => n.number).sort()).toEqual(['123', '999'])
     expect(d.trades).toHaveLength(4)
   })
+  test('editar nota com falha ao tirar a operação da B3 regrava só a original, sem duplicar', async () => {
+    await saveNote(db, { number: 'B3 2024-01-05', broker: 'CLEAR', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'sem_nota', sourceKey: 'b3neg:2024-01-05:CLEAR', label: null }, [trades[0]])
+    const a = (await saveNote(db, nota, [trades[1]])) as { id: string }
+    const before = await loadAll(db)
+    const failing: Db = { ...db, execute: (sql, p) => /^DELETE FROM trades WHERE id IN/.test(sql) ? Promise.reject(new Error('disco cheio')) : db.execute(sql, p) }
+    await expect(replaceNote(failing, a.id, { ...nota, number: '124' }, trades)).rejects.toThrow('disco cheio')
+    expect(await loadAll(db)).toEqual(before)
+  })
+  test('nota em PDF ou à mão substitui a mesma operação da B3 ou da Pluggy; nota que fica vazia some', async () => {
+    const t = (ticker: string, qty: number, side: 'C' | 'V' = 'C') => ({ seq: 1, side, assetType: 'Ação' as const, ticker, qty, priceCents: 1000, feesCents: 0, irrfCents: 0 })
+    const auto = (key: string, list: ReturnType<typeof t>[]) => saveNote(db, { number: key, broker: 'CORRETORA AZUL', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'sem_nota', sourceKey: `${key}:2024-01-05:CORRETORA AZUL`, label: null }, list.map((x, i) => ({ ...x, seq: i + 1 })))
+    await auto('b3neg', [t('AAAA3', 100), t('BBBB4', 5)])
+    await auto('pluggy', [t('FIIA11', 10)])
+    await saveNote(db, { number: 'leilao', broker: 'CORRETORA AZUL', tradeDate: '2024-01-05', settleDate: '2024-01-05', source: 'sem_nota', sourceKey: 'b3leilao:2024-01-05:AAAA3:100', label: null }, [t('AAAA3', 100)])
+    await saveNote(db, { ...nota, broker: 'CORRETORA AZUL', number: '77' }, [t('aaaa3', 100), { ...t('FIIA11', 10), seq: 2 }, { ...t('BBBB4', 6), seq: 3 }])
+    const d = await loadAll(db)
+    expect(d.notes.map(n => n.number).sort()).toEqual(['77', 'b3neg', 'leilao']) // a da Pluggy ficou vazia
+    expect(d.trades.filter(x => x.noteId === d.notes.find(n => n.number === 'b3neg')!.id).map(x => x.ticker)).toEqual(['BBBB4']) // qty diferente fica
+    expect(d.trades.filter(x => x.ticker === 'AAAA3')).toHaveLength(2) // a do leilão não é da Negociação
+    // venda e outro dia não casam; sem_nota digitada não substitui nada
+    await auto('pluggy', [t('CCCC3', 1)])
+    await saveNote(db, { ...nota, number: '78', tradeDate: '2024-01-06' }, [t('CCCC3', 1)])
+    await saveNote(db, { ...nota, number: '79' }, [t('CCCC3', 1, 'V')])
+    await saveNote(db, { ...nota, number: '', source: 'sem_nota', sourceKey: null }, [t('CCCC3', 1)])
+    expect((await loadAll(db)).trades.filter(x => x.ticker === 'CCCC3')).toHaveLength(4)
+  })
   test('falha ao inserir trades apaga a nota', async () => {
     await expect(saveNote(db, nota, [{ ...trades[0], side: 'X' as never }])).rejects.toThrow()
     expect((await loadAll(db)).notes).toHaveLength(0)

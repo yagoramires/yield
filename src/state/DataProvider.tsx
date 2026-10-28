@@ -19,7 +19,7 @@ import { fetchBinanceBalances } from '../cripto/binance'
 import { getBinanceCredentials } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
 import { syncCryptoCosts } from '../cripto/aportado'
-import { binanceErrorText, historyFailText } from '../pages/configuracoes/build'
+import { binanceErrorText, costSummaryText } from '../pages/configuracoes/build'
 import { syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
@@ -57,7 +57,7 @@ export interface AppData {
   gastos: Gastos
   orcamento: Orcamento
   binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void
-    cost: { loading: boolean; note: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
+    cost: { loading: boolean; note: string | null; progress: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -83,7 +83,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
   const [binance, setBinance] = useState<{ syncing: boolean; error: string | null; earnSkipped: boolean }>({ syncing: false, error: null, earnSkipped: false })
-  const [costState, setCostState] = useState<{ loading: boolean; note: string | null }>({ loading: false, note: null })
+  const [costState, setCostState] = useState<{ loading: boolean; note: string | null; progress: string | null }>({ loading: false, note: null, progress: null })
   const [month, setMonth] = useState<Month>(monthOf(todayISO()))
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
   const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
@@ -108,14 +108,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const d = dbRef.current
     if (!d || syncingRef.current) return
     syncingRef.current = true; setSyncing(true)
-    const fail = (message: string): SyncResult => ({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message }] })
+    const fail = (message: string): SyncResult => ({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message }], investments: [] })
     try {
       const creds = known ?? (await getPluggyCredentials())
       const items = (await loadGastos(d)).pluggyItems
       if (!creds) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Open Finance.'))
       else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Open Finance.'))
       else setLastSyncResult(await syncPluggy(d, creds, tauriFetch as typeof fetch, todayISO()))
-      setGastosData(await loadGastos(d))
+      const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)]) // compras e vendas da Pluggy mudam a carteira
+      setData(ds); setGastosData(g)
     } catch (e) { setLastSyncResult(fail(`Não foi possível sincronizar: ${e instanceof Error ? e.message : String(e)}`)) }
     syncingRef.current = false; setSyncing(false)
   }, [])
@@ -139,14 +140,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchCryptoCost = useCallback(async () => {
     const d = dbRef.current
     if (!d) return
-    setCostState({ loading: true, note: null })
+    setCostState({ loading: true, note: null, progress: null })
     try {
       const creds = await getBinanceCredentials()
-      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.' })
-      const failed = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch)
+      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.', progress: null })
+      const r = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch, undefined, undefined, progress => setCostState(s => ({ ...s, progress })))
       setData(await loadAll(d))
-      setCostState({ loading: false, note: historyFailText(failed) })
-    } catch (e) { setCostState({ loading: false, note: binanceErrorText(e) }) }
+      setCostState({ loading: false, note: costSummaryText(r), progress: null })
+    } catch (e) { setCostState({ loading: false, note: binanceErrorText(e), progress: null }) }
   }, [])
 
   // Falha de cotação nunca derruba a tela: só deixa as cotações antigas.
@@ -184,7 +185,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (needsSync(g, Date.now())) {
           getPluggyCredentials().then(
             c => { if (c && !cancelled) void syncNow(c) },
-            e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }] }),
+            e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
           )
         }
         timer = setInterval(() => void refreshQuotesNow(), REFRESH_MS)
@@ -225,7 +226,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
       orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
-      binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null }) }, cost: costState, fetchCost: fetchCryptoCost },
+      binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null, progress: null }) }, cost: costState, fetchCost: fetchCryptoCost },
     }
   }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance, costState, fetchCryptoCost])
 

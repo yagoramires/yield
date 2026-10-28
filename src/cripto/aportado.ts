@@ -53,14 +53,17 @@ export function averageCosts(swaps: Swap[], usdBrl: Map<Month, Cents>, balances?
  * Lê o histórico da Binance e grava o aportado calculado de cada moeda com saldo (o informado à mão fica).
  * Devolve as fontes que não foram lidas; com alguma faltando, todo calculado sai como parcial.
  */
-export async function syncCryptoCosts(db: Db, creds: { apiKey: string; secret: string }, fetchFn: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>) {
+export async function syncCryptoCosts(db: Db, creds: { apiKey: string; secret: string }, fetchFn: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>, onProgress?: (text: string) => void) {
   const held = (await loadCryptoBalances(db)).filter(c => c.qty > 0)
   const assets = held.map(c => c.asset)
   const failed: { source: string; error: unknown }[] = []
   // dólar sem o mês só deixa parciais as moedas pagas em dólar digital (averageCosts cuida disso)
-  const [hist, usdBrl] = await Promise.all([fetchBinanceSwaps(creds, assets, fetchFn, now, sleep),
+  const [hist, usdBrl] = await Promise.all([fetchBinanceSwaps(creds, assets, fetchFn, now, sleep, onProgress),
     fetchMonthlyCloses('BRL=X', fetchFn, 'max').catch(error => { failed.push({ source: 'dólar do mês', error }); return new Map<Month, Cents>() })])
   const costs = averageCosts(hist.swaps, usdBrl, new Map(held.map(c => [c.asset, c.qty])))
   await saveComputedCryptoCosts(db, assets.flatMap(a => { const c = costs.get(a); return c ? [{ asset: a, costCents: c.costCents, partial: c.partial || hist.failed.length > 0 }] : [] }))
-  return [...hist.failed, ...failed]
+  // o resumo vai para a tela: sem ele, uma busca sem compras terminava calada
+  // o informado à mão prevalece: só conta como calculado o que foi gravado
+  const auto = held.filter(c => !c.costManual).map(c => c.asset)
+  return { failed: [...hist.failed, ...failed], found: hist.found, computed: auto.filter(a => costs.has(a)), missing: auto.filter(a => !costs.has(a)) }
 }
