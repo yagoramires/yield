@@ -107,6 +107,15 @@ describe('histórico para o aportado', () => {
     expect(fiat.every(c => c.q.get('rows') === '500' && c.key === 'chave-teste' && /^[0-9a-f]{64}$/.test(c.q.get('signature') ?? ''))).toBe(true)
   })
 
+  test('avisa o progresso de cada fonte enquanto lê e "ok" no fim', async () => {
+    const seen: string[] = []
+    await fetchBinanceSwaps(creds, ['BTC'], (async () => json({ data: [], list: [] })) as typeof fetch, () => NOW, async () => {}, t => seen.push(t))
+    expect(seen.some(t => /PIX\/cartão \d{2}\/\d{4}/.test(t))).toBe(true)
+    expect(seen.some(t => /Convert \d{2}\/\d{4}/.test(t))).toBe(true)
+    expect(seen.some(t => /à vista BTC(BRL|USDT)/.test(t))).toBe(true)
+    expect(seen.at(-1)).toBe('PIX/cartão ok · Convert ok · à vista ok')
+  })
+
   test('Convert: janelas de até 30 dias até 2018-01-01, só SUCCESS', async () => {
     const r = await run({ ...empty, '/sapi/v1/convert/tradeFlow': q => json({ list: q.get('endTime') === String(NOW - 1) ? [
       { fromAsset: 'USDT', fromAmount: '100', toAsset: 'BTC', toAmount: '0.01', orderStatus: 'SUCCESS', createTime: NOW - DAY },

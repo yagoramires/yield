@@ -57,7 +57,7 @@ export interface AppData {
   gastos: Gastos
   orcamento: Orcamento
   binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void
-    cost: { loading: boolean; note: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
+    cost: { loading: boolean; note: string | null; progress: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -83,7 +83,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
   const [binance, setBinance] = useState<{ syncing: boolean; error: string | null; earnSkipped: boolean }>({ syncing: false, error: null, earnSkipped: false })
-  const [costState, setCostState] = useState<{ loading: boolean; note: string | null }>({ loading: false, note: null })
+  const [costState, setCostState] = useState<{ loading: boolean; note: string | null; progress: string | null }>({ loading: false, note: null, progress: null })
   const [month, setMonth] = useState<Month>(monthOf(todayISO()))
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
   const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
@@ -139,14 +139,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchCryptoCost = useCallback(async () => {
     const d = dbRef.current
     if (!d) return
-    setCostState({ loading: true, note: null })
+    setCostState({ loading: true, note: null, progress: null })
     try {
       const creds = await getBinanceCredentials()
-      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.' })
-      const r = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch)
+      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.', progress: null })
+      const r = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch, undefined, undefined, progress => setCostState(s => ({ ...s, progress })))
       setData(await loadAll(d))
-      setCostState({ loading: false, note: costSummaryText(r) })
-    } catch (e) { setCostState({ loading: false, note: binanceErrorText(e) }) }
+      setCostState({ loading: false, note: costSummaryText(r), progress: null })
+    } catch (e) { setCostState({ loading: false, note: binanceErrorText(e), progress: null }) }
   }, [])
 
   // Falha de cotação nunca derruba a tela: só deixa as cotações antigas.
@@ -225,7 +225,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
       orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
-      binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null }) }, cost: costState, fetchCost: fetchCryptoCost },
+      binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null, progress: null }) }, cost: costState, fetchCost: fetchCryptoCost },
     }
   }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance, costState, fetchCryptoCost])
 

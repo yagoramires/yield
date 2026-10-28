@@ -113,7 +113,11 @@ const QUOTES = ['BRL', 'USDT', 'FDUSD', 'USDC', 'BUSD']
  * Uma fonte que falha (sem permissão, rede, limite) vai para `failed` e as outras seguem.
  */
 export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn: typeof fetch, now: () => number = Date.now,
-  sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))): Promise<{ swaps: Swap[]; failed: { source: string; error: unknown }[]; found: Record<string, number> }> {
+  sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms)), onProgress?: (text: string) => void): Promise<{ swaps: Swap[]; failed: { source: string; error: unknown }[]; found: Record<string, number> }> {
+  // a leitura leva minutos: cada fonte diz onde está, juntas numa linha só
+  const stage: Record<string, string> = { 'PIX/cartão': '…', Convert: '…', 'à vista': '…' }
+  const tell = (k: string, v: string) => { stage[k] = v; onProgress?.(Object.entries(stage).map(([a, b]) => `${a} ${b}`).join(' · ')) }
+  const month = (ms: number) => { const d = new Date(ms); return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}` }
   const read = (path: string, params: string, key?: string) => readRows(path, params, creds, fetchFn, now, sleep, key)
   const fiats = new Set(['BRL'])
 
@@ -121,6 +125,7 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
   const fiat = async () => {
     const out: Swap[] = []
     for (const type of [0, 1]) for (const [a, b] of windows(Date.parse('2017-07-01T00:00:00Z'), now(), 90 * DAY)) {
+      tell('PIX/cartão', month(a))
       for (let page = 1; ; page++) {
         const rows = await read(FIAT, `transactionType=${type}&beginTime=${a}&endTime=${b}&page=${page}&rows=500&`, 'data') ?? []
         for (const r of rows) {
@@ -134,6 +139,7 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
         if (rows.length < 500) break
       }
     }
+    tell('PIX/cartão', 'ok')
     return out
   }
 
@@ -142,11 +148,13 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
     for (const [i, [a, b]] of windows(Date.parse('2018-01-01T00:00:00Z'), now(), 30 * DAY).entries()) {
       // peso 3000 por usuário (limite 180000/min): uma janela por segundo e pouco
       if (i) await sleep(1100)
+      tell('Convert', month(a))
       // shortcut: 1000 trocas num mês é o máximo de uma página; dividir a janela se alguém chegar a isso
       for (const r of await read(CONVERT, `startTime=${a}&endTime=${b}&limit=1000&`, 'list') ?? []) {
         if (r.orderStatus === 'SUCCESS') out.push({ time: num(r.createTime), get: String(r.toAsset), getQty: num(r.toAmount), pay: String(r.fromAsset), payQty: num(r.fromAmount) })
       }
     }
+    tell('Convert', 'ok')
     return out
   }
 
@@ -165,6 +173,7 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
     let first = true
     for (const base of bases) for (const quote of QUOTES) {
       if (base === quote) continue
+      tell('à vista', `${base}${quote}`)
       for (let fromId = 0; ;) {
         // peso 20 por chamada (limite 6000/min): um respiro entre as chamadas para não estourar com muitas moedas
         if (!first) await sleep(250)
@@ -183,6 +192,7 @@ export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn:
         fromId = num(rows.at(-1)!.id) + 1
       }
     }
+    tell('à vista', 'ok')
     return out
   }
   await settle('negociações à vista', spot)

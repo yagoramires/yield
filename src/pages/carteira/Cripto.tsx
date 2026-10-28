@@ -35,6 +35,7 @@ export function Cripto({ rows, onOpenSettings }: { rows: CryptoRow[]; onOpenSett
         <button className="link" disabled={binance.syncing} onClick={() => void binance.syncNow().then(refreshQuotesNow)}>{binance.syncing ? 'lendo…' : '↻ atualizar'}</button>
         <button className="link" disabled={binance.cost.loading} onClick={() => void binance.fetchCost()}>{binance.cost.loading ? 'lendo histórico…' : 'Buscar aportado na Binance'}</button>
       </div>
+      {binance.cost.loading && <div className="muted" role="status" style={{ margin: '6px 0' }}>Lendo o histórico da Binance (leva alguns minutos): {binance.cost.progress ?? 'começando…'}</div>}
       {binance.error && <div className="note" style={{ margin: '6px 0' }}>{binance.error} <button className="link" onClick={onOpenSettings}>Configurações</button></div>}
       {binance.earnSkipped && <div className="muted" style={{ margin: '6px 0' }}>Saldos do Earn não lidos: a chave não tem acesso a eles.</div>}
       {binance.cost.note && <div className="note" style={{ margin: '6px 0' }}>{binance.cost.note}</div>}
