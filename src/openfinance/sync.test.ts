@@ -213,6 +213,30 @@ describe('syncPluggy — renda variável', () => {
     expect(await loadAll(db)).toEqual(d)
   })
 
+  it('nota com C 300 cobre três compras de 100 da Pluggy no mesmo dia: posição fica 300', async () => {
+    const db = await broker()
+    await saveNote(db, { number: '57', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:57', label: null },
+      [{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 300, priceCents: 1234, feesCents: 900, irrfCents: 0 }])
+    const ops = { [INV.acao]: [op('t1', 'BUY', '2026-03-10', 100, 12.3), op('t2', 'BUY', '2026-03-10', 100, 12.34), op('t3', 'BUY', '2026-03-10', 100, 12.38)] }
+    const r = await syncPluggy(db, creds, invFake(() => null, INVESTMENTS, ops).fn, today)
+    expect(r.investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 3 })
+    expect((await loadAll(db)).trades.map(t => t.qty)).toEqual([300])
+  })
+
+  it('nota com 100 e Pluggy com 100 + 50 no dia: entra só a sobra de 50, a preço médio e taxas proporcionais', async () => {
+    const db = await broker()
+    await saveNote(db, { number: '58', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:58', label: null },
+      [{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 100, priceCents: 1200, feesCents: 300, irrfCents: 0 }])
+    const ops = { [INV.acao]: [op('t1', 'BUY', '2026-03-10', 100, 12, { brokerageFee: 3 }), op('t2', 'BUY', '2026-03-10', 50, 15, { brokerageFee: 1.5 })] }
+    const r = await syncPluggy(db, creds, invFake(() => null, INVESTMENTS, ops).fn, today)
+    expect(r.investments[0]).toMatchObject({ inserted: 1, updated: 0 })
+    const all = await tradesOf(db)
+    expect(all.map(t => [t.note.source, t.qty, t.priceCents, t.feesCents])).toEqual([['pdf', 100, 1200, 300], ['sem_nota', 50, 1300, 150]])
+    const before = await loadAll(db)
+    expect((await syncPluggy(db, creds, invFake(() => null, INVESTMENTS, ops).fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0 })
+    expect(await loadAll(db)).toEqual(before)
+  })
+
   it('403 nos investimentos não marca a credencial como ruim nem trava o próximo item', async () => {
     const db = await setup()
     await savePluggyItem(db, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Outro Banco')

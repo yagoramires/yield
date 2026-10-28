@@ -71,23 +71,34 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
   return result
 }
 
-/** Mesma operação (dia, ticker, lado, quantidade) já no Yield: nota em PDF ou à mão fica como está; a da Negociação da B3 ou da Pluggy só ganha as taxas. */
+/** Por (dia, ticker, lado), a quantidade que já está no Yield (qualquer nota) cobre a da Pluggy: nota em PDF ou à mão fica como está;
+ * a operação única da Negociação da B3 ou da Pluggy só ganha as taxas; o que faltar entra numa operação só, a preço médio. */
 async function mergeTrades(db: Db, broker: string, trades: PluggyTrade[]) {
   let inserted = 0, updated = 0, existing = 0
-  const used = new Set<string>()
+  const groups = new Map<string, PluggyTrade[]>()
+  for (const t of trades) { const k = `${t.date}|${t.ticker}|${t.side}`; groups.set(k, [...(groups.get(k) ?? []), t]) }
   const fresh = new Map<ISODate, PluggyTrade[]>()
-  for (const t of trades) {
-    const cands = await db.select<{ id: string; source: string; sourceKey: string | null; feesCents: number; irrfCents: number }>(
-      `SELECT t.id, n.source, n.source_key AS sourceKey, t.fees_cents AS feesCents, t.irrf_cents AS irrfCents FROM trades t JOIN notes n ON n.id = t.note_id
-        WHERE n.trade_date = ? AND t.ticker = ? AND t.side = ? AND t.qty = ? ORDER BY n.source_key, t.seq, t.id`, [t.date, t.ticker, t.side, t.qty])
-    const m = cands.find(c => !used.has(c.id)) // uma por uma: duas compras iguais no dia são duas operações
-    if (!m) { fresh.set(t.date, [...(fresh.get(t.date) ?? []), t]); continue }
-    used.add(m.id)
-    const auto = m.source === 'sem_nota' && /^(b3neg|pluggy):/.test(m.sourceKey ?? '')
-    if (auto && (t.feesCents > 0 || t.irrfCents > 0) && (t.feesCents !== m.feesCents || t.irrfCents !== m.irrfCents)) {
-      await db.execute('UPDATE trades SET fees_cents = ?, irrf_cents = ? WHERE id = ?', [t.feesCents, t.irrfCents, m.id])
-      updated++
-    } else existing++
+  const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a + f(x), 0)
+  for (const list of groups.values()) {
+    const t = list[0]
+    const have = await db.select<{ id: string; source: string; sourceKey: string | null; qty: number; feesCents: number; irrfCents: number }>(
+      `SELECT t.id, n.source, n.source_key AS sourceKey, t.qty, t.fees_cents AS feesCents, t.irrf_cents AS irrfCents FROM trades t JOIN notes n ON n.id = t.note_id
+        WHERE n.trade_date = ? AND t.ticker = ? AND t.side = ?`, [t.date, t.ticker, t.side])
+    const qty = sum(list, x => x.qty), haveQty = sum(have, x => x.qty)
+    if (haveQty >= qty - 1e-9) {
+      const m = have[0]
+      const auto = have.length === 1 && list.length === 1 && m.qty === t.qty && m.source === 'sem_nota' && /^(b3neg|pluggy):/.test(m.sourceKey ?? '')
+      if (auto && (t.feesCents > 0 || t.irrfCents > 0) && (t.feesCents !== m.feesCents || t.irrfCents !== m.irrfCents)) {
+        await db.execute('UPDATE trades SET fees_cents = ?, irrf_cents = ? WHERE id = ?', [t.feesCents, t.irrfCents, m.id])
+        updated++
+      } else existing += list.length
+      continue
+    }
+    const rest = qty - haveQty
+    const share = (f: (x: PluggyTrade) => number) => Math.round(sum(list, f) * rest / qty)
+    const rows = haveQty === 0 ? list
+      : [{ ...t, qty: rest, priceCents: Math.round(sum(list, x => x.qty * x.priceCents) / qty), feesCents: share(x => x.feesCents), irrfCents: share(x => x.irrfCents) }]
+    fresh.set(t.date, [...(fresh.get(t.date) ?? []), ...rows])
   }
   for (const [date, list] of fresh) {
     const rows = []
