@@ -262,3 +262,15 @@ test('operação já trazida pela Pluggy não volta pela Negociação da B3', as
   expect(r).toMatchObject({ notes: 1, trades: 1, tradesSkipped: 1 })
   expect((await loadAll(db)).trades.map(t => [t.ticker, t.feesCents])).toEqual([['BBBB4', 0], ['AAAA3', 12]])
 })
+
+test('Pluggy trouxe só parte do dia: a Negociação da B3 completa com a sobra, a preço médio, e reimportar não duplica', async () => {
+  const db = createTestDb()
+  await saveNote(db, { number: 'Pluggy 2024-01-05', broker: 'CLEAR', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'sem_nota', sourceKey: 'pluggy:2024-01-05:CLEAR', label: 'Pluggy (sem nota)' },
+    [{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 100, priceCents: 1000, feesCents: 12, irrfCents: 0 }])
+  const file = makeNegociacao([neg('05/01/2024', 'Compra', 'AAAA3', 100, 10), neg('05/01/2024', 'Compra', 'AAAA3', 50, 13)])
+  expect(await importB3(db, parseB3(file))).toMatchObject({ notes: 1, trades: 1 })
+  const rows = async () => (await loadAll(db)).trades.map(t => [t.ticker, t.qty, t.priceCents]).sort()
+  expect(await rows()).toEqual([['AAAA3', 100, 1000], ['AAAA3', 50, 1100]])
+  await importB3(db, parseB3(file))
+  expect(await rows()).toEqual([['AAAA3', 100, 1000], ['AAAA3', 50, 1100]])
+})
