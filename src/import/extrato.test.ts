@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createTestDb } from '../db/testDb'
 import { loadGastos } from '../db/gastosRepo'
-import { importStatement } from './extrato'
+import { importStatement, parseInstallment } from './extrato'
 import { decodeStatement, parseOfx, type ParsedStatement } from './ofx'
 import { parseExtratoCsv } from './extratoCsv'
 
@@ -65,4 +65,30 @@ test('Mercado Pago: REFERENCE_ID repetido não perde linhas e reimportar pula to
   const s = () => parseExtratoCsv(csv, 'mercadopago', 'MP')
   expect(await importStatement(db, s())).toMatchObject({ inserted: 3, skipped: 0 })
   expect(await importStatement(db, s())).toMatchObject({ inserted: 0, skipped: 3 })
+})
+
+test.each([
+  ['LOJA TESTE 03/10', '3/10'],
+  ['PARC 3/10 LOJA', '3/10'],
+  ['LOJA PARCELA 2 DE 12', '2/12'],
+  ['LOJA 3 de 10', '3/10'],
+  ['LOJA 12/48', '12/48'],
+  ['LOJA 7/36', '7/36'],
+  ['COMPRA 05/11/2024 LOJA', null], // data com ano
+  ['COMPRA 05/11/24', null],
+  ['PAG 2024/03/10', null],
+  ['PIX 10/12 14:32', null], // data e hora
+  ['LOJA 25/10', null], // parcela maior que o total
+  ['LOJA 1/60', null], // total acima de 48
+  ['LOJA 1/1', null],
+  ['LOJA 123/456', null],
+  ['SUPERMERCADO', null],
+])('parcela em "%s" → %s', (description, installment) => {
+  expect(parseInstallment(description)).toBe(installment)
+})
+
+test('importStatement grava a parcela lida da descrição', async () => {
+  const db = await createTestDb()
+  await importStatement(db, { institution: 'Banco Laranja', name: 'Cartão', externalId: 'csv:x', kind: 'cartao', number: null, rows: [{ date: '2024-03-01', description: 'LOJA 03/10', amountCents: -1000, fitid: null }] })
+  expect((await loadGastos(db)).txns[0].installment).toBe('3/10')
 })
