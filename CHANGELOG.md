@@ -2,6 +2,31 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## 0.6.0
+
+O app agora funciona do mesmo jeito para qualquer pessoa, não só para quem tem os mesmos bancos e corretoras.
+
+### Novidades
+- **Aportado da cripto pela Binance**: botão "Buscar aportado na Binance" lê o histórico de compras por PIX/cartão, Converter e negociações à vista, e calcula o custo médio em reais (compras em dólar ou stablecoin pelo dólar do mês). O valor informado à mão continua valendo; quando o histórico não fecha com o saldo, aparece "parcial".
+- **Nota em PDF de qualquer corretora no padrão SINACOR** (XP, Rico, Clear…), com a corretora lida do cabeçalho; se não der, a tela pergunta.
+- **Extrato CSV de qualquer banco**: você escolhe as colunas de data, descrição e valor (o separador, o formato da data e o sinal são detectados). Atalho para a fatura do cartão Nubank.
+- **Orçamento por CSV simples** (`mes;tipo;nome;valor`), no lugar do importador da planilha antiga.
+- **Cadastro do IR preenchido pela Posição da B3**: empresas e fundos com o CNPJ que a B3 informa.
+- **Prejuízo a compensar** de antes do relatório da B3, informado uma vez (ações e FII separados).
+- **MEI** nas fontes de renda, com DAS fixo; fonte nova abre como CLT.
+- **Declaração de IR**: renda fixa da B3 em Bens e Direitos (04-02 tributáveis, 04-03 isentos), juros nos rendimentos, e aviso do que fica de fora.
+- **Sua empresa** (nome ou CNPJ) em Configurações › Contas, no lugar da adivinhação por palavras: o que a empresa te paga vira Receita. Lançamentos avisa quando há Pix de empresa e nenhuma empresa configurada.
+
+### Melhorias
+- Importar da B3 já atualiza as cotações.
+- Nome de corretora padronizado para todas (XP, Nu, Rico…), sem duplicar no cadastro.
+- Parcelas lidas da descrição nos extratos (só com marcador na conta; "03/10" no fim no cartão).
+- Cripto manual cotada em dólar × dólar do dia; as antigas em BTC-BRL são corrigidas sozinhas.
+- Tabelas do CLT organizadas por ano; datas da Pluggy no fuso do computador.
+
+### Correções
+- Resgate de renda fixa vindo do Open Finance não conta mais como receita.
+
 ## 0.5.0
 
 ### Melhorias
