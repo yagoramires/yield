@@ -7,6 +7,7 @@ import { useB3Import } from './configuracoes/useB3Import'
 import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
+import { rfJuros, rfJurosByMonth } from '../domain/rendaFixa'
 import { DateField } from '../ui/DateField'
 import { Select } from '../ui/Select'
 
@@ -46,6 +47,9 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const yoc = yieldOnCost(sm.last12, derived.portfolio.rows)
   const years = yearTable(all)
   const months = dividendsByMonth(all, thisMonth, 24)
+  const juros = rfJurosByMonth(data.rfMoves, thisMonth, 24)
+  // juros de Tesouro e CDB: só leitura, fora da Declaração IR (vêm da Movimentação da B3)
+  const jurosList = filter.ticker || filter.kind ? [] : rfJuros(data.rfMoves).filter(j => !filter.month || monthOf(j.date) === filter.month).reverse()
   const periodList = period === '12m' ? sm.last12 : period === 'tudo' ? all : all.filter(d => d.payDate.startsWith(period))
   const ranking = byTicker(periodList)
   const filtered = filterDividends(all, filter)
@@ -55,7 +59,7 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const payMonths = [...new Set([...data.dividends.map(d => monthOf(d.payDate)), ...(filter.month ? [filter.month] : [])])].sort().reverse()
   const shown = showAll || filtering ? groups : groups.slice(0, 3)
   const ytdDiff = sm.ytdPrevCents ? sm.ytdCents / sm.ytdPrevCents - 1 : null
-  const total = (m: (typeof months)[number]) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP
+  const total = (m: (typeof months)[number], i: number) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP + juros[i].cents
   const pickMonth = (m: string) => { setFilter({ ...filter, month: filter.month === m ? '' : m }); setShowAll(false) }
   const pickTicker = (t: string) => setFilter({ ...filter, ticker: filter.ticker === t ? '' : t })
 
@@ -96,13 +100,13 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
         <div className="grid2">
           <div className="card stretch">
             <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para filtrar a lista</span></div>
-            <BarChart fill height={170} series={['Rendimento', 'Dividendo', 'JCP']} format={formatBRL}
+            <BarChart fill height={170} series={['Rendimento', 'Dividendo', 'JCP', 'Juros RF']} format={formatBRL}
               selected={filter.month ? months.findIndex(m => m.month === filter.month) : null} onSelect={i => pickMonth(months[i].month)}
-              ariaLabel={`Proventos por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${m.month.slice(0, 4)} ${formatBRL(total(m))}`).join('; ')}`}
-              bars={months.map(m => ({
+              ariaLabel={`Proventos por mês: ${months.map((m, i) => `${monthName(m.month).toLowerCase()} ${m.month.slice(0, 4)} ${formatBRL(total(m, i))}`).join('; ')}`}
+              bars={months.map((m, i) => ({
                 // 24 barras: rótulo só no início de cada trimestre, janeiro com o ano
                 label: m.month.endsWith('-01') ? `jan ${m.month.slice(2, 4)}` : ['04', '07', '10'].includes(m.month.slice(5)) ? monthName(m.month).slice(0, 3).toLowerCase() : '',
-                values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP], partial: m.month === thisMonth,
+                values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP, juros[i].cents], partial: m.month === thisMonth,
                 tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${m.month === thisMonth ? ' até hoje' : ''}`,
               }))} valueLabel={() => ''} />
           </div>
@@ -168,6 +172,14 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
               <button className="b ghost" style={{ marginTop: 8 }} onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar só os últimos 3 meses' : `Ver todos os ${groups.length} meses`}</button>
             )}
             {filtering && <div className="muted" style={{ marginTop: 8 }}>{filtered.length} proventos · {formatBRL(filtered.reduce((s, d) => s + d.amountCents, 0))}</div>}
+            {jurosList.length > 0 && <>
+              <h5 style={{ margin: '14px 0 6px' }}>Juros da renda fixa <span className="muted">· da Movimentação da B3, fora da declaração de IR</span></h5>
+              <table><tbody>
+                {(showAll || filtering ? jurosList : jurosList.slice(0, 6)).map((j, i) => (
+                  <tr key={`${j.date}-${i}`}><td className="t2">{brDate(j.date)}</td><td>{j.product.split(' - ').filter((_, k, a) => a.length < 3 || k !== 1).join(' ')}</td><td className="t2">Juros RF</td><td className="r">{formatCents(j.valueCents)}</td></tr>
+                ))}
+              </tbody></table>
+            </>}
           </div>
         </div>
         {all.some(d => d.source === 'planilha') && <div className="muted" style={{ marginTop: 8 }}>Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>}
