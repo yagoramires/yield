@@ -8,6 +8,7 @@ import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
 import { DateField } from '../ui/DateField'
+import { Select } from '../ui/Select'
 
 const pct = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const signedPct = (p: number) => `${p >= 0 ? '+' : '−'}${pct(Math.abs(p))}`
@@ -72,8 +73,8 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
           <b style={{ color: '#fff' }}>Novo provento</b>
           <div className="row" style={{ margin: '10px 0' }}>
             <label className="field"><span>Ativo</span><input className="in" autoFocus style={{ width: 90 }} value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} /></label>
-            <label className="field"><span>Tipo</span>
-              <select className="in" value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as DividendForm['kind'] })}>{KINDS.map(k => <option key={k}>{k}</option>)}</select></label>
+            <div className="field"><span>Tipo</span>
+              <Select ariaLabel="Tipo" value={form.kind} onChange={v => setForm({ ...form, kind: v as DividendForm['kind'] })} options={KINDS.map(k => ({ value: k, label: k }))} /></div>
             <div className="field"><span>Data do pagamento</span><DateField ariaLabel="Data do pagamento" value={form.payDate} onChange={v => setForm({ ...form, payDate: v })} /></div>
             <label className="field"><span>Corretora (opcional)</span><input className="in" style={{ width: 110 }} value={form.broker} onChange={e => setForm({ ...form, broker: e.target.value })} /></label>
             <label className="field"><span>Valor</span><input className="in" style={{ width: 100 }} inputMode="decimal" placeholder="0,00" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} onKeyDown={e => e.key === 'Enter' && void save()} /></label>
@@ -108,9 +109,7 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
           <div className="card">
             <div className="bar">
               <h5 style={{ margin: 0 }}>Por ativo</h5>
-              <select className="in" aria-label="Período" value={period} onChange={e => setPeriod(e.target.value)}>
-                <option value="12m">Últimos 12 meses</option>{years.map(y => <option key={y.year} value={y.year}>{y.year}</option>)}<option value="tudo">Tudo</option>
-              </select>
+              <Select ariaLabel="Período" value={period} onChange={setPeriod} options={[{ value: '12m', label: 'Últimos 12 meses' }, ...years.map(y => ({ value: y.year, label: y.year })), { value: 'tudo', label: 'Tudo' }]} />
             </div>
             <div className="muted" style={{ margin: '4px 0 8px' }}>clique para filtrar a lista · % = rendimento sobre o custo em 12 meses</div>
             <HBars ariaLabel="Proventos por ativo" format={formatCents}
@@ -141,10 +140,8 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
           <div className="card">
             <div className="row" style={{ alignItems: 'center', marginBottom: 8 }}>
               <h5 style={{ margin: 0, marginRight: 'auto' }}>Lançamentos</h5>
-              <select className="in" aria-label="Ativo" value={filter.ticker} onChange={e => setFilter({ ...filter, ticker: e.target.value })}>
-                <option value="">Todos os ativos</option>{tickers.map(t => <option key={t}>{t}</option>)}</select>
-              <select className="in" aria-label="Mês" value={filter.month} onChange={e => { setFilter({ ...filter, month: e.target.value }); setShowAll(false) }}>
-                <option value="">Todos os meses</option>{payMonths.map(m => <option key={m} value={m}>{monthName(m)} {m.slice(0, 4)}</option>)}</select>
+              <Select ariaLabel="Ativo" value={filter.ticker} onChange={v => setFilter({ ...filter, ticker: v })} options={[{ value: '', label: 'Todos os ativos' }, ...tickers.map(t => ({ value: t, label: t }))]} />
+              <Select ariaLabel="Mês" value={filter.month} onChange={v => { setFilter({ ...filter, month: v }); setShowAll(false) }} options={[{ value: '', label: 'Todos os meses' }, ...payMonths.map(m => ({ value: m, label: `${monthName(m)} ${m.slice(0, 4)}` }))]} />
               <button className={`chip ${filter.kind === '' ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: '' })}>Todos</button>
               {KINDS.map(k => <button key={k} className={`chip ${filter.kind === k ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: k })}>{k}</button>)}
             </div>

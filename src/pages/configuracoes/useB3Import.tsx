@@ -3,6 +3,7 @@ import type { AssetType } from '../../domain/types'
 import { importB3, parseB3, type B3Import } from '../../import/b3'
 import { useData } from '../../state/DataProvider'
 import { b3Summary, mergeB3, planilhaReplacedByB3, typeMap, typesToConfirm } from './build'
+import { Select } from '../../ui/Select'
 
 const TYPES: AssetType[] = ['FII', 'ETF', 'Ação']
 
@@ -68,11 +69,10 @@ export function useB3Import(): { button(label: string, className: string): React
                 Sem nome nem proventos para saber o tipo; confira (FII, ETF ou unit de ação):
                 <div className="row" style={{ flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                   {pending.types.map((t, i) => (
-                    <label key={t.ticker} className="t2">{t.ticker}{' '}
-                      <select value={t.type} disabled={busy} onChange={e => setPending({ ...pending, types: pending.types.map((x, j) => (j === i ? { ...x, type: e.target.value as AssetType } : x)) })}>
-                        {TYPES.map(o => <option key={o} value={o}>{o === 'Ação' ? 'Ação (unit)' : o}</option>)}
-                      </select>
-                    </label>
+                    <span key={t.ticker} className="t2 row" style={{ alignItems: 'center', gap: 6 }}>{t.ticker}
+                      <Select small ariaLabel={`Tipo de ${t.ticker}`} value={t.type} disabled={busy} onChange={v => setPending({ ...pending, types: pending.types.map((x, j) => (j === i ? { ...x, type: v as AssetType } : x)) })}
+                        options={TYPES.map(o => ({ value: o, label: o === 'Ação' ? 'Ação (unit)' : o }))} />
+                    </span>
                   ))}
                 </div>
               </div>

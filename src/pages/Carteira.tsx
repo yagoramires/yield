@@ -7,6 +7,7 @@ import { AMBIGUOUS_MSG, parseDecimal } from '../import/parse'
 import { yahooSymbol } from '../quotes/yahoo'
 import { parseMoney } from './notas/build'
 import { useData } from '../state/DataProvider'
+import { Select } from '../ui/Select'
 
 const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', outro: 'Outro' }
 const label = (c: string) => CLASS_LABEL[c] ?? c
@@ -183,10 +184,8 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
         <div className="card" style={{ marginBottom: 10 }}>
           <div className="row">
             <label className="field"><span>Nome</span><input className="in" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
-            <label className="field"><span>Classe</span>
-              <select className="in" value={form.assetClass} onChange={e => setForm({ ...form, assetClass: e.target.value as Form['assetClass'] })}>
-                {Object.entries(CLASS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select></label>
+            <div className="field"><span>Classe</span>
+              <Select ariaLabel="Classe" value={form.assetClass} onChange={v => setForm({ ...form, assetClass: v as Form['assetClass'] })} options={Object.entries(CLASS_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
             <label className="field"><span>Símbolo da cotação (opcional)</span><input className="in" placeholder="BTC-BRL, BRL=X" value={form.quoteSymbol} onChange={e => setForm({ ...form, quoteSymbol: e.target.value })} /></label>
             <label className="field"><span>Quantidade</span><input className="in" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
             <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>

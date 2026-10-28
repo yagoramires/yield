@@ -7,6 +7,7 @@ import { parseClearNote, type NoteDraft } from '../../import/clearPdf'
 import { extractPdfText, PdfPasswordError } from '../../import/pdfText'
 import { normalizeBroker } from '../../import/parse'
 import { ASSET_TYPES, DUP_MSG, draftToSave, FEE_FIELDS, noteNet, type Built } from './build'
+import { Select } from '../../ui/Select'
 
 interface Entry { draft: NoteDraft; dup: boolean; resolved: { ticker: string; assetType: AssetType | '' }[]; remember: boolean[]; done: boolean }
 const br = (iso: string) => iso.split('-').reverse().join('/')
@@ -96,8 +97,8 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
               {cur.draft.items.map((it, k) => (
                 <tr key={k}>
                   <td>{it.side}</td><td className="t2">{it.spec}</td>
-                  <td><select className="in" value={cur.resolved[k].assetType} onChange={e => upd(idx, x => ({ ...x, resolved: x.resolved.map((r, n) => (n === k ? { ...r, assetType: e.target.value as AssetType | '' } : r)) }))}>
-                    <option value="">— tipo —</option>{ASSET_TYPES.map(t => <option key={t}>{t}</option>)}</select></td>
+                  <td><Select small ariaLabel="Tipo do ativo" value={cur.resolved[k].assetType} onChange={v => upd(idx, x => ({ ...x, resolved: x.resolved.map((r, n) => (n === k ? { ...r, assetType: v as AssetType | '' } : r)) }))}
+                    options={[{ value: '', label: '— tipo —' }, ...ASSET_TYPES.map(t => ({ value: t, label: t }))]} /></td>
                   <td>
                     {it.ticker ? it.ticker : (
                       <span className="row" style={{ flexWrap: 'nowrap' }}>
