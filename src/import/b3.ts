@@ -1,6 +1,6 @@
 import { read, utils } from 'xlsx'
 import type { Db } from '../db/client'
-import { loadAll, saveEvent, saveNote, upsertDividends } from '../db/repo'
+import { loadAll, saveEvent, saveNote, upsertDividends, type Dataset } from '../db/repo'
 import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
 import { normalizeTicker, replay } from '../domain/ledger'
@@ -207,27 +207,29 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
 
   // Com tudo gravado: o leilão de fração vira venda da fração e a "Atualização" confere a posição (pela liquidação, como a custódia).
   const review: B3Import['toReview'] = []
-  // carrega uma vez e de novo só depois de gravar uma venda
-  let ds = await loadAll(db)
-  const positionAt = (date: ISODate, ticker: string) =>
-    replay(ds.trades.filter(t => t.settleDate <= date), ds.events.filter(e => e.date <= date)).positions.find(x => x.ticker === ticker)?.qty ?? 0
+  // carrega só se houver leilão ou Atualização, e de novo só depois de gravar uma venda
+  let ds: Dataset | null = null
+  const positionAt = async (date: ISODate, ticker: string) => {
+    const all = (ds ??= await loadAll(db))
+    return replay(all.trades.filter(t => t.settleDate <= date), all.events.filter(e => e.date <= date)).positions.find(x => x.ticker === ticker)?.qty ?? 0
+  }
   let sales = 0
   for (const a of p.sales) {
     const sourceKey = `b3leilao:${a.date}:${a.ticker}:${a.qty}`
     if ((await db.select('SELECT 1 FROM notes WHERE source_key = ?', [sourceKey])).length) continue
-    const have = positionAt(a.date, a.ticker)
+    const have = await positionAt(a.date, a.ticker)
     if (have <= 1e-9) { review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: 'o Yield não tem essa posição' }); continue }
     const qty = Math.min(a.qty, have)
     const [known] = await db.select<{ assetType: AssetType }>('SELECT asset_type AS assetType FROM trades WHERE ticker = ? LIMIT 1', [a.ticker])
     await saveNote(db, { number: `Leilão ${a.date}`, broker: a.broker, tradeDate: a.date, settleDate: a.date, source: 'sem_nota', sourceKey, label: 'Leilão de fração da B3' },
       [{ seq: 1, side: 'V', assetType: known?.assetType ?? types.get(a.ticker) ?? assetTypeOf(a.ticker), ticker: a.ticker, qty, priceCents: Math.round(a.valueCents / a.qty), feesCents: 0, irrfCents: 0 }])
-    ds = await loadAll(db)
+    ds = null
     sales++
   }
   const daysBetween = (a: ISODate, b: ISODate) => (Date.parse(a) - Date.parse(b)) / 86_400_000
   let checked = 0
   for (const c of p.checks) {
-    const have = positionAt(c.date, c.ticker)
+    const have = await positionAt(c.date, c.ticker)
     if (Math.abs(have - c.qty) < 1e-6) checked++
     else {
       // a B3 usa "Atualização" tanto para reafirmar a posição quanto para creditar cotas de uma subscrição exercida

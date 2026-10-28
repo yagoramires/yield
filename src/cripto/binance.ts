@@ -50,9 +50,12 @@ export async function fetchBinanceBalances(creds: Creds, fetchFn: typeof fetch, 
 
   let earnSkipped = false
   const inFlexible = new Set<string>()
-  for (const path of EARN) {
+  // flexível e travado em paralelo; o resultado é tratado na ordem de EARN
+  const earn = await Promise.all(EARN.map(async path => {
     const r = await signedGet(path, creds, fetchFn, now)
-    const rows = r.ok ? (await r.json().catch(() => null))?.rows : null
+    return { path, rows: r.ok ? (await r.json().catch(() => null))?.rows : null }
+  }))
+  for (const { path, rows } of earn) {
     if (!Array.isArray(rows)) { earnSkipped = true; continue }
     for (const row of rows) {
       add(row?.asset, num(row?.totalAmount ?? row?.amount))

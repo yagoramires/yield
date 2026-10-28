@@ -55,7 +55,7 @@ export interface AppData {
   lastRefresh: { at: string; ok: string[]; failed: string[] } | null
   gastos: Gastos
   orcamento: Orcamento
-  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void> }
+  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void }
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -205,7 +205,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
       orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
-      binance: { ...binance, syncNow: syncBinance },
+      binance: { ...binance, syncNow: syncBinance, reset: () => setBinance({ syncing: false, error: null, earnSkipped: false }) },
     }
   }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance])
 

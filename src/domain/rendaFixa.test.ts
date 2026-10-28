@@ -85,3 +85,8 @@ describe('revisão final', () => {
     expect(h).toMatchObject({ closed: true, gainCents: null })
   })
 })
+
+test('aplicação depois da Posição pede uma Posição mais recente', () => {
+  const [h] = rfHoldings([mv(TD, 'aplicacao', 1, 10000, '2026-10-28')], [pos(TD, 70000, { qty: 1 })])
+  expect(h).toMatchObject({ valueCents: 70000, needsNewerPosicao: true })
+})

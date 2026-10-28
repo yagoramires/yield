@@ -49,7 +49,7 @@ describe('credenciais da Pluggy', () => {
     await expect(getPluggyCredentials()).rejects.toThrow('negado')
     await getPluggyCredentials()
     await getPluggyCredentials()
-    // recusa (1) + item único vazio (1) + os 4 itens antigos migrados (4); a terceira leitura vem do cache
-    expect(invoke.mock.calls.filter(c => c[0] === 'secret_get')).toHaveLength(6)
+    // recusa (1) + item único vazio (1) + os 2 itens antigos migrados (2); a terceira leitura vem do cache
+    expect(invoke.mock.calls.filter(c => c[0] === 'secret_get')).toHaveLength(4)
   })
 })

@@ -29,6 +29,7 @@ export function Binance() {
   // os saldos zeram (somem do patrimônio), mas o aportado digitado fica guardado para quando a chave voltar
   const remove = () => run('Não foi possível remover', async () => {
     await clearBinanceCredentials(); await saveCryptoBalances(db, [], new Date().toISOString()); await reload()
+    binance.reset()
     setSaved(false); setConfirm(false)
   })
 
