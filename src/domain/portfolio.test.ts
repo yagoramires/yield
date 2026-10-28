@@ -81,6 +81,15 @@ describe('buildPortfolio com renda fixa, exterior e cripto', () => {
     expect(p.totalValueCents).toBe(0)
   })
 
+  test('cripto em US$ sem cotação usa o valor informado em R$, como o ativo em real', () => {
+    const btc = man({ id: 'c1', currency: 'USD', quoteSymbol: 'BTC-USD', quantity: 0.02, valueCents: 300_000 })
+    const p = buildPortfolio([], [], [btc], [], TODAY)
+    expect(p.manual[0]).toMatchObject({ valueCents: 300_000, usdCents: null })
+    expect(p.totalValueCents).toBe(300_000)
+    // com cotação, a quantidade manda: 0,02 × US$ 60.000 × R$ 5
+    expect(buildPortfolio([], [q('BTC-USD', 6_000_000), q('BRL=X', 500)], [btc], [], TODAY).manual[0].valueCents).toBe(600_000)
+  })
+
   test('título aberto entra no total, no aportado e no resultado; encerrado não', () => {
     const p = buildPortfolio([], [], [], [], TODAY, { rf: [rf({}), rf({ key: 'rf:fim', closed: true, valueCents: 0, appliedCents: 0, gainCents: 500 })], crypto: [] })
     expect(p.totalValueCents).toBe(110000)

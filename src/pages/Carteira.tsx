@@ -62,7 +62,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
     if (form.assetClass === 'exterior' && (!symbol || qty === null)) return setFormError('No exterior, informe o ticker (como no Yahoo) e a quantidade.')
     if (!form.name.trim()) return setFormError('Informe o nome do ativo.')
     if (qty !== null && !(qty >= 0)) return setFormError('Quantidade inválida.')
-    if (symbol && qty === null) return setFormError('Com símbolo de cotação, informe a quantidade.')
+    if (symbol && qty === null) return setFormError('Com símbolo de cotação, informe a quantidade. O valor em R$ fica como reserva para quando não houver cotação.')
     if (!symbol && value === null) return setFormError('Informe o valor ou um símbolo de cotação com quantidade.')
     setFormError(null)
     await run(async () => {
