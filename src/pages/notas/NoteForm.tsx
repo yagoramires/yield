@@ -3,6 +3,7 @@ import type { Note } from '../../db/repo'
 import { formatCents } from '../../domain/money'
 import type { Side } from '../../domain/types'
 import { ASSET_TYPES, buildNote, emptyItem, FEE_FIELDS, noteNet, type Built, type ItemRow, type NoteForm as Form } from './build'
+import { DateField } from '../../ui/DateField'
 
 interface Props {
   mode: 'manual' | 'sem_nota'
@@ -39,8 +40,8 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
       <div className="row" style={{ margin: '10px 0' }}>
         {!semNota && <label className="field"><span>Nº da nota</span><input className="in" autoFocus value={f.number} onChange={e => setF({ ...f, number: e.target.value })} /></label>}
         <label className="field"><span>Corretora</span><input className="in" value={f.broker} onChange={e => setF({ ...f, broker: e.target.value })} /></label>
-        <label className="field"><span>{semNota ? 'Data' : 'Pregão'}</span><input className="in" type="date" value={f.tradeDate} onChange={e => setF({ ...f, tradeDate: e.target.value })} /></label>
-        {!semNota && <label className="field"><span>Liquidação</span><input className="in" type="date" value={f.settleDate} onChange={e => setF({ ...f, settleDate: e.target.value })} /></label>}
+        <div className="field"><span>{semNota ? 'Data' : 'Pregão'}</span><DateField ariaLabel={semNota ? 'Data' : 'Pregão'} value={f.tradeDate} onChange={v => setF({ ...f, tradeDate: v })} /></div>
+        {!semNota && <div className="field"><span>Liquidação</span><DateField ariaLabel="Liquidação" value={f.settleDate} onChange={v => setF({ ...f, settleDate: v })} /></div>}
         {semNota && <label className="field"><span>Motivo</span><input className="in" autoFocus placeholder="IPO, subscrição…" value={f.label} onChange={e => setF({ ...f, label: e.target.value })} /></label>}
       </div>
       <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>

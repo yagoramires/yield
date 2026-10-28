@@ -10,6 +10,7 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
   - **Resgate** vai para revisão com a explicação: pode ser liquidação do fundo (venda) ou a parte em dinheiro de uma incorporação (não é venda).
   - **Atualização** que bate com a sua posição é só conferida e não aparece mais para revisar; a que não bate diz por quê — "B3: X, Yield: Y" ou, logo depois de uma subscrição exercida, "provável crédito de subscrição: lance a compra em Notas com o preço pago".
   - **Fração em Ativos** e as linhas de direitos/recibos de subscrição deixam de aparecer como pendência.
+- **Campo de data novo** em todos os formulários: digita direto (as barras entram sozinhas) ou escolhe num calendário em português, com setas de mês e de ano, "Hoje" e "Limpar". O campo do sistema mostrava a data de hoje em cinza com o campo vazio e dava "informe uma data válida".
 
 ## 0.3.0
 

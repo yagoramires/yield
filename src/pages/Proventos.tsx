@@ -7,6 +7,7 @@ import { useB3Import } from './configuracoes/useB3Import'
 import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
+import { DateField } from '../ui/DateField'
 
 const pct = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const signedPct = (p: number) => `${p >= 0 ? '+' : '−'}${pct(Math.abs(p))}`
@@ -73,7 +74,7 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
             <label className="field"><span>Ativo</span><input className="in" autoFocus style={{ width: 90 }} value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} /></label>
             <label className="field"><span>Tipo</span>
               <select className="in" value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as DividendForm['kind'] })}>{KINDS.map(k => <option key={k}>{k}</option>)}</select></label>
-            <label className="field"><span>Data do pagamento</span><input className="in" type="date" value={form.payDate} onChange={e => setForm({ ...form, payDate: e.target.value })} /></label>
+            <div className="field"><span>Data do pagamento</span><DateField ariaLabel="Data do pagamento" value={form.payDate} onChange={v => setForm({ ...form, payDate: v })} /></div>
             <label className="field"><span>Corretora (opcional)</span><input className="in" style={{ width: 110 }} value={form.broker} onChange={e => setForm({ ...form, broker: e.target.value })} /></label>
             <label className="field"><span>Valor</span><input className="in" style={{ width: 100 }} inputMode="decimal" placeholder="0,00" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} onKeyDown={e => e.key === 'Enter' && void save()} /></label>
           </div>
