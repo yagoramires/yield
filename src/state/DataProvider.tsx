@@ -5,6 +5,7 @@ import { loadAll, type Dataset } from '../db/repo'
 import { computeDarfs, type DarfResult } from '../domain/darf'
 import { replay, type ReplayResult } from '../domain/ledger'
 import { buildPortfolio, type Portfolio } from '../domain/portfolio'
+import { rfHoldings } from '../domain/rendaFixa'
 import { computeTax, type TaxMonth } from '../domain/tax'
 import { REFRESH_MS, refreshQuotes, yahooSymbol } from '../quotes/yahoo'
 import { monthOf } from '../domain/money'
@@ -118,7 +119,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const ds = await loadAll(d)
       const { positions } = replay(ds.trades, ds.events)
-      const symbols = new Set([...positions.filter(p => p.qty > 0).map(p => yahooSymbol(p.ticker)), ...ds.manualAssets.flatMap(a => (a.quoteSymbol ? [a.quoteSymbol] : []))])
+      const symbols = new Set([...positions.filter(p => p.qty > 0).map(p => yahooSymbol(p.ticker)), ...ds.manualAssets.flatMap(a => (a.quoteSymbol ? [a.quoteSymbol] : [])),
+        // exterior é cotado em US$ e convertido pelo dólar do dia; cripto da Binance pela cotação em real
+        ...(ds.manualAssets.some(a => a.currency === 'USD') ? ['BRL=X'] : []), ...ds.cryptoBalances.flatMap(c => (c.qty > 0 && c.asset !== 'BRL' ? [`${c.asset}-BRL`] : []))])
       setLastRefresh({ at: new Date().toISOString(), ...(await refreshQuotes(d, [...symbols], tauriFetch as typeof fetch)) })
       setData(await loadAll(d))
     } catch { /* offline ou Yahoo fora do ar */ }
@@ -157,7 +160,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const today = todayISO()
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
     const tax = computeTax(rp.sales, rp.warnings, firstSale, monthOf(today))
-    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today) }
+    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today, { rf: rfHoldings(data.rfMoves, data.rfPositions), crypto: data.cryptoBalances }) }
   }, [data])
 
   // Separado do derived de investimentos: trocar mês ou filtro não refaz o replay.
