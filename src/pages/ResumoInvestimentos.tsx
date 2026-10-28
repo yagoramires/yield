@@ -108,7 +108,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       </div>
 
       {buckets.length > 1 && (
-        <div className="buckets" aria-label="Onde está seu dinheiro">
+        <div className="buckets" role="group" aria-label="Onde está seu dinheiro">
           {buckets.map(b => (
             <button key={b.key} className="bk" onClick={() => onOpenCarteira(b.key)}>
               <span className="bk-h"><span className="class-dot" style={{ background: classColor(b.key === 'bolsa' ? 'Ação' : b.key) }} />{b.label}</span>

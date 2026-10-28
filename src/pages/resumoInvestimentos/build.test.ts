@@ -102,6 +102,13 @@ describe('moneyBuckets', () => {
     expect(b[3]).toMatchObject({ gainCents: null, gainPct: null, note: 'dólar R$ 5,42' })
   })
 
+  it('outros entra na faixa quando tem valor; plural certo de títulos', () => {
+    const q = { ...p, manual: [...(p.manual as never[]), { id: 'o', name: 'Imóvel', assetClass: 'outro', valueCents: 50_000, costCents: null, usdCents: null, usdCostCents: null }], rf: [(p.rf as never[])[0]] } as unknown as Portfolio
+    const b = moneyBuckets(q, { cryptoAt: null, dollarCents: null })
+    expect(b.find(x => x.key === 'outro')).toMatchObject({ label: 'Outros', valueCents: 50_000 })
+    expect(b.find(x => x.key === 'renda_fixa')?.note).toBe('1 título')
+  })
+
   it('cripto da Binance mostra o horário do saldo', () => {
     const c = moneyBuckets({ ...p, crypto: [{ asset: 'BTC', qty: 0.1, valueCents: 5_000, costCents: null }] } as unknown as Portfolio, { cryptoAt: '2026-10-28T17:02:00Z', dollarCents: null })
     expect(c.find(x => x.key === 'cripto')?.note).toMatch(/^Binance, \d{2}:\d{2}$/)
