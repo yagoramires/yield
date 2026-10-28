@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, RefreshCw, Upload } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Account } from '../../db/gastosRepo'
 import { addMonths, formatCents } from '../../domain/money'
 import type { Month } from '../../domain/types'
@@ -131,8 +131,10 @@ function CsvMapper({ m, busy, onChange, onCancel, onImport }: { m: Mapped; busy:
     <label className="field"><span>{label}</span>
       <Select small ariaLabel={label} value={String(m.mapping[k])} onChange={v => onChange({ ...m, mapping: { ...m.mapping, [k]: Number(v) } })} options={cols} /></label>
   )
-  let preview: ParsedStatement | null = null, problem: string | null = null
-  try { preview = parseMappedCsv(m.text, m.sniff, m.mapping, m.label.trim() || 'CSV') } catch (e) { problem = errText(e) }
+  // o nome da conta não muda a leitura: digitá-lo não relê o arquivo
+  const { preview, problem } = useMemo((): { preview: ParsedStatement | null; problem: string | null } => {
+    try { return { preview: parseMappedCsv(m.text, m.sniff, m.mapping, 'CSV'), problem: null } } catch (e) { return { preview: null, problem: errText(e) } }
+  }, [m.text, m.sniff, m.mapping])
   return (
     <div className="note">
       {m.file}: escolha as colunas (formatos de data dd/mm/aaaa e aaaa-mm-dd; vírgula ou ponto decimal são detectados sozinhos).
