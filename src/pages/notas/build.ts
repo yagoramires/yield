@@ -8,7 +8,7 @@ import type { AssetType, Cents, ISODate, NewCorporateEvent, Side, Trade } from '
 import type { NoteDraft } from '../../import/clearPdf'
 import { normalizeBroker, parseBRL } from '../../import/parse'
 
-export const ASSET_TYPES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR']
+export const ASSET_TYPES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']
 export const FEE_FIELDS: [keyof NoteFees, string][] = [
   ['liquidacaoCents', 'Liquidação'], ['registroCents', 'Registro'], ['emolumentosCents', 'Emolumentos'],
   ['operacionalCents', 'Operacional'], ['issCents', 'ISS'], ['irrfCents', 'IRRF'], ['outrosCents', 'Outros'],

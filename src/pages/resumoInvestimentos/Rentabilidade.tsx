@@ -54,7 +54,8 @@ export function Rentabilidade({ trades, events, dividends, thisMonth }: { trades
   const series = hist ? [
     { label: 'carteira', values: portfolioIndex(trades, events, dividends, hist.closes, months) },
     { label: 'CDI', values: cdiIndex(hist.cdi, months) },
-    { label: 'Ibovespa', values: closeIndex(hist.ibov, months), dashed: true },
+    // sem o Ibovespa (Yahoo fora), a linha e a legenda somem e a nota avisa
+    ...(hist.ibov.size ? [{ label: 'Ibovespa', values: closeIndex(hist.ibov, months), dashed: true }] : []),
   ] : []
   const lastCdi = hist ? [...months].reverse().find(m => hist.cdi.has(m)) : undefined
 
@@ -71,6 +72,7 @@ export function Rentabilidade({ trades, events, dividends, thisMonth }: { trades
               ariaLabel={`Rentabilidade em 12 meses: ${series.map(s => `${s.label} ${last(s.values) === null ? 'sem dado' : pct(last(s.values)!)}`).join('; ')}`} />
             <div className="muted">
               Ações, FIIs, ETFs e BDRs, com proventos e sem contar compras e vendas como ganho (Dietz modificado), sobre fechamentos mensais do Yahoo. CDI do Banco Central{lastCdi ? ` até ${monthName(lastCdi).toLowerCase()}` : ''}.
+              {!hist.ibov.size && ' Ibovespa indisponível agora: o Yahoo não respondeu; tenta de novo na próxima abertura.'}
               {hist.missing.length > 0 && ` Sem histórico para ${hist.missing.join(', ')}: entram pelo preço médio.`}
             </div>
           </>

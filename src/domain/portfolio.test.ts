@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import type { ManualAsset, Quote } from '../db/repo'
 import type { RfHolding } from './rendaFixa'
-import { buildPortfolio } from './portfolio'
+import { buildPortfolio, portfolioResult } from './portfolio'
 import type { Dividend, Position } from './types'
 
 const pos = (o: Partial<Position> & { ticker: string }): Position => ({ assetType: 'Ação', qty: 100, totalCostCents: 100000, ...o })
@@ -109,5 +109,12 @@ describe('buildPortfolio com renda fixa, exterior e cripto', () => {
     expect(p.noCostCount).toBe(1)
     expect(p.otherGainCents).toBe(5_000_000)
     expect(p.otherCostCents).toBe(10_000_000)
+  })
+})
+
+describe('portfolioResult', () => {
+  test('renda variável cotada + renda fixa, exterior e cripto com aportado', () => {
+    const p = buildPortfolio([pos({ ticker: 'AAAA3', qty: 10, totalCostCents: 1000 }), pos({ ticker: 'SEMCOT3' })], [q('AAAA3.SA', 120)], [], [], TODAY)
+    expect(portfolioResult({ ...p, otherGainCents: 100, otherCostCents: 500 })).toEqual({ gainCents: 300, baseCents: 1500 })
   })
 })

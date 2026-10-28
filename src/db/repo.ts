@@ -43,14 +43,19 @@ async function insertNote(db: Db, id: string, note: NoteInput, trades: (TradeInp
   )
   if (!trades.length) return
   try {
-    await db.execute(
-      `INSERT INTO trades (id, note_id, seq, side, asset_type, ticker, qty, price_cents, fees_cents, irrf_cents) VALUES ${trades.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
-      trades.flatMap(t => [t.id ?? crypto.randomUUID(), id, t.seq, t.side, t.assetType, normalizeTicker(t.ticker), t.qty, t.priceCents, t.feesCents, t.irrfCents]),
-    )
+    await addTrades(db, id, trades)
   } catch (e) {
     await db.execute('DELETE FROM notes WHERE id = ?', [id])
     throw e
   }
+}
+
+/** Acrescenta operações a uma nota que já existe (ex. dia da B3 importado antes, completado por uma Negociação mais nova). */
+export async function addTrades(db: Db, noteId: string, trades: (TradeInput & { id?: string })[]): Promise<void> {
+  await db.execute(
+    `INSERT INTO trades (id, note_id, seq, side, asset_type, ticker, qty, price_cents, fees_cents, irrf_cents) VALUES ${trades.map(() => '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`,
+    trades.flatMap(t => [t.id ?? crypto.randomUUID(), noteId, t.seq, t.side, t.assetType, normalizeTicker(t.ticker), t.qty, t.priceCents, t.feesCents, t.irrfCents]),
+  )
 }
 
 export async function saveNote(db: Db, note: NoteInput, trades: TradeInput[]): Promise<{ id: string } | { skipped: 'duplicada' }> {
