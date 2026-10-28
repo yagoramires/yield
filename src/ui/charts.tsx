@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 
 // Validadas para daltonismo sobre o fundo dos cartões; texto nunca usa estas cores.
-export const SERIES_COLORS = ['#3987e5', '#d95926', '#199e70']
+export const SERIES_COLORS = ['#3987e5', '#d95926', '#199e70', '#a66bd9'] // validada (dataviz): luminosidade, croma, daltonismo e contraste no tema escuro
 const color = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length]
 
 /** Rótulo curto de eixo e barra: 6.482,17 → "6,5 mil"; abaixo de mil, o inteiro. */

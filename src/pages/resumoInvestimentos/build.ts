@@ -2,6 +2,7 @@ import { addMonths, monthOf } from '../../domain/money'
 import { replay } from '../../domain/ledger'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Cents, CorporateEvent, Dividend, DividendKind, Month, Trade } from '../../domain/types'
+import { BOLSA, carteiraClasses } from '../carteira/build'
 
 const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior', outro: 'Outros' }
 export const classLabel = (c: string) => CLASS_LABEL[c] ?? c
@@ -48,4 +49,32 @@ export function passiveCoverage(dividends12mCents: Cents, monthlySpentCents: Cen
   const avgSpentCents = Math.round(months.reduce((s, c) => s + c, 0) / months.length)
   const avgDividendsCents = Math.round(dividends12mCents / 12)
   return { pct: avgDividendsCents / avgSpentCents, avgDividendsCents, avgSpentCents, gapCents: Math.max(0, avgSpentCents - avgDividendsCents) }
+}
+
+export type BucketKey = 'bolsa' | 'renda_fixa' | 'exterior' | 'cripto' | 'dolar'
+export interface MoneyBucket { key: BucketKey; label: string; valueCents: Cents; pct: number; gainCents: Cents | null; gainPct: number | null; usdGain: boolean; note: string }
+
+/** "Onde está seu dinheiro": bolsa (ações, FIIs, ETFs, BDRs), renda fixa, exterior, cripto e dólar; só os que têm valor. */
+export function moneyBuckets(p: Portfolio, ctx: { cryptoAt: string | null; dollarCents: Cents | null }): MoneyBucket[] {
+  const classes = carteiraClasses(p)
+  const of = (keys: string[]) => classes.filter(c => keys.includes(c.key))
+  const hhmm = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
+  const money = (c: Cents) => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const notes: Record<BucketKey, string> = {
+    bolsa: 'ações, FIIs, ETFs, BDRs',
+    renda_fixa: `${of(['renda_fixa'])[0]?.count ?? 0} títulos`,
+    exterior: `US$ ${money(p.manual.reduce((s, m) => s + (m.usdCents ?? 0), 0))}`,
+    cripto: ctx.cryptoAt ? `Binance, ${hhmm(ctx.cryptoAt)}` : 'informado à mão',
+    dolar: ctx.dollarCents ? `dólar R$ ${money(ctx.dollarCents)}` : 'sem cotação do dólar',
+  }
+  const parts: [BucketKey, string, string[]][] = [['bolsa', 'Bolsa', BOLSA], ['renda_fixa', 'Renda fixa', ['renda_fixa']], ['exterior', 'Exterior', ['exterior']], ['cripto', 'Cripto', ['cripto']], ['dolar', 'Dólar', ['dolar']]]
+  return parts.map(([key, label, keys]) => {
+    const list = of(keys)
+    const valueCents = list.reduce((s, c) => s + c.valueCents, 0)
+    const known = list.filter(c => c.gainCents !== null)
+    const gainCents = known.length ? known.reduce((s, c) => s + c.gainCents!, 0) : null
+    const base = known.reduce((s, c) => s + (c.costCents ?? 0), 0)
+    const gainPct = key === 'exterior' ? list[0]?.gainPct ?? null : gainCents === null || !base ? null : gainCents / base
+    return { key, label, valueCents, pct: p.totalValueCents > 0 ? valueCents / p.totalValueCents : 0, gainCents, gainPct, usdGain: key === 'exterior', note: notes[key] }
+  }).filter(b => b.valueCents > 0)
 }
