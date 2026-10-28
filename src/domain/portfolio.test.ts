@@ -99,8 +99,9 @@ describe('buildPortfolio com renda fixa, exterior e cripto', () => {
     expect(p.byClass[0].costCents).toBeNull()
   })
 
-  test('cripto: quantidade × cotação em real; BRL vale a própria quantidade', () => {
-    const p = buildPortfolio([], [q('BTC-BRL', 30_000_000)], [], [], TODAY, { rf: [], crypto: [
+  // o Yahoo não tem mais os pares em real (BTC-BRL dá 404): cotação em dólar × BRL=X
+  test('cripto: quantidade × cotação em US$ × dólar; BRL vale a própria quantidade', () => {
+    const p = buildPortfolio([], [q('BTC-USD', 6_000_000), q('BRL=X', 500)], [], [], TODAY, { rf: [], crypto: [
       { asset: 'BTC', qty: 0.5, costCents: 10_000_000, fetchedAt: 'x' }, { asset: 'BRL', qty: 100, costCents: null, fetchedAt: 'x' }, { asset: 'ETH', qty: 0, costCents: null, fetchedAt: 'x' }] })
     expect(p.crypto).toEqual([{ asset: 'BTC', qty: 0.5, valueCents: 15_000_000, costCents: 10_000_000 }, { asset: 'BRL', qty: 100, valueCents: 10000, costCents: null }])
     expect(p.totalValueCents).toBe(15_010_000)
