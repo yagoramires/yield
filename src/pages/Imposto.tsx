@@ -4,6 +4,7 @@ import { DARF_CODE, type DarfStatus } from '../domain/darf'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type PaymentForm } from './imposto/build'
+import { DateField } from '../ui/DateField'
 
 const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -143,7 +144,7 @@ export function Imposto() {
                         </div>
                         <div className="t2">SicalcWeb: <span style={{ userSelect: 'all' }}>{SICALC}</span> <button className="b" onClick={() => void copy()}>Copiar link</button> {copied && <span>{copied}</span>}</div>
                         <div className="row" style={{ margin: '10px 0' }}>
-                          <label className="field"><span>Data do pagamento</span><input className="in" type="date" value={form.paidAt} onChange={e => setForm({ ...form, paidAt: e.target.value })} /></label>
+                          <div className="field"><span>Data do pagamento</span><DateField ariaLabel="Data do pagamento" value={form.paidAt} onChange={v => setForm({ ...form, paidAt: v })} /></div>
                           <label className="field"><span>Principal</span><input className="in" style={{ width: 100 }} inputMode="decimal" value={form.principal} onChange={e => setForm({ ...form, principal: e.target.value })} /></label>
                           <label className="field"><span>Total pago (com multa e juros)</span><input className="in" style={{ width: 100 }} inputMode="decimal" value={form.total} onChange={e => setForm({ ...form, total: e.target.value })} onKeyDown={e => e.key === 'Enter' && void pay(m)} /></label>
                         </div>
