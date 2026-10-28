@@ -31,9 +31,10 @@
 
 O yield nasceu para aposentar duas planilhas: uma de controle de investimentos (preço médio, IR, DARF) e outra de orçamento do mês. A ideia é ter as duas coisas num app só, rápido, bonito e **privado**. Tudo é gravado num arquivo SQLite na sua máquina, e você exporta ou importa um backup quando quiser.
 
-Só três coisas saem do computador:
+Só isto sai do computador:
 
-- as **cotações** do Yahoo Finance;
+- as **cotações** do Yahoo Finance (e o histórico mensal, para o gráfico contra o Ibovespa);
+- a série do **CDI** do Banco Central;
 - a **leitura dos seus bancos** pela Pluggy/Meu Pluggy, se você ligar o Open Finance;
 - nada mais.
 
@@ -74,7 +75,7 @@ As transações chegam de dois jeitos:
 
 | | |
 |---|---|
-| **Resumo** | Patrimônio, resultado, proventos (com o rendimento sobre o custo) e imposto; **quanto da sua renda passiva já cobre o gasto médio**; aportado × valor de hoje; classes com o ganho de cada uma; proventos por mês (clicar abre Proventos filtrado); maiores posições. |
+| **Resumo** | Patrimônio, resultado, proventos (com o rendimento sobre o custo) e imposto; **quanto da sua renda passiva já cobre o gasto médio**; **rentabilidade em 12 meses contra o CDI e o Ibovespa**; aportado × valor de hoje; classes com o ganho de cada uma; proventos por mês (clicar abre Proventos filtrado); maiores posições. |
 | **Carteira** | Posições com preço médio, custo, cotação e variação, agrupadas por classe, mais ativos manuais (renda fixa, cripto, dólar). |
 | **Notas** | Compras e vendas **importadas do relatório de Negociação da B3**, notas de corretagem digitadas ou **lidas do PDF da Clear** (com taxas rateadas), e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
 | **Proventos** | Dividendos, JCP e rendimentos (importados da B3 ou à mão): 12 meses, ano contra ano, rendimento sobre o custo, gráfico de 24 meses que filtra a lista, ranking por ativo e totais por ano. |
@@ -101,7 +102,7 @@ As transações chegam de dois jeitos:
 - **Open Finance somente leitura.** O cliente da Pluggy só consegue fazer `POST /auth`, `GET /accounts` e `GET /v2/transactions`. Qualquer outra rota é recusada antes de sair da máquina, e há um teste que garante isso. O app nunca move dinheiro nem inicia pagamentos.
 - **Backup com senha.** O arquivo exportado só abre com a senha escolhida na hora; sem ela nem o Yield recupera os dados.
 - **Credenciais no cofre do sistema**: Keychain no macOS, Credential Manager no Windows. Elas nunca vão para o banco, para o backup ou para log.
-- **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance e `api.pluggy.ai`.
+- **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance, `api.bcb.gov.br` (CDI) e `api.pluggy.ai`.
 - **Seus arquivos fora do git.** `planilhas/`, `notas/` e `extratos/` são ignorados; os testes usam só dados sintéticos.
 
 <p align="center">

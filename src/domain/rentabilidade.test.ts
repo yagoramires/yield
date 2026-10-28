@@ -1,0 +1,33 @@
+import { describe, expect, it } from 'vitest'
+import { cdiIndex, closeIndex, portfolioIndex } from './rentabilidade'
+import type { Dividend, Trade } from './types'
+
+const tr = (side: 'C' | 'V', qty: number, price: number, date: string): Trade =>
+  ({ id: date + side, noteId: 'n' + date + side, seq: 1, broker: 'X', tradeDate: date, settleDate: date, side, assetType: 'Ação', ticker: 'AAAA3', qty, priceCents: price, feesCents: 0, irrfCents: 0 })
+const closes = (pairs: [string, number][]) => new Map([['AAAA3', new Map(pairs)]])
+const months = ['2026-01', '2026-02', '2026-03', '2026-04']
+
+describe('rentabilidade', () => {
+  it('só valorização: o índice acompanha o preço', () => {
+    const idx = portfolioIndex([tr('C', 10, 1000, '2025-12-10')], [], [], closes([['2026-01', 1000], ['2026-02', 1100], ['2026-03', 1210], ['2026-04', 1210]]), months)
+    expect(idx.map(v => v && Math.round(v * 100) / 100)).toEqual([100, 110, 121, 121])
+  })
+  it('compra no meio do período não conta como ganho (Dietz)', () => {
+    const idx = portfolioIndex([tr('C', 10, 1000, '2025-12-10'), tr('C', 10, 1000, '2026-02-15')], [], [], closes([['2026-01', 1000], ['2026-02', 1000], ['2026-03', 1000], ['2026-04', 1000]]), months)
+    expect(idx).toEqual([100, 100, 100, 100])
+  })
+  it('proventos somam no mês em que caem', () => {
+    const div: Dividend[] = [{ id: 'd', ticker: 'AAAA3', kind: 'Dividendo', payDate: '2026-02-20', amountCents: 500, broker: null, source: 'b3', sourceKey: null }]
+    const idx = portfolioIndex([tr('C', 10, 1000, '2025-12-10')], [], div, closes([['2026-01', 1000], ['2026-02', 1000], ['2026-03', 1000], ['2026-04', 1000]]), months)
+    expect(idx[1]).toBeCloseTo(105)
+  })
+  it('antes de ter carteira fica vazio; sem preço repete o último conhecido', () => {
+    const idx = portfolioIndex([tr('C', 10, 1000, '2026-02-05')], [], [], closes([['2026-02', 1000], ['2026-04', 1200]]), months)
+    expect(idx).toEqual([null, 100, 100, 120])
+  })
+  it('índice de preço e de CDI partem de 100; CDI para no último mês publicado', () => {
+    expect(closeIndex(new Map([['2026-01', 2000], ['2026-02', 2200], ['2026-04', 1800]]), months).map(v => v && Math.round(v * 100) / 100)).toEqual([100, 110, 110, 90])
+    const cdi = cdiIndex(new Map([['2026-02', 1], ['2026-03', 1]]), months)
+    expect(cdi.map(v => v && Math.round(v * 10000) / 10000)).toEqual([100, 101, 102.01, null])
+  })
+})

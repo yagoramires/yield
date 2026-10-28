@@ -18,11 +18,20 @@ function niceTicks(max: number, n = 4): number[] {
   return Array.from({ length: n + 1 }, (_, i) => i * step)
 }
 
+// Eixo do menor ao maior valor (para índices e variações em %, que não começam em zero).
+function rangeTicks(min: number, max: number, n = 4): number[] {
+  const raw = Math.max(max - min, 2) / n
+  const mag = 10 ** Math.floor(Math.log10(raw))
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw)!
+  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step
+  return Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step)
+}
+
 const swatch = (i: number, dashed?: boolean) => ({ background: dashed ? `repeating-linear-gradient(90deg, ${color(i)} 0 4px, transparent 4px 7px)` : color(i) })
 
-function Legend({ items }: { items: { label: string; dashed?: boolean }[] }) {
+function Legend({ items }: { items: { label: string; dashed?: boolean; i?: number /* cor da série, se a lista foi filtrada */ }[] }) {
   if (items.length < 2) return null
-  return <div className="lg">{items.map((s, i) => <span key={s.label}><i style={swatch(i, s.dashed)} />{s.label}</span>)}</div>
+  return <div className="lg">{items.map((s, i) => <span key={s.label}><i style={swatch(s.i ?? i, s.dashed)} />{s.label}</span>)}</div>
 }
 
 function Tip({ x, w, title, lines }: { x: number; w: number; title: string; lines: { i?: number; dashed?: boolean; label: string; value: string }[] }) {
@@ -37,19 +46,20 @@ function Tip({ x, w, title, lines }: { x: number; w: number; title: string; line
 export interface LineSeries { label: string; values: (number | null)[]; dashed?: boolean }
 
 /** Linhas por índice (ex.: dia do mês), um eixo y em centavos. `marker` destaca um índice (ex.: hoje). Série com um único valor vira um ponto. */
-export function LineChart({ series, xLabels, xTicks, tipTitle, marker, format, tickFormat = shortBRL, ariaLabel, height: minHeight = 140, fill = false }: {
+export function LineChart({ series, xLabels, xTicks, tipTitle, marker, format, tickFormat = shortBRL, ariaLabel, height: minHeight = 140, fill = false, fitRange = false }: {
   series: LineSeries[]; xLabels: string[]; xTicks: number[]; tipTitle?(i: number): string; marker?: number
-  format(v: number): string; tickFormat?(v: number): string; ariaLabel: string; height?: number; fill?: boolean
+  format(v: number): string; tickFormat?(v: number): string; ariaLabel: string; height?: number; fill?: boolean; fitRange?: boolean
 }) {
   const [hover, setHover] = useState<number | null>(null)
   const [box, size] = useSize<HTMLDivElement>()
   const W = size?.w || 420, L = 36, R = 10, T = 8, B = 18
   const height = fill ? Math.max(minHeight, size?.h ?? 0) : minHeight
   const n = Math.max(2, ...series.map(s => s.values.length))
-  const ticks = niceTicks(Math.max(0, ...series.flatMap(s => s.values.filter((v): v is number => v !== null))))
-  const top = ticks[ticks.length - 1]
+  const vals = series.flatMap(s => s.values.filter((v): v is number => v !== null))
+  const ticks = fitRange && vals.length ? rangeTicks(Math.min(...vals), Math.max(...vals)) : niceTicks(Math.max(0, ...vals))
+  const lo = ticks[0], top = ticks[ticks.length - 1]
   const x = (i: number) => L + (i / (n - 1)) * (W - L - R)
-  const y = (v: number) => height - B - (v / top) * (height - B - T)
+  const y = (v: number) => height - B - ((v - lo) / (top - lo)) * (height - B - T)
   const d = (vs: (number | null)[]) => {
     let out = '', pen = false
     vs.forEach((v, i) => { if (v === null) { pen = false; return } out += `${pen ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)} `; pen = true })
@@ -140,7 +150,7 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
   const cx = (i: number) => L + slot * (i + 0.5)
   return (
     <div className={`chart${fill ? ' chart-fill' : ''}`}>
-      <Legend items={series.map(label => ({ label }))} />
+      <Legend items={series.map((label, i) => ({ label, i })).filter(x => bars.some(b => (b.values[x.i] ?? 0) > 0))} />
       <div ref={box} className="chart-box" style={{ minHeight }}>
       <svg viewBox={`0 0 ${W} ${height}`} width={W} height={height} role="img" aria-label={ariaLabel} onMouseLeave={() => setHover(null)}>
         <defs>
@@ -177,7 +187,7 @@ export function BarChart({ bars, series = [], format, valueLabel = shortBRL, ari
       {hover !== null && (
         <Tip x={cx(hover)} w={W} title={bars[hover].tip ?? bars[hover].label}
           lines={nSeries > 1
-            ? [...series.map((label, i) => ({ i, label, value: format(bars[hover].values[i] ?? 0) })), { label: 'total', value: format(totals[hover]) }]
+            ? [...series.map((label, i) => ({ i, label, value: format(bars[hover].values[i] ?? 0) })).filter(l => (bars[hover].values[l.i] ?? 0) !== 0), { label: 'total', value: format(totals[hover]) }]
             : [{ label: '', value: format(totals[hover]) }, ...(bars[hover].target !== undefined ? [{ label: 'orçamento', value: format(bars[hover].target!) }] : [])]} />
       )}
     </div>
