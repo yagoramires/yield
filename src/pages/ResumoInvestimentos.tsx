@@ -1,5 +1,6 @@
 import { Coins, Landmark, RefreshCw, Sprout, TrendingUp, Wallet } from 'lucide-react'
 import { DARF_CODE } from '../domain/darf'
+import { portfolioResult } from '../domain/portfolio'
 import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, LineChart } from '../ui/charts'
@@ -54,11 +55,8 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
     )
   }
 
-  // Mesmas definições da Carteira, para as duas telas nunca divergirem.
-  const quoted = p.rows.filter(r => r.valueCents !== null)
-  // renda variável cotada + renda fixa e cripto com rendimento conhecido
-  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.otherGainCents
-  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + p.otherCostCents
+  // Mesmo cálculo da Carteira, para as duas telas nunca divergirem.
+  const { gainCents: varTotal, baseCents: costQuoted } = portfolioResult(p)
   const avg12 = Math.round(p.dividends12mCents / 12)
 
   const due = darfs.rows.filter(r => r.status === 'a_vencer' || r.status === 'em_aberto' || r.status === 'pago_a_menor')

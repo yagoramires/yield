@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type ManualAsset } from '../db/repo'
 import { formatBRL, formatCents } from '../domain/money'
 import type { Cents } from '../domain/types'
-import type { PortfolioRow } from '../domain/portfolio'
+import { portfolioResult, type PortfolioRow } from '../domain/portfolio'
 import { AMBIGUOUS_MSG, parseDecimal } from '../import/parse'
 import { yahooSymbol } from '../quotes/yahoo'
 import { parseMoney } from './notas/build'
@@ -47,10 +47,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const yahooTimes = data.quotes.filter(q => q.source === 'yahoo').map(q => q.fetchedAt).sort()
   const lastQuote = yahooTimes[yahooTimes.length - 1]
 
-  const quoted = p.rows.filter(r => r.valueCents !== null)
-  // mesmas contas do Resumo: renda variável cotada + renda fixa e cripto com rendimento conhecido
-  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.otherGainCents
-  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + p.otherCostCents
+  const { gainCents: varTotal, baseCents: costQuoted } = portfolioResult(p)
   // o mesmo dinheiro pode estar num ativo manual antigo e agora vir da B3 / Binance
   const dupRf = p.rf.some(h => !h.closed) ? data.manualAssets.filter(a => a.assetClass === 'renda_fixa') : []
   const dupCripto = p.crypto.length ? data.manualAssets.filter(a => a.assetClass === 'cripto') : []

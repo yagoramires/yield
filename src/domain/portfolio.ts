@@ -81,3 +81,12 @@ export function buildPortfolio(positions: Position[], quotes: Quote[], manual: M
     missingQuotes: rows.filter(r => r.valueCents === null).map(r => r.ticker),
   }
 }
+
+/** Resultado da carteira: renda variável cotada + renda fixa, exterior e cripto com aportado conhecido. Carteira e Resumo usam este. */
+export function portfolioResult(p: Portfolio): { gainCents: Cents; baseCents: Cents } {
+  const quoted = p.rows.filter(r => r.valueCents !== null)
+  return {
+    gainCents: quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.otherGainCents,
+    baseCents: quoted.reduce((s, r) => s + r.costCents, 0) + p.otherCostCents,
+  }
+}
