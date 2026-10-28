@@ -88,7 +88,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <button className="link" onClick={onOpenImposto}>Abrir Imposto</button>
         </div>
       ))}
-      {incomplete.length > 0 && <div className="note" style={{ marginTop: 10 }}>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas. <button className="link" onClick={onOpenImposto}>Abrir Imposto</button></div>}
+      {incomplete.length > 0 && <div className="note" style={{ marginTop: 10 }}>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas. Compras de antes do relatório da B3 entram em <button className="link" onClick={onOpenNotas}>Notas › Operação sem nota</button>. <button className="link" onClick={onOpenImposto}>Abrir Imposto</button></div>}
 
       <div className="kpis">
         <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{brl(p.totalValueCents)}</div>

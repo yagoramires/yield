@@ -199,7 +199,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const rp = replay(data.trades, data.events)
     const today = todayISO()
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
-    const tax = computeTax(rp.sales, rp.warnings, firstSale, monthOf(today))
+    const from = data.openingLoss && data.openingLoss.month < firstSale ? data.openingLoss.month : firstSale
+    const tax = computeTax(rp.sales, rp.warnings, from, monthOf(today), data.openingLoss)
     return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today, { rf: rfHoldings(data.rfMoves, data.rfPositions), crypto: data.cryptoBalances }) }
   }, [data])
 

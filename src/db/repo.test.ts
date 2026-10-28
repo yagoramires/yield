@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import { createRawDb, createTestDb, tmpPath, type Db } from './testDb'
 import {
   deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, renormalizeBrokers, replaceNote,
-  saveAlias, saveEvent, saveManualAsset, saveNote, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
+  saveAlias, saveEvent, saveManualAsset, saveNote, saveOpeningLoss, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
 } from './repo'
 
 let db: Db
@@ -140,6 +140,17 @@ describe('eventos, pagamentos, cotações, manuais, aliases', () => {
     expect(await getAlias(db, 'ITAUSA PN')).toBeNull()
     await saveAlias(db, 'ITAUSA PN', 'itsa4')
     expect(await getAlias(db, 'ITAUSA PN')).toBe('ITSA4')
+  })
+})
+
+describe('prejuízo inicial', () => {
+  test('salva, troca e apaga o prejuízo a compensar informado', async () => {
+    expect((await loadAll(db)).openingLoss).toBeNull()
+    await saveOpeningLoss(db, { month: '2019-01', comumCents: 120_000, fiiCents: 5_000 })
+    await saveOpeningLoss(db, { month: '2019-02', comumCents: 100_000, fiiCents: 0 })
+    expect((await loadAll(db)).openingLoss).toEqual({ month: '2019-02', comumCents: 100_000, fiiCents: 0 })
+    await saveOpeningLoss(db, null)
+    expect((await loadAll(db)).openingLoss).toBeNull()
   })
 })
 
