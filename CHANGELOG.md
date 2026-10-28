@@ -8,6 +8,8 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 - **Carteira nova**: classes à esquerda (Ações, FIIs, ETFs, BDRs, Renda fixa, Exterior, Cripto, Dólar) com o peso, o total e o resultado de cada uma; à direita, as posições da classe escolhida, todas no mesmo formato (quanto tem, valor de hoje, resultado e custo). Tudo num lugar só — renda fixa, cripto e exterior não ficam mais escondidos no fim da página.
 - **Resumo de investimentos com tudo junto**: faixa "onde está seu dinheiro" (Bolsa, Renda fixa, Exterior, Cripto, Dólar) que abre a Carteira na classe; o gráfico de aportado soma a renda fixa aplicada mês a mês; a renda passiva separa proventos e juros da renda fixa; "Por classe" com as mesmas contas da Carteira.
 
+- **ETF de renda fixa** (ex. IMAB11): as compras que a B3 lista no mercado "Renda Fixa" entram pela Negociação, aparecem na classe Renda fixa da Carteira e ficam fora da apuração mensal e do DARF (o imposto é retido na fonte). Reimportar uma Negociação mais nova completa os dias já importados com as operações que faltavam.
+
 ### Correções
 - **Assinaturas**: a cobrança do mês ainda pendente no cartão conta como paga; a assinatura não aparece mais como "Atrasada".
 

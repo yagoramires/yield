@@ -126,22 +126,24 @@ const XP = 'XP INVESTIMENTOS CCTVM S/A'
 const neg = (data: string, tipo: string, codigo: string, qtd: number, preco: number, mercado = 'Mercado à Vista', prazo = '-', inst = CLEAR) =>
   [data, tipo, mercado, prazo, inst, codigo, qtd, preco, qtd * preco]
 
-test('Negociação vira operações; fracionário perde o F e o resto vai para revisão', () => {
+test('Negociação vira operações; fracionário perde o F; ETF de renda fixa entra com o tipo; o resto vai para revisão', () => {
   const p = parseB3(makeNegociacao([
     neg('05/01/2024', 'Compra', 'HGLG11', 10, 160.5),
     neg('05/01/2024', 'Compra', 'ITSA4F', 7, 10.12, 'Mercado Fracionário'),
     neg('08/01/2024', 'Venda', 'HGLG11', 4, 162),
     neg('09/01/2024', 'Compra', 'IMAB11', 3, 90, 'Renda Fixa'),
     neg('10/01/2024', 'Venda', 'HGLG12', 2, 1.5, 'Mercado à Vista', '15/01/2024'),
+    neg('11/01/2024', 'Compra', 'DEBX29', 1, 1000, 'Renda Fixa'),
   ]))
   expect(p.trades).toEqual([
     { date: '2024-01-05', broker: 'CLEAR', side: 'C', ticker: 'HGLG11', qty: 10, priceCents: 16050 },
     { date: '2024-01-05', broker: 'CLEAR', side: 'C', ticker: 'ITSA4', qty: 7, priceCents: 1012 },
     { date: '2024-01-08', broker: 'CLEAR', side: 'V', ticker: 'HGLG11', qty: 4, priceCents: 16200 },
+    { date: '2024-01-09', broker: 'CLEAR', side: 'C', ticker: 'IMAB11', qty: 3, priceCents: 9000, assetType: 'ETF RF' },
   ])
   expect(p.toReview).toEqual([
-    { date: '2024-01-09', movimentacao: 'Compra em Renda Fixa', produto: 'IMAB11' },
     { date: '2024-01-10', movimentacao: 'Venda com vencimento', produto: 'HGLG12' },
+    { date: '2024-01-11', movimentacao: 'Compra em Renda Fixa', produto: 'DEBX29' },
   ])
 })
 
@@ -229,4 +231,17 @@ test('typeFromName lê os nomes que a B3 usa', () => {
 test('Proventos e Movimentação guardam o nome do produto por ticker', () => {
   const p = parseB3(makeProventos([['HGLG11 - CSHG LOGISTICA FDO INV IMOB - FII', '14/03/2024', 'Rendimento', CLEAR, '10', 1.1, 11]]))
   expect(p.names).toEqual({ HGLG11: 'CSHG LOGISTICA FDO INV IMOB - FII' })
+})
+
+test('dia já importado: a Negociação nova completa a nota do dia com o que faltava', async () => {
+  const db = createTestDb()
+  await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'ITSA4', 10, 10)])))
+  const r = await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'ITSA4', 10, 10), neg('05/01/2024', 'Compra', 'IMAB11', 3, 90, 'Renda Fixa')])), new Map([['IMAB11', 'ETF RF']]))
+  const { notes, trades } = await loadAll(db)
+  expect(notes).toHaveLength(1)
+  expect(trades.map(t => [t.ticker, t.assetType])).toEqual([['ITSA4', 'Ação'], ['IMAB11', 'ETF RF']])
+  expect(r.trades).toBe(1)
+  // de novo: nada muda
+  await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'IMAB11', 3, 90, 'Renda Fixa')])), new Map([['IMAB11', 'ETF RF']]))
+  expect((await loadAll(db)).trades).toHaveLength(2)
 })

@@ -24,6 +24,8 @@ export const BEM_CODES: Record<AssetType, { grupo: string; codigo: string; label
   FII: { grupo: '07', codigo: '03', label: '07 – Fundos / 03 – Fundos de Investimento Imobiliário (FII)', classe: 'Fundos imobiliários' },
   ETF: { grupo: '07', codigo: '09', label: '07 – Fundos / 09 – Demais fundos de índice de mercado (ETF)', classe: 'ETFs' },
   BDR: { grupo: '04', codigo: '04', label: '04 – Aplicações e investimentos / 04 – Ativos negociados em bolsa no Brasil (BDR)', classe: 'BDRs' },
+  // fundo de índice também; o ganho na venda é de tributação exclusiva (retido na fonte), não entra na renda variável
+  'ETF RF': { grupo: '07', codigo: '09', label: '07 – Fundos / 09 – Demais fundos de índice de mercado (ETF)', classe: 'ETFs de renda fixa' },
 }
 export const LOCALIZACAO = '105 – Brasil'
 

@@ -36,3 +36,8 @@ test('classe pedida, bolsa = maior da bolsa, e a maior quando a pedida não exis
   expect(pickClass(list, null)).toBe('Ação')
   expect(pickClass([], 'bolsa')).toBeNull()
 })
+
+test('ETF de renda fixa entra na classe Renda fixa', () => {
+  const list = carteiraClasses(P({ totalValueCents: 10_000, rows: [row('ABCD11', 'ETF RF', 10_000, 9_000)] as never }))
+  expect(list).toMatchObject([{ key: 'renda_fixa', valueCents: 10_000, gainCents: 1_000, count: 1 }])
+})

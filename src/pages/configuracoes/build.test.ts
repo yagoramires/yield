@@ -203,3 +203,8 @@ describe('binanceErrorText', () => {
     expect(binanceErrorText(new Error('HTTP 500'))).toBe('Binance: HTTP 500')
   })
 })
+
+it('typesToConfirm: ETF de renda fixa já vem com o tipo e não pergunta', () => {
+  const p = { trades: [{ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker: 'ABCD11', qty: 1, priceCents: 100, assetType: 'ETF RF' as const }], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  expect(typesToConfirm(p, [])).toEqual({ ask: [], inferred: [{ ticker: 'ABCD11', type: 'ETF RF' }] })
+})

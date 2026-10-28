@@ -239,6 +239,12 @@ pub fn run() {
             sql: include_str!("../migrations/010_aportado_manual.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 11,
+            description: "etf de renda fixa",
+            sql: include_str!("../migrations/011_etf_renda_fixa.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).

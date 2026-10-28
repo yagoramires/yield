@@ -13,24 +13,23 @@ const LABEL: Record<string, string> = { Ação: 'Ações', FII: 'FIIs', ETF: 'ET
 export const BOLSA: ClassKey[] = ['Ação', 'FII', 'ETF', 'BDR']
 export const classTitle = (k: string) => LABEL[k] ?? k
 
-type Item = { value: Cents | null; cost: Cents | null; usd?: Cents | null; usdCost?: Cents | null }
+// gain: o título de renda fixa traz o próprio (inclui juros e resgates); nos outros é valor − custo
+type Item = { value: Cents | null; cost: Cents | null; gain?: Cents | null; usd?: Cents | null; usdCost?: Cents | null }
 
 /** Todas as classes da carteira (bolsa, renda fixa, exterior, cripto, dólar…), da maior para a menor. */
 export function carteiraClasses(p: Portfolio): ClassSummary[] {
   const items = new Map<ClassKey, Item[]>()
   const push = (k: ClassKey, it: Item) => items.set(k, [...(items.get(k) ?? []), it])
-  for (const r of p.rows) push(r.assetType ?? 'outro', { value: r.valueCents, cost: r.valueCents === null ? null : r.costCents })
-  for (const h of p.rf) if (!h.closed) push('renda_fixa', { value: h.valueCents, cost: h.gainCents === null ? null : h.investedCents })
+  // ETF de renda fixa mora na classe Renda fixa
+  for (const r of p.rows) push(r.assetType === 'ETF RF' ? 'renda_fixa' : r.assetType ?? 'outro', { value: r.valueCents, cost: r.valueCents === null ? null : r.costCents })
+  for (const h of p.rf) if (!h.closed) push('renda_fixa', { value: h.valueCents, cost: h.gainCents === null ? null : h.investedCents, gain: h.gainCents })
   for (const c of p.crypto) push('cripto', { value: c.valueCents, cost: c.costCents })
   for (const m of p.manual) push(m.assetClass, { value: m.valueCents, cost: m.costCents, usd: m.usdCents, usdCost: m.usdCostCents })
 
   return [...items].map(([key, list]) => {
     const valueCents = list.reduce((s, i) => s + (i.value ?? 0), 0)
     const known = list.filter(i => i.value !== null && i.cost !== null)
-    // renda fixa: o ganho do título já inclui juros e resgates; nas outras, valor − custo
-    const gainCents = !known.length ? null : key === 'renda_fixa'
-      ? p.rf.filter(h => !h.closed && h.gainCents !== null).reduce((s, h) => s + h.gainCents!, 0)
-      : known.reduce((s, i) => s + i.value! - i.cost!, 0)
+    const gainCents = !known.length ? null : known.reduce((s, i) => s + (i.gain ?? i.value! - i.cost!), 0)
     const base = known.reduce((s, i) => s + i.cost!, 0)
     const usd = list.filter(i => i.usd != null && i.usdCost != null)
     const usdBase = usd.reduce((s, i) => s + i.usdCost!, 0)

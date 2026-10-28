@@ -1,7 +1,7 @@
 export type Cents = number
 export type ISODate = string // 'YYYY-MM-DD'
 export type Month = string // 'YYYY-MM'
-export type AssetType = 'Ação' | 'FII' | 'ETF' | 'BDR'
+export type AssetType = 'Ação' | 'FII' | 'ETF' | 'BDR' | 'ETF RF' // ETF RF: ETF de renda fixa, imposto retido na fonte
 export type Side = 'C' | 'V'
 export interface Trade {
   id: string; noteId: string; seq: number; broker: string

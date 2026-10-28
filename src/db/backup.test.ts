@@ -28,10 +28,10 @@ describe('backup', () => {
   })
 })
 
-describe('backup schema 10', () => {
-  test('banco novo é schema 10 e válido', async () => {
+describe('backup schema 11', () => {
+  test('banco novo é schema 11 e válido', async () => {
     const db = createTestDb()
-    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('10')
+    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('11')
     await validateBackup(db)
   })
   test('backup v7 é recusado', async () => {
