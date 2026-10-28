@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight, RefreshCw, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { Account } from '../../db/gastosRepo'
 import { addMonths } from '../../domain/money'
@@ -34,13 +35,13 @@ export function GastosHeader({ title }: { title: string }) {
       <div className="bar">
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>
           <h1 style={{ margin: 0 }}>{title}</h1>
-          <button className="chip" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}>‹</button>
+          <button className="icon-btn" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
           <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
-          <button className="chip" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}>›</button>
+          <button className="icon-btn" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight size={14} aria-hidden /></button>
         </div>
         <div className="btns">
           {(syncing || lastSync) && <span className="muted" style={{ alignSelf: 'center' }}>{syncing ? 'sincronizando…' : `sincronizado ${syncedLabel(lastSync!)}`}</span>}
-          <button className="b ghost" disabled={syncing} onClick={() => void syncNow()}>↻ Sincronizar</button>
+          <button className="b ghost with-ico" disabled={syncing} onClick={() => void syncNow()}><RefreshCw size={13} aria-hidden />Sincronizar</button>
           {imp.button}
         </div>
       </div>
@@ -89,7 +90,7 @@ function useExtratoImport() {
   return {
     button: (
       <>
-        <button className="b" disabled={busy} onClick={() => input.current?.click()}>Importar extrato…</button>
+        <button className="b with-ico" disabled={busy} onClick={() => input.current?.click()}><Upload size={13} aria-hidden />Importar extrato…</button>
         <input ref={input} type="file" accept=".ofx,.csv" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pick(f) }} />
       </>
     ),

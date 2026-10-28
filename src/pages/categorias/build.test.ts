@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Category, CategoryRule, Txn } from '../../db/gastosRepo'
 import type { Subscription } from '../../domain/assinaturas'
 import { monthTotals } from '../../domain/gastos'
-import { deleteImpact, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
+import { deleteImpact, nextCharges, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'
 
 const c = (id: string, name: string, countsAsSpending = true): Category => ({ id, name, countsAsSpending, builtin: false })
 const cats = [c('mercado', 'Mercado'), c('pet', 'Pet'), c('fatura', 'Pagamento de fatura', false)]
@@ -45,6 +45,15 @@ describe('totalsOfSubscriptions', () => {
   const s = (o: Partial<Subscription>): Subscription => ({ merchantKey: 'k', name: 'N', accountId: 'a', period: 'mensal', amountCents: 1000, monthlyCents: 1000, yearlyCents: 12000, lastDate: '2026-10-01', nextDate: '2026-11-01', active: true, charges: 3, previousAmountCents: null, ...o })
   it('soma só as ativas', () => {
     expect(totalsOfSubscriptions([s({}), s({ monthlyCents: 500, yearlyCents: 6000 }), s({ active: false })])).toEqual({ monthlyCents: 1500, yearlyCents: 18000, active: 2, stopped: 1 })
+  })
+  it('próximas cobranças: só ativas, até 30 dias, por data (a atrasada entra primeiro)', () => {
+    const r = nextCharges([
+      s({ merchantKey: 'b', nextDate: '2026-11-05', amountCents: 300 }), s({ merchantKey: 'a', nextDate: '2026-10-20', amountCents: 200 }),
+      s({ merchantKey: 'c', nextDate: '2026-11-27', amountCents: 400 }), s({ merchantKey: 'd', nextDate: '2026-11-28', amountCents: 999 }),
+      s({ merchantKey: 'e', nextDate: '2026-11-01', active: false }),
+    ], '2026-10-28')
+    expect(r.list.map(x => x.merchantKey)).toEqual(['a', 'b', 'c'])
+    expect(r.totalCents).toBe(900)
   })
 })
 

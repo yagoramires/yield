@@ -9,11 +9,15 @@ const invoke = vi.fn(async (cmd: string, args: { key: string; value?: string }) 
 })
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: Parameters<typeof invoke>) => invoke(...a) }))
 
-import { clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } from './secrets'
+let clearPluggyCredentials: typeof import('./secrets').clearPluggyCredentials
+let getPluggyCredentials: typeof import('./secrets').getPluggyCredentials
+let setPluggyCredentials: typeof import('./secrets').setPluggyCredentials
 
-beforeEach(() => {
+beforeEach(async () => {
   store.clear()
   invoke.mockClear()
+  vi.resetModules() // o cache da sessão fica no módulo
+  ;({ clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } = await import('./secrets'))
 })
 
 describe('credenciais da Pluggy', () => {
@@ -37,5 +41,14 @@ describe('credenciais da Pluggy', () => {
     await setPluggyCredentials('id', 's')
     await clearPluggyCredentials()
     expect(store.size).toBe(0)
+  })
+
+  it('lê o cofre uma vez por sessão, e de novo depois de uma recusa', async () => {
+    store.set('pluggy.clientId', 'id'); store.set('pluggy.clientSecret', 's')
+    invoke.mockRejectedValueOnce(new Error('negado'))
+    await expect(getPluggyCredentials()).rejects.toThrow('negado')
+    await getPluggyCredentials()
+    await getPluggyCredentials()
+    expect(invoke.mock.calls.filter(c => c[0] === 'secret_get')).toHaveLength(4)
   })
 })

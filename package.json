@@ -1,7 +1,7 @@
 {
   "name": "yield",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "@tauri-apps/plugin-process": "^2.4.0",
     "@tauri-apps/plugin-sql": "^2.6.0",
     "@tauri-apps/plugin-updater": "^2.14.0",
+    "lucide-react": "^1.62.0",
     "pdfjs-dist": "^6.4.299",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

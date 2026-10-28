@@ -152,7 +152,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
           <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
         </div>
       ) : p.rows.length === 0 ? <div className="info">Nenhuma posição ainda. Lance notas em Notas ou importe a Negociação da B3 em Configurações.</div> : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
           <thead><tr><th>Ativo</th><th className="r">Qtd</th><th className="r">Preço médio</th><th className="r">Custo</th><th className="r">Cotação</th><th className="r">Valor atual</th><th className="r">Var. R$</th><th className="r">Var. %</th><th /></tr></thead>
           <tbody>
             {grouped ? (
@@ -175,7 +175,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
               </>
             ) : sorted.map(assetRow)}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       <h5>Ativos manuais <span className="muted">· valor que você informa, ou quantidade × cotação</span></h5>
@@ -199,7 +199,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
         </div>
       )}
       {data.manualAssets.length === 0 ? <div className="muted">Nenhum ativo manual.</div> : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
           <thead><tr><th>Ativo</th><th>Classe</th><th className="r">Qtd</th><th className="r">Cotação</th><th className="r">Valor</th><th>Atualizado</th><th /></tr></thead>
           <tbody>
             {data.manualAssets.map(a => {
@@ -226,7 +226,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
               )
             })}
           </tbody>
-        </table>
+        </table></div>
       )}
     </>
   )

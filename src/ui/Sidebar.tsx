@@ -1,8 +1,8 @@
 import { ROUTES, type Route } from './routes'
 
-export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: Route) => void }) {
+export function Sidebar({ route, onNavigate, open = false }: { route: Route; onNavigate: (r: Route) => void; open?: boolean }) {
   return (
-    <nav className="sidebar">
+    <nav id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}`}>
       <div className="logo">yield<b>.</b></div>
       {ROUTES.map(({ page, items }) => (
         <div key={page} style={{ display: 'contents' }}>
@@ -11,6 +11,7 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (r: R
             <button
               key={label}
               className={r === route ? 'item on' : 'item'}
+              aria-current={r === route ? 'page' : undefined}
               disabled={disabled}
               onClick={() => r && onNavigate(r)}
             >

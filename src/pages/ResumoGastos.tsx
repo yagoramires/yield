@@ -7,7 +7,7 @@ import { accountLabel, brDay, GastosHeader, GastosVazio, monthName } from './lan
 
 export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLancamentos(): void; onOpenSettings(): void }) {
   const { gastos } = useData()
-  const { data, categorize: cat, month, filter, setFilter } = gastos
+  const { data, categorize: cat, month, setMonth, filter, setFilter } = gastos
   if (!data.txns.length) return <><GastosHeader title="Resumo" /><GastosVazio onOpenSettings={onOpenSettings} /></>
 
   const today = todayISO()
@@ -25,7 +25,9 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
   const curShown = isCurrent ? curLine.map((v, i) => (i < cmp.day ? v : null)) : curLine
   const accounts = new Map(data.accounts.map(a => [a.id, a]))
   const open = (f: Partial<typeof NO_FILTER>) => { setFilter({ ...NO_FILTER, ...f }); onOpenLancamentos() }
-  const months = spentByMonth(data.txns, cat, month, 6)
+  // A janela fica nos 6 meses até hoje; só anda para trás quando o mês escolhido sai dela.
+  const thisMonth = monthOf(today)
+  const months = spentByMonth(data.txns, cat, month < addMonths(thisMonth, -5) ? addMonths(month, 5) : thisMonth, 6)
   const top = topSpending(data.txns, cat, month, 5)
 
   return (
@@ -38,10 +40,10 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
         <div className="k"><div className="muted">Sobrou</div><div className={`v ${left > 0 ? 'up' : left < 0 ? 'dn' : ''}`}>{formatBRL(left)}</div><div className="s muted">entradas − gasto</div></div>
       </div>
 
-      <div className="grid2" style={{ gridTemplateColumns: '1.15fr 1fr' }}>
-        <div className="card">
+      <div className="grid2">
+        <div className="card stretch">
           <h5 style={{ margin: 0 }}>Gasto acumulado no mês</h5>
-          <LineChart
+          <LineChart fill
             series={[{ label: cur, values: curShown }, { label: prevName, values: prevLine, dashed: true }]}
             xLabels={Array.from({ length: n }, (_, i) => String(i + 1))} xTicks={[0, 10, 20, n - 1]} tipTitle={i => `dia ${i + 1}`}
             marker={isCurrent ? cmp.day - 1 : undefined} format={formatCents}
@@ -64,9 +66,9 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
       </div>
 
       <div className="grid2" style={{ marginTop: 12 }}>
-        <div className="card">
-          <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5>{months.some(m => m.month === monthOf(today)) && <span className="muted">{monthName(monthOf(today)).toLowerCase()} até hoje (listrado)</span>}</div>
-          <BarChart format={formatBRL} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.cents)}`).join('; ')}`}
+        <div className="card stretch">
+          <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5><span className="muted">clique num mês para ver o resumo dele{months.some(m => m.month === thisMonth) ? ` · ${monthName(thisMonth).toLowerCase()} até hoje (listrado)` : ''}</span></div>
+          <BarChart fill format={formatBRL} selected={months.some(m => m.month === month) ? months.findIndex(m => m.month === month) : null} onSelect={i => setMonth(months[i].month)} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.cents)}`).join('; ')}`}
             bars={months.map(m => {
               const partial = m.month === monthOf(today)
               return { label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.cents], partial, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${partial ? ' até hoje' : ''}` }
@@ -75,7 +77,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Maiores gastos do mês</h5><span className="muted">clique para ver em Lançamentos</span></div>
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum gasto neste mês.</div> : (
-            <table className="txn" style={{ marginTop: 4 }}>
+            <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="txn" style={{ marginTop: 4 }}>
               <tbody>
                 {top.map(t => (
                   <tr key={t.id} className="clk" tabIndex={0} onClick={() => open({ search: t.description })} onKeyDown={e => e.key === 'Enter' && open({ search: t.description })}>
@@ -85,7 +87,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenSettings }: { onOpenLanc
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
       </div>
