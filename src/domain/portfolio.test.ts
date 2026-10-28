@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest'
 import type { ManualAsset, Quote } from '../db/repo'
+import type { RfHolding } from './rendaFixa'
 import { buildPortfolio } from './portfolio'
 import type { Dividend, Position } from './types'
 
@@ -51,5 +52,48 @@ describe('buildPortfolio', () => {
     const p = buildPortfolio([pos({ ticker: 'XPTO3', assetType: undefined as never })], [q('XPTO3.SA', 1200)], [], [], TODAY)
     expect(p.rows).toHaveLength(1)
     expect(p.byClass).toEqual([])
+  })
+})
+
+describe('buildPortfolio com renda fixa, exterior e cripto', () => {
+  const rf = (o: Partial<RfHolding>): RfHolding => ({ key: 'td:x', name: 'Tesouro Prefixado 2099', issuer: null, indexer: 'Prefixado', maturity: '2099-01-01', qty: 1, appliedCents: 100000, investedCents: 100000, receivedCents: 0, valueCents: 110000, gainCents: 10000, gainPct: 0.1, closed: false, asOf: TODAY, needsNewerPosicao: false, ...o })
+  const usd = man({ id: 'u1', name: 'ZZZZ', assetClass: 'exterior', currency: 'USD', quoteSymbol: 'ZZZZ', quantity: 2 })
+
+  test('exterior: quantidade × cotação em US$ × dólar', () => {
+    const p = buildPortfolio([], [q('ZZZZ', 5000), q('BRL=X', 500)], [usd], [], TODAY)
+    expect(p.manual[0]).toMatchObject({ valueCents: 50000, usdCents: 10000 })
+    expect(p.byClass).toEqual([{ cls: 'exterior', costCents: null, valueCents: 50000 }])
+  })
+
+  test('exterior sem dólar do dia fica sem valor e fora do total', () => {
+    const p = buildPortfolio([], [q('ZZZZ', 5000)], [usd], [], TODAY)
+    expect(p.manual[0].valueCents).toBeNull()
+    expect(p.totalValueCents).toBe(0)
+  })
+
+  test('título aberto entra no total, no aportado e no resultado; encerrado não', () => {
+    const p = buildPortfolio([], [], [], [], TODAY, { rf: [rf({}), rf({ key: 'rf:fim', closed: true, valueCents: 0, appliedCents: 0, gainCents: 500 })], crypto: [] })
+    expect(p.totalValueCents).toBe(110000)
+    expect(p.totalCostCents).toBe(100000)
+    expect(p.rfGainCents).toBe(10000)
+    expect(p.byClass).toEqual([{ cls: 'renda_fixa', costCents: 100000, valueCents: 110000 }])
+    expect(p.noCostCount).toBe(0)
+  })
+
+  test('título sem aplicado conhecido: no total, fora do aportado, conta como sem aportado', () => {
+    const p = buildPortfolio([], [], [], [], TODAY, { rf: [rf({ appliedCents: null, investedCents: null, gainCents: null, gainPct: null })], crypto: [] })
+    expect(p.totalValueCents).toBe(110000)
+    expect(p.totalCostCents).toBe(0)
+    expect(p.noCostCount).toBe(1)
+    expect(p.byClass[0].costCents).toBeNull()
+  })
+
+  test('cripto: quantidade × cotação em real; BRL vale a própria quantidade', () => {
+    const p = buildPortfolio([], [q('BTC-BRL', 30_000_000)], [], [], TODAY, { rf: [], crypto: [
+      { asset: 'BTC', qty: 0.5, costCents: 10_000_000, fetchedAt: 'x' }, { asset: 'BRL', qty: 100, costCents: null, fetchedAt: 'x' }, { asset: 'ETH', qty: 0, costCents: null, fetchedAt: 'x' }] })
+    expect(p.crypto).toEqual([{ asset: 'BTC', qty: 0.5, valueCents: 15_000_000, costCents: 10_000_000 }, { asset: 'BRL', qty: 100, valueCents: 10000, costCents: null }])
+    expect(p.totalValueCents).toBe(15_010_000)
+    expect(p.totalCostCents).toBe(10_000_000)
+    expect(p.noCostCount).toBe(1)
   })
 })
