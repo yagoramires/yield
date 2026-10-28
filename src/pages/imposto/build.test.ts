@@ -73,6 +73,11 @@ describe('buildOpeningLoss', () => {
     expect(() => buildOpeningLoss({ month: '01/2019', comum: 'x', fii: '' })).toThrow('comum')
     expect(() => buildOpeningLoss({ month: '01/2019', comum: '', fii: '0' })).toThrow('valor')
   })
+  it('rejeita mês depois do atual, que nunca seria aplicado; o mês atual vale', () => {
+    const now = new Date(2026, 9, 28)
+    expect(() => buildOpeningLoss({ month: '11/2026', comum: '10', fii: '' }, now)).toThrow('Mês: o prejuízo inicial não pode ser de um mês futuro.')
+    expect(buildOpeningLoss({ month: '10/2026', comum: '10', fii: '' }, now).month).toBe('2026-10')
+  })
 })
 
 describe('resumo', () => {
