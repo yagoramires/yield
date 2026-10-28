@@ -72,18 +72,49 @@ export async function saveNote(db: Db, note: NoteInput, trades: TradeInput[]): P
   return { id }
 }
 
+const BROKERS_KEY = 'reparo.corretoras'
+const BROKERS_VERSION = '1' // suba quando normalizeBroker mudar, para a rotina rodar de novo
+
 /** Versões antigas gravavam por extenso as corretoras fora de CLEAR/INTER/BTG ('XP INVESTIMENTOS CCTVM S/A');
- * sem passar à chave curta, a mesma Negociação da B3 reimportada viraria outra nota. Idempotente, roda na abertura. */
-export async function renormalizeBrokers(db: Db): Promise<void> {
-  const rows = await db.select<{ b: string }>('SELECT broker AS b FROM notes UNION SELECT broker FROM dividends WHERE broker IS NOT NULL UNION SELECT code FROM brokers')
+ * sem passar à chave curta, a mesma Negociação da B3 reimportada viraria outra nota. Roda uma vez por versão.
+ * Se a nota com a chave curta já existe (mesmo número e data): se ela já tem todas as operações, a por extenso some;
+ * com operações diferentes ficam as duas e entra em `conflicts`, para a pessoa conferir. */
+export async function renormalizeBrokers(db: Db): Promise<{ conflicts: number }> {
+  const [done] = await db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [BROKERS_KEY])
+  if (done?.value === BROKERS_VERSION) return { conflicts: 0 }
+  let conflicts = 0
+  type TradeRow = { ticker: string; side: string; qty: number; price_cents: number }
+  const same = (a: TradeRow, b: TradeRow) => a.ticker === b.ticker && a.side === b.side && a.qty === b.qty && a.price_cents === b.price_cents
+  const tradesOf = (id: string) => db.select<TradeRow>('SELECT ticker, side, qty, price_cents FROM trades WHERE note_id = ?', [id])
+  const notes = await db.select<{ id: string; number: string; broker: string; trade_date: string }>('SELECT id, number, broker, trade_date FROM notes')
+  for (const n of notes) {
+    const key = normalizeBroker(n.broker)
+    if (key === n.broker) continue
+    const [target] = await db.select<{ id: string }>('SELECT id FROM notes WHERE broker = ? AND number = ? AND trade_date = ?', [key, n.number, n.trade_date])
+    if (!target) {
+      await db.execute('UPDATE notes SET broker = ?, source_key = replace(source_key, ?, ?) WHERE id = ?', [key, `:${n.broker}`, `:${key}`, n.id])
+      continue
+    }
+    const pool = await tradesOf(target.id)
+    // cada operação da por extenso precisa de uma igual (e ainda não usada) na curta
+    const dup = (await tradesOf(n.id)).every(t => {
+      const i = pool.findIndex(o => same(o, t))
+      if (i >= 0) pool.splice(i, 1)
+      return i >= 0
+    })
+    if (dup) await db.execute('DELETE FROM notes WHERE id = ?', [n.id])
+    else conflicts++
+  }
+  const rows = await db.select<{ b: string }>('SELECT broker AS b FROM dividends WHERE broker IS NOT NULL UNION SELECT code FROM brokers')
   for (const { b } of rows) {
     const key = normalizeBroker(b)
     if (key === b) continue
-    // OR IGNORE: se a chave curta já existe (mesma nota, ou o cadastro do IR), fica a que já estava
-    await db.execute('UPDATE OR IGNORE notes SET broker = ?, source_key = replace(source_key, ?, ?) WHERE broker = ?', [key, `:${b}`, `:${key}`, b])
     await db.execute('UPDATE dividends SET broker = ? WHERE broker = ?', [key, b])
+    // OR IGNORE: se o cadastro do IR já existe com a chave curta, fica o que já estava
     await db.execute('UPDATE OR IGNORE brokers SET code = ? WHERE code = ?', [key, b])
   }
+  await db.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', [BROKERS_KEY, BROKERS_VERSION])
+  return { conflicts }
 }
 
 export async function deleteNote(db: Db, id: string): Promise<void> {

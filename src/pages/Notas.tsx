@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { deleteEvent, deleteNote, replaceNote, saveEvent, saveNote, setBonificacaoCost, type Note } from '../db/repo'
 import { formatCents } from '../domain/money'
 import type { CorporateEvent, NewCorporateEvent } from '../domain/types'
+import { normalizeBroker } from '../import/parse'
 import { useData } from '../state/DataProvider'
 import { DUP_MSG, emptyForm, formFromNote, noteNet, parseMoney, type Built, type NoteForm as Form } from './notas/build'
 import { EVENT_LABEL, EventForm } from './notas/EventForm'
@@ -60,6 +61,9 @@ export function Notas() {
     <>{onEdit && <><button className="link" onClick={onEdit}>editar</button> · </>}<button className="link" onClick={() => setConfirm(key)}>excluir</button></>
   )
 
+  // conflitos que renormalizeBrokers deixou: a mesma nota com a corretora por extenso e abreviada, com operações diferentes
+  const brokerDups = data.notes.filter(n => normalizeBroker(n.broker) !== n.broker && data.notes.some(o => o.broker === normalizeBroker(n.broker) && o.number === n.number && o.tradeDate === n.tradeDate))
+
   return (
     <>
       <div className="bar">
@@ -72,6 +76,10 @@ export function Notas() {
         </div>
       </div>
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
+      {brokerDups.length > 0 && <div className="note" style={{ marginTop: 10 }}>
+        {brokerDups.length === 1 ? 'Uma nota aparece' : `${brokerDups.length} notas aparecem`} duas vezes, com o nome da corretora por extenso e abreviado e operações diferentes
+        ({brokerDups.map(n => `nº ${n.number} de ${br(n.tradeDate)}`).join(', ')}). Confira e exclua a que estiver errada para as operações não contarem duas vezes.
+      </div>}
       <div className={`notes-layout${panel ? ' split' : ''}`}>
         <div>
           <div className="row" style={{ marginBottom: 8 }}>

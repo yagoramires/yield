@@ -80,6 +80,38 @@ describe('renormalizeBrokers', () => {
   })
 })
 
+describe('renormalizeBrokers com a nota curta já gravada', () => {
+  const raw = 'XP INVESTIMENTOS CCTVM S/A'
+  const note = (id: string, broker: string, number = '7') => db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source) VALUES (?, ?, ?, '2024-01-05', '2024-01-09', 'pdf')", [id, number, broker])
+  const trade = (id: string, noteId: string, qty = 100) => db.execute("INSERT INTO trades (id, note_id, seq, side, asset_type, ticker, qty, price_cents, fees_cents, irrf_cents) VALUES (?, ?, 1, 'C', 'Ação', 'AAAA3', ?, 1000, 0, 0)", [id, noteId, qty])
+
+  test('mesmas operações: a nota por extenso some e nada conta duas vezes', async () => {
+    await note('curta', 'XP'); await trade('t1', 'curta')
+    await note('longa', raw); await trade('t2', 'longa')
+    expect(await renormalizeBrokers(db)).toEqual({ conflicts: 0 })
+    const d = await loadAll(db)
+    expect(d.notes.map(n => [n.id, n.broker])).toEqual([['curta', 'XP']])
+    expect(d.trades.map(t => t.id)).toEqual(['t1'])
+  })
+
+  test('operações diferentes: mantém as duas e devolve o conflito', async () => {
+    await note('curta', 'XP'); await trade('t1', 'curta')
+    await note('longa', raw); await trade('t2', 'longa', 200)
+    expect(await renormalizeBrokers(db)).toEqual({ conflicts: 1 })
+    expect((await loadAll(db)).notes.map(n => n.id).sort()).toEqual(['curta', 'longa'])
+  })
+
+  test('roda uma vez por versão da normalização', async () => {
+    await renormalizeBrokers(db)
+    await note('longa', raw)
+    await renormalizeBrokers(db)
+    expect((await loadAll(db)).notes[0].broker).toBe(raw)
+    await db.execute("UPDATE meta SET value = '0' WHERE key = 'reparo.corretoras'") // versão antiga
+    await renormalizeBrokers(db)
+    expect((await loadAll(db)).notes[0].broker).toBe('XP')
+  })
+})
+
 describe('proventos', () => {
   test('provento repetido é ignorado e o da B3 substitui o da planilha no mesmo mês', async () => {
     await upsertDividends(db, [{ ticker: 'HGLG11', kind: 'Rendimento', payDate: '2024-03-01', amountCents: 1000, broker: null, source: 'planilha', sourceKey: 'planilha:HGLG11:2024-03:Rendimento' }])
