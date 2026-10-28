@@ -1,3 +1,4 @@
+import { BinanceError } from '../../cripto/binance'
 import type { Db } from '../../db/client'
 import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
 import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
@@ -159,4 +160,10 @@ export function backupPasswordError(password: string, confirm: string): string |
   if (password.length < 8) return 'Use uma senha com pelo menos 8 caracteres.'
   if (password !== confirm) return 'As duas senhas não são iguais.'
   return null
+}
+
+export function binanceErrorText(e: unknown): string {
+  if (e instanceof BinanceError && e.kind === 'chave') return 'Binance: chave inválida ou sem permissão de leitura'
+  if (e instanceof BinanceError && e.kind === 'rede') return 'Sem conexão com a Binance'
+  return `Binance: ${errText(e)}`
 }
