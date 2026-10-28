@@ -2,7 +2,7 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
-## Próxima versão
+## 0.5.0
 
 ### Melhorias
 - **Carteira nova**: classes à esquerda (Ações, FIIs, ETFs, BDRs, Renda fixa, Exterior, Cripto, Dólar) com o peso, o total e o resultado de cada uma; à direita, as posições da classe escolhida, todas no mesmo formato (quanto tem, valor de hoje, resultado e custo). Tudo num lugar só — renda fixa, cripto e exterior não ficam mais escondidos no fim da página.
