@@ -11,6 +11,11 @@ describe('detectSubscriptions', () => {
     const [s] = detectSubscriptions(netflix, semCat, [], '2026-09-20')
     expect(s).toMatchObject({ merchantKey: 'c1|netflix', name: 'NETFLIX', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-05', active: true, charges: 3 })
   })
+  it('cobrança do mês ainda pendente no cartão: já cobrou, a próxima vai para o mês seguinte', () => {
+    const t = [...netflix, txn({ date: '2026-10-05', pending: true }), txn({ date: '2026-10-02', amountCents: -8790, pending: true })]
+    const [s] = detectSubscriptions(t, semCat, [], '2026-10-20')
+    expect(s).toMatchObject({ lastDate: '2026-10-05', nextDate: '2026-11-05', charges: 3, amountCents: 3990 })
+  })
   it('aumento de até 15% continua assinatura e usa a última cobrança', () => {
     const t = [netflix[0], netflix[1], txn({ date: '2026-09-05', amountCents: -4490 })]
     expect(detectSubscriptions(t, semCat, [], '2026-09-20')[0].amountCents).toBe(4490)
