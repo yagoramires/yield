@@ -8,8 +8,9 @@ import { yahooSymbol } from '../quotes/yahoo'
 import { parseMoney } from './notas/build'
 import { useData } from '../state/DataProvider'
 import { Select } from '../ui/Select'
+import { RendaFixa } from './carteira/RendaFixa'
 
-const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', outro: 'Outro' }
+const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior (US$)', outro: 'Outro' }
 const label = (c: string) => CLASS_LABEL[c] ?? c
 const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s.replace('-', '')}` : s)
 const cls = (c: number | null) => (c === null || c === 0 ? '' : c > 0 ? 'up' : 'dn')
@@ -46,8 +47,12 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const lastQuote = yahooTimes[yahooTimes.length - 1]
 
   const quoted = p.rows.filter(r => r.valueCents !== null)
-  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0)
-  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0)
+  // mesmas contas do Resumo: renda variável cotada + títulos abertos com rendimento conhecido
+  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.rfGainCents
+  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + p.rf.filter(h => !h.closed && h.gainCents !== null).reduce((s, h) => s + (h.investedCents ?? 0), 0)
+  // o mesmo dinheiro pode estar num ativo manual antigo e agora vir da B3 / Binance
+  const dupRf = p.rf.some(h => !h.closed) ? data.manualAssets.filter(a => a.assetClass === 'renda_fixa') : []
+  const dupCripto = p.crypto.length ? data.manualAssets.filter(a => a.assetClass === 'cripto') : []
   const avg12 = Math.round(p.dividends12mCents / 12)
 
   const sorted = [...p.rows].sort((a, b) => (b.valueCents ?? -1) - (a.valueCents ?? -1))
@@ -61,7 +66,9 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
       return setFormError(e instanceof Error && e.message === AMBIGUOUS_MSG ? AMBIGUOUS_MSG : 'Quantidade em formato inválido. Use, por exemplo, 0,01 ou 1500.')
     }
     try { value = form.value.trim() ? parseMoney(form.value, 'Valor', false) : null } catch (e) { return setFormError(errText(e)) }
-    const symbol = form.quoteSymbol.trim() ? yahooSymbol(form.quoteSymbol) : null
+    // ticker americano vai cru para o Yahoo (yahooSymbol acrescentaria .SA)
+    const symbol = !form.quoteSymbol.trim() ? null : form.assetClass === 'exterior' ? form.quoteSymbol.trim().toUpperCase() : yahooSymbol(form.quoteSymbol)
+    if (form.assetClass === 'exterior' && (!symbol || qty === null)) return setFormError('No exterior, informe o ticker (como no Yahoo) e a quantidade.')
     if (!form.name.trim()) return setFormError('Informe o nome do ativo.')
     if (qty !== null && !(qty >= 0)) return setFormError('Quantidade inválida.')
     if (symbol && qty === null) return setFormError('Com símbolo de cotação, informe a quantidade.')
@@ -149,7 +156,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
       {data.notes.length === 0 ? (
         <div className="card">
           <b style={{ color: '#fff' }}>Comece importando da B3</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Baixe os relatórios de Negociação e Proventos Recebidos na Área do Investidor e importe em Configurações. Renda fixa, cripto e dólar entram em Ativos manuais.</div>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior e dólar entram em Ativos manuais.</div>
           <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
         </div>
       ) : p.rows.length === 0 ? <div className="info">Nenhuma posição ainda. Lance notas em Notas ou importe a Negociação da B3 em Configurações.</div> : (
@@ -179,16 +186,23 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
         </table></div>
       )}
 
+      <RendaFixa list={p.rf} onOpenSettings={onOpenSettings} />
+
       <h5>Ativos manuais <span className="muted">· valor que você informa, ou quantidade × cotação</span></h5>
+      {[{ list: dupRf, what: 'renda fixa', from: 'da B3' }, { list: dupCripto, what: 'cripto', from: 'da Binance' }].map(({ list, what, from }) => list.length > 0 && (
+        <div key={what} className="note" style={{ marginBottom: 8 }}>
+          Você tem {list.length} {list.length === 1 ? 'ativo manual' : 'ativos manuais'} de {what} ({list.map(x => x.name).join(', ')}); se já {list.length === 1 ? 'veio' : 'vieram'} {from}, exclua para não contar duas vezes.
+        </div>
+      ))}
       {form && (
         <div className="card" style={{ marginBottom: 10 }}>
           <div className="row">
             <label className="field"><span>Nome</span><input className="in" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
             <div className="field"><span>Classe</span>
-              <Select ariaLabel="Classe" value={form.assetClass} onChange={v => setForm({ ...form, assetClass: v as Form['assetClass'] })} options={Object.entries(CLASS_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
-            <label className="field"><span>Símbolo da cotação (opcional)</span><input className="in" placeholder="BTC-BRL, BRL=X" value={form.quoteSymbol} onChange={e => setForm({ ...form, quoteSymbol: e.target.value })} /></label>
+              <Select ariaLabel="Classe" value={form.assetClass} onChange={v => setForm({ ...form, assetClass: v as Form['assetClass'], quoteSymbol: v === 'dolar' && !form.quoteSymbol.trim() ? 'BRL=X' : form.quoteSymbol })} options={Object.entries(CLASS_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
+            <label className="field"><span>{form.assetClass === 'exterior' ? 'Ticker no Yahoo' : 'Símbolo da cotação (opcional)'}</span><input className="in" placeholder={form.assetClass === 'exterior' ? 'VOO, AAPL' : 'BTC-BRL, BRL=X'} value={form.quoteSymbol} onChange={e => setForm({ ...form, quoteSymbol: e.target.value })} /></label>
             <label className="field"><span>Quantidade</span><input className="in" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
-            <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>
+            {form.assetClass !== 'exterior' && <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>}
           </div>
           {formError && <div className="note" style={{ marginTop: 8 }}>{formError}</div>}
           <div className="btns" style={{ marginTop: 8 }}>
@@ -203,13 +217,14 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
           <tbody>
             {data.manualAssets.map(a => {
               const quote = a.quoteSymbol ? data.quotes.find(q => q.symbol === a.quoteSymbol) : undefined
-              const value = p.manual.find(m => m.id === a.id)?.valueCents ?? null
+              const row = p.manual.find(m => m.id === a.id)
+              const value = row?.valueCents ?? null
               return (
                 <tr key={a.id}>
                   <td>{a.name}</td><td className="t2">{label(a.assetClass)}</td>
                   <td className="r">{a.quantity === null ? '—' : a.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}</td>
-                  <td className="r">{quote ? formatCents(quote.priceCents) : '—'}</td>
-                  <td className="r">{money(value)}</td>
+                  <td className="r">{quote ? `${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(quote.priceCents)}` : '—'}</td>
+                  <td className="r">{a.currency === 'USD' && value === null && row?.usdCents != null ? <span className="t2">sem dólar do dia</span> : money(value)}{row?.usdCents != null && <div className="t2">US$ {formatCents(row.usdCents)}</div>}</td>
                   <td className="t2">{quote ? <>{when(quote.fetchedAt)} <span className="tag">{quote.source === 'manual' ? 'à mão' : 'Yahoo'}</span></> : <>{a.updatedAt.split('-').reverse().join('/')} <span className="tag">à mão</span></>}</td>
                   <td className="r t2">
                     {confirm === `asset:${a.id}` ? (

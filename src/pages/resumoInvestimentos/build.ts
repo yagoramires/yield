@@ -3,10 +3,10 @@ import { replay } from '../../domain/ledger'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Cents, CorporateEvent, Dividend, DividendKind, Month, Trade } from '../../domain/types'
 
-const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', outro: 'Outros' }
+const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior', outro: 'Outros' }
 export const classLabel = (c: string) => CLASS_LABEL[c] ?? c
 // Cor fixa por classe (barra empilhada, bolinhas e o quadradinho do ticker), igual no Resumo e na Declaração.
-const CLASS_COLOR: Record<string, string> = { Ação: '#5fb3ff', FII: '#c79bff', ETF: '#f5d76e', BDR: '#ff9f5a', renda_fixa: '#4fd1a5', cripto: '#ff8fd0', dolar: '#6fdc8c', outro: '#9a9da6' }
+const CLASS_COLOR: Record<string, string> = { Ação: '#5fb3ff', FII: '#c79bff', ETF: '#f5d76e', BDR: '#ff9f5a', renda_fixa: '#4fd1a5', cripto: '#ff8fd0', dolar: '#6fdc8c', exterior: '#7fd3e6', outro: '#9a9da6' }
 export const classColor = (c: string) => CLASS_COLOR[c] ?? '#9a9da6'
 
 const lastN = (lastMonth: Month, n: number) => Array.from({ length: n }, (_, i) => addMonths(lastMonth, i - n + 1))
@@ -30,11 +30,14 @@ export function dividendsByMonth(dividends: Dividend[], lastMonth: Month, n: num
   return out
 }
 
-export function topPositions(p: Portfolio, n: number): { name: string; cls: string; valueCents: Cents; pct: number; varPct: number | null; manual: boolean }[] {
+/** `cls` é o rótulo mostrado; `clsKey` a chave da cor. */
+export function topPositions(p: Portfolio, n: number): { name: string; cls: string; clsKey: string; valueCents: Cents; pct: number; varPct: number | null; manual: boolean }[] {
   const pct = (v: Cents) => (p.totalValueCents > 0 ? v / p.totalValueCents : 0)
   return [
-    ...p.rows.flatMap(r => (r.valueCents === null ? [] : [{ name: r.ticker, cls: r.assetType as string, valueCents: r.valueCents, pct: pct(r.valueCents), varPct: r.varPct, manual: false }])),
-    ...p.manual.flatMap(m => (m.valueCents === null ? [] : [{ name: m.name, cls: classLabel(m.assetClass), valueCents: m.valueCents, pct: pct(m.valueCents), varPct: null, manual: true }])),
+    ...p.rows.flatMap(r => (r.valueCents === null ? [] : [{ name: r.ticker, cls: r.assetType as string, clsKey: r.assetType as string, valueCents: r.valueCents, pct: pct(r.valueCents), varPct: r.varPct, manual: false }])),
+    ...p.manual.flatMap(m => (m.valueCents === null ? [] : [{ name: m.name, cls: classLabel(m.assetClass), clsKey: m.assetClass, valueCents: m.valueCents, pct: pct(m.valueCents), varPct: null, manual: true }])),
+    ...(p.rf ?? []).flatMap(h => (h.closed || h.valueCents === null ? [] : [{ name: h.name, cls: classLabel('renda_fixa'), clsKey: 'renda_fixa', valueCents: h.valueCents, pct: pct(h.valueCents), varPct: h.gainPct, manual: false }])),
+    ...(p.crypto ?? []).flatMap(c => (c.valueCents === null ? [] : [{ name: c.asset, cls: classLabel('cripto'), clsKey: 'cripto', valueCents: c.valueCents, pct: pct(c.valueCents), varPct: c.costCents ? (c.valueCents - c.costCents) / c.costCents : null, manual: false }])),
   ].sort((a, b) => b.valueCents - a.valueCents).slice(0, n)
 }
 
