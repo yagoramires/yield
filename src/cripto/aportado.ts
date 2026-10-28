@@ -19,8 +19,10 @@ function brlCents(asset: string, qty: number, time: number, usdBrl: Map<Month, C
 /**
  * Custo médio em real por ativo, na ordem do tempo: compra soma quantidade e custo; venda tira custo na proporção da quantidade.
  * `partial`: parte do custo é desconhecida (pago com cripto ou outra moeda, mês sem dólar, ou vendeu mais do que o histórico mostra).
+ * Com `balances`, a quantidade do histórico é conferida com o saldo real: diferença acima de 1% (venda em par cripto, saque,
+ * depósito de fora) marca parcial; saldo menor que o histórico reduz o custo na proporção.
  */
-export function averageCosts(swaps: Swap[], usdBrl: Map<Month, Cents>): Map<string, { costCents: Cents; partial: boolean }> {
+export function averageCosts(swaps: Swap[], usdBrl: Map<Month, Cents>, balances?: Map<string, number>): Map<string, { costCents: Cents; partial: boolean }> {
   const pos = new Map<string, { qty: number; cost: number; partial: boolean }>()
   const at = (a: string) => pos.get(a) ?? pos.set(a, { qty: 0, cost: 0, partial: false }).get(a)!
   for (const s of [...swaps].sort((a, b) => a.time - b.time)) {
@@ -38,6 +40,12 @@ export function averageCosts(swaps: Swap[], usdBrl: Map<Month, Cents>): Map<stri
       into.cost += v ?? 0
     }
   }
+  for (const [a, p] of pos) {
+    const bal = balances?.get(a)
+    if (bal === undefined || Math.abs(p.qty - bal) <= bal * 0.01) continue
+    p.partial = true
+    if (p.qty > bal) p.cost *= bal / p.qty
+  }
   return new Map([...pos].map(([a, p]) => [a, { costCents: Math.round(p.cost), partial: p.partial }]))
 }
 
@@ -46,12 +54,13 @@ export function averageCosts(swaps: Swap[], usdBrl: Map<Month, Cents>): Map<stri
  * Devolve as fontes que não foram lidas; com alguma faltando, todo calculado sai como parcial.
  */
 export async function syncCryptoCosts(db: Db, creds: { apiKey: string; secret: string }, fetchFn: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>) {
-  const assets = (await loadCryptoBalances(db)).filter(c => c.qty > 0).map(c => c.asset)
+  const held = (await loadCryptoBalances(db)).filter(c => c.qty > 0)
+  const assets = held.map(c => c.asset)
   const failed: { source: string; error: unknown }[] = []
   // dólar sem o mês só deixa parciais as moedas pagas em dólar digital (averageCosts cuida disso)
   const [hist, usdBrl] = await Promise.all([fetchBinanceSwaps(creds, assets, fetchFn, now, sleep),
     fetchMonthlyCloses('BRL=X', fetchFn, 'max').catch(error => { failed.push({ source: 'dólar do mês', error }); return new Map<Month, Cents>() })])
-  const costs = averageCosts(hist.swaps, usdBrl)
+  const costs = averageCosts(hist.swaps, usdBrl, new Map(held.map(c => [c.asset, c.qty])))
   await saveComputedCryptoCosts(db, assets.flatMap(a => { const c = costs.get(a); return c ? [{ asset: a, costCents: c.costCents, partial: c.partial || hist.failed.length > 0 }] : [] }))
   return [...hist.failed, ...failed]
 }

@@ -44,6 +44,23 @@ test('vender mais do que o histórico mostra (moeda depositada de fora) zera o c
   expect(r.get('BTC')).toEqual({ costCents: 20_000, partial: true })
 })
 
+test('saldo menor que o histórico (vendeu em par cripto ou sacou): custo na proporção do saldo, parcial', () => {
+  const r = averageCosts([buy('2024-01-01', 'BTC', 1, 'BRL', 1000)], usdBrl, new Map([['BTC', 0.25]]))
+  expect(r.get('BTC')).toEqual({ costCents: 25_000, partial: true })
+})
+
+test('saldo maior que o histórico (depósito de fora) ou histórico zerado com saldo: parcial, custo mantido', () => {
+  const r = averageCosts([buy('2024-01-01', 'BTC', 1, 'BRL', 1000), buy('2024-01-01', 'ETH', 1, 'BRL', 100), sell('2024-02-01', 'ETH', 1, 'BRL', 200)], usdBrl,
+    new Map([['BTC', 2], ['ETH', 3]]))
+  expect(r.get('BTC')).toEqual({ costCents: 100_000, partial: true })
+  expect(r.get('ETH')).toEqual({ costCents: 0, partial: true })
+})
+
+test('saldo igual ao histórico com até 1% de diferença (taxa) não marca parcial', () => {
+  const r = averageCosts([buy('2024-01-01', 'BTC', 1, 'BRL', 1000)], usdBrl, new Map([['BTC', 0.995]]))
+  expect(r.get('BTC')).toEqual({ costCents: 100_000, partial: false })
+})
+
 describe('buscar aportado na Binance', () => {
   const NOW = Date.parse('2024-03-20T00:00:00Z')
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
