@@ -69,7 +69,14 @@ export async function saveNote(db: Db, note: NoteInput, trades: TradeInput[]): P
   if (dup.length) return { skipped: 'duplicada' }
   const id = crypto.randomUUID()
   await insertNote(db, id, note, trades)
-  if (note.source === 'pdf' || note.source === 'manual') await dropAutoTrades(db, note.tradeDate, trades)
+  if (note.source === 'pdf' || note.source === 'manual') {
+    try {
+      await dropAutoTrades(db, note.tradeDate, trades)
+    } catch (e) {
+      await deleteNote(db, id) // sem isto, replaceNote regravaria a original ao lado da nova
+      throw e
+    }
+  }
   return { id }
 }
 
