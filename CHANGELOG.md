@@ -4,6 +4,13 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 
 ## Próxima versão
 
+### Novidades
+- **Renda fixa da B3**: importe a **Posição** da Área do Investidor junto com a Movimentação e a Carteira mostra cada título (Tesouro, CDB, LCI/LCA…) com aplicado, valor de hoje e rendimento; os vencidos ficam em "ver encerrados". A renda fixa entra no patrimônio, no resultado e nas classes do Resumo.
+- **Juros da renda fixa** aparecem em Proventos e no gráfico por mês como "Juros RF", e contam na renda passiva — sem entrar na declaração de IR nem no imposto.
+- **Binance**: com uma chave só de leitura (Configurações › Binance), o Yield lê os saldos de cripto, inclusive do Simple Earn. O aportado de cada moeda você informa na Carteira.
+- **Ações do exterior**: novo tipo de ativo manual "Exterior (US$)", por ticker e quantidade, convertido pelo dólar do dia. O ativo "Dólar" já vem com a cotação certa.
+- **Olhinho nos resumos**: um botão esconde todos os valores em reais das duas telas de Resumo.
+
 ### Melhorias
 - **Importação da Movimentação da B3** mais esperta:
   - **Leilão de Fração** vira venda automática (a fração sai da posição e entra na apuração do imposto).
