@@ -57,13 +57,13 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
     return apiKey
   }
 
-  async function get(path: string, itemId?: string): Promise<{ results: unknown[]; next?: unknown; totalPages?: unknown }> {
+  async function get(path: string, notFound?: (status: number) => PluggyError): Promise<{ results: unknown[]; next?: unknown; totalPages?: unknown }> {
     const cached = !!key && Date.now() - key.at < KEY_TTL_MS
     const call = async (k: string) => send('GET', path, { headers: { 'X-API-KEY': k } })
     let res = await call(cached ? key!.value : await auth())
     if (res.status === 401 && cached) res = await call(await auth())
     if (res.status === 401 || res.status === 403) throw BAD_CREDS()
-    if (itemId && (res.status === 404 || res.status === 400)) throw new PluggyError(`Item ${itemId} não encontrado: confira o itemId`, 'item')
+    if (notFound && (res.status === 404 || res.status === 400)) throw notFound(res.status)
     if (res.status === 429) throw new PluggyError('A Pluggy pediu para esperar; tente mais tarde', 'limite')
     if (!res.ok) throw new PluggyError(`A Pluggy respondeu com erro (HTTP ${res.status})`, 'resposta')
     const body = await res.json().catch(() => null)
@@ -71,10 +71,10 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
     return body
   }
 
-  async function allPages(path: string, itemId?: string): Promise<unknown[]> {
+  async function allPages(path: string, notFound?: (status: number) => PluggyError): Promise<unknown[]> {
     const out: unknown[] = []
     for (let page = 1; ; page++) {
-      const body = await get(`${path}${path.includes('?') ? '&' : '?'}page=${page}&pageSize=${PAGE_SIZE}`, itemId)
+      const body = await get(`${path}${path.includes('?') ? '&' : '?'}page=${page}&pageSize=${PAGE_SIZE}`, notFound)
       const total = body.totalPages
       if (typeof total !== 'number' || !Number.isInteger(total) || total < 0 || total > MAX_PAGES) throw FORMAT()
       out.push(...body.results)
@@ -84,7 +84,7 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
 
   return {
     async listAccounts(itemId: string): Promise<PluggyAccount[]> {
-      const results = (await get(`/accounts?itemId=${encodeURIComponent(itemId)}`, itemId)).results
+      const results = (await get(`/accounts?itemId=${encodeURIComponent(itemId)}`, () => new PluggyError(`Item ${itemId} não encontrado: confira o itemId`, 'item'))).results
       if (!results.every(a => isObj(a) && str(a.id) && (a.type === 'BANK' || a.type === 'CREDIT') && str(a.name))) throw FORMAT()
       return results as PluggyAccount[]
     },
@@ -103,7 +103,7 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
       return out
     },
     async listInvestments(itemId: string): Promise<PluggyInvestment[]> {
-      const results = await allPages(`/investments?itemId=${encodeURIComponent(itemId)}`, itemId)
+      const results = await allPages(`/investments?itemId=${encodeURIComponent(itemId)}`, s => new PluggyError(`a Pluggy não tem investimentos para este banco (HTTP ${s})`, 'resposta'))
       if (!results.every(i => isObj(i) && str(i.id) && typeof i.type === 'string' && typeof i.name === 'string')) throw FORMAT()
       return results as PluggyInvestment[]
     },

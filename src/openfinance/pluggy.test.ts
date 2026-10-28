@@ -169,6 +169,12 @@ describe('cliente', () => {
     expect((await kind(500))[0]).toBe('resposta')
     expect((await kind(404, '/v2/transactions'))[0]).toBe('resposta')
   })
+  it('400/404 nos investimentos não vira "item não encontrado"', async () => {
+    for (const status of [400, 404]) {
+      const c = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({}, status)).fn)
+      await expect(c.listInvestments('i1')).rejects.toMatchObject({ kind: 'resposta', message: `a Pluggy não tem investimentos para este banco (HTTP ${status})` })
+    }
+  })
   it('investimentos e operações seguem totalPages', async () => {
     const INV = '33333333-3333-4333-8333-333333333333'
     const f = fake((u) => {
