@@ -20,11 +20,11 @@ beforeEach(async () => {
 describe('chave da Binance', () => {
   it('grava com trim e lê de volta uma vez por sessão', async () => {
     await mod.setBinanceCredentials('  chave ', ' segredo\n')
-    expect(store.get('binance.apiKey')).toBe('chave')
+    expect([...store.keys()]).toEqual(['yield.credentials'])
     vi.resetModules(); mod = await import('./secrets'); invoke.mockClear()
     expect(await mod.getBinanceCredentials()).toEqual({ apiKey: 'chave', secret: 'segredo' })
     await mod.getBinanceCredentials()
-    expect(invoke).toHaveBeenCalledTimes(2)
+    expect(invoke).toHaveBeenCalledTimes(1)
   })
 
   it('vazio lança erro sem chamar o cofre', async () => {

@@ -23,7 +23,7 @@ beforeEach(async () => {
 describe('credenciais da Pluggy', () => {
   it('grava com trim e lê de volta', async () => {
     await setPluggyCredentials('  id ', ' segredo\n')
-    expect(store.get('pluggy.clientId')).toBe('id')
+    expect([...store.keys()]).toEqual(['yield.credentials'])
     expect(await getPluggyCredentials()).toEqual({ clientId: 'id', clientSecret: 'segredo' })
   })
 
@@ -49,6 +49,7 @@ describe('credenciais da Pluggy', () => {
     await expect(getPluggyCredentials()).rejects.toThrow('negado')
     await getPluggyCredentials()
     await getPluggyCredentials()
-    expect(invoke.mock.calls.filter(c => c[0] === 'secret_get')).toHaveLength(4)
+    // recusa (1) + item único vazio (1) + os 4 itens antigos migrados (4); a terceira leitura vem do cache
+    expect(invoke.mock.calls.filter(c => c[0] === 'secret_get')).toHaveLength(6)
   })
 })
