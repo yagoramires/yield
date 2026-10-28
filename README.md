@@ -52,7 +52,7 @@ Só isto sai do computador:
 As transações chegam de dois jeitos:
 
 - **Open Finance (Pluggy + Meu Pluggy)**, de graça para uso pessoal, **somente leitura**;
-- **extratos** OFX (Bradesco, Itaú, BB, Inter…) e CSV (Nubank conta, Mercado Pago). Importar o mesmo arquivo de novo não duplica nada.
+- **extratos** OFX (Bradesco, Itaú, BB, Inter…) e CSV de qualquer banco ou cartão (Nubank e Mercado Pago reconhecidos sozinhos; nos outros você escolhe as colunas de data, descrição e valor). Importar o mesmo arquivo de novo não duplica nada.
 
 <p align="center">
   <img src="docs/screenshots/lancamentos.png" width="860" alt="Lançamentos por dia com faixa de categorias">
