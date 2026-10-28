@@ -226,6 +226,11 @@ it('costSummaryText: diz o que achou em cada fonte e o que ficou sem histórico'
     .toBe('Histórico da Binance: nenhuma compra encontrada. Sem compra no histórico: BTC (informe à mão).')
 })
 
+it('costSummaryText: com fonte não lida, não manda informar à mão o que pode estar nela', () => {
+  expect(costSummaryText({ failed: [{ source: 'Convert', error: new BinanceError('x', 'rede') }], found: { 'compras com PIX/cartão': 1, Convert: 0, 'negociações à vista': 0 }, computed: ['BTC'], missing: ['ETH'] }))
+    .toBe('Histórico da Binance: 1 compras com PIX/cartão, 0 Convert, 0 negociações à vista. Aportado calculado: BTC. Sem compra no histórico lido: ETH (alguma fonte não foi lida; tente de novo antes de informar à mão). Não lido: Convert (sem conexão).')
+})
+
 describe('investmentLine', () => {
   const c = { itemId: 'i', label: 'Corretora Azul', found: 2, inserted: 3, updated: 2, existing: 12 }
   it('conta novas, atualizadas e as que já existiam', () => {

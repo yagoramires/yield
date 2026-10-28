@@ -193,7 +193,9 @@ export function costSummaryText(r: { failed: { source: string; error: unknown }[
   const total = Object.values(r.found).reduce((s, n) => s + n, 0)
   const parts = [total ? `Histórico da Binance: ${Object.entries(r.found).map(([src, n]) => `${n} ${src}`).join(', ')}.` : 'Histórico da Binance: nenhuma compra encontrada.']
   if (r.computed.length) parts.push(`Aportado calculado: ${r.computed.join(', ')}.`)
-  if (r.missing.length) parts.push(`Sem compra no histórico: ${r.missing.join(', ')} (informe à mão).`)
+  if (r.missing.length) parts.push(r.failed.length
+    ? `Sem compra no histórico lido: ${r.missing.join(', ')} (alguma fonte não foi lida; tente de novo antes de informar à mão).`
+    : `Sem compra no histórico: ${r.missing.join(', ')} (informe à mão).`)
   const fail = historyFailText(r.failed)
   if (fail) parts.push(fail)
   return parts.join(' ')
