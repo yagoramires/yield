@@ -132,7 +132,8 @@ fn menu_pt(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry
 }
 
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
-const SECRET_KEYS: [&str; 4] = ["pluggy.clientId", "pluggy.clientSecret", "binance.apiKey", "binance.secret"];
+// "yield.credentials" guarda tudo num item só; os outros são os itens antigos, lidos uma vez para migrar.
+const SECRET_KEYS: [&str; 5] = ["yield.credentials", "pluggy.clientId", "pluggy.clientSecret", "binance.apiKey", "binance.secret"];
 
 fn entry_for(key: &str) -> Result<keyring::Entry, String> {
     if !SECRET_KEYS.contains(&key) {
@@ -299,6 +300,7 @@ mod tests {
         assert!(entry_for("outra.coisa").is_err());
         assert!(entry_for("pluggy.clientId").is_ok());
         assert!(entry_for("binance.secret").is_ok());
+        assert!(entry_for("yield.credentials").is_ok());
     }
 
     #[test]
