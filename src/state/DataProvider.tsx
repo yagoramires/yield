@@ -142,7 +142,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const { positions } = replay(ds.trades, ds.events)
       const symbols = new Set([...positions.filter(p => p.qty > 0).map(p => yahooSymbol(p.ticker)), ...ds.manualAssets.flatMap(a => (a.quoteSymbol ? [a.quoteSymbol] : [])),
         // exterior é cotado em US$ e convertido pelo dólar do dia; cripto da Binance pela cotação em real
-        ...(ds.manualAssets.some(a => a.currency === 'USD') ? ['BRL=X'] : []), ...ds.cryptoBalances.flatMap(c => (c.qty > 0 && c.asset !== 'BRL' ? [`${c.asset}-BRL`] : []))])
+        ...(ds.manualAssets.some(a => a.currency === 'USD') || ds.cryptoBalances.some(c => c.qty > 0) ? ['BRL=X'] : []), ...ds.cryptoBalances.flatMap(c => (c.qty > 0 && c.asset !== 'BRL' ? [`${c.asset}-USD`] : []))])
       setLastRefresh({ at: new Date().toISOString(), ...(await refreshQuotes(d, [...symbols], tauriFetch as typeof fetch)) })
       setData(await loadAll(d))
     } catch { /* offline ou Yahoo fora do ar */ }

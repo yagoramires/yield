@@ -40,7 +40,9 @@ export function buildPortfolio(positions: Position[], quotes: Quote[], manual: M
   })
   const openRf = extra.rf.filter(h => !h.closed && h.valueCents !== null)
   const crypto: CryptoRow[] = extra.crypto.filter(c => c.qty > 0).map(c => {
-    const price = c.asset === 'BRL' ? 100 : bySymbol.get(`${c.asset}-BRL`)?.priceCents
+    // o Yahoo não tem mais os pares em real (BTC-BRL dá 404): cotação em dólar × BRL=X
+    const usd = bySymbol.get(`${c.asset}-USD`)?.priceCents
+    const price = c.asset === 'BRL' ? 100 : usd !== undefined && dollar ? (usd * dollar) / 100 : undefined
     return { asset: c.asset, qty: c.qty, valueCents: price === undefined ? null : Math.round(c.qty * price), costCents: c.costCents }
   })
 
