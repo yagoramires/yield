@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, RefreshCw, Upload } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import type { Account } from '../../db/gastosRepo'
 import { addMonths } from '../../domain/money'
 import type { Month } from '../../domain/types'
@@ -24,7 +24,7 @@ function syncedLabel(iso: string) {
 }
 
 /** Cabeçalho comum de Resumo e Lançamentos: mês, sincronização, importação de extrato e a linha de avisos. */
-export function GastosHeader({ title }: { title: string }) {
+export function GastosHeader({ title, actions }: { title: string; actions?: ReactNode }) {
   const { gastos: { data, month, setMonth, syncing, syncNow, lastSyncResult } } = useData()
   const imp = useExtratoImport()
   const [open, setOpen] = useState(false)
@@ -41,6 +41,7 @@ export function GastosHeader({ title }: { title: string }) {
         </div>
         <div className="btns">
           {(syncing || lastSync) && <span className="muted" style={{ alignSelf: 'center' }}>{syncing ? 'sincronizando…' : `sincronizado ${syncedLabel(lastSync!)}`}</span>}
+          {actions}
           <button className="b ghost with-ico" disabled={syncing} onClick={() => void syncNow()}><RefreshCw size={13} aria-hidden />Sincronizar</button>
           {imp.button}
         </div>
