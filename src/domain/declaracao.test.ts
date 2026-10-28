@@ -116,7 +116,7 @@ describe('renda fixa da B3', () => {
       ['LCI BANCO LARANJA S/A', 'isento', 50000, 0, 0],
     ])
     expect(r[0].institutions).toEqual([INST])
-    expect([RF_CODES.tributavel.grupo, RF_CODES.tributavel.codigo, RF_CODES.isento.codigo]).toEqual(['04', '01', '02'])
+    expect([RF_CODES.tributavel.grupo, RF_CODES.tributavel.codigo, RF_CODES.isento.codigo]).toEqual(['04', '02', '03'])
   })
   it('saída sem a compra no período marca o título como parcial', () => {
     const [b] = rendaFixaDoAno([mv(CDB, 'saida', '2025-03-01', 1, 1000)], [], 2025)
