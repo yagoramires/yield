@@ -8,7 +8,7 @@ export interface PortfolioRow { ticker: string; assetType: AssetType; qty: numbe
 export interface ManualRow { id: string; name: string; assetClass: ManualAsset['assetClass']; valueCents: Cents | null; usdCents: Cents | null /* só exterior */ }
 export interface CryptoRow { asset: string; qty: number; valueCents: Cents | null; costCents: Cents | null }
 export interface Portfolio { rows: PortfolioRow[]; manual: ManualRow[]; byClass: { cls: AssetType | ManualAsset['assetClass']; costCents: Cents | null; valueCents: Cents }[]; totalValueCents: Cents; totalCostCents: Cents; dividends12mCents: Cents; missingQuotes: string[]
-  rf: RfHolding[]; crypto: CryptoRow[]; rfGainCents: Cents /* títulos abertos com ganho conhecido */; noCostCount: number /* itens com valor e sem aportado */ }
+  rf: RfHolding[]; crypto: CryptoRow[]; otherGainCents: Cents; otherCostCents: Cents /* fora da renda variável: títulos abertos e cripto com ganho conhecido, para o Resultado */; noCostCount: number /* itens com valor e sem aportado */ }
 
 export function buildPortfolio(positions: Position[], quotes: Quote[], manual: ManualAsset[], dividends: Dividend[], today: ISODate,
   extra: { rf: RfHolding[]; crypto: CryptoBalance[] } = { rf: [], crypto: [] }): Portfolio {
@@ -64,7 +64,8 @@ export function buildPortfolio(positions: Position[], quotes: Quote[], manual: M
       + openRf.reduce((s, h) => s + h.valueCents!, 0) + crypto.reduce((s, c) => s + (c.valueCents ?? 0), 0),
     totalCostCents: rows.reduce((s, r) => s + r.costCents, 0) + openRf.reduce((s, h) => s + (h.appliedCents ?? 0), 0) + crypto.reduce((s, c) => s + (c.valueCents === null ? 0 : c.costCents ?? 0), 0),
     rf: extra.rf, crypto,
-    rfGainCents: openRf.reduce((s, h) => s + (h.gainCents ?? 0), 0),
+    otherGainCents: openRf.reduce((s, h) => s + (h.gainCents ?? 0), 0) + crypto.reduce((s, c) => s + (c.valueCents !== null && c.costCents !== null ? c.valueCents - c.costCents : 0), 0),
+    otherCostCents: openRf.reduce((s, h) => s + (h.gainCents === null ? 0 : h.investedCents ?? 0), 0) + crypto.reduce((s, c) => s + (c.valueCents !== null && c.costCents !== null ? c.costCents : 0), 0),
     noCostCount: manualRows.filter(m => m.valueCents !== null).length + openRf.filter(h => h.appliedCents === null).length + crypto.filter(c => c.valueCents !== null && c.costCents === null).length,
     dividends12mCents: dividends.filter(d => d.payDate >= start && d.payDate <= today).reduce((s, d) => s + d.amountCents, 0),
     missingQuotes: rows.filter(r => r.valueCents === null).map(r => r.ticker),

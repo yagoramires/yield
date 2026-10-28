@@ -60,5 +60,12 @@ export function parsePosicao(wb: WorkBook, asOf: ISODate): RfPosition[] {
       maturity: date(get('Vencimento')), qty: Number(get('Quantidade')), appliedCents: null, valueCents: parseBRL(value), asOf,
     })
   }
-  return out
+  // o mesmo título em duas corretoras vem em duas linhas com a mesma chave: soma
+  const byKey = new Map<string, RfPosition>()
+  for (const p of out) {
+    const prev = byKey.get(p.key)
+    byKey.set(p.key, !prev ? p : { ...prev, qty: prev.qty + p.qty, valueCents: prev.valueCents + p.valueCents,
+      appliedCents: prev.appliedCents === null || p.appliedCents === null ? null : prev.appliedCents + p.appliedCents })
+  }
+  return [...byKey.values()]
 }

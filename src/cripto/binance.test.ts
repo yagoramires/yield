@@ -40,3 +40,16 @@ test('chave recusada vira erro de chave; rede fora vira erro de rede', async () 
   await expect(fetchBinanceBalances(creds, (async () => json({ code: -2015, msg: 'x' }, 401)) as typeof fetch)).rejects.toMatchObject({ kind: 'chave' })
   await expect(fetchBinanceBalances(creds, (async () => { throw new TypeError('offline') }) as typeof fetch)).rejects.toMatchObject({ kind: 'rede' })
 })
+
+test('LDO é moeda; LD<x> só sai quando o Earn flexível de <x> foi lido', async () => {
+  const run = (flexOk: boolean) => fetchBinanceBalances(creds, (async (url: string) => {
+    const path = new URL(url).pathname
+    if (path === '/api/v3/account') return json({ balances: [{ asset: 'LDO', free: '5', locked: '0' }, { asset: 'LDBTC', free: '0.2', locked: '0' }] })
+    if (flexOk && path.endsWith('/flexible/position')) return json({ rows: [{ asset: 'BTC', totalAmount: '0.2' }], total: 1 })
+    return json({ code: -2015 }, 403)
+  }) as typeof fetch)
+  expect((await run(true)).balances).toEqual(expect.arrayContaining([{ asset: 'LDO', qty: 5 }, { asset: 'BTC', qty: 0.2 }]))
+  expect((await run(true)).balances).toHaveLength(2)
+  // sem o Earn, o espelho fica como está (aparece "sem cotação") em vez de sumir do total
+  expect((await run(false)).balances).toEqual([{ asset: 'LDO', qty: 5 }, { asset: 'LDBTC', qty: 0.2 }])
+})
