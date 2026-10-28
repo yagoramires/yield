@@ -1,8 +1,8 @@
 import type { Account, Category, CategoryRule, Txn } from '../../db/gastosRepo'
 import type { Subscription } from '../../domain/assinaturas'
 import type { BudgetLine } from '../../db/orcamentoRepo'
-import { monthTotals, normalizeDescription } from '../../domain/gastos'
-import { fold, ruleFor, suggestRulePattern } from '../lancamentos/build'
+import { fold, monthTotals, normalizeDescription } from '../../domain/gastos'
+import { ruleFor, suggestRulePattern } from '../lancamentos/build'
 import { formatCents } from '../../domain/money'
 import type { Cents, Month } from '../../domain/types'
 

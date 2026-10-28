@@ -42,3 +42,14 @@ test('reimportar pula o que já existe e não duplica o que foi digitado no app'
   const o = await loadOrcamento(db)
   expect(o.lines.filter(l => l.month === '2026-03').map(l => l.name)).toEqual(['Aluguel', 'Mercado'])
 })
+
+test('números no nome contam: cartões e parcelas diferentes não se misturam', async () => {
+  const m = parseOrcamentoCsv('mes;tipo;nome;valor\n2026-01;fixa;Cartão 1234;100\n2026-01;fixa;Cartão 5678;200\n2026-01;fixa;Parcela 1;50\n2026-02;fixa;Parcela 2;50\n2026-02;fixa;Cartão 1234;100')
+  expect(m[0].lines.map(l => [l.name, l.recurring, l.sourceKey])).toEqual([
+    ['Cartão 1234', true, 'csv:2026-01:saida:cartao 1234'], ['Cartão 5678', false, 'csv:2026-01:saida:cartao 5678'], ['Parcela 1', false, 'csv:2026-01:saida:parcela 1'],
+  ])
+  expect(m[1].lines.find(l => l.name === 'Parcela 2')?.recurring).toBe(false)
+  const db = createTestDb()
+  await importOrcamentoCsv(db, m)
+  expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-02;fixa;Cartão 5678;200'))).toEqual({ months: 0, lines: 1, skipped: 0 })
+})

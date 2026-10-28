@@ -1,11 +1,13 @@
 import type { Db } from '../db/client'
 import { createMonth, saveLine, type BudgetLine, type LineKind } from '../db/orcamentoRepo'
-import { normalizeDescription } from '../domain/gastos'
+import { fold, normalizeDescription } from '../domain/gastos'
 import type { Month } from '../domain/types'
 import { splitRow } from './extratoCsv'
 import { parseBRL, parseDecimal } from './parse'
 
 type CsvLine = Omit<BudgetLine, 'id' | 'month' | 'position'>
+// identidade da linha: ao contrário de normalizeDescription, mantém os números ("Cartão 1234" ≠ "Cartão 5678", "Parcela 1" ≠ "Parcela 2")
+const nameKey = (s: string) => fold(s).replace(/[^a-z0-9]+/g, ' ').trim()
 
 export const ORCAMENTO_CSV_EXEMPLO = `mes;tipo;nome;valor
 2026-01;receita;Salário;5.000,00
@@ -42,11 +44,11 @@ export function parseOrcamentoCsv(text: string): { month: Month; lines: CsvLine[
     try { amountCents = parseBRL(parseDecimal(v)) } catch (e) { fail((e as Error).message) }
     if (!amountCents) return
     // chave pelo nome: reimportar o mesmo arquivo pula as linhas já gravadas
-    const key = `csv:${mes}:${kind}:${normalizeDescription(name)}`, dup = seen.get(key) ?? 0
+    const key = `csv:${mes}:${kind}:${nameKey(name)}`, dup = seen.get(key) ?? 0
     seen.set(key, dup + 1)
     byMonth.set(mes, [...(byMonth.get(mes) ?? []), { kind, name, amountCents, recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: dup ? `${key}#${dup}` : key }])
   })
-  const id = (l: CsvLine) => `${l.kind}:${normalizeDescription(l.name)}`
+  const id = (l: CsvLine) => `${l.kind}:${nameKey(l.name)}`
   const monthsOf = new Map<string, number>()
   for (const lines of byMonth.values()) for (const k of new Set(lines.map(id))) monthsOf.set(k, (monthsOf.get(k) ?? 0) + 1)
   return [...byMonth].sort(([a], [b]) => a.localeCompare(b)).map(([month, lines]) => ({ month, lines: lines.map(l => ({ ...l, recurring: monthsOf.get(id(l))! >= 2 })) }))
@@ -58,9 +60,9 @@ export async function importOrcamentoCsv(db: Db, months: { month: Month; lines: 
   for (const { month, lines: ls } of months) {
     if (await createMonth(db, month, ls.map((l, position) => ({ ...l, position }))) === 'criado') { created++; lines += ls.length; continue }
     const old = await db.select<{ kind: string; name: string; k: string | null }>('SELECT kind, name, source_key AS k FROM budget_lines WHERE month = ?', [month])
-    const keys = new Set(old.map(o => o.k)), names = new Set(old.map(o => `${o.kind}:${normalizeDescription(o.name)}`))
+    const keys = new Set(old.map(o => o.k)), names = new Set(old.map(o => `${o.kind}:${nameKey(o.name)}`))
     for (const l of ls) {
-      if (keys.has(l.sourceKey) || names.has(`${l.kind}:${normalizeDescription(l.name)}`)) { skipped++; continue }
+      if (keys.has(l.sourceKey) || names.has(`${l.kind}:${nameKey(l.name)}`)) { skipped++; continue }
       await saveLine(db, { ...l, month, position: 0 })
       lines++
     }

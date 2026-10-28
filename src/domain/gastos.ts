@@ -3,6 +3,9 @@ import { pluggyCategoryId } from './categoriasPluggy'
 import { ownerMention } from './transferencias'
 import type { Cents, ISODate, Month } from './types'
 
+/** Minúsculas, sem acento e sem espaço nas pontas: para comparar nomes. */
+export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+
 export function normalizeDescription(s: string): string {
   return s
     .toLowerCase()
