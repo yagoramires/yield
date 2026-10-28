@@ -4,6 +4,7 @@ import { loadAll, saveEvent, saveNote, upsertDividends } from '../db/repo'
 import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
 import { normalizeTicker, replay } from '../domain/ledger'
+import { formatCents } from '../domain/money'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 import { isRendaFixa, parsePosicao, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
@@ -85,9 +86,11 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
       out.checks.push({ date, ticker, qty, produto })
     } else if (mov === 'Resgate') {
       // liquidação do fundo (venda) ou parte em dinheiro de uma incorporação (não é venda): só o usuário sabe
-      out.toReview.push({ date, movimentacao: mov, produto, nota: `R$ ${(parseBRL(str(valueCell)) / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento` })
-    } else if (mov === 'Leilão de Fração' && qty > 0 && parseBRL(str(valueCell)) > 0) {
-      out.sales.push({ kind: mov, date, ticker, qty, valueCents: parseBRL(str(valueCell)), broker: normalizeBroker(inst), produto })
+      out.toReview.push({ date, movimentacao: mov, produto, nota: `R$ ${formatCents(parseBRL(str(valueCell)))}: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento` })
+    } else if (mov === 'Leilão de Fração') {
+      const valueCents = parseBRL(str(valueCell))
+      if (qty > 0 && valueCents > 0) out.sales.push({ kind: mov, date, ticker, qty, valueCents, broker: normalizeBroker(inst), produto })
+      else out.toReview.push({ date, movimentacao: mov, produto }) // sem quantidade ou valor não dá para lançar a venda
     } else if (REVISAR.includes(mov)) {
       out.toReview.push({ date, movimentacao: mov, produto })
     } else {
@@ -204,26 +207,27 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
 
   // Com tudo gravado: o leilão de fração vira venda da fração e a "Atualização" confere a posição (pela liquidação, como a custódia).
   const review: B3Import['toReview'] = []
-  const positionAt = async (date: ISODate, ticker: string) => {
-    const { trades: ts, events: es } = await loadAll(db)
-    return replay(ts.filter(t => t.settleDate <= date), es.filter(e => e.date <= date)).positions.find(x => x.ticker === ticker)?.qty ?? 0
-  }
+  // carrega uma vez e de novo só depois de gravar uma venda
+  let ds = await loadAll(db)
+  const positionAt = (date: ISODate, ticker: string) =>
+    replay(ds.trades.filter(t => t.settleDate <= date), ds.events.filter(e => e.date <= date)).positions.find(x => x.ticker === ticker)?.qty ?? 0
   let sales = 0
   for (const a of p.sales) {
     const sourceKey = `b3leilao:${a.date}:${a.ticker}:${a.qty}`
     if ((await db.select('SELECT 1 FROM notes WHERE source_key = ?', [sourceKey])).length) continue
-    const have = await positionAt(a.date, a.ticker)
+    const have = positionAt(a.date, a.ticker)
     if (have <= 1e-9) { review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: 'o Yield não tem essa posição' }); continue }
     const qty = Math.min(a.qty, have)
     const [known] = await db.select<{ assetType: AssetType }>('SELECT asset_type AS assetType FROM trades WHERE ticker = ? LIMIT 1', [a.ticker])
     await saveNote(db, { number: `Leilão ${a.date}`, broker: a.broker, tradeDate: a.date, settleDate: a.date, source: 'sem_nota', sourceKey, label: 'Leilão de fração da B3' },
       [{ seq: 1, side: 'V', assetType: known?.assetType ?? types.get(a.ticker) ?? assetTypeOf(a.ticker), ticker: a.ticker, qty, priceCents: Math.round(a.valueCents / a.qty), feesCents: 0, irrfCents: 0 }])
+    ds = await loadAll(db)
     sales++
   }
   const daysBetween = (a: ISODate, b: ISODate) => (Date.parse(a) - Date.parse(b)) / 86_400_000
   let checked = 0
   for (const c of p.checks) {
-    const have = await positionAt(c.date, c.ticker)
+    const have = positionAt(c.date, c.ticker)
     if (Math.abs(have - c.qty) < 1e-6) checked++
     else {
       // a B3 usa "Atualização" tanto para reafirmar a posição quanto para creditar cotas de uma subscrição exercida

@@ -29,7 +29,10 @@ export function rfHoldings(moves: RfMove[], positions: RfPosition[]): RfHolding[
 
   const list = keys.map(key => {
     const ms = byKey.get(key) ?? []
-    const pos = posByKey.get(key)
+    const p0 = posByKey.get(key)
+    // vendido ou vencido depois da data da Posição: o valor dela não vale mais
+    const left = p0 ? ms.filter(m => m.date > p0.asOf && m.kind !== 'juros').reduce((q, m) => q + (m.kind === 'aplicacao' ? m.qty : -m.qty), p0.qty) : 0
+    const pos = p0 && left > 1e-6 ? p0 : undefined
     let qty = 0, applied = 0, invested = 0, received = 0, unknownReceived = false, oversold = false
     for (const m of ms) {
       if (m.kind === 'aplicacao') { qty += m.qty; applied += m.valueCents ?? 0; invested += m.valueCents ?? 0 }
@@ -44,8 +47,10 @@ export function rfHoldings(moves: RfMove[], positions: RfPosition[]): RfHolding[
     }
     // a Movimentação só cobre parte do histórico se a quantidade não bate com a da Posição: aí vale o aplicado da Posição
     const hasBuys = ms.some(m => m.kind === 'aplicacao') && !(pos && Math.abs(pos.qty - qty) > 1e-4)
-    // fora da Posição mais recente: encerrado se acabou numa saída ou sem quantidade; senão falta uma Posição nova
-    const closed = !pos && (qty <= 1e-9 || ms.at(-1)?.kind === 'saida')
+    // fora da Posição: encerrado se não sobrou quantidade, ou se acabou numa saída já coberta por uma Posição
+    // (a Movimentação pode não ter as compras antigas); senão falta uma Posição nova
+    const last = ms.at(-1)
+    const closed = !pos && (qty <= 1e-9 || (last?.kind === 'saida' && (p0 !== undefined || (latest !== '' && latest >= last.date))))
     const valueCents = pos ? pos.valueCents : closed ? 0 : null
     const investedCents = hasBuys ? invested : pos?.appliedCents ?? null
     const appliedCents = closed ? 0 : hasBuys ? applied : pos?.appliedCents ?? null

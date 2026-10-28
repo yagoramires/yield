@@ -14,7 +14,7 @@ export const isRendaFixa = (produto: string) => /^(tesouro|cdb|lci|lca|cri|cra|d
  */
 export function rfKey(produto: string, codigo?: string): string {
   if (/^tesouro\b/i.test(produto.trim())) return `td:${produto.trim().replace(/\s+/g, ' ').toLowerCase()}`
-  return `rf:${(codigo ?? produto.split(' - ')[1] ?? produto).trim().toUpperCase()}`
+  return `rf:${(codigo || produto.split(' - ')[1] || produto).trim().toUpperCase()}`
 }
 
 export function rfMoveKind(mov: string, entrada: boolean): RfMoveKind | null {
