@@ -6,12 +6,12 @@ import type { Subscription } from '../domain/assinaturas'
 import { todayISO, useData } from '../state/DataProvider'
 import { nextCharges, totalsOfSubscriptions } from './categorias/build'
 import { cleanDescription, NO_FILTER, shortAccountLabel } from './lancamentos/build'
+import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, errText } from './lancamentos/GastosHeader'
 
 const COLORS = ['#ff7a8a', '#c79bff', '#6fdc8c', '#5fb3ff', '#7fd1d1', '#f5d76e', '#ff9f5a', '#9aa8ff']
 // cor fixa por nome, para a mesma assinatura ter sempre a mesma cor
 const colorOf = (name: string) => COLORS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]
-const WEEKDAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
 export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }) {
   const { db, reload, gastos } = useData()
@@ -86,15 +86,7 @@ export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }
           {soon.list.length > 0 && (
             <>
               <div className="sec-h"><span>Próximas cobranças</span></div>
-              <div className="next-strip">
-                {soon.list.slice(0, 5).map(s => (
-                  <div key={s.merchantKey} className={`next-c ${s.nextDate <= today ? 'now' : ''}`}>
-                    <div className="d">{s.nextDate === today ? 'Hoje' : s.nextDate < today ? 'Atrasada' : WEEKDAY[new Date(`${s.nextDate}T12:00:00`).getDay()]} · {brDay(s.nextDate)}</div>
-                    <div className="n">{cleanDescription(s.name).name}</div>
-                    <div className="v">{formatCents(s.amountCents)}</div>
-                  </div>
-                ))}
-              </div>
+              <NextCharges list={soon.list.slice(0, 5)} today={today} />
             </>
           )}
           {active.length > 0 && <><div className="sec-h"><span>Ativas · {active.length}</span><span>mais caras primeiro</span></div><div className="day-card">{active.map(row)}</div></>}

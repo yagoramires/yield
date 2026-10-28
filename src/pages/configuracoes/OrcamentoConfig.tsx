@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { DEFAULT_PJ, deleteSource, type IncomeSource } from '../../db/orcamentoRepo'
-import { pjNet, sourceNet } from '../../domain/orcamento'
+import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
 import { formatBRL, monthOf } from '../../domain/money'
 import { importOrcamento, parseOrcamentoPlanilha } from '../../import/orcamentoPlanilha'
 import { todayISO, useData } from '../../state/DataProvider'
@@ -11,11 +11,12 @@ const num = (x: number) => String(x).replace('.', ',')
 const money = (c: number) => (c / 100).toFixed(2).replace('.', ',')
 const brl = (c: number) => formatBRL(c).replace(/^R\$\s*/, '')
 
-const NEW: SourceForm = { name: '', kind: 'pj', gross: '', proLabore: num(DEFAULT_PJ.proLaborePct), irpj: num(DEFAULT_PJ.irpjPct), inss: num(DEFAULT_PJ.inssPct), contabilidade: '', outros: '', net: '' }
+const NEW: SourceForm = { name: '', kind: 'pj', gross: '', proLabore: num(DEFAULT_PJ.proLaborePct), irpj: num(DEFAULT_PJ.irpjPct), inss: num(DEFAULT_PJ.inssPct), contabilidade: '', outros: '', net: '', dependents: '' }
 const toForm = (s: IncomeSource): SourceForm => ({
   name: s.name, kind: s.kind, gross: s.grossCents == null ? '' : money(s.grossCents), proLabore: num(s.proLaborePct), irpj: num(s.irpjPct), inss: num(s.inssPct),
-  contabilidade: money(s.contabilidadeCents), outros: money(s.outrosCents), net: s.netCents == null ? '' : money(s.netCents),
+  contabilidade: money(s.contabilidadeCents), outros: money(s.outrosCents), net: s.netCents == null ? '' : money(s.netCents), dependents: String(s.dependents),
 })
+const KIND_LABEL: Record<IncomeSource['kind'], string> = { pj: 'PJ', clt: 'CLT', fixo: 'valor fixo' }
 
 export function ImportarOrcamento() {
   const { db, orcamento } = useData()
@@ -67,7 +68,12 @@ export function FontesRenda() {
   const set = (k: keyof SourceForm) => (e: { target: { value: string } }) => setForm(f => f && { ...f, [k]: e.target.value })
 
   let preview: ReturnType<typeof pjNet> | null = null
-  if (form?.kind === 'pj') { try { const v = validateSource(form); preview = pjNet(v.grossCents!, v) } catch { /* inválido: sem prévia */ } }
+  let clt: ReturnType<typeof cltNet> | null = null
+  try {
+    const v = form && form.kind !== 'fixo' ? validateSource(form) : null
+    if (v?.kind === 'pj') preview = pjNet(v.grossCents!, v)
+    if (v?.kind === 'clt') clt = cltNet(v.grossCents!, v.dependents, v.outrosCents)
+  } catch { /* inválido: sem prévia */ }
 
   const salvar = async () => {
     if (!form) return
@@ -106,7 +112,7 @@ export function FontesRenda() {
             {sources.map(s => (
               <tr key={s.id}>
                 <td>{s.name}</td>
-                <td><span className="pill">{s.kind === 'pj' ? 'PJ' : 'valor fixo'}</span></td>
+                <td><span className="pill">{KIND_LABEL[s.kind]}</span></td>
                 <td className={`r${s.grossCents == null ? ' t2' : ''}`}>{s.grossCents == null ? '—' : brl(s.grossCents)}</td>
                 <td className="r">{brl(sourceNet(s))}</td>
                 <td><button className="b ghost" disabled={busy} onClick={() => open(s)}>editar</button> <button className="b ghost" disabled={busy} onClick={() => { setDel(s); setForm(null); setMsg(null) }}>apagar</button></td>
@@ -131,10 +137,10 @@ export function FontesRenda() {
             {field('Nome', 'name', 180)}
             <label className="field"><span>Tipo</span>
               <select className="in" value={form.kind} onChange={e => setForm({ ...form, kind: e.target.value as SourceForm['kind'] })}>
-                <option value="pj">PJ</option><option value="fixo">valor fixo</option>
+                <option value="pj">PJ</option><option value="clt">CLT</option><option value="fixo">valor fixo</option>
               </select>
             </label>
-            {form.kind === 'pj' ? field('Bruto (R$)', 'gross') : field('Líquido do mês (R$)', 'net')}
+            {form.kind === 'fixo' ? field('Líquido do mês (R$)', 'net') : field('Bruto (R$)', 'gross')}
           </div>
           {form.kind === 'pj' && (
             <>
@@ -152,11 +158,25 @@ export function FontesRenda() {
               )}
             </>
           )}
+          {form.kind === 'clt' && (
+            <>
+              <div className="row" style={{ marginTop: 6 }}>
+                {field('Dependentes (IRRF)', 'dependents', 90)}
+                {field('Outros descontos (R$)', 'outros', 110)}
+              </div>
+              {clt && (
+                <div className="info" style={{ marginTop: 8 }}>
+                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
+                </div>
+              )}
+              <div className="muted" style={{ marginTop: 6 }}>INSS e IRRF pelas tabelas de 2026, com a isenção até R$ 5.000. Outros descontos: plano de saúde, VT, VR… do seu holerite.</div>
+            </>
+          )}
           <div className="btns" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
             <button className="b ghost" disabled={busy} onClick={() => setForm(null)}>Cancelar</button>
             <button className="b pri" disabled={busy} onClick={() => void salvar()}>{busy ? 'Salvando…' : 'Salvar'}</button>
           </div>
-          <div className="muted" style={{ marginTop: 6 }}>Tipo "valor fixo" pede só o líquido do mês (CLT, freela recorrente, aluguel recebido…). Apagar uma fonte mantém as entradas que a usavam, com o último valor.</div>
+          <div className="muted" style={{ marginTop: 6 }}>Tipo "valor fixo" pede só o líquido do mês (freela recorrente, aluguel recebido…). Apagar uma fonte mantém as entradas que a usavam, com o último valor.</div>
         </div>
       )}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}

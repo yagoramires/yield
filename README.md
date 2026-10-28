@@ -20,10 +20,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/resumo-gastos.png" width="860" alt="Resumo de gastos do mês com gráficos">
+  <img src="docs/screenshots/yield.gif" width="860" alt="Passeio pelo app: resumo de gastos, lançamentos, categorias, assinaturas, investimentos e declaração de IR">
 </p>
 
-> Todas as imagens usam dados inventados.
+> Todas as imagens usam dados inventados. O que mudou em cada versão está no [CHANGELOG](CHANGELOG.md).
 
 ---
 
@@ -31,9 +31,10 @@
 
 O yield nasceu para aposentar duas planilhas: uma de controle de investimentos (preço médio, IR, DARF) e outra de orçamento do mês. A ideia é ter as duas coisas num app só, rápido, bonito e **privado**. Tudo é gravado num arquivo SQLite na sua máquina, e você exporta ou importa um backup quando quiser.
 
-Só três coisas saem do computador:
+Só isto sai do computador:
 
-- as **cotações** do Yahoo Finance;
+- as **cotações** do Yahoo Finance (e o histórico mensal, para o gráfico contra o Ibovespa);
+- a série do **CDI** do Banco Central;
 - a **leitura dos seus bancos** pela Pluggy/Meu Pluggy, se você ligar o Open Finance;
 - nada mais.
 
@@ -43,10 +44,10 @@ Só três coisas saem do computador:
 
 | | |
 |---|---|
-| **Resumo** | Gasto, entradas e quanto sobrou no mês; gasto acumulado dia a dia contra o mês anterior; gasto por categoria (clicar filtra a lista); últimos 6 meses; maiores gastos. |
-| **Lançamentos** | Conta e cartão juntos, por dia, com busca e filtros. Trocar a categoria de uma compra ou criar a regra "sempre categorizar *X* como *Y*". |
-| **Assinaturas** | Detecta cobranças que se repetem todo mês ou todo ano, com valor parecido, e avisa quando o preço sobe. Parcelas não entram. |
-| **Categorias** | Categorias e regras editáveis. Pagamento de fatura, transferência e investimento não contam como gasto, então a compra no cartão não aparece duas vezes. |
+| **Resumo** | Gasto, entradas, quanto sobrou e o **orçamento do mês com a projeção** "no ritmo atual fecha em…"; o que mais mudou contra o mês anterior; gasto acumulado dia a dia; categorias com a barra do orçamento; últimos 6 meses com o traço do planejado (clicar num mês troca o resumo); maiores gastos e próximas cobranças. |
+| **Lançamentos** | Conta e cartão juntos, um cartão por dia, com o nome do lugar limpo ("Pix enviado · Padaria Sol") e a conta curta. Faixa de categorias para filtrar, total do que está filtrado e grade de categorias com ícones para trocar a de uma compra — ou criar a regra "sempre categorizar *X* como *Y*". |
+| **Assinaturas** | Detecta cobranças que se repetem todo mês ou todo ano e avisa quando o preço sobe. Próximas cobranças, o peso de cada uma no total do mês e exclusão com confirmação. Parcelas não entram. |
+| **Categorias** | Grade com o gasto do mês, a variação contra o mês anterior e a barra do orçamento; ícone e cor escolhidos por você; regras com prévia ("pegaria 17 compras") e sugestões a partir do que você categoriza à mão; apagar uma categoria move as compras e regras para outra. Pagamento de fatura, transferência e investimento não contam como gasto. |
 
 As transações chegam de dois jeitos:
 
@@ -54,7 +55,11 @@ As transações chegam de dois jeitos:
 - **extratos** OFX (Bradesco, Itaú, BB, Inter…) e CSV (Nubank conta, Mercado Pago). Importar o mesmo arquivo de novo não duplica nada.
 
 <p align="center">
-  <img src="docs/screenshots/lancamentos.png" width="860" alt="Lista de lançamentos por dia com categorias">
+  <img src="docs/screenshots/lancamentos.png" width="860" alt="Lançamentos por dia com faixa de categorias">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/categorias.png" width="860" alt="Categorias em grade com orçamento e regras">
 </p>
 
 ### 🗓️ Orçamento mensal
@@ -63,21 +68,26 @@ As transações chegam de dois jeitos:
 |---|---|
 | **Mês atual** | Entradas, saídas e saldo do mês; planejado × gasto real até agora (com a marca de quanto do mês passou) e por categoria; criar o mês seguinte copiando as linhas recorrentes, com as parcelas avançando sozinhas. |
 | **Sugestões** | Assinaturas e parcelas que faltam, vindas dos seus gastos reais. Nada entra no plano sem você aceitar. |
-| **Fontes de renda** | Salário PJ calculado (pró-labore, IRPJ, INSS, contabilidade) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
+| **Fontes de renda** | Salário **CLT** (INSS e IRRF de 2026, com a isenção até R$ 5 mil, dependentes e outros descontos), salário **PJ** (pró-labore, IRPJ, INSS, contabilidade) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
 | **Importação** | Lê a aba de orçamento de uma planilha, inclusive a calculadora de salário PJ, sem duplicar ao reimportar. |
 
 ### 📈 Investimentos
 
 | | |
 |---|---|
-| **Resumo** | Patrimônio, resultado, proventos e imposto num só lugar; aportado ao longo do tempo × valor de hoje; patrimônio por classe; proventos por mês (rendimento, dividendo, JCP); maiores posições. |
+| **Resumo** | Patrimônio, resultado, proventos (com o rendimento sobre o custo) e imposto; **quanto da sua renda passiva já cobre o gasto médio**; **rentabilidade em 12 meses contra o CDI e o Ibovespa**; aportado × valor de hoje; classes com o ganho de cada uma; proventos por mês (clicar abre Proventos filtrado); maiores posições. |
 | **Carteira** | Posições com preço médio, custo, cotação e variação, agrupadas por classe, mais ativos manuais (renda fixa, cripto, dólar). |
 | **Notas** | Compras e vendas **importadas do relatório de Negociação da B3**, notas de corretagem digitadas ou **lidas do PDF da Clear** (com taxas rateadas), e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
-| **Proventos** | Dividendos, JCP e rendimentos, importados dos Proventos Recebidos da B3 ou lançados à mão. |
+| **Proventos** | Dividendos, JCP e rendimentos (importados da B3 ou à mão): 12 meses, ano contra ano, rendimento sobre o custo, gráfico de 24 meses que filtra a lista, ranking por ativo e totais por ano. |
 | **Imposto** | Apuração mensal de renda variável: isenção de R$ 20 mil para ações, prejuízo a compensar (comum e FII), IRRF, DARF (código 6015) com vencimento em dia útil e acompanhamento do que foi pago. |
+| **Declaração IR** | Tudo o que vai na declaração sobre a bolsa, pronto para copiar campo a campo: **Bens e Direitos** (grupo/código, CNPJ, situação nos dois 31/12 e a discriminação pronta), **Rendimentos** isentos e de tributação exclusiva por fonte pagadora, **Renda variável** mês a mês e o cadastro de empresas e corretoras (importável da planilha antiga). |
 
 <p align="center">
-  <img src="docs/screenshots/resumo-investimentos.png" width="860" alt="Resumo de investimentos com gráficos">
+  <img src="docs/screenshots/resumo-investimentos.png" width="860" alt="Resumo de investimentos com renda passiva e classes">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/declaracao-ir.png" width="860" alt="Declaração de IR: bens e direitos com a discriminação pronta para copiar">
 </p>
 
 ### ⚙️ Sistema
@@ -85,13 +95,14 @@ As transações chegam de dois jeitos:
 - Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos e Movimentação, vários de uma vez, sem duplicar.
 - Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). Antes de importar um backup, o app guarda uma cópia de segurança do banco atual.
 - Cotações automáticas a cada 15 minutos.
+- Atualização automática: o app avisa quando sai versão nova no GitHub e se atualiza sozinho (pacotes assinados).
 
 ## 🔒 Privacidade e segurança
 
 - **Open Finance somente leitura.** O cliente da Pluggy só consegue fazer `POST /auth`, `GET /accounts` e `GET /v2/transactions`. Qualquer outra rota é recusada antes de sair da máquina, e há um teste que garante isso. O app nunca move dinheiro nem inicia pagamentos.
 - **Backup com senha.** O arquivo exportado só abre com a senha escolhida na hora; sem ela nem o Yield recupera os dados.
 - **Credenciais no cofre do sistema**: Keychain no macOS, Credential Manager no Windows. Elas nunca vão para o banco, para o backup ou para log.
-- **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance e `api.pluggy.ai`.
+- **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance, `api.bcb.gov.br` (CDI) e `api.pluggy.ai`.
 - **Seus arquivos fora do git.** `planilhas/`, `notas/` e `extratos/` são ignorados; os testes usam só dados sintéticos.
 
 <p align="center">

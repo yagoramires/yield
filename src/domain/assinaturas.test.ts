@@ -38,7 +38,7 @@ describe('detectSubscriptions', () => {
     expect(detectSubscriptions(netflix, semCat, ['c1|netflix'], '2026-09-20')).toEqual([])
   })
   it('ignora receitas, pendentes e categorias que não contam como gasto', () => {
-    const naoGasto: Category = { id: 'x', name: 'x', countsAsSpending: false, builtin: true }
+    const naoGasto: Category = { id: 'x', name: 'x', countsAsSpending: false, builtin: true, icon: null, color: null }
     expect(detectSubscriptions(netflix, () => naoGasto, [], '2026-09-20')).toEqual([])
     expect(detectSubscriptions(netflix.map(n => ({ ...n, pending: true })), semCat, [], '2026-09-20')).toEqual([])
     expect(detectSubscriptions(netflix.map(n => ({ ...n, amountCents: 3990 })), semCat, [], '2026-09-20')).toEqual([])

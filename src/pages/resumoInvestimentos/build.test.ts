@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Dividend, Trade } from '../../domain/types'
-import { dividendsByMonth, investedByMonth, topPositions } from './build'
+import { dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './build'
 
 const trade = (o: Partial<Trade>): Trade => ({
   id: 't', noteId: 'n', seq: 1, broker: 'X', tradeDate: '2026-01-10', settleDate: '2026-01-12', side: 'C', assetType: 'Ação',
@@ -55,4 +55,12 @@ describe('topPositions', () => {
     ])
     expect(topPositions(p, 1)).toHaveLength(1)
   })
+})
+
+describe('passiveCoverage', () => {
+  it('média de proventos por mês sobre o gasto médio dos meses que têm gasto', () => {
+    expect(passiveCoverage(78000, [400000, 0, 500000, 0, 0, 300000])).toEqual({ pct: 6500 / 400000, avgDividendsCents: 6500, avgSpentCents: 400000, gapCents: 393500 })
+    expect(passiveCoverage(600000 * 12, [500000])).toMatchObject({ pct: 1.2, gapCents: 0 })
+  })
+  it('sem gasto registrado não calcula', () => expect(passiveCoverage(1000, [0, 0])).toBeNull())
 })
