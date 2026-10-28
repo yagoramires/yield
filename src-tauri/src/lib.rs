@@ -132,7 +132,7 @@ fn menu_pt(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry
 }
 
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
-const SECRET_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
+const SECRET_KEYS: [&str; 4] = ["pluggy.clientId", "pluggy.clientSecret", "binance.apiKey", "binance.secret"];
 
 fn entry_for(key: &str) -> Result<keyring::Entry, String> {
     if !SECRET_KEYS.contains(&key) {
@@ -298,6 +298,7 @@ mod tests {
     fn cofre_rejeita_key_desconhecida_antes_de_tocar_no_cofre() {
         assert!(entry_for("outra.coisa").is_err());
         assert!(entry_for("pluggy.clientId").is_ok());
+        assert!(entry_for("binance.secret").is_ok());
     }
 
     #[test]

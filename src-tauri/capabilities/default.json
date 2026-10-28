@@ -24,6 +24,9 @@
         },
         {
           "url": "https://api.bcb.gov.br/*"
+        },
+        {
+          "url": "https://api.binance.com/*"
         }
       ]
     },
