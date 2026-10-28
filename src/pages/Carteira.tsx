@@ -26,8 +26,8 @@ const when = (iso: string) => {
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const today = () => new Date().toISOString().slice(0, 10)
 
-interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; sourceKey: string | null }
-const EMPTY: Form = { name: '', assetClass: 'renda_fixa', quoteSymbol: '', quantity: '', value: '', sourceKey: null }
+interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; cost: string; sourceKey: string | null }
+const EMPTY: Form = { name: '', assetClass: 'renda_fixa', quoteSymbol: '', quantity: '', value: '', cost: '', sourceKey: null }
 
 export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const { data, db, derived, reload, refreshing, refreshQuotesNow } = useData()
@@ -66,7 +66,8 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
     try { qty = form.quantity.trim() ? parseDecimal(form.quantity) : null } catch (e) {
       return setFormError(e instanceof Error && e.message === AMBIGUOUS_MSG ? AMBIGUOUS_MSG : 'Quantidade em formato inválido. Use, por exemplo, 0,01 ou 1500.')
     }
-    try { value = form.value.trim() ? parseMoney(form.value, 'Valor', false) : null } catch (e) { return setFormError(errText(e)) }
+    let cost: Cents | null
+    try { value = form.value.trim() ? parseMoney(form.value, 'Valor', false) : null; cost = form.cost.trim() ? parseMoney(form.cost, 'Aportado', false) : null } catch (e) { return setFormError(errText(e)) }
     // ticker americano vai cru para o Yahoo (yahooSymbol acrescentaria .SA)
     const symbol = !form.quoteSymbol.trim() ? null : form.assetClass === 'exterior' ? form.quoteSymbol.trim().toUpperCase() : yahooSymbol(form.quoteSymbol)
     if (form.assetClass === 'exterior' && (!symbol || qty === null)) return setFormError('No exterior, informe o ticker (como no Yahoo) e a quantidade.')
@@ -76,7 +77,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
     if (!symbol && value === null) return setFormError('Informe o valor ou um símbolo de cotação com quantidade.')
     setFormError(null)
     await run(async () => {
-      await saveManualAsset(db, { id: form.id, name: form.name.trim(), assetClass: form.assetClass, currency: form.assetClass === 'exterior' ? 'USD' : 'BRL', quoteSymbol: symbol, quantity: qty, valueCents: value, updatedAt: today(), sourceKey: form.sourceKey })
+      await saveManualAsset(db, { id: form.id, name: form.name.trim(), assetClass: form.assetClass, currency: form.assetClass === 'exterior' ? 'USD' : 'BRL', costCents: form.assetClass === 'exterior' ? cost : null, quoteSymbol: symbol, quantity: qty, valueCents: value, updatedAt: today(), sourceKey: form.sourceKey })
       setForm(null)
     })
   }
@@ -204,7 +205,8 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
               <Select ariaLabel="Classe" value={form.assetClass} onChange={v => setForm({ ...form, assetClass: v as Form['assetClass'], quoteSymbol: v === 'dolar' && !form.quoteSymbol.trim() ? 'BRL=X' : form.quoteSymbol })} options={Object.entries(CLASS_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
             <label className="field"><span>{form.assetClass === 'exterior' ? 'Ticker no Yahoo' : 'Símbolo da cotação (opcional)'}</span><input className="in" placeholder={form.assetClass === 'exterior' ? 'VOO, AAPL' : 'BTC-BRL, BRL=X'} value={form.quoteSymbol} onChange={e => setForm({ ...form, quoteSymbol: e.target.value })} /></label>
             <label className="field"><span>Quantidade</span><input className="in" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
-            {form.assetClass !== 'exterior' && <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>}
+            {form.assetClass !== 'exterior' ? <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>
+              : <label className="field"><span>Aportado (US$, opcional)</span><input className="in" inputMode="decimal" placeholder="0,00" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} /></label>}
           </div>
           {formError && <div className="note" style={{ marginTop: 8 }}>{formError}</div>}
           <div className="btns" style={{ marginTop: 8 }}>
@@ -226,14 +228,14 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
                   <td>{a.name}</td><td className="t2">{label(a.assetClass)}</td>
                   <td className="r">{a.quantity === null ? '—' : a.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 })}</td>
                   <td className="r">{quote ? `${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(quote.priceCents)}` : '—'}</td>
-                  <td className="r">{a.currency === 'USD' && value === null && row?.usdCents != null ? <span className="t2">sem dólar do dia</span> : money(value)}{row?.usdCents != null && <div className="t2">US$ {formatCents(row.usdCents)}</div>}</td>
+                  <td className="r">{a.currency === 'USD' && value === null && row?.usdCents != null ? <span className="t2">sem dólar do dia</span> : money(value)}{row?.usdCents != null && <div className="t2">US$ {formatCents(row.usdCents)}{row.usdCostCents ? <> · <span className={cls(row.usdCents - row.usdCostCents)}>{sign(row.usdCents - row.usdCostCents, `US$ ${formatCents(row.usdCents - row.usdCostCents)}`)} ({pct((row.usdCents - row.usdCostCents) / row.usdCostCents)})</span></> : null}</div>}</td>
                   <td className="t2">{quote ? <>{when(quote.fetchedAt)} <span className="tag">{quote.source === 'manual' ? 'à mão' : 'Yahoo'}</span></> : <>{a.updatedAt.split('-').reverse().join('/')} <span className="tag">à mão</span></>}</td>
                   <td className="r t2">
                     {confirm === `asset:${a.id}` ? (
                       <span>Excluir {a.name}? <button className="link dn" onClick={() => run(async () => { await deleteManualAsset(db, a.id); setConfirm(null) })}>Excluir</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
                     ) : (
                       <>
-                        <button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : formatCents(a.valueCents), sourceKey: a.sourceKey }); setFormError(null) }}>editar</button>
+                        <button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : formatCents(a.valueCents), cost: a.costCents === null ? '' : formatCents(a.costCents), sourceKey: a.sourceKey }); setFormError(null) }}>editar</button>
                         {' · '}<button className="link" onClick={() => setConfirm(`asset:${a.id}`)}>excluir</button>
                       </>
                     )}
@@ -244,6 +246,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
           </tbody>
         </table></div>
       )}
+      {data.manualAssets.some(a => a.currency === 'USD' && a.costCents !== null) && <div className="muted" style={{ marginTop: 6 }}>No exterior, o rendimento é em dólar; no patrimônio e no resultado em reais, o aportado em US$ é convertido pelo dólar de hoje (sem a variação do câmbio).</div>}
     </>
   )
 }

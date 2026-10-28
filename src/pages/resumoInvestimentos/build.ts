@@ -35,7 +35,7 @@ export function topPositions(p: Portfolio, n: number): { name: string; cls: stri
   const pct = (v: Cents) => (p.totalValueCents > 0 ? v / p.totalValueCents : 0)
   return [
     ...p.rows.flatMap(r => (r.valueCents === null ? [] : [{ name: r.ticker, cls: r.assetType as string, clsKey: r.assetType as string, valueCents: r.valueCents, pct: pct(r.valueCents), varPct: r.varPct, manual: false }])),
-    ...p.manual.flatMap(m => (m.valueCents === null ? [] : [{ name: m.name, cls: classLabel(m.assetClass), clsKey: m.assetClass, valueCents: m.valueCents, pct: pct(m.valueCents), varPct: null, manual: true }])),
+    ...p.manual.flatMap(m => (m.valueCents === null ? [] : [{ name: m.name, cls: classLabel(m.assetClass), clsKey: m.assetClass, valueCents: m.valueCents, pct: pct(m.valueCents), varPct: m.costCents ? (m.valueCents - m.costCents) / m.costCents : null, manual: true }])),
     ...(p.rf ?? []).flatMap(h => (h.closed || h.valueCents === null ? [] : [{ name: h.name, cls: classLabel('renda_fixa'), clsKey: 'renda_fixa', valueCents: h.valueCents, pct: pct(h.valueCents), varPct: h.gainPct, manual: false }])),
     ...(p.crypto ?? []).flatMap(c => (c.valueCents === null ? [] : [{ name: c.asset, cls: classLabel('cripto'), clsKey: 'cripto', valueCents: c.valueCents, pct: pct(c.valueCents), varPct: c.costCents ? (c.valueCents - c.costCents) / c.costCents : null, manual: false }])),
   ].sort((a, b) => b.valueCents - a.valueCents).slice(0, n)
