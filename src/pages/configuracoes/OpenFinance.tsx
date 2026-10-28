@@ -6,7 +6,7 @@ import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
 import { clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } from '../../openfinance/secrets'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
-import { parseItemId } from './build'
+import { investmentLine, parseItemId } from './build'
 import { PluggyGuia } from './PluggyGuia'
 
 const short = (id: string) => `${id.slice(0, 4)}…${id.slice(-4)}`
@@ -157,7 +157,7 @@ export function OpenFinance() {
           {configured && <button className="b" onClick={() => setGuide(true)}>Passo a passo</button>}
         </div>
       </div>
-      <div className="info" style={{ marginTop: 8 }}><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele só lista contas e transações.</div>
+      <div className="info" style={{ marginTop: 8 }}><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele só lista contas, transações e investimentos.</div>
       {!configured ? (
         <div style={{ marginTop: 10 }}>
           <div className="t2" style={{ marginBottom: 8 }}>Traga contas e cartões automaticamente, de graça, pelo Meu Pluggy. Leva uns 15 minutos, uma vez só.</div>
@@ -186,7 +186,9 @@ export function OpenFinance() {
           {lastSyncResult && !syncing && lastSyncResult.errors.length === 0 && (
             <div className="info" style={{ marginTop: 8 }}>Sincronizado: {plural(lastSyncResult.accounts, 'conta', 'contas')}, {plural(lastSyncResult.inserted, 'lançamento novo', 'lançamentos novos')}.</div>
           )}
+          {lastSyncResult && !syncing && lastSyncResult.investments.map(c => <div key={c.itemId} className="muted" style={{ marginTop: 4 }}>{investmentLine(c)}</div>)}
           <div className="muted" style={{ marginTop: 8 }}>Sincroniza sozinho ao abrir o Yield (se passaram mais de 6 h). Os bancos atualizam no Meu Pluggy uma vez por dia.</div>
+          <div className="muted" style={{ marginTop: 4 }}>As compras e vendas de ações, FIIs, ETFs e BDRs da corretora também vêm da Pluggy, com as taxas. A importação da B3 continua valendo: a mesma operação não entra duas vezes, e a nota em PDF, quando chega, fica no lugar.</div>
         </div>
       )}
       {guide && (

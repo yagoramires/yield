@@ -4,6 +4,7 @@ import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind
 import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
 import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
 import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
+import type { InvestmentCounts } from '../../openfinance/sync'
 import { parseMoney } from '../notas/build'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
@@ -118,6 +119,10 @@ export function parseItemId(text: string): string {
   if (!UUID.test(id)) throw new Error('itemId inválido: copie do painel da Pluggy')
   return id.toLowerCase()
 }
+
+export const investmentLine = (c: InvestmentCounts) => c.found
+  ? `${c.label}: ${n(c.inserted, 'operação nova', 'operações novas')}, ${n(c.updated, 'atualizada com taxas', 'atualizadas com taxas')}, ${n(c.existing, 'já existia', 'já existiam')}`
+  : `${c.label}: nenhum investimento de renda variável na Pluggy`
 
 /** Avisos aparecem em lista própria na tela; aqui só as contagens. */
 export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }): string {
