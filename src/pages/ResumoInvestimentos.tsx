@@ -24,7 +24,7 @@ const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
 
 export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
-  onOpenCarteira(): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
+  onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
 }) {
   const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
@@ -135,7 +135,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
               {classes.map(c => {
                 const gain = c.costCents ? (c.valueCents - c.costCents) / c.costCents : null
                 return (
-                  <button key={c.cls} className="sum-row" onClick={onOpenCarteira}>
+                  <button key={c.cls} className="sum-row" onClick={() => onOpenCarteira(c.cls)}>
                     <span className="class-dot" style={{ background: classColor(c.cls) }} />
                     <span className="lmid"><span className="sum-name">{classLabel(c.cls)} <span className="muted">{pct1(c.valueCents / p.totalValueCents).replace('+', '')}</span></span></span>
                     <span className="sum-val">{cents(c.valueCents)}<small className={tone(gain)}>{gain === null ? 'sem aportado' : pct1(gain)}</small></span>
@@ -162,7 +162,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhuma posição com valor ainda.</div> : (
             <div className="sum-rows">
               {top.map(t => (
-                <button key={`${t.manual}-${t.name}`} className="sum-row" onClick={onOpenCarteira}>
+                <button key={`${t.manual}-${t.name}`} className="sum-row" onClick={() => onOpenCarteira(t.clsKey)}>
                   <span className="tk-av" style={{ background: `${classColor(t.clsKey)}22`, color: classColor(t.clsKey) }} aria-hidden>{t.name.slice(0, 4).toUpperCase()}</span>
                   <span className="lmid"><span className="sum-name">{t.name}</span><span className="muted">{t.manual ? t.cls : classLabel(t.cls)} · {pct1(t.pct).replace('+', '')} do patrimônio</span></span>
                   <span className="sum-val">{cents(t.valueCents)}<small className={tone(t.varPct)}>{t.varPct === null ? (t.manual ? 'à mão' : '—') : pct1(t.varPct)}</small></span>

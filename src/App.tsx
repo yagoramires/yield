@@ -22,8 +22,9 @@ const TITLES = Object.fromEntries(
 export default function App() {
   const [route, setRoute] = useState<Route>('carteira')
   const [provMonth, setProvMonth] = useState('') // mês clicado no Resumo, para Proventos abrir filtrado
+  const [carteiraClass, setCarteiraClass] = useState<string | null>(null) // classe clicada no Resumo, para a Carteira abrir nela
   const [menuOpen, setMenuOpen] = useState(false)
-  const navigate = (next: Route) => { setProvMonth(''); setRoute(next); setMenuOpen(false) }
+  const navigate = (next: Route) => { setProvMonth(''); setCarteiraClass(null); setRoute(next); setMenuOpen(false) }
   return (
     <div className="app">
       <header className="mobile-header">
@@ -34,7 +35,7 @@ export default function App() {
       <Sidebar route={route} onNavigate={navigate} open={menuOpen} />
       <main className="main">
         <UpdateBanner />
-        {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={() => setRoute('carteira')} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'configuracoes' ? <Configuracoes /> : (
+        {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={(cls?: string) => { setCarteiraClass(cls ?? null); setRoute('carteira') }} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira key={carteiraClass ?? ''} initialClass={carteiraClass} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'configuracoes' ? <Configuracoes /> : (
           <>
             <h1>{TITLES[route]}</h1>
             <div className="muted">Em construção.</div>
