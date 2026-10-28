@@ -12,7 +12,7 @@ export interface RfHolding {
 }
 
 // "CDB - BANCO X S/A" (Posição) ou "CDB - <código> - BANCO X S/A" (Movimentação) → "CDB BANCO X S/A"
-function nameOf(product: string, fromPosicao: boolean): string {
+export function nameOf(product: string, fromPosicao: boolean): string {
   if (/^tesouro\b/i.test(product)) return product
   const parts = product.split(' - ')
   return (fromPosicao ? parts : parts.length > 2 ? [parts[0], ...parts.slice(2)] : parts).join(' ')
@@ -81,17 +81,23 @@ export function rfJurosByMonth(moves: RfMove[], end: Month, n: number): { month:
   return Array.from({ length: n }, (_, i) => addMonths(end, i - n + 1)).map(month => ({ month, cents: juros.filter(j => monthOf(j.date) === month).reduce((s, j) => s + j.valueCents, 0) }))
 }
 
+/** Quantidade e aplicado em aberto (custo médio; juros não entram) por título até `end`, data ou mês, inclusive. `partial`: saiu mais do que entrou. */
+export function rfOpenByKey(moves: RfMove[], end: string): Map<string, { qty: number; applied: Cents; partial: boolean }> {
+  const byKey = new Map<string, { qty: number; applied: Cents; partial: boolean }>()
+  for (const m of [...moves].sort((a, b) => a.date.localeCompare(b.date))) {
+    if (m.date.slice(0, end.length) > end || m.kind === 'juros') continue
+    const h = byKey.get(m.key) ?? { qty: 0, applied: 0, partial: false }
+    if (m.kind === 'aplicacao') byKey.set(m.key, { ...h, qty: h.qty + m.qty, applied: h.applied + (m.valueCents ?? 0) })
+    else byKey.set(m.key, { qty: Math.max(0, h.qty - m.qty), applied: h.qty > 0 ? Math.max(0, h.applied - Math.round(h.applied * Math.min(1, m.qty / h.qty))) : 0, partial: h.partial || m.qty > h.qty + 1e-6 })
+  }
+  return byKey
+}
+
 /** Aplicado em aberto no fim de cada mês, só pelas movimentações (custo médio; juros não entram). */
 export function rfAppliedByMonth(moves: RfMove[], lastMonth: Month, n: number): { month: Month; cents: Cents }[] {
-  const sorted = [...moves].sort((a, b) => a.date.localeCompare(b.date))
-  return Array.from({ length: n }, (_, i) => addMonths(lastMonth, i - n + 1)).map(month => {
-    const byKey = new Map<string, { qty: number; applied: number }>()
-    for (const m of sorted) {
-      if (m.date.slice(0, 7) > month || m.kind === 'juros') continue
-      const h = byKey.get(m.key) ?? { qty: 0, applied: 0 }
-      if (m.kind === 'aplicacao') byKey.set(m.key, { qty: h.qty + m.qty, applied: h.applied + (m.valueCents ?? 0) })
-      else byKey.set(m.key, { qty: Math.max(0, h.qty - m.qty), applied: h.qty > 0 ? Math.max(0, h.applied - Math.round(h.applied * Math.min(1, m.qty / h.qty))) : 0 })
-    }
-    return { month, cents: [...byKey.values()].reduce((s, h) => s + h.applied, 0) }
-  })
+  return Array.from({ length: n }, (_, i) => addMonths(lastMonth, i - n + 1)).map(month =>
+    ({ month, cents: [...rfOpenByKey(moves, month).values()].reduce((s, h) => s + h.applied, 0) }))
 }
+
+// shortcut: a instituição só existe dentro da source_key da Movimentação (b3rf:data:mov:produto:instituição:…); virar coluna se precisar de mais.
+export const rfInstitution = (m: RfMove): string | null => m.sourceKey.split(`:${m.product}:`)[1]?.split(':')[0] || null

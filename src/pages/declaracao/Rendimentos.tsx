@@ -37,6 +37,7 @@ export function Rendimentos({ rendimentos, isento20 }: { rendimentos: Rendimento
         <div className="sec-h"><span>Rendimentos isentos e não tributáveis</span></div>
         <Grupo titulo={`Isentos · ${RENDIMENTO_LABEL['09']}`} linhas={of('09')} />
         <Grupo titulo={`Isentos · ${RENDIMENTO_LABEL['26']}`} linhas={of('26')} />
+        <Grupo titulo={`Isentos · ${RENDIMENTO_LABEL['12']}`} linhas={of('12')} />
         {isento20 > 0 && (
           <div className="day-card">
             <div className="day-h"><span>Isentos · 20 – Ganhos líquidos em ações (vendas até R$ 20 mil no mês)</span></div>
@@ -51,7 +52,14 @@ export function Rendimentos({ rendimentos, isento20 }: { rendimentos: Rendimento
       </div>
       <div>
         <div className="sec-h"><span>Rendimentos sujeitos à tributação exclusiva</span></div>
-        {of('10').length ? <Grupo titulo={`Exclusiva · ${RENDIMENTO_LABEL['10']}`} linhas={of('10')} /> : <div className="muted">Nenhum JCP neste ano.</div>}
+        {of('10').length || of('06').length ? <>
+          <Grupo titulo={`Exclusiva · ${RENDIMENTO_LABEL['10']}`} linhas={of('10')} />
+          <Grupo titulo={`Exclusiva · ${RENDIMENTO_LABEL['06']}`} linhas={of('06')} />
+        </> : <div className="muted">Nenhum JCP nem juros de renda fixa neste ano.</div>}
+        {(of('06').length > 0 || of('12').length > 0) && <div className="muted" style={{ marginBottom: 10 }}>
+          Juros de renda fixa como a Movimentação da B3 lista, somados por emissor. Confira no informe de rendimentos de cada instituição o valor e o CNPJ da fonte pagadora;
+          ganho em resgate ou venda também entra nessas linhas e o Yield não calcula. Confira no programa da Receita.
+        </div>}
         {of('bdr').length > 0 && <>
           <div className="sec-h"><span>Rendimentos tributáveis do exterior</span></div>
           <Grupo titulo={RENDIMENTO_LABEL.bdr} linhas={of('bdr')} />

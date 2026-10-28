@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import type { Broker, Issuer } from '../db/irRepo'
 import type { TaxMonth } from './tax'
 import type { CorporateEvent, DarfPayment, Dividend, Trade } from './types'
-import { BEM_CODES, bensDoAno, discriminacao, lucroIsentoDoAno, pendencias, rendaVariavelDoAno, rendimentosDoAno } from './declaracao'
+import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
+import { normalizeBroker } from '../import/parse'
+import { BEM_CODES, bensDoAno, discriminacao, discriminacaoRf, lucroIsentoDoAno, pendencias, RF_CODES, rendaFixaDoAno, rendaVariavelDoAno, rendimentosDoAno, rendimentosRfDoAno } from './declaracao'
 
 let seq = 0
 const tr = (ticker: string, side: 'C' | 'V', qty: number, priceCents: number, tradeDate: string, o: Partial<Trade> = {}): Trade =>
@@ -91,5 +93,48 @@ describe('rendimentos e renda variável', () => {
     const bens = bensDoAno([tr('AAAA3', 'C', 1, 100, '2025-01-01', { broker: 'ALFA' })], [], 2025)
     const rend = rendimentosDoAno([dv('BBBB11', 'Rendimento', '2025-06-01', 700)], 2025, new Map(), () => 'FII')
     expect(pendencias(bens, rend, new Map(), new Map())).toEqual({ tickers: ['AAAA3', 'BBBB11'], brokers: ['ALFA'] })
+  })
+})
+
+describe('renda fixa da B3', () => {
+  let k = 0
+  const INST = 'CORRETORA TESTE S/A'
+  const TD = 'Tesouro IPCA+ 2035', CDB = 'CDB - CDB0000AA00 - BANCO LARANJA S/A', LCI = 'LCI - LCI0000BB00 - BANCO LARANJA S/A'
+  const mv = (product: string, kind: RfMove['kind'], date: string, qty: number, valueCents: number | null): RfMove =>
+    ({ id: String(++k), key: product.startsWith('Tesouro') ? `td:${product.toLowerCase()}` : `rf:${product.split(' - ')[1]}`, product, date, kind, qty, valueCents, sourceKey: `b3rf:${date}:Mov:${product}:${INST}:${qty}:${valueCents}` })
+  const moves = [
+    mv(TD, 'aplicacao', '2024-03-01', 2, 600000), mv(TD, 'aplicacao', '2025-02-01', 1, 320000), mv(TD, 'saida', '2025-08-01', 1, 330000), mv(TD, 'juros', '2025-07-15', 3, 9000),
+    mv(CDB, 'aplicacao', '2025-04-01', 1, 100000), mv(CDB, 'juros', '2025-10-01', 1, 4000),
+    mv(LCI, 'aplicacao', '2024-06-01', 1, 50000), mv(LCI, 'saida', '2025-06-01', 1, 55000), mv(LCI, 'juros', '2025-06-01', 1, 5000),
+    mv(CDB, 'aplicacao', '2026-01-10', 1, 100000),
+  ]
+  it('aplicado em aberto em cada 31/12 por título, com grupo/código pelo tipo', () => {
+    const r = rendaFixaDoAno(moves, [], 2025)
+    expect(r.map(b => [b.name, b.tipo, b.appliedPrevCents, b.appliedCents, b.qty])).toEqual([
+      ['Tesouro IPCA+ 2035', 'tributavel', 600000, 613333, 2],
+      ['CDB BANCO LARANJA S/A', 'tributavel', 0, 100000, 1],
+      ['LCI BANCO LARANJA S/A', 'isento', 50000, 0, 0],
+    ])
+    expect(r[0].institutions).toEqual([INST])
+    expect([RF_CODES.tributavel.grupo, RF_CODES.tributavel.codigo, RF_CODES.isento.codigo]).toEqual(['04', '01', '02'])
+  })
+  it('saída sem a compra no período marca o título como parcial', () => {
+    const [b] = rendaFixaDoAno([mv(CDB, 'saida', '2025-03-01', 1, 1000)], [], 2025)
+    expect(b.partial).toBe(true)
+  })
+  it('nome e emissor da Posição quando houver', () => {
+    const p: RfPosition = { key: 'rf:CDB0000AA00', family: 'rf', product: 'CDB - BANCO LARANJA S/A', issuer: 'BANCO LARANJA S/A', indexer: 'CDI', maturity: null, qty: 1, appliedCents: null, valueCents: 1, asOf: '2026-10-01' }
+    expect(rendaFixaDoAno(moves, [p], 2025).find(b => b.key === p.key)?.name).toBe('CDB BANCO LARANJA S/A')
+  })
+  it('discriminação com a custódia na B3 e o CNPJ da corretora cadastrada', () => {
+    const [td, , lci] = rendaFixaDoAno(moves, [], 2025)
+    const brokers = new Map([[normalizeBroker(INST), { code: normalizeBroker(INST), name: 'CORRETORA TESTE S/A', cnpj: A }]])
+    expect(discriminacaoRf(td, 2025, brokers)).toBe(`Tesouro IPCA+ 2035 - Quantidade: 2 - custodiado na B3 via CORRETORA TESTE S/A - CNPJ: ${A}, valor aplicado`)
+    expect(discriminacaoRf(lci, 2025, new Map())).toBe('Resgatado ou vendido em 2025. Em 31/12/2024: LCI BANCO LARANJA S/A - Quantidade: 1 - custodiado na B3 via CORRETORA TESTE S/A - CNPJ: [CNPJ não cadastrado], valor aplicado')
+  })
+  it('juros do ano por fonte: tributáveis na 06 da exclusiva, LCI/LCA na 12 dos isentos', () => {
+    expect(rendimentosRfDoAno(moves, [], 2025).map(r => [r.linha, r.name, r.cnpj, r.cents])).toEqual([
+      ['06', 'Tesouro Direto', null, 9000], ['06', 'BANCO LARANJA S/A', null, 4000], ['12', 'BANCO LARANJA S/A', null, 5000],
+    ])
   })
 })
