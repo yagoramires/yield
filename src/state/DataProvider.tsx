@@ -18,7 +18,8 @@ import { getPluggyCredentials } from '../openfinance/secrets'
 import { fetchBinanceBalances } from '../cripto/binance'
 import { getBinanceCredentials } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
-import { binanceErrorText } from '../pages/configuracoes/build'
+import { syncCryptoCosts } from '../cripto/aportado'
+import { binanceErrorText, historyFailText } from '../pages/configuracoes/build'
 import { syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
@@ -55,7 +56,8 @@ export interface AppData {
   lastRefresh: { at: string; ok: string[]; failed: string[] } | null
   gastos: Gastos
   orcamento: Orcamento
-  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void }
+  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void
+    cost: { loading: boolean; note: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -81,6 +83,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
   const [binance, setBinance] = useState<{ syncing: boolean; error: string | null; earnSkipped: boolean }>({ syncing: false, error: null, earnSkipped: false })
+  const [costState, setCostState] = useState<{ loading: boolean; note: string | null }>({ loading: false, note: null })
   const [month, setMonth] = useState<Month>(monthOf(todayISO()))
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
   const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
@@ -130,6 +133,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setData(await loadAll(d))
       setBinance({ syncing: false, error: null, earnSkipped: r.earnSkipped })
     } catch (e) { setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
+  }, [])
+
+  // Histórico inteiro da Binance (centenas de chamadas): fonte que falha vira aviso e o resto é gravado.
+  const fetchCryptoCost = useCallback(async () => {
+    const d = dbRef.current
+    if (!d) return
+    setCostState({ loading: true, note: null })
+    try {
+      const creds = await getBinanceCredentials()
+      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.' })
+      const failed = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch)
+      setData(await loadAll(d))
+      setCostState({ loading: false, note: historyFailText(failed) })
+    } catch (e) { setCostState({ loading: false, note: binanceErrorText(e) }) }
   }, [])
 
   // Falha de cotação nunca derruba a tela: só deixa as cotações antigas.
@@ -205,9 +222,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
       orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
-      binance: { ...binance, syncNow: syncBinance, reset: () => setBinance({ syncing: false, error: null, earnSkipped: false }) },
+      binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null }) }, cost: costState, fetchCost: fetchCryptoCost },
     }
-  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance])
+  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance, costState, fetchCryptoCost])
 
   if (error) return <main className="main"><h1>Yield</h1><div className="note">{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>

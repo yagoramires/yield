@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText } from './build'
 import { BinanceError } from '../../cripto/binance'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
@@ -201,6 +201,12 @@ describe('binanceErrorText', () => {
     expect(binanceErrorText(new BinanceError('x', 'chave'))).toBe('Binance: chave inválida ou sem permissão de leitura')
     expect(binanceErrorText(new BinanceError('x', 'rede'))).toBe('Sem conexão com a Binance')
     expect(binanceErrorText(new Error('HTTP 500'))).toBe('Binance: HTTP 500')
+  })
+
+  it('historyFailText diz qual fonte do histórico ficou de fora', () => {
+    expect(historyFailText([])).toBeNull()
+    expect(historyFailText([{ source: 'Convert', error: new BinanceError('x', 'chave') }, { source: 'negociações spot', error: new BinanceError('x', 'rede') }, { source: 'dólar do mês', error: new Error('Yahoo BRL=X: HTTP 500') }]))
+      .toBe('Não lido: Convert (a chave não tem acesso); negociações spot (sem conexão); dólar do mês (Yahoo BRL=X: HTTP 500).')
   })
 })
 

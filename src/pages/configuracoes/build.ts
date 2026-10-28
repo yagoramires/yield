@@ -169,3 +169,9 @@ export function binanceErrorText(e: unknown): string {
   if (e instanceof BinanceError && e.kind === 'rede') return 'Sem conexão com a Binance'
   return `Binance: ${errText(e)}`
 }
+
+/** Fontes do histórico da Binance que ficaram de fora do aportado calculado. */
+export function historyFailText(failed: { source: string; error: unknown }[]): string | null {
+  const why = (e: unknown) => (e instanceof BinanceError && e.kind === 'chave' ? 'a chave não tem acesso' : e instanceof BinanceError && e.kind === 'rede' ? 'sem conexão' : errText(e))
+  return failed.length ? `Não lido: ${failed.map(f => `${f.source} (${why(f.error)})`).join('; ')}.` : null
+}
