@@ -19,6 +19,24 @@ export function cryptoSymbol(coinOrSymbol: string): string {
   return `${coinOrSymbol.trim().toUpperCase().replace(/(-USD|-BRL|\.SA)$/, '')}-USD`
 }
 
+const CRYPTO_REPAIR_KEY = 'reparo.cripto_em_dolar'
+
+/** Cripto manual gravada antes do par em dólar (BTC-BRL, BTC.SA, em real) nunca era cotada: passa a XXX-USD em US$,
+ * mantendo quantidade e valor informado. Roda uma vez na abertura (marca no meta); devolve quantos ativos mudaram. */
+export async function repairCryptoSymbols(db: Db): Promise<number> {
+  if ((await db.select('SELECT 1 FROM meta WHERE key = ?', [CRYPTO_REPAIR_KEY])).length) return 0
+  const rows = await db.select<{ id: string; s: string; c: string }>("SELECT id, quote_symbol AS s, currency AS c FROM manual_assets WHERE asset_class = 'cripto' AND quote_symbol IS NOT NULL")
+  let changed = 0
+  for (const r of rows) {
+    const symbol = cryptoSymbol(r.s)
+    if (symbol === r.s && r.c === 'USD') continue
+    await db.execute("UPDATE manual_assets SET quote_symbol = ?, currency = 'USD' WHERE id = ?", [symbol, r.id])
+    changed++
+  }
+  await db.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, '1')", [CRYPTO_REPAIR_KEY])
+  return changed
+}
+
 export async function fetchYahooQuote(symbol: string, fetchFn: typeof fetch): Promise<{ priceCents: Cents; at: string }> {
   const res = await fetchFn(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`, { headers: { 'User-Agent': UA } })
   if (!res.ok) throw new Error(`Yahoo ${symbol}: HTTP ${res.status}`)

@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
 import { renormalizeBrokers } from '../db/repo'
+import { repairCryptoSymbols } from '../quotes/yahoo'
 import { useData } from '../state/DataProvider'
 import { backupPasswordError, refreshLine, restoreBackup } from './configuracoes/build'
 import { AtualizacaoCard } from '../ui/Atualizacao'
@@ -87,7 +88,7 @@ export function Configuracoes() {
       swap: () => invoke<string>('swap_database', { source: restore }),
       // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
       // ('sqlite:yield.db'); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
-      reopen: async () => { await renormalizeBrokers(await openDb()) }, // backup de versão antiga
+      reopen: async () => { const d = await openDb(); await renormalizeBrokers(d); await repairCryptoSymbols(d) }, // backup de versão antiga
       reload,
     })
     if (r.ok) setBackupMsg(r.message)

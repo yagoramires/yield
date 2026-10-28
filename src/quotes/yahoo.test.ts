@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, type Db } from '../db/testDb'
-import { loadAll, upsertQuote } from '../db/repo'
-import { cryptoSymbol, fetchYahooQuote, refreshQuotes, yahooSymbol } from './yahoo'
+import { loadAll, saveManualAsset, upsertQuote } from '../db/repo'
+import { cryptoSymbol, fetchYahooQuote, refreshQuotes, repairCryptoSymbols, yahooSymbol } from './yahoo'
 
 const resp = (price: number, time = 1793030000) =>
   new Response(JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, regularMarketTime: time } }] } }))
@@ -18,6 +18,24 @@ test('yahooSymbol', () => {
   expect(yahooSymbol('itsa4')).toBe('ITSA4.SA')
   expect(yahooSymbol('ITSA4.SA')).toBe('ITSA4.SA')
   for (const s of ['BTC-BRL', 'ETH-BRL', 'BRL=X']) expect(yahooSymbol(s)).toBe(s)
+})
+
+test('repairCryptoSymbols: cripto manual antiga em -BRL / .SA passa ao par em dólar, uma vez só', async () => {
+  const db = createTestDb()
+  const base = { assetClass: 'cripto' as const, currency: 'BRL' as const, costCents: null, quantity: 0.5, valueCents: 12_345, updatedAt: '2026-01-01', sourceKey: null }
+  await saveManualAsset(db, { ...base, id: 'a', name: 'Bitcoin', quoteSymbol: 'BTC-BRL' })
+  await saveManualAsset(db, { ...base, id: 'b', name: 'Ether', quoteSymbol: 'eth.sa' })
+  await saveManualAsset(db, { ...base, id: 'c', name: 'Sem símbolo', quoteSymbol: null })
+  await saveManualAsset(db, { ...base, id: 'd', name: 'Fundo', assetClass: 'outro', quoteSymbol: 'XPTO11.SA' })
+  expect(await repairCryptoSymbols(db)).toBe(2)
+  const byId = Object.fromEntries((await loadAll(db)).manualAssets.map(a => [a.id, a]))
+  expect(byId.a).toMatchObject({ quoteSymbol: 'BTC-USD', currency: 'USD', quantity: 0.5, valueCents: 12_345 })
+  expect(byId.b).toMatchObject({ quoteSymbol: 'ETH-USD', currency: 'USD' })
+  expect(byId.c).toMatchObject({ quoteSymbol: null, currency: 'BRL' })
+  expect(byId.d).toMatchObject({ quoteSymbol: 'XPTO11.SA', currency: 'BRL' })
+  // marcada no meta: não roda de novo
+  await saveManualAsset(db, { ...base, id: 'e', name: 'Sol', quoteSymbol: 'SOL-BRL' })
+  expect(await repairCryptoSymbols(db)).toBe(0)
 })
 
 test('cryptoSymbol: moeda vira o par em dólar do Yahoo', () => {

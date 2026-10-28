@@ -7,7 +7,7 @@ import { replay, type ReplayResult } from '../domain/ledger'
 import { buildPortfolio, type Portfolio } from '../domain/portfolio'
 import { rfHoldings } from '../domain/rendaFixa'
 import { computeTax, type TaxMonth } from '../domain/tax'
-import { REFRESH_MS, refreshQuotes, yahooSymbol } from '../quotes/yahoo'
+import { REFRESH_MS, refreshQuotes, repairCryptoSymbols, yahooSymbol } from '../quotes/yahoo'
 import { monthOf } from '../domain/money'
 import { loadGastos, type Category, type GastosData, type Txn } from '../db/gastosRepo'
 import { categorize } from '../domain/gastos'
@@ -176,6 +176,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         dbRef.current = d
         setDb(d)
         await renormalizeBrokers(d)
+        await repairCryptoSymbols(d)
         const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
         setData(ds); setGastosData(g); setOrcData(o)
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
