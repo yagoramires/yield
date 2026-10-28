@@ -1,5 +1,5 @@
 import type { Account, Category, Txn } from '../db/gastosRepo'
-import { normalizeDescription } from './gastos'
+import { fold, normalizeDescription } from './gastos'
 
 export interface TransferLink { otherAccountId: string; outgoing: boolean }
 
@@ -30,7 +30,7 @@ export function pairTransfers(txns: Txn[], accounts: Account[], overrides: Recor
   return out
 }
 
-const words = (s: string) => ` ${s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[^a-z]+/g, ' ').trim()} `
+const words = (s: string) => ` ${fold(s).replace(/[^a-z]+/g, ' ').trim()} `
 const digits = (s: string) => s.replace(/\D/g, '')
 
 /**

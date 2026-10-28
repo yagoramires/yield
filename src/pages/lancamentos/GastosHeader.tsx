@@ -63,7 +63,7 @@ function useExtratoImport() {
   const { db, reload } = useData()
   const input = useRef<HTMLInputElement>(null)
   const [csv, setCsv] = useState<{ text: string; preset: CsvPreset; file: string; label: string } | null>(null)
-  const [mapped, setMapped] = useState<{ text: string; sniff: CsvSniff; mapping: CsvMapping; file: string; label: string } | null>(null)
+  const [mapped, setMapped] = useState<Mapped | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
