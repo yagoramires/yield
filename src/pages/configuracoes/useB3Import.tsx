@@ -26,7 +26,7 @@ export function useB3Import(): { button(label: string, className: string): React
     }
     const parsed = mergeB3(list)
     const name = files.length === 1 ? files[0].name : `${files.length} arquivos`
-    if (!parsed.trades.length && !parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored && !parsed.checks.length && !parsed.sales.length && !parsed.rfMoves.length && !parsed.rfPositions.length) {
+    if (!parsed.trades.length && !parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored && !parsed.checks.length && !parsed.sales.length && !parsed.rfMoves.length && !parsed.rfPositions.length && !parsed.issuers.length) {
       return setError(`Nada encontrado em ${name}. Use os relatórios de Negociação, Proventos Recebidos, Movimentação ou Posição da Área do Investidor da B3.`)
     }
     setPending({ parsed, replaces: planilhaReplacedByB3(data.dividends, parsed.dividends), name, ...(({ ask, inferred }) => ({ types: ask, inferred }))(typesToConfirm(parsed, data.trades, data.dividends)) })

@@ -1,5 +1,8 @@
 import { utils, type WorkBook } from 'xlsx'
+import type { Issuer } from '../db/irRepo'
 import type { RfMoveKind, RfPosition } from '../db/rendaFixaRepo'
+import { formatCnpj } from '../domain/declaracao'
+import { normalizeTicker } from '../domain/ledger'
 import type { ISODate } from '../domain/types'
 import { parseBRDate, parseBRL } from './parse'
 
@@ -33,15 +36,32 @@ export function posicaoDate(fileName: string): ISODate | null {
 
 const date = (v: Cell | undefined) => (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(text(v)) || typeof v === 'number' ? parseBRDate(v as string | number) : null)
 
+const RV_SHEETS = ['Acoes', 'BDR', 'ETF', 'Fundo de Investimento']
+export const isPosicao = (wb: WorkBook) => ['Tesouro Direto', 'Renda Fixa', ...RV_SHEETS].some(n => wb.SheetNames.includes(n))
+
+function sheetRows(wb: WorkBook, name: string) {
+  const ws = wb.Sheets[name]
+  if (!ws) return []
+  const rows = utils.sheet_to_json<Cell[]>(ws, { header: 1, raw: true, defval: null, blankrows: false })
+  const col = new Map(rows[0]?.map((h, i) => [text(h), i]))
+  return rows.slice(1).map(r => (h: string) => r[col.get(h) ?? -1])
+}
+
+/** Empresas e fundos da renda variável da Posição ("AAAA3 - EMPRESA TESTE S/A" + CNPJ), para o cadastro do IR; sem CNPJ válido fica de fora. */
+export function parsePosicaoIssuers(wb: WorkBook): Issuer[] {
+  const out = new Map<string, Issuer>()
+  for (const name of RV_SHEETS) for (const get of sheetRows(wb, name)) {
+    const [code, ...rest] = text(get('Produto')).split(' - ')
+    const ticker = normalizeTicker(text(get('Código de Negociação')) || code)
+    if (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || out.has(ticker) || !rest.length) continue
+    try { out.set(ticker, { ticker, name: rest.join(' - ').trim(), cnpj: formatCnpj(text(get('CNPJ da Empresa')) || text(get('CNPJ do Fundo'))) }) } catch { /* sem CNPJ válido */ }
+  }
+  return [...out.values()].sort((a, b) => a.ticker.localeCompare(b.ticker))
+}
+
 /** Abas "Tesouro Direto" e "Renda Fixa" da Posição; as outras abas e as linhas de total ficam de fora. */
 export function parsePosicao(wb: WorkBook, asOf: ISODate): RfPosition[] {
-  const sheet = (name: string) => {
-    const ws = wb.Sheets[name]
-    if (!ws) return []
-    const rows = utils.sheet_to_json<Cell[]>(ws, { header: 1, raw: true, defval: null, blankrows: false })
-    const col = new Map(rows[0]?.map((h, i) => [text(h), i]))
-    return rows.slice(1).map(r => (h: string) => r[col.get(h) ?? -1])
-  }
+  const sheet = (name: string) => sheetRows(wb, name)
   const out: RfPosition[] = []
   for (const get of sheet('Tesouro Direto')) {
     const produto = text(get('Produto'))

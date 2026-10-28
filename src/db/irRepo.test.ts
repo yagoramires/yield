@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { formatCnpj } from '../domain/declaracao'
-import { importCadastro, loadCadastro, saveBroker, saveIssuer } from './irRepo'
+import { addIssuers, loadCadastro, saveBroker, saveIssuer } from './irRepo'
 import { createTestDb, type Db } from './testDb'
 
 let db: Db
@@ -34,10 +34,9 @@ describe('cadastro da declaração', () => {
     })
     await expect(saveIssuer(db, { ticker: 'BBBB11', name: '  ', cnpj: A })).rejects.toThrow('Razão social')
   })
-  test('importar só acrescenta: o que foi editado à mão fica', async () => {
+  test('addIssuers só acrescenta: o que foi editado à mão fica', async () => {
     await saveIssuer(db, { ticker: 'AAAA3', name: 'Editada à mão', cnpj: A })
-    const r = await importCadastro(db, { issuers: [{ ticker: 'AAAA3', name: 'Da planilha', cnpj: A }, { ticker: 'BBBB11', name: 'Fundo Exemplo', cnpj: A }], brokers: [{ code: 'X', name: 'Corretora X', cnpj: A }] })
-    expect(r).toEqual({ issuers: 1, brokers: 1, skipped: 1 })
+    expect(await addIssuers(db, [{ ticker: 'AAAA3', name: 'Da B3', cnpj: A }, { ticker: 'BBBB11', name: 'Fundo Exemplo', cnpj: A }])).toBe(1)
     expect((await loadCadastro(db)).issuers.map(i => [i.ticker, i.name])).toEqual([['AAAA3', 'Editada à mão'], ['BBBB11', 'Fundo Exemplo']])
   })
 })

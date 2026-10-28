@@ -36,7 +36,7 @@ describe('b3Summary', () => {
   it('contagens, eventos aplicados e o que revisar', () => {
     expect(b3Summary(
       {
-        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1, sales: 2, checked: 9, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 },
+        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1, sales: 2, checked: 9, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 }, issuers: 0,
         review: [{ date: '2024-06-12', movimentacao: 'Atualização', produto: 'WEGE3 - WEG S.A.', nota: 'B3: 125, Yield: 100' }],
         applied: [
           { kind: 'bonificacao', ticker: 'ITSA4', date: '2024-04-20', qtyDelta: 160, unitCostCents: null, sourceKey: 'a' },
@@ -152,7 +152,7 @@ describe('saveSourceForm', () => {
 })
 
 describe('tipos dos tickers da Negociação', () => {
-  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [], issuers: [] }
   const old = [{ id: 't', noteId: 'n', seq: 1, broker: 'CLEAR', tradeDate: '2023-01-02', settleDate: '2023-01-04', side: 'C' as const, assetType: 'ETF' as const, ticker: 'BOVA11', qty: 1, priceCents: 1, feesCents: 0, irrfCents: 0 }]
   it('pede confirmação só dos final 11 ainda sem operação, em ordem', () => {
     expect(typesToConfirm(p, old)).toEqual({ ask: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }], inferred: [] })
@@ -173,7 +173,7 @@ describe('tipos dos tickers da Negociação', () => {
 
 describe('b3Summary com renda fixa', () => {
   it('conta movimentações e títulos, e o que já existia', () => {
-    const base = { notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [] }
+    const base = { notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], issuers: 0 }
     expect(b3Summary({ ...base, rfMoves: { inserted: 7, skipped: 2 }, rfPositions: { updated: 0, older: 0 } }, { ignored: 0, toReview: [] }).counts)
       .toBe('0 proventos · 0 já existiam · 7 movimentações de renda fixa · 2 já existiam')
     expect(b3Summary({ ...base, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 3, older: 1 } }, { ignored: 0, toReview: [] }).counts)
@@ -184,7 +184,7 @@ describe('b3Summary com renda fixa', () => {
 describe('b3Summary com operações', () => {
   it('conta operações, dias e o que já estava em nota', () => {
     expect(b3Summary(
-      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 } },
+      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 }, issuers: 0 },
       { ignored: 0, toReview: [] },
     ).counts).toBe('12 operações em 3 dias · 1 dia já existia · 2 operações já estavam em notas · 0 proventos · 0 já existiam')
   })
@@ -211,6 +211,6 @@ describe('binanceErrorText', () => {
 })
 
 it('typesToConfirm: ETF de renda fixa já vem com o tipo e não pergunta', () => {
-  const p = { trades: [{ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker: 'ABCD11', qty: 1, priceCents: 100, assetType: 'ETF RF' as const }], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  const p = { trades: [{ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker: 'ABCD11', qty: 1, priceCents: 100, assetType: 'ETF RF' as const }], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [], issuers: [] }
   expect(typesToConfirm(p, [])).toEqual({ ask: [], inferred: [{ ticker: 'ABCD11', type: 'ETF RF' }] })
 })

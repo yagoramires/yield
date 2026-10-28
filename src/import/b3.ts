@@ -1,5 +1,6 @@
 import { read, utils } from 'xlsx'
 import type { Db } from '../db/client'
+import { addIssuers, type Issuer } from '../db/irRepo'
 import { addTrades, loadAll, saveEvent, saveNote, upsertDividends, type Dataset } from '../db/repo'
 import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
@@ -7,7 +8,7 @@ import { normalizeTicker, replay } from '../domain/ledger'
 import { formatCents } from '../domain/money'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
-import { isRendaFixa, parsePosicao, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
+import { isPosicao, isRendaFixa, parsePosicao, parsePosicaoIssuers, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
 
 export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents; assetType?: AssetType /* só quando o relatório já diz o tipo */ }
 export interface B3Import {
@@ -23,6 +24,7 @@ export interface B3Import {
   subscriptions: { base: string; date: ISODate }[] // subscrição exercida: explica uma "Atualização" que credita cotas
   rfMoves: Omit<RfMove, 'id'>[] // renda fixa da Movimentação (Tesouro, CDB…)
   rfPositions: RfPosition[] // valor de hoje de cada título, do relatório Posição
+  issuers: Issuer[] // empresas e fundos da Posição, para o cadastro do IR
 }
 
 type Cell = string | number | boolean | null
@@ -148,9 +150,10 @@ const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${St
 /** Lê os relatórios da Área do Investidor: Movimentação, Negociação, Proventos Recebidos (pelo cabeçalho) ou Posição (pelas abas). */
 export function parseB3(data: ArrayBuffer, fileName = '', today: ISODate = localToday()): B3Import {
   const wb = read(data, { cellDates: false })
-  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
-  if (wb.SheetNames.includes('Tesouro Direto') || wb.SheetNames.includes('Renda Fixa')) {
+  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [], issuers: [] }
+  if (isPosicao(wb)) {
     out.rfPositions = parsePosicao(wb, posicaoDate(fileName) ?? today)
+    out.issuers = parsePosicaoIssuers(wb)
     return out
   }
   const rows = utils.sheet_to_json<Cell[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false })
@@ -262,5 +265,6 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
   }
   const rfMoves = await upsertRfMoves(db, p.rfMoves)
   const rfPositions = await upsertRfPositions(db, p.rfPositions)
-  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped, sales, checked, review, rfMoves, rfPositions }
+  const issuers = await addIssuers(db, p.issuers)
+  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped, sales, checked, review, rfMoves, rfPositions, issuers }
 }

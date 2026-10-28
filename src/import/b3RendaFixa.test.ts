@@ -1,5 +1,7 @@
 import { createTestDb } from '../db/testDb'
 import { loadAll } from '../db/repo'
+import { loadCadastro, saveIssuer } from '../db/irRepo'
+import { b3Summary } from '../pages/configuracoes/build'
 import { makeB3, makePosicao, type B3Row } from '../../tests/fixtures/makeB3'
 import { importB3, parseB3 } from './b3'
 import { posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
@@ -81,4 +83,32 @@ test('mesmo Tesouro em duas corretoras na Posição: soma as linhas', () => {
 test('COMPRA / VENDA a débito é saída; Código "-" não junta títulos diferentes', () => {
   expect(rfMoveKind('COMPRA / VENDA', false)).toBe('saida')
   expect(rfKey('LCA - BANCO A S/A', '-')).not.toBe(rfKey('LCA - BANCO B S/A', '-'))
+})
+
+const A = '11.222.333/0001-81', B = '11.444.777/0001-61'
+const ACOES = [['Produto', 'Instituição', 'Conta', 'Código de Negociação', 'CNPJ da Empresa', 'Quantidade'],
+  ['AAAA3 - EMPRESA TESTE S/A', INST, '1', 'AAAA3', '11222333000181', 10],
+  ['AAAA3 - EMPRESA TESTE S/A', 'OUTRA CORRETORA', '2', 'AAAA3', '11222333000181', 5], // mesma empresa em duas corretoras
+  ['CCCC4 - OUTRA EMPRESA S/A', INST, '1', 'CCCC4', '123', 1], // CNPJ inválido fica de fora
+  ['Total', '', '', '', '', 16]]
+const FUNDOS = { Acoes: ACOES, ETF: [['Produto', 'Instituição', 'Código de Negociação', 'CNPJ do Fundo', 'Quantidade'], ['BBBB11 - FUNDO DE ÍNDICE TESTE', INST, 'BBBB11', B, 3]],
+  'Fundo de Investimento': [['Produto', 'Instituição', 'Código de Negociação', 'CNPJ do Fundo', 'Quantidade'], ['DDDD11 - FII TESTE', INST, 'DDDD11', A, 2]] }
+
+test('Posição só com renda variável: empresas e fundos com o CNPJ vão para o cadastro do IR', () => {
+  const p = parseB3(makePosicao(null, null, FUNDOS), 'posicao-2026-10-27.xlsx')
+  expect(p.rfPositions).toEqual([])
+  expect(p.issuers).toEqual([
+    { ticker: 'AAAA3', name: 'EMPRESA TESTE S/A', cnpj: A }, { ticker: 'BBBB11', name: 'FUNDO DE ÍNDICE TESTE', cnpj: B }, { ticker: 'DDDD11', name: 'FII TESTE', cnpj: A },
+  ])
+})
+
+test('importar a Posição só preenche o que falta no cadastro: o que foi digitado à mão fica', async () => {
+  const db = createTestDb()
+  await saveIssuer(db, { ticker: 'AAAA3', name: 'Digitada à mão', cnpj: B })
+  const p = parseB3(makePosicao(null, null, FUNDOS), 'posicao-2026-10-27.xlsx')
+  const r = await importB3(db, p)
+  expect(r.issuers).toBe(2)
+  expect(b3Summary(r, p).counts).toContain('2 empresas no cadastro do IR')
+  expect((await loadCadastro(db)).issuers.map(i => [i.ticker, i.name, i.cnpj])).toEqual([['AAAA3', 'Digitada à mão', B], ['BBBB11', 'FUNDO DE ÍNDICE TESTE', B], ['DDDD11', 'FII TESTE', A]])
+  expect((await importB3(db, p)).issuers).toBe(0)
 })

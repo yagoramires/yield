@@ -107,7 +107,7 @@ export function Configuracoes() {
 
         <div className="card">
           <b style={{ color: '#fff' }}>Importar da B3</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Relatórios de Negociação, Proventos Recebidos e Movimentação (.xlsx) da Área do Investidor. Dá para escolher vários de uma vez; o que já existe é pulado.</div>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Relatórios de Negociação, Proventos Recebidos, Movimentação e Posição (.xlsx) da Área do Investidor; a Posição também preenche o cadastro de empresas do IR. Dá para escolher vários de uma vez; o que já existe é pulado.</div>
           {b3.button('Escolher arquivos…', 'b pri')}
           {b3.panel}
         </div>
