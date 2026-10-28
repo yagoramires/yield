@@ -1,8 +1,9 @@
 import { Coins, Landmark, RefreshCw, Sprout, TrendingUp, Wallet } from 'lucide-react'
 import { DARF_CODE } from '../domain/darf'
-import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
+import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, LineChart } from '../ui/charts'
+import { EyeToggle, useHideValues } from '../ui/HideValues'
 import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
@@ -25,6 +26,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 }) {
   const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
+  const { hidden, toggle, brl, cents, short } = useHideValues()
   const today = todayISO()
   const thisMonth = monthOf(today)
   const lastQuote = data.quotes.filter(q => q.source === 'yahoo').map(q => q.fetchedAt).sort().at(-1)
@@ -35,7 +37,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         <h1>Resumo</h1>
         <div className="muted">{lastQuote ? `Cotações do Yahoo de ${when(lastQuote)} (atraso de ~15 min)` : 'Sem cotações do Yahoo ainda'}</div>
       </div>
-      <div className="btns"><button className="b ghost with-ico" disabled={refreshing} onClick={() => void refreshQuotesNow()}><RefreshCw size={13} aria-hidden />{refreshing ? 'Atualizando…' : 'Atualizar cotações'}</button></div>
+      <div className="btns"><EyeToggle hidden={hidden} toggle={toggle} /><button className="b ghost with-ico" disabled={refreshing} onClick={() => void refreshQuotesNow()}><RefreshCw size={13} aria-hidden />{refreshing ? 'Atualizando…' : 'Atualizar cotações'}</button></div>
     </div>
   )
   if (!data.trades.length && !data.manualAssets.length && !data.dividends.length) {
@@ -81,21 +83,21 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       {header}
       {due.map(r => (
         <div key={r.month} className="alert-bad"><Landmark size={15} aria-hidden />
-          <span>DARF de {monLabel(r.month)} {r.status === 'a_vencer' ? 'a vencer' : 'em aberto'}: {formatBRL(dueCents(r))}{r.dueDate && ` · vence ${brDay(r.dueDate)}/${r.dueDate.slice(0, 4)}`} · código {DARF_CODE}</span>
+          <span>DARF de {monLabel(r.month)} {r.status === 'a_vencer' ? 'a vencer' : 'em aberto'}: {brl(dueCents(r))}{r.dueDate && ` · vence ${brDay(r.dueDate)}/${r.dueDate.slice(0, 4)}`} · código {DARF_CODE}</span>
           <button className="link" onClick={onOpenImposto}>Abrir Imposto</button>
         </div>
       ))}
       {incomplete.length > 0 && <div className="note" style={{ marginTop: 10 }}>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas. <button className="link" onClick={onOpenImposto}>Abrir Imposto</button></div>}
 
       <div className="kpis">
-        <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{formatBRL(p.totalValueCents)}</div>
-          <div className="s muted">aportado {formatBRL(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}</div></div>
-        <div className="k"><div className="muted k-l"><TrendingUp size={12} aria-hidden />Resultado</div><div className={`v ${tone(varTotal)}`}>{sign(varTotal, formatBRL(varTotal))}</div>
+        <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{brl(p.totalValueCents)}</div>
+          <div className="s muted">aportado {brl(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}</div></div>
+        <div className="k"><div className="muted k-l"><TrendingUp size={12} aria-hidden />Resultado</div><div className={`v ${tone(varTotal)}`}>{sign(varTotal, brl(varTotal))}</div>
           <div className={`s ${tone(varTotal)}`}>{costQuoted > 0 ? `${pct1(varTotal / costQuoted)} sobre o aportado` : '—'}</div></div>
-        <div className="k"><div className="muted k-l"><Coins size={12} aria-hidden />Proventos 12 meses</div><div className="v">{formatBRL(p.dividends12mCents)}</div>
-          <div className="s muted">média {formatBRL(avg12)}/mês{yoc !== null && ` · ${(yoc * 100).toFixed(1).replace('.', ',')}% sobre o custo`}</div></div>
+        <div className="k"><div className="muted k-l"><Coins size={12} aria-hidden />Proventos 12 meses</div><div className="v">{brl(p.dividends12mCents)}</div>
+          <div className="s muted">média {brl(avg12)}/mês{yoc !== null && ` · ${(yoc * 100).toFixed(1).replace('.', ',')}% sobre o custo`}</div></div>
         <div className="k"><div className="muted k-l"><Landmark size={12} aria-hidden />Imposto</div>
-          <div className={`v ${dueTotal > 0 ? 'dn' : ''}`}>{dueTotal > 0 ? formatBRL(dueTotal) : 'nada a pagar'}</div>
+          <div className={`v ${dueTotal > 0 ? 'dn' : ''}`}>{dueTotal > 0 ? brl(dueTotal) : 'nada a pagar'}</div>
           <div className="s muted">{dueTotal > 0 ? (nextDue?.dueDate ? `DARF · vence ${brDay(nextDue.dueDate)}` : `DARF · código ${DARF_CODE}`) : 'nenhum DARF a vencer ou em aberto'}</div></div>
       </div>
 
@@ -104,7 +106,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <div className="bar"><h5 style={{ margin: 0 }} className="k-l"><Sprout size={14} aria-hidden style={{ color: 'var(--accent)' }} />Renda passiva</h5><span className="muted">últimos 12 meses</span></div>
           <div className="coverage-v"><b>{Math.round(coverage.pct * 100)}%</b> <span className="muted">do seu gasto médio já é pago pelos proventos</span></div>
           <div className="meter big" aria-hidden><i style={{ width: `${Math.min(100, coverage.pct * 100)}%` }} /></div>
-          <div className="muted">proventos {formatBRL(coverage.avgDividendsCents)}/mês · gasto {formatBRL(coverage.avgSpentCents)}/mês · {coverage.gapCents > 0 ? `faltam ${formatBRL(coverage.gapCents)}/mês para cobrir tudo` : 'os proventos já cobrem todo o gasto'}</div>
+          <div className="muted">proventos {brl(coverage.avgDividendsCents)}/mês · gasto {brl(coverage.avgSpentCents)}/mês · {coverage.gapCents > 0 ? `faltam ${brl(coverage.gapCents)}/mês para cobrir tudo` : 'os proventos já cobrem todo o gasto'}</div>
         </div>
       )}
 
@@ -118,8 +120,8 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
               { label: 'aportado', values: invested.map(m => m.cents) },
               ...(allQuoted ? [{ label: 'valor de hoje', values: invested.map((_, i) => (i === invested.length - 1 ? todayValue : null)) }] : []),
             ]}
-            xLabels={lineLabels} xTicks={[0, 6, 12, 18, 23]} tipTitle={i => lineLabels[i]} format={formatCents}
-            ariaLabel={`Aportado em ações, FIIs, ETFs e BDRs: ${formatBRL(invested[invested.length - 1].cents)} hoje${allQuoted ? `; valor de mercado ${formatBRL(todayValue)}` : ''}`} />
+            xLabels={lineLabels} xTicks={[0, 6, 12, 18, 23]} tipTitle={i => lineLabels[i]} format={cents} tickFormat={short}
+            ariaLabel={`Aportado em ações, FIIs, ETFs e BDRs: ${brl(invested[invested.length - 1].cents)} hoje${allQuoted ? `; valor de mercado ${brl(todayValue)}` : ''}`} />
           <div className="muted">
             A linha é o que você aportou em ações, FIIs, ETFs e BDRs (custo das compras menos o das vendas). O Yield não guarda cotações antigas, então o valor de mercado aparece só para hoje. Ativos manuais ficam de fora deste gráfico.
             {!allQuoted && p.missingQuotes.length > 0 && ` ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'} sem cotação: o ponto de hoje não é mostrado.`}
@@ -136,7 +138,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
                   <button key={c.cls} className="sum-row" onClick={onOpenCarteira}>
                     <span className="class-dot" style={{ background: classColor(c.cls) }} />
                     <span className="lmid"><span className="sum-name">{classLabel(c.cls)} <span className="muted">{pct1(c.valueCents / p.totalValueCents).replace('+', '')}</span></span></span>
-                    <span className="sum-val">{formatCents(c.valueCents)}<small className={tone(gain)}>{gain === null ? 'valor informado' : pct1(gain)}</small></span>
+                    <span className="sum-val">{cents(c.valueCents)}<small className={tone(gain)}>{gain === null ? 'valor informado' : pct1(gain)}</small></span>
                   </button>
                 )
               })}
@@ -148,8 +150,8 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       <div className="grid2" style={{ marginTop: 12 }}>
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para abrir em Proventos</span></div>
-          <BarChart onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP']} format={formatBRL}
-            ariaLabel={`Proventos por mês: ${divs.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP)}`).join('; ')}`}
+          <BarChart onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP']} format={brl} valueLabel={short}
+            ariaLabel={`Proventos por mês: ${divs.map(m => `${monthName(m.month).toLowerCase()} ${brl(m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP)}`).join('; ')}`}
             bars={divs.map(m => ({
               label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP],
               partial: m.month === thisMonth, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${m.month === thisMonth ? ' até hoje' : ''}`,
@@ -163,7 +165,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
                 <button key={`${t.manual}-${t.name}`} className="sum-row" onClick={onOpenCarteira}>
                   <span className="tk-av" style={{ background: `${classColor(clsKey(t))}22`, color: classColor(clsKey(t)) }} aria-hidden>{t.name.slice(0, 4).toUpperCase()}</span>
                   <span className="lmid"><span className="sum-name">{t.name}</span><span className="muted">{t.manual ? t.cls : classLabel(t.cls)} · {pct1(t.pct).replace('+', '')} do patrimônio</span></span>
-                  <span className="sum-val">{formatCents(t.valueCents)}<small className={tone(t.varPct)}>{t.varPct === null ? (t.manual ? 'à mão' : '—') : pct1(t.varPct)}</small></span>
+                  <span className="sum-val">{cents(t.valueCents)}<small className={tone(t.varPct)}>{t.varPct === null ? (t.manual ? 'à mão' : '—') : pct1(t.varPct)}</small></span>
                 </button>
               ))}
             </div>
