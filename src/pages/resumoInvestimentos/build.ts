@@ -51,7 +51,7 @@ export function passiveCoverage(dividends12mCents: Cents, monthlySpentCents: Cen
   return { pct: avgDividendsCents / avgSpentCents, avgDividendsCents, avgSpentCents, gapCents: Math.max(0, avgSpentCents - avgDividendsCents) }
 }
 
-export type BucketKey = 'bolsa' | 'renda_fixa' | 'exterior' | 'cripto' | 'dolar'
+export type BucketKey = 'bolsa' | 'renda_fixa' | 'exterior' | 'cripto' | 'dolar' | 'outro'
 export interface MoneyBucket { key: BucketKey; label: string; valueCents: Cents; pct: number; gainCents: Cents | null; gainPct: number | null; usdGain: boolean; note: string }
 
 /** "Onde está seu dinheiro": bolsa (ações, FIIs, ETFs, BDRs), renda fixa, exterior, cripto e dólar; só os que têm valor. */
@@ -62,12 +62,13 @@ export function moneyBuckets(p: Portfolio, ctx: { cryptoAt: string | null; dolla
   const money = (c: Cents) => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const notes: Record<BucketKey, string> = {
     bolsa: 'ações, FIIs, ETFs, BDRs',
-    renda_fixa: `${of(['renda_fixa'])[0]?.count ?? 0} títulos`,
+    renda_fixa: ((n: number) => `${n} ${n === 1 ? 'título' : 'títulos'}`)(of(['renda_fixa'])[0]?.count ?? 0),
     exterior: `US$ ${money(p.manual.reduce((s, m) => s + (m.usdCents ?? 0), 0))}`,
     cripto: ctx.cryptoAt ? `Binance, ${hhmm(ctx.cryptoAt)}` : 'informado à mão',
     dolar: ctx.dollarCents ? `dólar R$ ${money(ctx.dollarCents)}` : 'sem cotação do dólar',
+    outro: 'ativos manuais',
   }
-  const parts: [BucketKey, string, string[]][] = [['bolsa', 'Bolsa', BOLSA], ['renda_fixa', 'Renda fixa', ['renda_fixa']], ['exterior', 'Exterior', ['exterior']], ['cripto', 'Cripto', ['cripto']], ['dolar', 'Dólar', ['dolar']]]
+  const parts: [BucketKey, string, string[]][] = [['bolsa', 'Bolsa', BOLSA], ['renda_fixa', 'Renda fixa', ['renda_fixa']], ['exterior', 'Exterior', ['exterior']], ['cripto', 'Cripto', ['cripto']], ['dolar', 'Dólar', ['dolar']], ['outro', 'Outros', ['outro']]]
   return parts.map(([key, label, keys]) => {
     const list = of(keys)
     const valueCents = list.reduce((s, c) => s + c.valueCents, 0)

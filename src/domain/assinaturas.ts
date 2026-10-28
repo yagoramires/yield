@@ -43,7 +43,9 @@ export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | nul
     const last = g[g.length - 1]
     const amountCents = Math.abs(last.amountCents)
     const before = g.length > 1 ? Math.abs(g[g.length - 2].amountCents) : null
-    const charged = (pending.get(merchantKey) ?? []).filter(t => t.date > last.date && Math.abs(Math.abs(t.amountCents) - med) <= med * 0.15).map(t => t.date).sort().at(-1) ?? last.date
+    // só vale a pendente perto da data esperada (até 10 dias antes): uma compra avulsa no mesmo lojista não paga a assinatura
+    const expected = ms(addMonths(last.date, period === 'anual' ? 12 : 1)) - 10 * DAY
+    const charged = (pending.get(merchantKey) ?? []).filter(t => ms(t.date) >= expected && Math.abs(Math.abs(t.amountCents) - med) <= med * 0.15).map(t => t.date).sort().at(-1) ?? last.date
     const sinceLast = Math.round((ms(today) - ms(charged)) / DAY)
     out.push({
       merchantKey, name: last.description, accountId: last.accountId, period, amountCents,

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type ManualAsset } from '../db/repo'
-import { formatBRL, formatCents } from '../domain/money'
+import { formatBRL, formatCents, monthOf } from '../domain/money'
 import type { Cents } from '../domain/types'
 import { portfolioResult, type ManualRow, type PortfolioRow } from '../domain/portfolio'
-import { rfJuros } from '../domain/rendaFixa'
+import { rfJurosByMonth } from '../domain/rendaFixa'
 import { AMBIGUOUS_MSG, parseDecimal } from '../import/parse'
 import { yahooSymbol } from '../quotes/yahoo'
 import { parseMoney } from './notas/build'
@@ -23,7 +23,7 @@ interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass'
 const emptyForm = (cls: ClassKey | null): Form => ({ name: '', assetClass: cls && cls in FORM_CLASSES ? (cls as ManualAsset['assetClass']) : 'exterior', quoteSymbol: cls === 'dolar' ? 'BRL=X' : '', quantity: '', value: '', cost: '', sourceKey: null })
 
 export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettings(): void; initialClass?: string | null }) {
-  const { data, db, derived, reload, refreshing, refreshQuotesNow } = useData()
+  const { data, db, derived, reload, refreshing, refreshQuotesNow, binance } = useData()
   const { portfolio: p } = derived
   const [wanted, setWanted] = useState<string | null>(initialClass)
   const [form, setForm] = useState<Form | null>(null)
@@ -43,8 +43,8 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
   const lastQuote = data.quotes.filter(q => q.source === 'yahoo').map(q => q.fetchedAt).sort().at(-1)
   const { gainCents: result, baseCents: resultBase } = portfolioResult(p)
   const today = todayISO()
-  const yearAgo = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`
-  const juros12 = rfJuros(data.rfMoves).filter(j => j.date > yearAgo && j.date <= today).reduce((s, j) => s + j.valueCents, 0)
+  // mesma janela da renda passiva do Resumo: 12 meses de calendário até o atual
+  const juros12 = rfJurosByMonth(data.rfMoves, monthOf(today), 12).reduce((s, m) => s + m.cents, 0)
   const income12 = p.dividends12mCents + juros12
   // o mesmo dinheiro pode estar num ativo manual antigo e agora vir da B3 / Binance
   const dup = sel === 'renda_fixa' && p.rf.some(h => !h.closed) ? { list: data.manualAssets.filter(a => a.assetClass === 'renda_fixa'), what: 'renda fixa', from: 'da B3' }
@@ -95,7 +95,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         ) : priceFor?.ticker === r.ticker ? (
           <span><input className="in" style={{ width: 80 }} autoFocus placeholder="0,00" aria-label={`Preço de ${r.ticker}`} value={priceFor.text} onChange={e => setPriceFor({ ticker: r.ticker, text: e.target.value })} onKeyDown={e => e.key === 'Enter' && void savePrice()} />
             {' '}<button className="link" onClick={() => void savePrice()}>salvar</button> <button className="link" onClick={() => setPriceFor(null)}>cancelar</button></span>
-        ) : <><button className="link" onClick={() => setPriceFor({ ticker: r.ticker, text: '' })}>preço manual</button>{manualPrice && <> · <button className="link" onClick={() => setConfirm(`price:${symbol}`)}>remover</button></>}</>} />
+        ) : <><button className="link" aria-label={`Preço manual de ${r.ticker}`} onClick={() => setPriceFor({ ticker: r.ticker, text: '' })}>preço manual</button>{manualPrice && <> · <button className="link" aria-label={`Remover preço manual de ${r.ticker}`} onClick={() => setConfirm(`price:${symbol}`)}>remover</button></>}</>} />
     )
   }
 
@@ -114,8 +114,8 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         cost={a.costCents !== null ? `aportado ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(a.costCents)}` : 'sem aportado'}
         actions={confirm === `asset:${a.id}` ? (
           <span>Excluir {a.name}? <button className="link dn" onClick={() => run(async () => { await deleteManualAsset(db, a.id); setConfirm(null) })}>Excluir</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
-        ) : <><button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : formatCents(a.valueCents), cost: a.costCents === null ? '' : formatCents(a.costCents), sourceKey: a.sourceKey }); setFormError(null) }}>editar</button>
-          {' · '}<button className="link" onClick={() => setConfirm(`asset:${a.id}`)}>excluir</button></>} />
+        ) : <><button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : formatCents(a.valueCents), cost: a.costCents === null ? '' : formatCents(a.costCents), sourceKey: a.sourceKey }); setFormError(null) }} aria-label={`Editar ${a.name}`}>editar</button>
+          {' · '}<button className="link" aria-label={`Excluir ${a.name}`} onClick={() => setConfirm(`asset:${a.id}`)}>excluir</button></>} />
     )
   }
 
@@ -141,6 +141,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         </div>
       </div>
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
+      {binance.error && !classes.some(c => c.key === 'cripto') && <div className="note" style={{ marginTop: 10 }}>{binance.error} <button className="link" onClick={onOpenSettings}>Configurações</button></div>}
 
       <div className="kpis">
         <div className="k"><div className="muted">Patrimônio</div><div className="v">{formatBRL(p.totalValueCents)}</div>
@@ -173,8 +174,8 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
 
       {classes.length === 0 ? (
         <div className="card">
-          <b style={{ color: '#fff' }}>Comece importando da B3</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior e dólar entram em + Ativo; cripto, pela Binance em Configurações.</div>
+          <b style={{ color: '#fff' }}>{data.notes.length ? 'Nenhuma posição agora' : 'Comece importando da B3'}</b>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>{data.notes.length ? 'Tudo o que você tinha foi vendido. Lance compras em Notas, importe da B3 ou adicione um ativo em + Ativo. ' : ''}Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior e dólar entram em + Ativo; cripto, pela Binance em Configurações.</div>
           <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
         </div>
       ) : (
