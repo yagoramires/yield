@@ -60,6 +60,8 @@ describe('normalizeBroker', () => {
     ['TORO CTVM LTDA', 'TORO'],
     ['BB BANCO DE INVESTIMENTO S.A.', 'BB'],
     ['GENIAL INSTITUCIONAL CCTVM S/A', 'GENIAL INSTITUCIONAL'],
+    ['ATIVA INVESTIMENTOS S.A. CORRETORA DE TÍTULOS, CÂMBIO E VALORES', 'ATIVA'],
+    ['BANCO INTER S.A', 'INTER'],
     ['SEM NOTA', 'SEM NOTA'],
     ['', ''],
   ])('%s → %s', (raw, key) => {

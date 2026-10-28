@@ -62,8 +62,8 @@ const NOISE = new Set(['S/A', 'S.A.', 'S.A', 'SA', 'LTDA', 'CCTVM', 'DTVM', 'CTV
 export function normalizeBroker(v: string): string {
   const s = v.trim().replace(/\s+/g, ' ').toUpperCase()
   const known = (x: string) => KNOWN_BROKERS.find(b => x === b || x.startsWith(b + ' '))
-  // sem acento, sem o que vem depois de " - " ("- GRUPO XP") e sem parênteses
-  const core = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+-\s+.*$/, '').replace(/\(.*?\)/g, ' ')
+  // sem acento, sem o que vem depois de " - " ("- GRUPO XP"), sem parênteses e sem pontuação ("S.A." → "SA", "TÍTULOS," → "TITULOS")
+  const core = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+-\s+.*$/, '').replace(/\(.*?\)/g, ' ').replace(/[./]/g, '').replace(/[^\w\s&-]/g, ' ')
   const key = core.split(/\s+/).filter(w => w && !NOISE.has(w)).join(' ')
   return known(s) ?? known(key) ?? (key || s)
 }
