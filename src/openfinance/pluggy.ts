@@ -109,8 +109,8 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
     },
     async listInvestmentTransactions(investmentId: string): Promise<PluggyInvestmentTxn[]> {
       const results = await allPages(`/investments/${encodeURIComponent(investmentId)}/transactions`)
-      const trade = (t: Record<string, unknown>) => num(t.quantity) && t.quantity > 0 && (num(t.value) || num(t.amount))
-      if (!results.every(t => isObj(t) && str(t.id) && typeof t.type === 'string' && isDate(t.tradeDate || t.date) && (!['BUY', 'SELL'].includes(t.type) || trade(t)))) throw FORMAT()
+      // operação sem quantidade ou valor é pulada em toTradeRow; aqui só o formato básico derruba o item
+      if (!results.every(t => isObj(t) && str(t.id) && typeof t.type === 'string' && isDate(t.tradeDate || t.date))) throw FORMAT()
       return results as PluggyInvestmentTxn[]
     },
   }
@@ -132,9 +132,12 @@ export function rendaVariavel(i: PluggyInvestment): { ticker: string; assetType:
 
 export function toTradeRow(t: PluggyInvestmentTxn): { date: ISODate; side: Side; qty: number; priceCents: Cents; feesCents: Cents; irrfCents: Cents } | null {
   if (t.type !== 'BUY' && t.type !== 'SELL') return null
-  const { incomeTax, ...fees } = t.expenses ?? {}
-  const qty = t.quantity!
+  const qty = t.quantity
+  if (!num(qty) || qty <= 0) return null
   const price = num(t.value) && t.value > 0 ? t.value : Math.abs(t.amount ?? 0) / qty
+  if (!(price > 0)) return null
+  // iofProvision é a previsão do IOF, não o pago: somá-la contaria o IOF duas vezes
+  const { incomeTax, iofProvision: _, ...fees } = t.expenses ?? {}
   return {
     date: pluggyDate(t.tradeDate || t.date), side: t.type === 'BUY' ? 'C' : 'V', qty,
     priceCents: Math.round(price * 100),

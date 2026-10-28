@@ -83,6 +83,13 @@ describe('toTradeRow', () => {
     expect(toTradeRow({ ...base, type: 'SELL', tradeDate: null, value: null, amount: 1500, expenses: { brokerageFee: 2, incomeTax: 0.08 } }))
       .toEqual({ date: '2026-03-12', side: 'V', qty: 100, priceCents: 1500, feesCents: 200, irrfCents: 8 })
   })
+  it('IOF provisionado não soma às taxas (só o IOF pago)', () => {
+    expect(toTradeRow({ ...base, expenses: { brokerageFee: 1, iof: 0.5, iofProvision: 0.5 } })?.feesCents).toBe(150)
+  })
+  it('compra ou venda sem quantidade é pulada, sem derrubar o resto', () => {
+    expect(toTradeRow({ ...base, quantity: 0 })).toBeNull()
+    expect(toTradeRow({ ...base, quantity: null })).toBeNull()
+  })
   it('outros tipos não viram operação', () => {
     expect(toTradeRow({ ...base, type: 'TAX' })).toBeNull()
     expect(toTradeRow({ ...base, type: 'TRANSFER' })).toBeNull()
@@ -181,7 +188,8 @@ describe('cliente', () => {
     const bad = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [], totalPages: 'muitas' })).fn)
     await expect(bad.listInvestments('i1')).rejects.toMatchObject({ kind: 'resposta' })
     const noQty = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [{ id: 't', type: 'BUY', date: '2026-01-02T00:00:00.000Z', value: 10 }], totalPages: 1 })).fn)
-    await expect(noQty.listInvestmentTransactions(INV)).rejects.toMatchObject({ message: 'A Pluggy devolveu dados fora do formato esperado' })
+    // sem quantidade a lista vem inteira; toTradeRow pula só essa operação
+    expect((await noQty.listInvestmentTransactions(INV)).map(t => toTradeRow(t))).toEqual([null])
     // id fora do formato não sai pela porta
     await expect(c.listInvestmentTransactions('../payments')).rejects.toMatchObject({ message: /não permitida/ })
   })
