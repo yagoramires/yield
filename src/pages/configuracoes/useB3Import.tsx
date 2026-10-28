@@ -11,7 +11,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Fluxo do extrato da B3, usado em Configurações e em Proventos: `button` abre o arquivo, `panel` mostra confirmação e resumo. */
 export function useB3Import(): { button(label: string, className: string): ReactNode; panel: ReactNode } {
-  const { data, db, reload } = useData()
+  const { data, db, reload, refreshQuotesNow } = useData()
   const input = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<{ parsed: B3Import; replaces: number; name: string; types: { ticker: string; type: AssetType }[]; inferred: { ticker: string; type: AssetType }[] } | null>(null)
   const [summary, setSummary] = useState<ReturnType<typeof b3Summary> | null>(null)
@@ -40,6 +40,7 @@ export function useB3Import(): { button(label: string, className: string): React
       setPending(null)
     } catch (e) { setError(`Não foi possível importar o extrato: ${errText(e)}`) }
     try { await reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
+    void refreshQuotesNow() // ativo novo já aparece com cotação; falha de rede só deixa as antigas
     setBusy(false)
   }
 
