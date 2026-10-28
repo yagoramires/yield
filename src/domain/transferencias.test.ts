@@ -48,6 +48,9 @@ describe('nome do titular', () => {
     expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA LTDA', me)).toBe('empresa')
     expect(ownerMention('PIX RECEBIDO JOÃO SILVA', ['Ana Teste Souza', 'João Silva'])).toBe('pessoa')
     expect(ownerMention('PIX ENVIADO ANA', me)).toBeNull()
+    // o nome do banco depois de um separador não faz o titular virar empresa
+    expect(ownerMention('Transferência recebida pelo Pix - ANA TESTE SOUZA - •••.123.456-•• - BCO EXEMPLO S.A. (0237)', me)).toBe('pessoa')
+    expect(ownerMention('PIX RECEBIDO - REM  Ana Teste Souza  03/03 - DOCTO: 123 PAGAMENTOS DIGITAL', me)).toBe('pessoa')
     expect(ownerMention('qualquer coisa', [])).toBeNull()
   })
   it('validOwnerNames separa por vírgula e exige nome e sobrenome', () => {

@@ -59,14 +59,14 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
     const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
     const between = tr && `${tr.outgoing ? 'para' : 'de'} ${shortAccountLabel(accounts.get(tr.otherAccountId))}, entre suas contas`
     const auto = !rule && !between && !data.overrides[t.fingerprint]
-    const company = auto && c?.id === 'receita' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
+    const company = auto && c?.id === 'receita' && accounts.get(t.accountId)?.kind === 'conta' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
     const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
     const { name, via } = cleanDescription(t.description)
     const meta = [via, shortAccountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
     const pattern = suggestRulePattern(t.description)
     return (
       <div key={t.id} className={`lrow ${off ? 'off' : ''}`}>
-        <CategoryIcon id={c?.id ?? null} />
+        <CategoryIcon category={c} />
         <div className="lmid">
           <div className="lname" title={t.description}>{name}</div>
           <div className="lsub">
@@ -112,7 +112,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
         <button className={`cc ${filter.categoryId === null ? 'on' : ''}`} aria-pressed={filter.categoryId === null} onClick={() => setFilter({ ...filter, categoryId: null })}>Todas</button>
         {strip.map(i => (
           <button key={i.id} className={`cc ${i.id === 'sem' ? 'warn' : ''} ${i.spending ? '' : 'quiet'} ${filter.categoryId === i.id ? 'on' : ''}`} aria-pressed={filter.categoryId === i.id} onClick={() => toggle(i.id)}>
-            <CategoryIcon id={i.id === 'sem' ? null : i.id} size={13} bare />{i.name}{i.id === 'sem' && <b>{i.count}</b>}
+            <CategoryIcon category={i.id === 'sem' ? null : data.categories.find(k => k.id === i.id) ?? null} size={13} bare />{i.name}{i.id === 'sem' && <b>{i.count}</b>}
           </button>
         ))}
       </div>

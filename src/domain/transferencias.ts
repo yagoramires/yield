@@ -38,14 +38,19 @@ const COMPANY = /\b(ltda|me|mei|eireli|epp|s a|sa|desenvolvimento|servicos|softw
  * `empresa`: uma empresa com o seu nome, como a sua PJ (o que ela paga é Receita).
  */
 export function ownerMention(description: string, names: string[]): 'pessoa' | 'empresa' | null {
-  const desc = normalizeDescription(description)
+  const desc = keepSeparators(description)
   for (const n of names) {
-    const name = normalizeDescription(n)
+    const name = keepSeparators(n).replace(/\|/g, ' ').replace(/\s+/g, ' ').trim()
     const at = name ? desc.indexOf(name) : -1
-    if (at >= 0) return COMPANY.test(desc.slice(at + name.length)) ? 'empresa' : 'pessoa'
+    // só o trecho colado ao nome conta: o banco depois de um " - " (ex. "BCO EXEMPLO S.A.") não é a sua empresa
+    if (at >= 0) return COMPANY.test(desc.slice(at + name.length).split('|')[0]) ? 'empresa' : 'pessoa'
   }
   return null
 }
+
+// minúsculas sem acento; hífen, barra vertical, marcador e números viram o separador "|", o resto da pontuação vira espaço
+const keepSeparators = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '')
+  .replace(/[^a-z\s]/g, c => (/[-|•(\d]/.test(c) ? ' | ' : ' ')).replace(/\s+/g, ' ')
 
 /** "Ana Souza, ANA S" → variações; cada uma precisa de nome e sobrenome para não pegar Pix de outras pessoas. */
 export function validOwnerNames(text: string): { names: string[] } | { error: string } {

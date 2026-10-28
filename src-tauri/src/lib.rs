@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+use tauri::Emitter;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
@@ -108,6 +110,27 @@ fn decrypt_backup(app: tauri::AppHandle, from: String, password: String) -> Resu
 
 const RESTORE_FILE: &str = "restore.db";
 
+#[cfg(target_os = "macos")]
+fn menu_pt(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem as P, Submenu};
+    let about = AboutMetadata { name: Some("Yield".into()), version: Some(app.package_info().version.to_string()), ..Default::default() };
+    let updates = MenuItem::with_id(app, "check-updates", "Procurar atualizações…", true, None::<&str>)?;
+    let yield_menu = Submenu::with_items(app, "Yield", true, &[
+        &P::about(app, Some("Sobre o Yield"), Some(about))?, &updates, &P::separator(app)?,
+        &P::hide(app, Some("Ocultar o Yield"))?, &P::hide_others(app, Some("Ocultar outros"))?, &P::show_all(app, Some("Mostrar tudo"))?,
+        &P::separator(app)?, &P::quit(app, Some("Sair do Yield"))?,
+    ])?;
+    let edit = Submenu::with_items(app, "Editar", true, &[
+        &P::undo(app, Some("Desfazer"))?, &P::redo(app, Some("Refazer"))?, &P::separator(app)?,
+        &P::cut(app, Some("Recortar"))?, &P::copy(app, Some("Copiar"))?, &P::paste(app, Some("Colar"))?, &P::select_all(app, Some("Selecionar tudo"))?,
+    ])?;
+    let window = Submenu::with_items(app, "Janela", true, &[
+        &P::minimize(app, Some("Minimizar"))?, &P::maximize(app, Some("Zoom"))?, &P::fullscreen(app, Some("Tela cheia"))?,
+        &P::separator(app)?, &P::close_window(app, Some("Fechar janela"))?,
+    ])?;
+    Menu::with_items(app, &[&yield_menu, &edit, &window])
+}
+
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
 const SECRET_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
 
@@ -185,8 +208,34 @@ pub fn run() {
             sql: include_str!("../migrations/005_categoria_pluggy.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 6,
+            description: "visual das categorias",
+            sql: include_str!("../migrations/006_categoria_visual.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 7,
+            description: "fonte de renda clt",
+            sql: include_str!("../migrations/007_fonte_clt.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 8,
+            description: "cadastro da declaracao de ir",
+            sql: include_str!("../migrations/008_cadastro_ir.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(menu_pt).on_menu_event(|app, event| {
+        if event.id() == "check-updates" {
+            let _ = app.emit("menu-check-updates", ());
+        }
+    });
+    builder
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:yield.db", migrations)

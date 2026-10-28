@@ -121,7 +121,8 @@ export function needsSync(g: GastosData, nowMs: number): boolean {
     || pluggy.some(a => !a.lastSyncAt || nowMs - Date.parse(a.lastSyncAt) > SYNC_EVERY_MS)
 }
 
-const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
+/** Minúsculas, sem acento e sem espaço nas pontas: para comparar nomes. */
+export const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
 // Prefixos que os bancos põem antes do "|" ("Transferência enviada pelo Pix|LOJA"); um prefixo novo aparece como veio.
 const VIA: Record<string, string> = {
   'transferencia enviada pelo pix': 'Pix enviado', 'transferencia recebida': 'Transferência recebida', 'transferencia enviada': 'Transferência enviada',
@@ -180,3 +181,15 @@ export function categoryStrip(txns: Txn[], cat: Cat, month: Month): StripItem[] 
   const rank = (i: StripItem) => (i.id === 'sem' ? 0 : i.spending ? 1 : 2)
   return [...by.values()].sort((a, b) => rank(a) - rank(b) || b.cents - a.cents)
 }
+
+const FORECAST_FROM_DAY = 5 // antes disso um gasto grande no dia 1 vira uma projeção absurda
+
+/** Quanto o mês fecha no ritmo de gasto até hoje; só para o mês atual, a partir do dia 5. */
+export function monthForecast(spentCents: Cents, month: Month, today: ISODate): Cents | null {
+  const day = Number(today.slice(8, 10))
+  if (monthOf(today) !== month || day < FORECAST_FROM_DAY) return null
+  return Math.round((spentCents * daysInMonth(month)) / day)
+}
+
+/** Sem os lançamentos de `month` depois do dia `day`: para comparar o mês atual (pela metade) com o anterior até o mesmo dia. */
+export const cutToDay = (txns: Txn[], month: Month, day: number): Txn[] => txns.filter(t => monthOf(t.date) !== month || Number(t.date.slice(8, 10)) <= day)

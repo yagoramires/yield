@@ -4,7 +4,7 @@ import { formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, HBars } from '../ui/charts'
 import { useB3Import } from './configuracoes/useB3Import'
-import { brDay as brDate, monthName } from './lancamentos/GastosHeader'
+import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
 
@@ -12,12 +12,11 @@ const pct = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const signedPct = (p: number) => `${p >= 0 ? '+' : '−'}${pct(Math.abs(p))}`
 const shortBroker = (b: string | null) => (b ? b.split(/\s+/).slice(0, 2).join(' ') : '—')
 type Period = string // '12m', 'tudo' ou um ano ('2025')
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const emptyForm = (): DividendForm => ({ ticker: '', kind: 'Dividendo', payDate: '', broker: '', amount: '' })
 
-export function Proventos() {
+export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const { data, db, derived, reload } = useData()
-  const [filter, setFilter] = useState<Filter>({ ticker: '', kind: '', month: '' })
+  const [filter, setFilter] = useState<Filter>({ ticker: '', kind: '', month: initialMonth })
   const [period, setPeriod] = useState<Period>('12m')
   const [showAll, setShowAll] = useState(false)
   const [form, setForm] = useState<DividendForm | null>(null)
@@ -50,6 +49,8 @@ export function Proventos() {
   const filtered = filterDividends(all, filter)
   const groups = groupByMonth(filtered)
   const filtering = Boolean(filter.ticker || filter.kind || filter.month)
+  // o mês vindo do clique no Resumo aparece no seletor mesmo sem provento nele
+  const payMonths = [...new Set([...data.dividends.map(d => monthOf(d.payDate)), ...(filter.month ? [filter.month] : [])])].sort().reverse()
   const shown = showAll || filtering ? groups : groups.slice(0, 3)
   const ytdDiff = sm.ytdPrevCents ? sm.ytdCents / sm.ytdPrevCents - 1 : null
   const total = (m: (typeof months)[number]) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP
@@ -141,9 +142,10 @@ export function Proventos() {
               <h5 style={{ margin: 0, marginRight: 'auto' }}>Lançamentos</h5>
               <select className="in" aria-label="Ativo" value={filter.ticker} onChange={e => setFilter({ ...filter, ticker: e.target.value })}>
                 <option value="">Todos os ativos</option>{tickers.map(t => <option key={t}>{t}</option>)}</select>
+              <select className="in" aria-label="Mês" value={filter.month} onChange={e => { setFilter({ ...filter, month: e.target.value }); setShowAll(false) }}>
+                <option value="">Todos os meses</option>{payMonths.map(m => <option key={m} value={m}>{monthName(m)} {m.slice(0, 4)}</option>)}</select>
               <button className={`chip ${filter.kind === '' ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: '' })}>Todos</button>
               {KINDS.map(k => <button key={k} className={`chip ${filter.kind === k ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: k })}>{k}</button>)}
-              {filter.month && <button className="chip on" onClick={() => setFilter({ ...filter, month: '' })}>{monthName(filter.month)} {filter.month.slice(0, 4)} ✕</button>}
             </div>
             {groups.length === 0 ? <div className="muted">Nenhum provento com esses filtros.</div> : (
               <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>

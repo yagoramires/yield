@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
 import { categorize, fingerprint, monthTotals, normalizeDescription, withFingerprints } from './gastos'
 
-const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true })
+const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const categories = [
   cat('pagamento-de-fatura', false), cat('investimento', false), cat('receita', false), cat('transferencia', false),
   cat('transporte'), cat('alimentacao'),
@@ -115,6 +115,8 @@ describe('categorize com transferências', () => {
     expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE' }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('transferencia')
     expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE' }), cartao, [], {}, categories, { ownerNames: ['Ana Teste'] })).toBeNull()
     expect(categorize(txn({ description: 'PIX RECEBIDO ANA TESTE TECNOLOGIA LTDA', amountCents: 500000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('receita')
+    // dinheiro que você manda para a sua própria empresa é transferência, não gasto
+    expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE TECNOLOGIA LTDA', amountCents: -300000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('transferencia')
     expect(categorize(txn({}), conta, [], { fp: 'alimentacao' }, categories, { paired: true })?.id).toBe('alimentacao')
     expect(categorize(txn({ description: 'UBER' }), conta, [rule('uber', 'transporte')], {}, categories, { paired: true })?.id).toBe('transporte')
   })

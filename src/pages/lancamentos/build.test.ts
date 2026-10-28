@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Category, GastosData, Txn } from '../../db/gastosRepo'
 import {
-  categoryBars, categoryStrip, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
+  categoryBars, categoryStrip, cutToDay, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
   shortAccountLabel, spentByMonth, suggestRulePattern, topSpending, type TxnFilter,
 } from './build'
 
-const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true })
+const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const fatura = cat('pagamento-de-fatura', false)
 const mercado = cat('mercado')
 const conta: Account = { id: 'c1', source: 'arquivo', externalId: 'x', institution: 'Banco Laranja', name: 'Conta', kind: 'conta', number: '4821', itemId: null, lastSyncAt: null }
@@ -154,7 +154,7 @@ it('ruleFor devolve a regra que categorizou, nunca quando há escolha manual', (
 describe('needsSync', () => {
   const now = Date.parse('2026-10-26T12:00:00Z')
   const pluggy: Account = { ...conta, id: 'p1', source: 'pluggy', externalId: 'pluggy:1', itemId: 'it1', lastSyncAt: '2026-10-26T10:00:00Z' }
-  const g = (o: Partial<GastosData>): GastosData => ({ accounts: [pluggy], txns: [], categories: [], rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'it1', label: 'Banco' }], ownerNames: [], ...o })
+  const g = (o: Partial<GastosData>): GastosData => ({ accounts: [pluggy], txns: [], categories: [], rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'it1', label: 'Banco' }], ownerNames: [], ruleSuggestionsDismissed: [], ...o })
   it('não sincroniza sem item salvo nem com tudo recente', () => {
     expect(needsSync(g({ pluggyItems: [] }), now)).toBe(false)
     expect(needsSync(g({}), now)).toBe(false)
@@ -219,5 +219,21 @@ describe('categoryStrip', () => {
       { id: 'receita', name: 'Receita', cents: 100000, count: 1, spending: false },
       { id: 'pagamento-de-fatura', name: 'pagamento-de-fatura', cents: 90000, count: 1, spending: false },
     ])
+  })
+})
+
+describe('monthForecast', () => {
+  it('projeta o mês atual pelo ritmo até hoje; mês passado, futuro ou começo do mês não projeta', () => {
+    expect(monthForecast(310000, '2026-10', '2026-10-31')).toBe(310000)
+    expect(monthForecast(100000, '2026-10', '2026-10-10')).toBe(310000)
+    expect(monthForecast(100000, '2026-10', '2026-10-04')).toBeNull()
+    expect(monthForecast(100000, '2026-09', '2026-10-10')).toBeNull()
+  })
+})
+
+describe('cutToDay', () => {
+  it('tira do mês anterior o que veio depois do mesmo dia; os outros meses ficam', () => {
+    const txns = [txn({ description: 'a', date: '2026-09-05' }), txn({ description: 'b', date: '2026-09-27' }), txn({ description: 'c', date: '2026-09-28' }), txn({ description: 'd', date: '2026-10-28' })]
+    expect(cutToDay(txns, '2026-09', 27).map(t => t.description)).toEqual(['a', 'b', 'd'])
   })
 })
