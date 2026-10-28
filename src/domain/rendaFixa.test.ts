@@ -1,6 +1,6 @@
 import { describe } from 'vitest'
 import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
-import { rfHoldings, rfJurosByMonth } from './rendaFixa'
+import { rfAppliedByMonth, rfHoldings, rfJurosByMonth } from './rendaFixa'
 
 let n = 0
 const mv = (key: string, kind: RfMove['kind'], qty: number, valueCents: number | null, date = '2025-01-10', product = 'Tesouro Prefixado 2099'): RfMove =>
@@ -89,4 +89,14 @@ describe('revisão final', () => {
 test('aplicação depois da Posição pede uma Posição mais recente', () => {
   const [h] = rfHoldings([mv(TD, 'aplicacao', 1, 10000, '2026-10-28')], [pos(TD, 70000, { qty: 1 })])
   expect(h).toMatchObject({ valueCents: 70000, needsNewerPosicao: true })
+})
+
+describe('rfAppliedByMonth', () => {
+  test('aplicado em aberto no fim de cada mês, por custo médio, sem juros', () => {
+    const moves = [mv(TD, 'aplicacao', 10, 100000, '2026-08-10'), mv(TD, 'saida', 4, 45000, '2026-09-10'), mv(TD, 'juros', 6, 3000, '2026-10-01')]
+    expect(rfAppliedByMonth(moves, '2026-10', 4).map(m => m.cents)).toEqual([0, 100000, 60000, 60000])
+  })
+  test('venda maior que o comprado não deixa aplicado negativo', () => {
+    expect(rfAppliedByMonth([mv(CDB, 'aplicacao', 1, 1000, '2026-09-01', CDB_PROD), mv(CDB, 'saida', 3, 5000, '2026-10-01', CDB_PROD)], '2026-10', 2).map(m => m.cents)).toEqual([1000, 0])
+  })
 })
