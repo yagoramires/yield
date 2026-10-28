@@ -164,6 +164,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
             {form.assetClass !== 'exterior' ? <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>
               : <label className="field"><span>Aportado (US$, opcional)</span><input className="in" inputMode="decimal" placeholder="0,00" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} /></label>}
           </div>
+          {form.assetClass === 'exterior' && <div className="muted" style={{ marginTop: 6 }}>Só ativos cotados em dólar (US$): o ticker precisa ter a cotação em US$ no Yahoo, que o app converte pelo dólar do dia. Outras moedas não são convertidas.</div>}
           {formError && <div className="note" style={{ marginTop: 8 }}>{formError}</div>}
           <div className="btns" style={{ marginTop: 8 }}>
             <button className="b pri" onClick={() => void saveForm()}>Salvar</button>
