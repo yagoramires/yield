@@ -22,12 +22,12 @@ export function useB3Import(): { button(label: string, className: string): React
     setPending(null); setSummary(null); setError(null)
     const list: B3Import[] = []
     for (const file of files) {
-      try { list.push(parseB3(await file.arrayBuffer())) } catch (e) { return setError(`Não foi possível ler ${file.name}: ${errText(e)}`) }
+      try { list.push(parseB3(await file.arrayBuffer(), file.name)) } catch (e) { return setError(`Não foi possível ler ${file.name}: ${errText(e)}`) }
     }
     const parsed = mergeB3(list)
     const name = files.length === 1 ? files[0].name : `${files.length} arquivos`
-    if (!parsed.trades.length && !parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored) {
-      return setError(`Nada encontrado em ${name}. Use os relatórios de Negociação, Proventos Recebidos ou Movimentação da Área do Investidor da B3.`)
+    if (!parsed.trades.length && !parsed.dividends.length && !parsed.events.length && !parsed.toReview.length && !parsed.ignored && !parsed.rfMoves.length && !parsed.rfPositions.length) {
+      return setError(`Nada encontrado em ${name}. Use os relatórios de Negociação, Proventos Recebidos, Movimentação ou Posição da Área do Investidor da B3.`)
     }
     setPending({ parsed, replaces: planilhaReplacedByB3(data.dividends, parsed.dividends), name, ...(({ ask, inferred }) => ({ types: ask, inferred }))(typesToConfirm(parsed, data.trades, data.dividends)) })
   }
@@ -56,7 +56,7 @@ export function useB3Import(): { button(label: string, className: string): React
         {error && <div className="note" style={{ marginBottom: 8 }}>{error}</div>}
         {pending && p && (
           <div className="note">
-            {pending.name}: {p.trades.length} operações, {p.dividends.length} proventos, {p.events.length} eventos e {p.toReview.length} itens para revisar.
+            {pending.name}: {p.trades.length} operações, {p.dividends.length} proventos, {p.events.length} eventos{p.rfMoves.length + p.rfPositions.length > 0 && `, ${p.rfMoves.length} movimentações e ${p.rfPositions.length} títulos de renda fixa`} e {p.toReview.length} itens para revisar.
             {pending.replaces > 0 && <> {pending.replaces === 1 ? '1 provento da planilha será substituído' : `${pending.replaces} proventos da planilha serão substituídos`} pelos do extrato.</>}
             {p.trades.length > 0 && <> A B3 não informa as taxas: as operações entram sem custos; se tiver a nota do dia, ela vale no lugar.</>}
             {pending.inferred.length > 0 && (

@@ -23,6 +23,7 @@ export function planilhaReplacedByB3(existing: Dividend[], incoming: B3Import['d
 export const mergeB3 = (list: B3Import[]): B3Import => ({
   trades: list.flatMap(p => p.trades), names: Object.assign({}, ...list.map(p => p.names)), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
   ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview), checks: list.flatMap(p => p.checks), sales: list.flatMap(p => p.sales), subscriptions: list.flatMap(p => p.subscriptions),
+  rfMoves: list.flatMap(p => p.rfMoves), rfPositions: list.flatMap(p => p.rfPositions),
 })
 
 type TickerType = { ticker: string; type: AssetType }
@@ -64,6 +65,8 @@ export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>
     ...(r.eventsSkipped ? [r.eventsSkipped === 1 ? '1 evento já existia' : `${r.eventsSkipped} eventos já existiam`] : []),
     ...(r.sales ? [`${n(r.sales, 'leilão de fração lançado como venda', 'leilões de fração lançados como venda')}`] : []),
     ...(r.checked ? [`${n(r.checked, 'posição conferida com a B3', 'posições conferidas com a B3')}`] : []),
+    ...(r.rfMoves.inserted || r.rfMoves.skipped ? [n(r.rfMoves.inserted, 'movimentação de renda fixa', 'movimentações de renda fixa'), ...(r.rfMoves.skipped ? [n(r.rfMoves.skipped, 'já existia', 'já existiam')] : [])] : []),
+    ...(r.rfPositions.updated || r.rfPositions.older ? [n(r.rfPositions.updated, 'título de renda fixa atualizado', 'títulos de renda fixa atualizados'), ...(r.rfPositions.older ? [n(r.rfPositions.older, 'de uma Posição mais antiga ignorado', 'de uma Posição mais antiga ignorados')] : [])] : []),
     ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações e frações; as compras e vendas vêm do relatório de Negociação)`] : []),
   ]
   return {
