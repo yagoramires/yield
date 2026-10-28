@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { clearBinanceCredentials, getBinanceCredentials, setBinanceCredentials } from '../../cripto/secrets'
+import { saveCryptoBalances } from '../../db/rendaFixaRepo'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 
-/** Chave só de leitura da Binance, guardada no Keychain; o segredo nunca entra no estado da tela. */
+/** Chave só de leitura da Binance, guardada no Keychain; o segredo só fica na tela enquanto é digitado. */
 export function Binance() {
-  const { binance, refreshQuotesNow } = useData()
+  const { db, reload, binance, refreshQuotesNow } = useData()
   const [saved, setSaved] = useState<boolean | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [secret, setSecret] = useState('')
@@ -25,7 +26,11 @@ export function Binance() {
     setApiKey(''); setSecret(''); setSaved(true)
     await binance.syncNow(); await refreshQuotesNow()
   })
-  const remove = () => run('Não foi possível remover', async () => { await clearBinanceCredentials(); setSaved(false); setConfirm(false) })
+  // os saldos zeram (somem do patrimônio), mas o aportado digitado fica guardado para quando a chave voltar
+  const remove = () => run('Não foi possível remover', async () => {
+    await clearBinanceCredentials(); await saveCryptoBalances(db, [], new Date().toISOString()); await reload()
+    setSaved(false); setConfirm(false)
+  })
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
@@ -39,7 +44,7 @@ export function Binance() {
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>
           <span>Chave salva</span>
           {confirm ? (
-            <span>Remover a chave da Binance? <button className="link dn" disabled={busy} onClick={() => void remove()}>Remover</button> <button className="link" onClick={() => setConfirm(false)}>Cancelar</button></span>
+            <span>Remover a chave da Binance? Os saldos saem do patrimônio. <button className="link dn" disabled={busy} onClick={() => void remove()}>Remover</button> <button className="link" onClick={() => setConfirm(false)}>Cancelar</button></span>
           ) : <button className="link" onClick={() => setConfirm(true)}>Remover chave</button>}
         </div>
       ) : (

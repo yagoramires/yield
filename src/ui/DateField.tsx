@@ -1,10 +1,10 @@
 import { CalendarDays, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { todayISO as localToday } from '../state/DataProvider'
 import { isoToBR, maskBR, monthGrid, parseBR } from './dateText'
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const WEEK = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
-const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 /**
  * Data em dd/mm/aaaa, digitável (as barras entram sozinhas) ou pelo calendário em português.

@@ -20,7 +20,7 @@ export function Cripto({ rows, onOpenSettings }: { rows: CryptoRow[]; onOpenSett
   const [editing, setEditing] = useState<{ asset: string; text: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fetchedAt = data.cryptoBalances[0]?.fetchedAt
-  if (!data.cryptoBalances.length && !binance.error) return null
+  if (!data.cryptoBalances.some(c => c.qty > 0) && !binance.error) return null
 
   const saveCost = async () => {
     if (!editing) return

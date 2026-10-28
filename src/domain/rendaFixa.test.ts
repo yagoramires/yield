@@ -50,8 +50,13 @@ test('juros por mês, com os meses vazios', () => {
 })
 
 test('fora da Posição e terminando numa saída: encerrado mesmo com quantidade diferente', () => {
-  const [h] = rfHoldings([mv(CDB, 'aplicacao', 3, 30000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 1, 33000, '2026-01-01', CDB_PROD)], [])
-  expect(h).toMatchObject({ closed: true, valueCents: 0, appliedCents: 0, gainCents: 3000, needsNewerPosicao: false })
+  const list = rfHoldings([mv(CDB, 'aplicacao', 3, 30000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 1, 33000, '2026-01-01', CDB_PROD)], [pos(TD, 100, { asOf: '2026-02-01' })])
+  expect(list.find(h => h.key === CDB)).toMatchObject({ closed: true, valueCents: 0, appliedCents: 0, gainCents: 3000, needsNewerPosicao: false })
+})
+
+test('venda parcial sem nenhuma Posição: continua aberto esperando a Posição', () => {
+  const [h] = rfHoldings([mv(TD, 'aplicacao', 3, 30000, '2025-01-01'), mv(TD, 'saida', 1, 11000, '2026-01-01')], [])
+  expect(h).toMatchObject({ closed: false, valueCents: null, needsNewerPosicao: true })
 })
 
 describe('revisão final', () => {
@@ -59,6 +64,12 @@ describe('revisão final', () => {
     const list = rfHoldings([mv(CDB, 'aplicacao', 1, 1_000_000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 1, null, '2026-03-01', CDB_PROD)],
       [pos(CDB, 1_000_000, { family: 'rf', asOf: '2026-01-31' }), pos(TD, 5000, { asOf: '2026-04-30' })])
     expect(list.find(h => h.key === CDB)).toMatchObject({ closed: true, valueCents: 0 })
+  })
+
+  test('título vencido depois da data da Posição fecha em vez de ficar com o valor antigo', () => {
+    const [h] = rfHoldings([mv(CDB, 'aplicacao', 1, 1_000_000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 1, 1_050_000, '2026-03-01', CDB_PROD)],
+      [pos(CDB, 1_040_000, { family: 'rf', qty: 1, asOf: '2026-01-31' })])
+    expect(h).toMatchObject({ closed: true, valueCents: 0, gainCents: 50_000 })
   })
 
   test('Movimentação sem o começo do histórico não inventa rendimento', () => {

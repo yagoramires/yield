@@ -24,7 +24,8 @@ export async function sign(secret: string, query: string): Promise<string> {
 type Creds = { apiKey: string; secret: string }
 
 async function signedGet(path: string, creds: Creds, fetchFn: typeof fetch, now: () => number): Promise<Response> {
-  const query = `timestamp=${now()}&recvWindow=10000`
+  // shortcut: o Earn pagina (padrão 10 linhas); 100 é o máximo de uma página, paginar se alguém tiver mais produtos
+  const query = `${EARN.includes(path) ? 'size=100&' : ''}timestamp=${now()}&recvWindow=10000`
   const u = binanceRequest('GET', `${path}?${query}&signature=${await sign(creds.secret, query)}`)
   try { return await fetchFn(u.toString(), { method: 'GET', headers: { 'X-MBX-APIKEY': creds.apiKey }, signal: AbortSignal.timeout(30_000) }) } catch {
     throw new BinanceError('Sem conexão com a Binance', 'rede')

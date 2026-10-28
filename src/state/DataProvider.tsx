@@ -161,7 +161,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
         setData(ds); setGastosData(g); setOrcData(o)
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
-        void (ds.cryptoBalances.length ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
+        void (ds.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
         if (needsSync(g, Date.now())) {
           getPluggyCredentials().then(
             c => { if (c && !cancelled) void syncNow(c) },
