@@ -9,8 +9,9 @@ import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
 import { Rentabilidade } from './resumoInvestimentos/Rentabilidade'
-import { rfJurosByMonth } from '../domain/rendaFixa'
-import { classColor, classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './resumoInvestimentos/build'
+import { rfAppliedByMonth, rfJurosByMonth } from '../domain/rendaFixa'
+import { carteiraClasses } from './carteira/build'
+import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 
 const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s.replace('-', '')}` : s)
 const tone = (c: number | null) => (c === null || c === 0 ? '' : c > 0 ? 'up' : 'dn')
@@ -66,10 +67,15 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
   const incomplete = darfs.rows.filter(r => r.incomplete)
 
   const invested = investedByMonth(data.trades, data.events, thisMonth, 24)
-  const allQuoted = p.rows.length > 0 && p.missingQuotes.length === 0
-  const todayValue = p.rows.reduce((s, r) => s + (r.valueCents ?? 0), 0)
+  const rfApplied = rfAppliedByMonth(data.rfMoves, thisMonth, 24)
+  const hasRf = rfApplied.some(m => m.cents > 0)
+  const allQuoted = p.totalValueCents > 0 && p.missingQuotes.length === 0
+  // o ponto de hoje é o patrimônio inteiro (inclui exterior, cripto e dólar, que não têm histórico)
+  const todayValue = p.totalValueCents
+  const buckets = moneyBuckets(p, { cryptoAt: data.cryptoBalances.find(c => c.qty > 0)?.fetchedAt ?? null, dollarCents: data.quotes.find(q => q.symbol === 'BRL=X')?.priceCents ?? null })
   const lineLabels = invested.map(m => `${monthName(m.month).slice(0, 3).toLowerCase()}/${m.month.slice(2, 4)}`)
-  const classes = [...p.byClass].sort((a, b) => b.valueCents - a.valueCents)
+  // mesmas classes e contas da Carteira
+  const classes = carteiraClasses(p).filter(c => c.valueCents > 0)
   const divs = dividendsByMonth(data.dividends, thisMonth, 12)
   const juros = rfJurosByMonth(data.rfMoves, thisMonth, 12)
   const juros12m = juros.reduce((s, m) => s + m.cents, 0)
@@ -101,12 +107,29 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <div className="s muted">{dueTotal > 0 ? (nextDue?.dueDate ? `DARF · vence ${brDay(nextDue.dueDate)}` : `DARF · código ${DARF_CODE}`) : 'nenhum DARF a vencer ou em aberto'}</div></div>
       </div>
 
+      {buckets.length > 1 && (
+        <div className="buckets" aria-label="Onde está seu dinheiro">
+          {buckets.map(b => (
+            <button key={b.key} className="bk" onClick={() => onOpenCarteira(b.key)}>
+              <span className="bk-h"><span className="class-dot" style={{ background: classColor(b.key === 'bolsa' ? 'Ação' : b.key) }} />{b.label}</span>
+              <span className="bk-v">{brl(b.valueCents)}</span>
+              <span className={`bk-s ${b.gainPct === null ? 'muted' : tone(b.gainCents)}`}>{b.gainPct === null ? 'sem aportado' : b.usdGain ? `US$ ${pct1(b.gainPct)}` : `${sign(b.gainCents!, brl(b.gainCents!))} · ${pct1(b.gainPct)}`}</span>
+              <span className="bk-m" aria-hidden><i style={{ width: `${Math.max(2, b.pct * 100)}%`, background: classColor(b.key === 'bolsa' ? 'Ação' : b.key) }} /></span>
+              <span className="muted bk-n">{Math.round(b.pct * 100)}% · {hidden && b.key === 'exterior' ? 'US$ •••••' : b.note}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {coverage && (
         <div className="card coverage">
           <div className="bar"><h5 style={{ margin: 0 }} className="k-l"><Sprout size={14} aria-hidden style={{ color: 'var(--accent)' }} />Renda passiva</h5><span className="muted">últimos 12 meses</span></div>
           <div className="coverage-v"><b>{Math.round(coverage.pct * 100)}%</b> <span className="muted">do seu gasto médio já é pago pelos proventos{juros12m > 0 ? ' e juros da renda fixa' : ''}</span></div>
-          <div className="meter big" aria-hidden><i style={{ width: `${Math.min(100, coverage.pct * 100)}%` }} /></div>
-          <div className="muted">proventos {brl(coverage.avgDividendsCents)}/mês · gasto {brl(coverage.avgSpentCents)}/mês · {coverage.gapCents > 0 ? `faltam ${brl(coverage.gapCents)}/mês para cobrir tudo` : 'os proventos já cobrem todo o gasto'}</div>
+          <div className="meter big split" aria-hidden>
+            <i style={{ width: `${Math.min(100, (p.dividends12mCents / 12 / coverage.avgSpentCents) * 100)}%` }} />
+            {juros12m > 0 && <i className="juros" style={{ width: `${Math.max(0, Math.min(100 - (p.dividends12mCents / 12 / coverage.avgSpentCents) * 100, (juros12m / 12 / coverage.avgSpentCents) * 100))}%` }} />}
+          </div>
+          <div className="muted">proventos {brl(Math.round(p.dividends12mCents / 12))}/mês{juros12m > 0 && ` · juros da renda fixa ${brl(Math.round(juros12m / 12))}/mês`} · gasto {brl(coverage.avgSpentCents)}/mês · {coverage.gapCents > 0 ? `faltam ${brl(coverage.gapCents)}/mês para cobrir tudo` : 'a renda passiva já cobre todo o gasto'}</div>
         </div>
       )}
 
@@ -117,31 +140,29 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <h5 style={{ margin: 0 }}>Aportado × valor de hoje</h5>
           <LineChart
             series={[
-              { label: 'aportado', values: invested.map(m => m.cents) },
+              { label: 'bolsa', values: invested.map(m => m.cents) },
+              ...(hasRf ? [{ label: 'bolsa + renda fixa', values: invested.map((m, i) => m.cents + rfApplied[i].cents) }] : []),
               ...(allQuoted ? [{ label: 'valor de hoje', values: invested.map((_, i) => (i === invested.length - 1 ? todayValue : null)) }] : []),
             ]}
             xLabels={lineLabels} xTicks={[0, 6, 12, 18, 23]} tipTitle={i => lineLabels[i]} format={cents} tickFormat={short}
-            ariaLabel={`Aportado em ações, FIIs, ETFs e BDRs: ${brl(invested[invested.length - 1].cents)} hoje${allQuoted ? `; valor de mercado ${brl(todayValue)}` : ''}`} />
+            ariaLabel={`Aportado na bolsa: ${brl(invested[invested.length - 1].cents)}${hasRf ? `; com a renda fixa: ${brl(invested[invested.length - 1].cents + rfApplied[rfApplied.length - 1].cents)}` : ''}${allQuoted ? `; patrimônio hoje ${brl(todayValue)}` : ''}`} />
           <div className="muted">
-            A linha é o que você aportou em ações, FIIs, ETFs e BDRs (custo das compras menos o das vendas). O Yield não guarda cotações antigas, então o valor de mercado aparece só para hoje. Ativos manuais ficam de fora deste gráfico.
+            As linhas são o que está aportado na bolsa (ações, FIIs, ETFs e BDRs){hasRf ? ' e, somada, a renda fixa aplicada' : ''}, mês a mês. O ponto de hoje é o patrimônio inteiro, com exterior, cripto e dólar, que não têm histórico no Yield.
             {!allQuoted && p.missingQuotes.length > 0 && ` ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'} sem cotação: o ponto de hoje não é mostrado.`}
           </div>
         </div>
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Por classe</h5><span className="muted">clique para abrir a Carteira</span></div>
           {classes.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum ativo com valor ainda.</div> : <>
-            <div className="class-stack" aria-hidden>{classes.map(c => <i key={c.cls} style={{ width: `${(c.valueCents / p.totalValueCents) * 100}%`, background: classColor(c.cls) }} />)}</div>
+            <div className="class-stack" aria-hidden>{classes.map(c => <i key={c.key} style={{ width: `${c.pct * 100}%`, background: classColor(c.key) }} />)}</div>
             <div className="sum-rows">
-              {classes.map(c => {
-                const gain = c.costCents ? (c.valueCents - c.costCents) / c.costCents : null
-                return (
-                  <button key={c.cls} className="sum-row" onClick={() => onOpenCarteira(c.cls)}>
-                    <span className="class-dot" style={{ background: classColor(c.cls) }} />
-                    <span className="lmid"><span className="sum-name">{classLabel(c.cls)} <span className="muted">{pct1(c.valueCents / p.totalValueCents).replace('+', '')}</span></span></span>
-                    <span className="sum-val">{cents(c.valueCents)}<small className={tone(gain)}>{gain === null ? 'sem aportado' : pct1(gain)}</small></span>
-                  </button>
-                )
-              })}
+              {classes.map(c => (
+                <button key={c.key} className="sum-row" onClick={() => onOpenCarteira(c.key)}>
+                  <span className="class-dot" style={{ background: classColor(c.key) }} />
+                  <span className="lmid"><span className="sum-name">{c.label} <span className="muted">{pct1(c.pct).replace('+', '')}</span></span></span>
+                  <span className="sum-val">{cents(c.valueCents)}<small className={tone(c.gainPct)}>{c.gainPct === null ? 'sem aportado' : `${c.usdGain ? 'US$ ' : ''}${pct1(c.gainPct)}`}</small></span>
+                </button>
+              ))}
             </div>
           </>}
         </div>

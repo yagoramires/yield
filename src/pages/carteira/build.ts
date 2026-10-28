@@ -5,7 +5,7 @@ import type { AssetType, Cents } from '../../domain/types'
 export type ClassKey = AssetType | ManualAsset['assetClass']
 export interface ClassSummary {
   key: ClassKey; label: string; valueCents: Cents; pct: number
-  gainCents: Cents | null; gainPct: number | null; usdGain: boolean /* exterior: % sobre o aportado em US$ */
+  gainCents: Cents | null; costCents: Cents | null /* base do resultado */; gainPct: number | null; usdGain: boolean /* exterior: % sobre o aportado em US$ */
   count: number; missingQuotes: number
 }
 
@@ -37,7 +37,7 @@ export function carteiraClasses(p: Portfolio): ClassSummary[] {
     const gainPct = key === 'exterior' ? (usdBase ? usd.reduce((s, i) => s + i.usd! - i.usdCost!, 0) / usdBase : null) : gainCents === null || !base ? null : gainCents / base
     return {
       key, label: classTitle(key), valueCents, pct: p.totalValueCents > 0 ? valueCents / p.totalValueCents : 0,
-      gainCents, gainPct, usdGain: key === 'exterior', count: list.length, missingQuotes: list.filter(i => i.value === null).length,
+      gainCents, costCents: gainCents === null ? null : base, gainPct, usdGain: key === 'exterior', count: list.length, missingQuotes: list.filter(i => i.value === null).length,
     }
   }).sort((a, b) => b.valueCents - a.valueCents)
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Dividend, Trade } from '../../domain/types'
-import { classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './build'
+import { classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './build'
 
 const trade = (o: Partial<Trade>): Trade => ({
   id: 't', noteId: 'n', seq: 1, broker: 'X', tradeDate: '2026-01-10', settleDate: '2026-01-12', side: 'C', assetType: 'Ação',
@@ -79,4 +79,31 @@ describe('passiveCoverage', () => {
     expect(passiveCoverage(600000 * 12, [500000])).toMatchObject({ pct: 1.2, gapCents: 0 })
   })
   it('sem gasto registrado não calcula', () => expect(passiveCoverage(1000, [0, 0])).toBeNull())
+})
+
+describe('moneyBuckets', () => {
+  const row = (ticker: string, assetType: string, valueCents: number, costCents: number) => ({ ticker, assetType, valueCents, costCents, varCents: valueCents - costCents })
+  const p = {
+    totalValueCents: 200_000,
+    rows: [row('AAAA3', 'Ação', 60_000, 50_000), row('FIIA11', 'FII', 40_000, 40_000), row('ETFX11', 'ETF', 20_000, 22_000)],
+    manual: [{ id: 'z', name: 'ZZZZ', assetClass: 'exterior', valueCents: 30_000, costCents: 24_000, usdCents: 5_500, usdCostCents: 5_000 },
+      { id: 'd', name: 'Dólar', assetClass: 'dolar', valueCents: 10_000, costCents: null, usdCents: null, usdCostCents: null }],
+    rf: [{ key: 'td', closed: false, valueCents: 30_000, investedCents: 27_000, gainCents: 3_000 }, { key: 'x', closed: false, valueCents: 10_000, investedCents: null, gainCents: null }],
+    crypto: [],
+  } as unknown as Portfolio
+
+  it('bolsa soma as quatro classes; exterior em US$; só blocos com valor; notas', () => {
+    const b = moneyBuckets(p, { cryptoAt: null, dollarCents: 542 })
+    expect(b.map(x => x.key)).toEqual(['bolsa', 'renda_fixa', 'exterior', 'dolar'])
+    expect(b[0]).toMatchObject({ label: 'Bolsa', valueCents: 120_000, pct: 0.6, gainCents: 8_000, note: 'ações, FIIs, ETFs, BDRs' })
+    expect(b[0].gainPct).toBeCloseTo(8_000 / 112_000)
+    expect(b[1]).toMatchObject({ valueCents: 40_000, gainCents: 3_000, note: '2 títulos' })
+    expect(b[2]).toMatchObject({ usdGain: true, gainPct: 0.1, note: 'US$ 55,00' })
+    expect(b[3]).toMatchObject({ gainCents: null, gainPct: null, note: 'dólar R$ 5,42' })
+  })
+
+  it('cripto da Binance mostra o horário do saldo', () => {
+    const c = moneyBuckets({ ...p, crypto: [{ asset: 'BTC', qty: 0.1, valueCents: 5_000, costCents: null }] } as unknown as Portfolio, { cryptoAt: '2026-10-28T17:02:00Z', dollarCents: null })
+    expect(c.find(x => x.key === 'cripto')?.note).toMatch(/^Binance, \d{2}:\d{2}$/)
+  })
 })
