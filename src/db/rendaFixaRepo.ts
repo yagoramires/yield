@@ -4,14 +4,14 @@ import type { Db } from './client'
 export type RfMoveKind = 'aplicacao' | 'saida' | 'juros'
 export interface RfMove { id: string; key: string; product: string; date: ISODate; kind: RfMoveKind; qty: number; valueCents: Cents | null /* null = a B3 não informou */; sourceKey: string }
 export interface RfPosition { key: string; family: 'tesouro' | 'rf'; product: string; issuer: string | null; indexer: string; maturity: ISODate | null; qty: number; appliedCents: Cents | null; valueCents: Cents; asOf: ISODate }
-export interface CryptoBalance { asset: string; qty: number; costCents: Cents | null; fetchedAt: string }
+export interface CryptoBalance { asset: string; qty: number; costCents: Cents | null; costManual: 0 | 1; costPartial: 0 | 1; fetchedAt: string }
 
 export const loadRfMoves = (db: Db) =>
   db.select<RfMove>('SELECT id, key, product, date, kind, qty, value_cents AS valueCents, source_key AS sourceKey FROM rf_moves ORDER BY date, id')
 export const loadRfPositions = (db: Db) =>
   db.select<RfPosition>('SELECT key, family, product, issuer, indexer, maturity, qty, applied_cents AS appliedCents, value_cents AS valueCents, as_of AS asOf FROM rf_positions ORDER BY product')
 export const loadCryptoBalances = (db: Db) =>
-  db.select<CryptoBalance>('SELECT asset, qty, cost_cents AS costCents, fetched_at AS fetchedAt FROM crypto_balances ORDER BY asset')
+  db.select<CryptoBalance>('SELECT asset, qty, cost_cents AS costCents, cost_manual AS costManual, cost_partial AS costPartial, fetched_at AS fetchedAt FROM crypto_balances ORDER BY asset')
 
 export async function upsertRfMoves(db: Db, moves: Omit<RfMove, 'id'>[]): Promise<{ inserted: number; skipped: number }> {
   let inserted = 0
@@ -46,6 +46,11 @@ export async function saveCryptoBalances(db: Db, list: { asset: string; qty: num
   }
 }
 
+/** Aportado à mão; null devolve a moeda ao cálculo pelo histórico da Binance. */
 export async function setCryptoCost(db: Db, asset: string, costCents: Cents | null): Promise<void> {
-  await db.execute('UPDATE crypto_balances SET cost_cents = ? WHERE asset = ?', [costCents, asset])
+  await db.execute('UPDATE crypto_balances SET cost_cents = ?, cost_manual = ?, cost_partial = 0 WHERE asset = ?', [costCents, costCents === null ? 0 : 1, asset])
+}
+
+export async function saveComputedCryptoCosts(db: Db, list: { asset: string; costCents: Cents; partial: boolean }[]): Promise<void> {
+  for (const c of list) await db.execute('UPDATE crypto_balances SET cost_cents = ?, cost_partial = ? WHERE asset = ? AND cost_manual = 0', [c.costCents, c.partial ? 1 : 0, c.asset])
 }

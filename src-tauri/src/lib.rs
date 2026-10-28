@@ -245,6 +245,12 @@ pub fn run() {
             sql: include_str!("../migrations/011_etf_renda_fixa.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 12,
+            description: "aportado da cripto calculado ou a mao",
+            sql: include_str!("../migrations/012_aportado_cripto.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).

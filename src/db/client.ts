@@ -6,7 +6,7 @@ export interface Db {
   close(): Promise<void>
 }
 
-export const SCHEMA_VERSION = 11
+export const SCHEMA_VERSION = 12
 
 // Com `path` abre outro arquivo (backup), sem rodar a migração do app.
 export async function openDb(path = 'sqlite:yield.db'): Promise<Db> {
