@@ -23,3 +23,9 @@ it('salário entra como Receita; Pix para outra pessoa e categoria desconhecida 
   expect(pluggyCategoryId('Algo novo', -5000)).toBeNull()
   expect(pluggyCategoryId(null, -5000)).toBeNull()
 })
+
+it('resgate de investimento (valor positivo) continua Investimento, não Receita', () => {
+  expect(pluggyCategoryId('Fixed income', 100000)).toBe('investimento')
+  expect(pluggyCategoryId('Variable income', 100000)).toBe('investimento')
+  expect(pluggyCategoryId('Income', 100000)).toBe('receita')
+})
