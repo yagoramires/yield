@@ -82,6 +82,16 @@ describe('CSV genérico', () => {
     expect(parse(text).rows.map(r => [r.date, r.description, r.amountCents])).toEqual([['2024-03-11', 'PADARIA', -1250], ['2024-03-12', 'MERCADO', -3000]])
   })
 
+  test('valor sem centavos com ponto de milhar é real, não milésimo', () => {
+    expect(parse('Data;Descrição;Valor\n01/03/2025;Aluguel;-1.000\n02/03/2025;Pix;250\n03/03/2025;Bônus;1.234.567\n').rows.map(r => r.amountCents)).toEqual([-100000, 25000, 123456700])
+    expect(parse('Data,Descrição,Valor\n01/03/2025,A,"1,234.56"\n02/03/2025,B,1.000\n').rows.map(r => r.amountCents)).toEqual([123456, 100]) // há ponto decimal no arquivo
+  })
+
+  test('sinal no fim: D é débito, C é crédito, traço é negativo', () => {
+    expect(parse('Data;Descrição;Valor\n01/03/2025;A;45,90 D\n02/03/2025;B;45,90 C\n03/03/2025;C;45,90-\n04/03/2025;D;1.000 D\n').rows.map(r => r.amountCents)).toEqual([-4590, 4590, -4590, -100000])
+    expect(parse('Data,Descrição,Valor\n01/03/2025,A,45.90 D\n02/03/2025,B,10.00\n').rows.map(r => r.amountCents)).toEqual([-4590, 1000])
+  })
+
   test('erro com o número da linha', () => {
     expect(() => parse('Data;Descrição;Valor\n02/03/2025;A;1,00\nontem;B;2,00')).toThrow(/Linha 3.*Data inválida/)
     expect(() => parse('Data;Descrição;Valor\n02/03/2025;A;abc')).toThrow(/Linha 2/)

@@ -123,9 +123,16 @@ export function parseMappedCsv(text: string, layout: Pick<CsvSniff, 'sep' | 'sta
   if (m.amount < 0 && m.debit < 0 && m.credit < 0) throw new Error('Escolha a coluna do valor (ou as de débito e crédito)')
   const body = lines(text).map((l, i) => ({ cells: splitRow(l, layout.sep), line: i + 1 })).slice(layout.start + 1).filter((_, i, a) => a[i].cells.some(Boolean))
   const cols = (m.amount >= 0 ? [m.amount] : [m.debit, m.credit]).filter(c => c >= 0)
-  // vírgula decimal se algum valor termina em ",dd"; senão ponto ("45.90", "1,234.56")
-  const comma = body.some(r => cols.some(c => /,\d{1,2}$/.test(r.cells[c] ?? '')))
-  const num = (v: string): Cents => (comma ? parseBRL(v) : parseBRL(v.replace(/,/g, '').replace('.', ',')))
+  // sinal no fim: "45,90 D" (débito), "45,90 C" (crédito), "45,90-"
+  const signed = (v: string): [string, number] => { const m = /^(.*\d)\s*([DC]|-)$/i.exec(v.trim()); return m ? [m[1], /c/i.test(m[2]) ? 1 : -1] : [v, 0] }
+  const vals = body.flatMap(r => cols.map(c => signed(r.cells[c] ?? '')[0].trim()))
+  // vírgula decimal se algum valor termina em ",dd", ou milhar com ponto ("1.000") sem nenhum ponto decimal no arquivo; senão ponto ("45.90", "1,234.56")
+  const comma = vals.some(v => /,\d{1,2}$/.test(v)) || (!vals.some(v => /\.\d{1,2}$/.test(v)) && vals.some(v => /\d{1,3}(\.\d{3})+$/.test(v)))
+  const num = (v: string): Cents => {
+    const [s, sign] = signed(v)
+    const c = comma ? parseBRL(s) : parseBRL(s.replace(/,/g, '').replace('.', ','))
+    return sign ? sign * Math.abs(c) + 0 : c
+  }
   const rows = body.flatMap(({ cells, line }) => {
     const cell = (c: number) => (c >= 0 ? cells[c] ?? '' : '')
     if (cols.every(c => !cell(c))) return [] // saldo do dia, linha informativa
