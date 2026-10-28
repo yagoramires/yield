@@ -8,7 +8,7 @@ const INSTALLMENT = /(?<![\d/])(\d{1,2})(?:\s*\/\s*|\s+DE\s+)(\d{1,2})(?![\d/])(
 
 /**
  * Parcela 'n/total' na descrição do extrato. Com marcador ("PARC 3/10", "2 DE 12") vale em qualquer conta;
- * "n/total" solto só no cartão, e com total ≤ 12 (pode ser dd/mm) só como último token depois de espaço.
+ * "n/total" solto só no cartão e só como último token depois de espaço: no meio pode ser dd/mm ou mm/aa ("NETFLIX.COM 10/25 SAO PAULO").
  */
 export function parseInstallment(description: string, kind: AccountKind): string | null {
   const m = [...description.matchAll(INSTALLMENT)].filter(x => {
@@ -17,7 +17,7 @@ export function parseInstallment(description: string, kind: AccountKind): string
     const before = description.slice(0, x.index)
     if (/\sDE\s/i.test(x[0]) || /\bPARC(?:ELA)?\.?\s*$/i.test(before)) return true
     if (kind !== 'cartao') return false
-    return t > 12 || (/\s$/.test(before) && !description.slice(x.index + x[0].length).trim())
+    return /\s$/.test(before) && !description.slice(x.index + x[0].length).trim()
   }).at(-1)
   return m ? `${Number(m[1])}/${Number(m[2])}` : null
 }

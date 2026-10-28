@@ -85,6 +85,9 @@ test.each([
   ['SUPERMERCADO', null],
   ['RSHOP-PADARIA-05/11', null], // data colada no nome
   ['LOJA 05/11 SAO PAULO', null], // dd/mm no meio é data, não parcela
+  ['NETFLIX.COM 10/25 SAO PAULO', null], // mm/aa no meio, não parcela
+  ['LOJA 7/36 SAO PAULO', null], // sem marcador e fora do fim não é parcela
+  ['LOJA PARC 7/36 SAO PAULO', '7/36'], // com marcador vale em qualquer lugar
 ])('cartão: parcela em "%s" → %s', (description, installment) => {
   expect(parseInstallment(description, 'cartao')).toBe(installment)
 })
