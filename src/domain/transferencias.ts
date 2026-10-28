@@ -1,4 +1,4 @@
-import type { Account, Txn } from '../db/gastosRepo'
+import type { Account, Category, Txn } from '../db/gastosRepo'
 import { normalizeDescription } from './gastos'
 
 export interface TransferLink { otherAccountId: string; outgoing: boolean }
@@ -61,4 +61,17 @@ export function validCompanyNames(text: string): { names: string[] } | { error: 
   const names = text.split(',').map(s => s.trim().replace(/\s+/g, ' ')).filter(Boolean)
   const short = names.find(n => digits(n).length !== 14 && words(n).trim().split(' ').length < 2)
   return short ? { error: `Use o nome com pelo menos duas palavras ou o CNPJ completo ("${short}" pegaria Pix de outras empresas).` } : { names }
+}
+
+const PIX_TED = / (pix|ted|doc|transf\w*) /
+const PJ = /\b(ltda|eireli|mei|me)\b|\bs[/.]a\b|(?<!\d)\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}(?!\d)/i
+
+/**
+ * Sem "sua empresa" configurada, Pix/TED recebido de uma PJ (LTDA, ME, EIRELI, S/A, MEI ou CNPJ na descrição)
+ * que caiu em Transferência: provável pagamento da empresa do titular, que seria Receita. Para a dica em Lançamentos.
+ */
+export function companyCreditHints(txns: Txn[], accounts: Account[], cat: (t: Txn) => Category | null, companyNames: string[]): Txn[] {
+  if (companyNames.length) return []
+  const contas = new Set(accounts.filter(a => a.kind === 'conta').map(a => a.id))
+  return txns.filter(t => t.amountCents > 0 && contas.has(t.accountId) && PIX_TED.test(words(t.description)) && PJ.test(t.description) && cat(t)?.id === 'transferencia')
 }
