@@ -69,7 +69,23 @@ export async function saveNote(db: Db, note: NoteInput, trades: TradeInput[]): P
   if (dup.length) return { skipped: 'duplicada' }
   const id = crypto.randomUUID()
   await insertNote(db, id, note, trades)
+  if (note.source === 'pdf' || note.source === 'manual') await dropAutoTrades(db, note.tradeDate, trades)
   return { id }
+}
+
+/** A nota tem as taxas certas: some a mesma operação (dia, ticker, lado, quantidade) vinda da Negociação da B3 ou da Pluggy, uma por uma. */
+async function dropAutoTrades(db: Db, date: ISODate, trades: TradeInput[]) {
+  const auto = await db.select<{ id: string; noteId: string; ticker: string; side: string; qty: number }>(
+    `SELECT t.id, t.note_id AS noteId, t.ticker, t.side, t.qty FROM trades t JOIN notes n ON n.id = t.note_id
+      WHERE n.trade_date = ? AND n.source = 'sem_nota' AND (n.source_key LIKE 'b3neg:%' OR n.source_key LIKE 'pluggy:%') ORDER BY n.source_key, t.seq`, [date])
+  const gone = trades.flatMap(t => {
+    const i = auto.findIndex(a => a.ticker === normalizeTicker(t.ticker) && a.side === t.side && a.qty === t.qty)
+    return i < 0 ? [] : auto.splice(i, 1)
+  })
+  if (!gone.length) return
+  await db.execute(`DELETE FROM trades WHERE id IN (${gone.map(() => '?').join(', ')})`, gone.map(g => g.id))
+  const notes = [...new Set(gone.map(g => g.noteId))]
+  await db.execute(`DELETE FROM notes WHERE id IN (${notes.map(() => '?').join(', ')}) AND NOT EXISTS (SELECT 1 FROM trades WHERE note_id = notes.id)`, notes)
 }
 
 const BROKERS_KEY = 'reparo.corretoras'
