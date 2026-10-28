@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText } from './build'
 import { BinanceError } from '../../cripto/binance'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
@@ -36,7 +36,7 @@ describe('b3Summary', () => {
   it('contagens, eventos aplicados e o que revisar', () => {
     expect(b3Summary(
       {
-        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1, sales: 2, checked: 9, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 },
+        notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 38, dividendsSkipped: 5, replaced: 12, eventsSkipped: 1, sales: 2, checked: 9, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 }, issuers: 0,
         review: [{ date: '2024-06-12', movimentacao: 'Atualização', produto: 'WEGE3 - WEG S.A.', nota: 'B3: 125, Yield: 100' }],
         applied: [
           { kind: 'bonificacao', ticker: 'ITSA4', date: '2024-04-20', qtyDelta: 160, unitCostCents: null, sourceKey: 'a' },
@@ -107,10 +107,14 @@ describe('parseItemId', () => {
 })
 
 describe('validateSource', () => {
-  const pj = { name: ' Empresa Alfa ', kind: 'pj' as const, gross: '15.000,00', proLabore: '28', irpj: '6', inss: '11', contabilidade: '300,00', outros: '150,00', net: '', dependents: '' }
+  const pj = { name: ' Empresa Alfa ', kind: 'pj' as const, gross: '15.000,00', proLabore: '28', irpj: '6', inss: '11', contabilidade: '300,00', outros: '150,00', net: '', dependents: '', das: '' }
   it('PJ ok: nome aparado, percentuais com vírgula, líquido fica nulo', () => {
-    expect(validateSource(pj)).toEqual({ name: 'Empresa Alfa', kind: 'pj', grossCents: 1500000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 15000, dependents: 0 })
+    expect(validateSource(pj)).toEqual({ name: 'Empresa Alfa', kind: 'pj', grossCents: 1500000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 15000, dasCents: 0, dependents: 0 })
     expect(validateSource({ ...pj, irpj: '6,5', contabilidade: '', outros: '0' })).toMatchObject({ irpjPct: 6.5, contabilidadeCents: 0, outrosCents: 0 })
+  })
+  it('MEI: bruto, DAS fixo e outros descontos; sem pró-labore, imposto % nem INSS', () => {
+    expect(validateSource({ ...pj, kind: 'mei', gross: '5.000,00', das: '76,00', outros: '' })).toEqual({ name: 'Empresa Alfa', kind: 'mei', grossCents: 500000, netCents: null, proLaborePct: 0, irpjPct: 0, inssPct: 0, contabilidadeCents: 0, outrosCents: 0, dasCents: 7600, dependents: 0 })
+    expect(() => validateSource({ ...pj, kind: 'mei', gross: '5.000,00', das: '' })).toThrow('DAS')
   })
   it('exige nome', () => expect(() => validateSource({ ...pj, name: '  ' })).toThrow('Dê um nome para a fonte'))
   it('percentual fora de 0–100 ou não numérico', () => {
@@ -121,11 +125,11 @@ describe('validateSource', () => {
     expect(() => validateSource({ ...pj, contabilidade: '20.000,00' })).toThrow('O líquido ficou negativo: confira os descontos')
   })
   it('fixo: só o líquido, PJ no padrão', () => {
-    expect(validateSource({ ...pj, kind: 'fixo', net: '6.500,00' })).toEqual({ name: 'Empresa Alfa', kind: 'fixo', grossCents: null, netCents: 650000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dependents: 0 })
+    expect(validateSource({ ...pj, kind: 'fixo', net: '6.500,00' })).toEqual({ name: 'Empresa Alfa', kind: 'fixo', grossCents: null, netCents: 650000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dasCents: 0, dependents: 0 })
     expect(() => validateSource({ ...pj, kind: 'fixo', net: '' })).toThrow('Líquido')
   })
   it('CLT: bruto, dependentes e outros descontos; percentuais da PJ ficam no padrão', () => {
-    expect(validateSource({ ...pj, kind: 'clt', gross: '6.000,00', dependents: '2', outros: '150,00', proLabore: 'x' })).toEqual({ name: 'Empresa Alfa', kind: 'clt', grossCents: 600000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 15000, dependents: 2 })
+    expect(validateSource({ ...pj, kind: 'clt', gross: '6.000,00', dependents: '2', outros: '150,00', proLabore: 'x' })).toEqual({ name: 'Empresa Alfa', kind: 'clt', grossCents: 600000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 15000, dasCents: 0, dependents: 2 })
     expect(validateSource({ ...pj, kind: 'clt', gross: '3.000,00', dependents: '', outros: '' })).toMatchObject({ dependents: 0, outrosCents: 0 })
     for (const bad of ['-1', '1,5', 'dois', '31']) expect(() => validateSource({ ...pj, kind: 'clt', dependents: bad })).toThrow('Dependentes')
     expect(() => validateSource({ ...pj, kind: 'clt', gross: '2.000,00', outros: '5.000,00' })).toThrow('O líquido ficou negativo: confira os descontos')
@@ -134,8 +138,8 @@ describe('validateSource', () => {
 
 describe('orcamentoImportSummary', () => {
   it('contagens e fonte criada', () => {
-    expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 }, true)).toBe('11 meses · 186 linhas · 0 já existiam · 1 fonte de renda PJ criada')
-    expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 }, false)).toBe('1 mês · 1 linha · 2 já existiam')
+    expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 })).toBe('11 meses · 186 linhas · 0 já existiam')
+    expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 })).toBe('1 mês · 1 linha · 2 já existiam')
   })
 })
 
@@ -143,7 +147,7 @@ describe('saveSourceForm', () => {
   it('se recalcular as entradas falhar, salvar de novo edita a mesma fonte em vez de criar outra', async () => {
     const db = createTestDb()
     const failing = { ...db, execute: (sql: string, p?: unknown[]) => (sql.startsWith('UPDATE budget_lines') ? Promise.reject(new Error('falhou')) : db.execute(sql, p)) }
-    const v = validateSource({ name: 'Freela', kind: 'fixo', gross: '', proLabore: '', irpj: '', inss: '', contabilidade: '', outros: '', net: '1000', dependents: '' })
+    const v = validateSource({ name: 'Freela', kind: 'fixo', gross: '', proLabore: '', irpj: '', inss: '', contabilidade: '', outros: '', net: '1000', dependents: '', das: '' })
     let editing: IncomeSource | null = null
     await expect(saveSourceForm(failing, v, editing, '2026-10', s => { editing = s })).rejects.toThrow('falhou')
     expect(await saveSourceForm(db, v, editing, '2026-10', s => { editing = s })).toBe(0)
@@ -152,7 +156,7 @@ describe('saveSourceForm', () => {
 })
 
 describe('tipos dos tickers da Negociação', () => {
-  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  const p = { trades: [['HGLG11'], ['BOVA11'], ['ITSA4'], ['KNXX11'], ['HGLG11']].map(([ticker]) => ({ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker, qty: 1, priceCents: 100 })), names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [], issuers: [] }
   const old = [{ id: 't', noteId: 'n', seq: 1, broker: 'CLEAR', tradeDate: '2023-01-02', settleDate: '2023-01-04', side: 'C' as const, assetType: 'ETF' as const, ticker: 'BOVA11', qty: 1, priceCents: 1, feesCents: 0, irrfCents: 0 }]
   it('pede confirmação só dos final 11 ainda sem operação, em ordem', () => {
     expect(typesToConfirm(p, old)).toEqual({ ask: [{ ticker: 'HGLG11', type: 'FII' }, { ticker: 'KNXX11', type: 'FII' }], inferred: [] })
@@ -173,7 +177,7 @@ describe('tipos dos tickers da Negociação', () => {
 
 describe('b3Summary com renda fixa', () => {
   it('conta movimentações e títulos, e o que já existia', () => {
-    const base = { notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [] }
+    const base = { notes: 0, notesSkipped: 0, trades: 0, tradesSkipped: 0, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], issuers: 0 }
     expect(b3Summary({ ...base, rfMoves: { inserted: 7, skipped: 2 }, rfPositions: { updated: 0, older: 0 } }, { ignored: 0, toReview: [] }).counts)
       .toBe('0 proventos · 0 já existiam · 7 movimentações de renda fixa · 2 já existiam')
     expect(b3Summary({ ...base, rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 3, older: 1 } }, { ignored: 0, toReview: [] }).counts)
@@ -184,7 +188,7 @@ describe('b3Summary com renda fixa', () => {
 describe('b3Summary com operações', () => {
   it('conta operações, dias e o que já estava em nota', () => {
     expect(b3Summary(
-      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 } },
+      { notes: 3, notesSkipped: 1, trades: 12, tradesSkipped: 2, dividends: 0, dividendsSkipped: 0, replaced: 0, eventsSkipped: 0, applied: [], sales: 0, checked: 0, review: [], rfMoves: { inserted: 0, skipped: 0 }, rfPositions: { updated: 0, older: 0 }, issuers: 0 },
       { ignored: 0, toReview: [] },
     ).counts).toBe('12 operações em 3 dias · 1 dia já existia · 2 operações já estavam em notas · 0 proventos · 0 já existiam')
   })
@@ -202,9 +206,15 @@ describe('binanceErrorText', () => {
     expect(binanceErrorText(new BinanceError('x', 'rede'))).toBe('Sem conexão com a Binance')
     expect(binanceErrorText(new Error('HTTP 500'))).toBe('Binance: HTTP 500')
   })
+
+  it('historyFailText diz qual fonte do histórico ficou de fora', () => {
+    expect(historyFailText([])).toBeNull()
+    expect(historyFailText([{ source: 'Convert', error: new BinanceError('x', 'chave') }, { source: 'negociações spot', error: new BinanceError('x', 'rede') }, { source: 'dólar do mês', error: new Error('Yahoo BRL=X: HTTP 500') }]))
+      .toBe('Não lido: Convert (a chave não tem acesso); negociações spot (sem conexão); dólar do mês (Yahoo BRL=X: HTTP 500).')
+  })
 })
 
 it('typesToConfirm: ETF de renda fixa já vem com o tipo e não pergunta', () => {
-  const p = { trades: [{ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker: 'ABCD11', qty: 1, priceCents: 100, assetType: 'ETF RF' as const }], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  const p = { trades: [{ date: '2024-01-05', broker: 'CLEAR', side: 'C' as const, ticker: 'ABCD11', qty: 1, priceCents: 100, assetType: 'ETF RF' as const }], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [], issuers: [] }
   expect(typesToConfirm(p, [])).toEqual({ ask: [], inferred: [{ ticker: 'ABCD11', type: 'ETF RF' }] })
 })

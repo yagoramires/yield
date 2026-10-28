@@ -33,8 +33,8 @@ export function parseCdi(json: unknown): Map<Month, number> {
   return out
 }
 
-export async function fetchMonthlyCloses(symbol: string, fetchFn: typeof fetch): Promise<Map<Month, Cents>> {
-  const res = await fetchFn(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=2y&interval=1mo&events=split`, { headers: { 'User-Agent': UA } })
+export async function fetchMonthlyCloses(symbol: string, fetchFn: typeof fetch, range = '2y'): Promise<Map<Month, Cents>> {
+  const res = await fetchFn(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=${range}&interval=1mo&events=split`, { headers: { 'User-Agent': UA } })
   if (!res.ok) throw new Error(`Yahoo ${symbol}: HTTP ${res.status}`)
   return parseYahooMonthly(await res.json())
 }

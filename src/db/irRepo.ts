@@ -26,16 +26,9 @@ export async function saveBroker(db: Db, b: Broker): Promise<void> {
   await db.execute('INSERT OR REPLACE INTO brokers (code, name, cnpj) VALUES (?, ?, ?)', [b.code, clean(b.name), formatCnpj(b.cnpj)])
 }
 
-/** Só acrescenta: quem já está cadastrado (inclusive editado à mão) fica como está. Os dados já vêm validados da leitura da planilha. */
-export async function importCadastro(db: Db, data: { issuers: Issuer[]; brokers: Broker[] }): Promise<{ issuers: number; brokers: number; skipped: number }> {
-  let issuers = 0, brokers = 0, skipped = 0
-  for (const i of data.issuers) {
-    const r = await db.execute('INSERT OR IGNORE INTO issuers (ticker, name, cnpj) VALUES (?, ?, ?)', [i.ticker, i.name, i.cnpj])
-    if (r.rowsAffected) issuers++; else skipped++
-  }
-  for (const b of data.brokers) {
-    const r = await db.execute('INSERT OR IGNORE INTO brokers (code, name, cnpj) VALUES (?, ?, ?)', [b.code, b.name, b.cnpj])
-    if (r.rowsAffected) brokers++; else skipped++
-  }
-  return { issuers, brokers, skipped }
+/** Só acrescenta: quem já está cadastrado (inclusive editado à mão) fica como está. Devolve quantos entraram. */
+export async function addIssuers(db: Db, issuers: Issuer[]): Promise<number> {
+  let n = 0
+  for (const i of issuers) n += (await db.execute('INSERT OR IGNORE INTO issuers (ticker, name, cnpj) VALUES (?, ?, ?)', [i.ticker, i.name, i.cnpj])).rowsAffected
+  return n
 }

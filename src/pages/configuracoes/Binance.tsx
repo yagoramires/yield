@@ -4,7 +4,7 @@ import { saveCryptoBalances } from '../../db/rendaFixaRepo'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 
-/** Chave só de leitura da Binance, guardada no Keychain; o segredo só fica na tela enquanto é digitado. */
+/** Chave só de leitura da Binance, guardada no cofre do sistema; o segredo só fica na tela enquanto é digitado. */
 export function Binance() {
   const { db, reload, binance, refreshQuotesNow } = useData()
   const [saved, setSaved] = useState<boolean | null>(null)
@@ -39,7 +39,7 @@ export function Binance() {
       <ol className="muted" style={{ margin: '8px 0', paddingLeft: 18 }}>
         <li>No site da Binance, abra <b>Gerenciamento de API</b> e crie uma chave do tipo gerada pelo sistema.</li>
         <li>Deixe ligado <b>só “Enable Reading”</b>. Nada de trade, saque ou transferência. Restringir por IP é opcional.</li>
-        <li>Cole a API Key e a Secret Key aqui. Elas ficam no Keychain do Mac; o Yield só lê saldos e recusa qualquer outra chamada.</li>
+        <li>Cole a API Key e a Secret Key aqui. Elas ficam no cofre do sistema (Keychain no Mac, Gerenciador de Credenciais no Windows); o Yield só lê saldos e recusa qualquer outra chamada.</li>
       </ol>
       {saved === null ? null : saved ? (
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>

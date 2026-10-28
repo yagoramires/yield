@@ -1,13 +1,13 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { openDb, type Db } from '../db/client'
-import { loadAll, type Dataset } from '../db/repo'
+import { loadAll, renormalizeBrokers, type Dataset } from '../db/repo'
 import { computeDarfs, type DarfResult } from '../domain/darf'
 import { replay, type ReplayResult } from '../domain/ledger'
 import { buildPortfolio, type Portfolio } from '../domain/portfolio'
 import { rfHoldings } from '../domain/rendaFixa'
 import { computeTax, type TaxMonth } from '../domain/tax'
-import { REFRESH_MS, refreshQuotes, yahooSymbol } from '../quotes/yahoo'
+import { REFRESH_MS, refreshQuotes, repairCryptoSymbols, yahooSymbol } from '../quotes/yahoo'
 import { monthOf } from '../domain/money'
 import { loadGastos, type Category, type GastosData, type Txn } from '../db/gastosRepo'
 import { categorize } from '../domain/gastos'
@@ -18,7 +18,8 @@ import { getPluggyCredentials } from '../openfinance/secrets'
 import { fetchBinanceBalances } from '../cripto/binance'
 import { getBinanceCredentials } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
-import { binanceErrorText } from '../pages/configuracoes/build'
+import { syncCryptoCosts } from '../cripto/aportado'
+import { binanceErrorText, historyFailText } from '../pages/configuracoes/build'
 import { syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
@@ -55,7 +56,8 @@ export interface AppData {
   lastRefresh: { at: string; ok: string[]; failed: string[] } | null
   gastos: Gastos
   orcamento: Orcamento
-  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void }
+  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void
+    cost: { loading: boolean; note: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -81,6 +83,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [syncing, setSyncing] = useState(false)
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
   const [binance, setBinance] = useState<{ syncing: boolean; error: string | null; earnSkipped: boolean }>({ syncing: false, error: null, earnSkipped: false })
+  const [costState, setCostState] = useState<{ loading: boolean; note: string | null }>({ loading: false, note: null })
   const [month, setMonth] = useState<Month>(monthOf(todayISO()))
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
   const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
@@ -132,6 +135,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } catch (e) { setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
   }, [])
 
+  // Histórico inteiro da Binance (centenas de chamadas): fonte que falha vira aviso e o resto é gravado.
+  const fetchCryptoCost = useCallback(async () => {
+    const d = dbRef.current
+    if (!d) return
+    setCostState({ loading: true, note: null })
+    try {
+      const creds = await getBinanceCredentials()
+      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.' })
+      const failed = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch)
+      setData(await loadAll(d))
+      setCostState({ loading: false, note: historyFailText(failed) })
+    } catch (e) { setCostState({ loading: false, note: binanceErrorText(e) }) }
+  }, [])
+
   // Falha de cotação nunca derruba a tela: só deixa as cotações antigas.
   const refreshQuotesNow = useCallback(async () => {
     const d = dbRef.current
@@ -158,6 +175,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         dbRef.current = d
         setDb(d)
+        await renormalizeBrokers(d)
+        await repairCryptoSymbols(d)
         const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
         setData(ds); setGastosData(g); setOrcData(o)
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
@@ -181,7 +200,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const rp = replay(data.trades, data.events)
     const today = todayISO()
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
-    const tax = computeTax(rp.sales, rp.warnings, firstSale, monthOf(today))
+    const from = data.openingLoss && data.openingLoss.month < firstSale ? data.openingLoss.month : firstSale
+    const tax = computeTax(rp.sales, rp.warnings, from, monthOf(today), data.openingLoss)
     return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today, { rf: rfHoldings(data.rfMoves, data.rfPositions), crypto: data.cryptoBalances }) }
   }, [data])
 
@@ -192,7 +212,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const transfers = pairTransfers(gastosData.txns, gastosData.accounts, gastosData.overrides)
     const of = (t: Txn) => {
       const a = accounts.get(t.accountId)
-      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), ownerNames: gastosData.ownerNames }) : null
+      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), ownerNames: gastosData.ownerNames, companyNames: gastosData.companyNames }) : null
     }
     const byId = new Map(gastosData.txns.map(t => [t.id, of(t)]))
     const cat = (t: Txn) => (byId.has(t.id) ? byId.get(t.id)! : of(t))
@@ -205,9 +225,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
       orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
-      binance: { ...binance, syncNow: syncBinance, reset: () => setBinance({ syncing: false, error: null, earnSkipped: false }) },
+      binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null }) }, cost: costState, fetchCost: fetchCryptoCost },
     }
-  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance])
+  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance, costState, fetchCryptoCost])
 
   if (error) return <main className="main"><h1>Yield</h1><div className="note">{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>

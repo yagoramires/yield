@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { DarfRow } from '../../domain/darf'
 import type { PotMonth, TaxMonth } from '../../domain/tax'
 import type { WarningKind } from '../../domain/types'
-import { buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts } from './build'
+import { buildOpeningLoss, buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts } from './build'
 
 const pot = (o: Partial<PotMonth> = {}): PotMonth => ({
   resultCents: 0, exemptProfitCents: 0, lossInCents: 0, baseCents: 0, taxDueCents: 0, irrfMonthCents: 0,
@@ -60,6 +60,23 @@ describe('buildPayment', () => {
     expect(() => buildPayment('2026-09', { ...f, principal: '0' })).toThrow('Principal')
     expect(() => buildPayment('2026-09', { ...f, total: '' })).toThrow('Total')
     expect(() => buildPayment('2026-09', { ...f, total: '100,00' })).toThrow('Total pago: não pode ser menor')
+  })
+})
+
+describe('buildOpeningLoss', () => {
+  it('lê mês mm/aaaa e os dois valores; vazio fica não informado', () => {
+    expect(buildOpeningLoss({ month: '01/2019', comum: '1.234,56', fii: '' })).toEqual({ month: '2019-01', comumCents: 123456, fiiCents: null })
+  })
+  it('rejeita mês inválido, valor inválido e os dois zerados', () => {
+    expect(() => buildOpeningLoss({ month: '13/2019', comum: '10', fii: '' })).toThrow('Mês')
+    expect(() => buildOpeningLoss({ month: '2019-01', comum: '10', fii: '' })).toThrow('Mês')
+    expect(() => buildOpeningLoss({ month: '01/2019', comum: 'x', fii: '' })).toThrow('comum')
+    expect(() => buildOpeningLoss({ month: '01/2019', comum: '', fii: '0' })).toThrow('valor')
+  })
+  it('rejeita mês depois do atual, que nunca seria aplicado; o mês atual vale', () => {
+    const now = new Date(2026, 9, 28)
+    expect(() => buildOpeningLoss({ month: '11/2026', comum: '10', fii: '' }, now)).toThrow('Mês: o prejuízo inicial não pode ser de um mês futuro.')
+    expect(buildOpeningLoss({ month: '10/2026', comum: '10', fii: '' }, now).month).toBe('2026-10')
   })
 })
 

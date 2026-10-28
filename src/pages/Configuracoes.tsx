@@ -4,6 +4,8 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { useState } from 'react'
 import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
+import { renormalizeBrokers } from '../db/repo'
+import { repairCryptoSymbols } from '../quotes/yahoo'
 import { useData } from '../state/DataProvider'
 import { backupPasswordError, refreshLine, restoreBackup } from './configuracoes/build'
 import { AtualizacaoCard } from '../ui/Atualizacao'
@@ -86,7 +88,7 @@ export function Configuracoes() {
       swap: () => invoke<string>('swap_database', { source: restore }),
       // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
       // ('sqlite:yield.db'); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
-      reopen: async () => { await openDb() },
+      reopen: async () => { const d = await openDb(); await renormalizeBrokers(d); await repairCryptoSymbols(d) }, // backup de versão antiga
       reload,
     })
     if (r.ok) setBackupMsg(r.message)
@@ -100,13 +102,13 @@ export function Configuracoes() {
   return (
     <>
       <h1>Configurações</h1>
-      <div className="muted">Tudo fica neste computador. Saem da máquina só as cotações do Yahoo e a leitura dos seus bancos na Pluggy.</div>
+      <div className="muted">Tudo fica neste computador. O app só fala com o Yahoo Finance (cotações), o Banco Central em api.bcb.gov.br (CDI), a Pluggy em api.pluggy.ai (leitura dos seus bancos), a Binance em api.binance.com (saldos de cripto) e o GitHub (atualizações do app).</div>
       <div className="grid2" style={{ marginTop: 14 }}>
         <ImportarOrcamento />
 
         <div className="card">
           <b style={{ color: '#fff' }}>Importar da B3</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>Relatórios de Negociação, Proventos Recebidos e Movimentação (.xlsx) da Área do Investidor. Dá para escolher vários de uma vez; o que já existe é pulado.</div>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>Relatórios de Negociação, Proventos Recebidos, Movimentação e Posição (.xlsx) da Área do Investidor; a Posição também preenche o cadastro de empresas do IR. Dá para escolher vários de uma vez; o que já existe é pulado.</div>
           {b3.button('Escolher arquivos…', 'b pri')}
           {b3.panel}
         </div>

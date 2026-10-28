@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
 import { DEFAULT_PJ, deleteSource, type IncomeSource } from '../../db/orcamentoRepo'
-import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
+import { cltNet, cltTabelaAno, pjNet, sourceNet } from '../../domain/orcamento'
 import { formatBRL, monthOf } from '../../domain/money'
-import { importOrcamento, parseOrcamentoPlanilha } from '../../import/orcamentoPlanilha'
+import { decodeStatement } from '../../import/ofx'
+import { importOrcamentoCsv, ORCAMENTO_CSV_EXEMPLO, parseOrcamentoCsv } from '../../import/orcamentoCsv'
+import { CopyButton } from '../declaracao/Copy'
 import { todayISO, useData } from '../../state/DataProvider'
 import { orcamentoImportSummary, saveSourceForm, validateSource, type SourceForm } from './build'
 import { Select } from '../../ui/Select'
@@ -12,45 +14,46 @@ const num = (x: number) => String(x).replace('.', ',')
 const money = (c: number) => (c / 100).toFixed(2).replace('.', ',')
 const brl = (c: number) => formatBRL(c).replace(/^R\$\s*/, '')
 
-const NEW: SourceForm = { name: '', kind: 'pj', gross: '', proLabore: num(DEFAULT_PJ.proLaborePct), irpj: num(DEFAULT_PJ.irpjPct), inss: num(DEFAULT_PJ.inssPct), contabilidade: '', outros: '', net: '', dependents: '' }
+// fonte nova abre como CLT, o caso mais comum; os percentuais da PJ são só um ponto de partida
+const NEW: SourceForm = { name: '', kind: 'clt', gross: '', proLabore: num(DEFAULT_PJ.proLaborePct), irpj: num(DEFAULT_PJ.irpjPct), inss: num(DEFAULT_PJ.inssPct), contabilidade: '', outros: '', net: '', dependents: '', das: '' }
 const toForm = (s: IncomeSource): SourceForm => ({
-  name: s.name, kind: s.kind, gross: s.grossCents == null ? '' : money(s.grossCents), proLabore: num(s.proLaborePct), irpj: num(s.irpjPct), inss: num(s.inssPct),
-  contabilidade: money(s.contabilidadeCents), outros: money(s.outrosCents), net: s.netCents == null ? '' : money(s.netCents), dependents: String(s.dependents),
+  ...NEW, name: s.name, kind: s.kind, gross: s.grossCents == null ? '' : money(s.grossCents), contabilidade: money(s.contabilidadeCents), outros: money(s.outrosCents),
+  net: s.netCents == null ? '' : money(s.netCents), dependents: String(s.dependents), das: s.dasCents ? money(s.dasCents) : '',
+  // MEI guarda os percentuais zerados: trocar para PJ começa do padrão
+  ...(s.kind === 'mei' ? {} : { proLabore: num(s.proLaborePct), irpj: num(s.irpjPct), inss: num(s.inssPct) }),
 })
-const KIND_LABEL: Record<IncomeSource['kind'], string> = { pj: 'PJ', clt: 'CLT', fixo: 'valor fixo' }
+const KIND_LABEL: Record<IncomeSource['kind'], string> = { clt: 'CLT', pj: 'PJ', mei: 'MEI', fixo: 'valor fixo' }
 
 export function ImportarOrcamento() {
   const { db, orcamento } = useData()
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ text: string; warnings: string[] } | null>(null)
+  const [result, setResult] = useState<string | null>(null)
 
   const importFile = async (file: File) => {
     setBusy(true); setResult(null); setError(null)
-    try {
-      const p = parseOrcamentoPlanilha(await file.arrayBuffer())
-      const r = await importOrcamento(db, p)
-      setResult({ text: orcamentoImportSummary(r, r.sourceCreated), warnings: [...p.warnings, ...r.warnings] })
-    } catch (e) { setError(`Não foi possível importar ${file.name}: ${errText(e)}`) }
+    try { setResult(orcamentoImportSummary(await importOrcamentoCsv(db, parseOrcamentoCsv(decodeStatement(await file.arrayBuffer()))))) } catch (e) { setError(`Não foi possível importar ${file.name}: ${errText(e)}`) }
     try { await orcamento.reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
     setBusy(false)
   }
 
   return (
     <div className="card">
-      <b style={{ color: '#fff' }}>Importar planilha de orçamento</b>
-      <div className="muted" style={{ margin: '4px 0 10px' }}>Aba "Finanças" (.xlsx) · pode importar de novo: o que já existe é pulado e o que você mudou no app fica como está, mas uma linha apagada no app volta se você importar de novo</div>
-      <button className="b pri" disabled={busy} onClick={() => input.current?.click()}>Escolher arquivo…</button>
-      <input ref={input} type="file" accept=".xlsx" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
+      <b style={{ color: '#fff' }}>Importar orçamento (CSV)</b>
+      <div className="muted" style={{ margin: '4px 0 10px' }}>
+        Uma linha por item com as colunas <b>mes</b> (AAAA-MM), <b>tipo</b> (receita, fixa, variavel ou meta), <b>nome</b> e <b>valor</b>, separadas por ponto e vírgula.
+        Salve sua planilha nesse formato como CSV. Pode importar de novo: o que já existe no mês é pulado.
+      </div>
+      <pre className="t2" style={{ margin: '0 0 10px', whiteSpace: 'pre-wrap' }}>{ORCAMENTO_CSV_EXEMPLO}</pre>
+      <div className="btns">
+        <button className="b pri" disabled={busy} onClick={() => input.current?.click()}>Escolher arquivo…</button>
+        <CopyButton text={ORCAMENTO_CSV_EXEMPLO} label="Copiar exemplo" what="exemplo de CSV" />
+      </div>
+      <input ref={input} type="file" accept=".csv,.txt" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
       {busy && <span className="muted"> Importando…</span>}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
-      {result && (
-        <div className="info" style={{ marginTop: 10 }}>
-          Última importação<br />{result.text}
-          {result.warnings.length > 0 && <><br /><span className="warn">Avisos:</span> {result.warnings.join(' · ')}</>}
-        </div>
-      )}
+      {result && <div className="info" style={{ marginTop: 10 }}>Última importação<br />{result}</div>}
     </div>
   )
 }
@@ -68,12 +71,13 @@ export function FontesRenda() {
   const open = (s: IncomeSource | null) => { setEditing(s); setForm(s ? toForm(s) : NEW); setError(null); setMsg(null); setDel(null) }
   const set = (k: keyof SourceForm) => (e: { target: { value: string } }) => setForm(f => f && { ...f, [k]: e.target.value })
 
+  const month = monthOf(todayISO()), year = Number(month.slice(0, 4)), tabelaAno = cltTabelaAno(year)
   let preview: ReturnType<typeof pjNet> | null = null
   let clt: ReturnType<typeof cltNet> | null = null
   try {
     const v = form && form.kind !== 'fixo' ? validateSource(form) : null
-    if (v?.kind === 'pj') preview = pjNet(v.grossCents!, v)
-    if (v?.kind === 'clt') clt = cltNet(v.grossCents!, v.dependents, v.outrosCents)
+    if (v?.kind === 'pj' || v?.kind === 'mei') preview = pjNet(v.grossCents!, v)
+    if (v?.kind === 'clt') clt = cltNet(v.grossCents!, v.dependents, v.outrosCents, year)
   } catch { /* inválido: sem prévia */ }
 
   const salvar = async () => {
@@ -115,7 +119,7 @@ export function FontesRenda() {
                 <td>{s.name}</td>
                 <td><span className="pill">{KIND_LABEL[s.kind]}</span></td>
                 <td className={`r${s.grossCents == null ? ' t2' : ''}`}>{s.grossCents == null ? '—' : brl(s.grossCents)}</td>
-                <td className="r">{brl(sourceNet(s))}</td>
+                <td className="r">{brl(sourceNet(s, month))}</td>
                 <td><button className="b ghost" disabled={busy} onClick={() => open(s)}>editar</button> <button className="b ghost" disabled={busy} onClick={() => { setDel(s); setForm(null); setMsg(null) }}>apagar</button></td>
               </tr>
             ))}
@@ -137,7 +141,7 @@ export function FontesRenda() {
           <div className="row">
             {field('Nome', 'name', 180)}
             <div className="field"><span>Tipo</span>
-              <Select ariaLabel="Tipo" value={form.kind} onChange={v => setForm({ ...form, kind: v as SourceForm['kind'] })} options={[{ value: 'pj', label: 'PJ' }, { value: 'clt', label: 'CLT' }, { value: 'fixo', label: 'valor fixo' }]} />
+              <Select ariaLabel="Tipo" value={form.kind} onChange={v => setForm({ ...form, kind: v as SourceForm['kind'] })} options={(Object.keys(KIND_LABEL) as IncomeSource['kind'][]).map(k => ({ value: k, label: KIND_LABEL[k] }))} />
             </div>
             {form.kind === 'fixo' ? field('Líquido do mês (R$)', 'net') : field('Bruto (R$)', 'gross')}
           </div>
@@ -145,16 +149,31 @@ export function FontesRenda() {
             <>
               <div className="row" style={{ marginTop: 6 }}>
                 {field('Pró-labore (% do bruto)', 'proLabore', 90)}
-                {field('IRPJ (% do bruto)', 'irpj', 90)}
+                {field('Imposto sobre o faturamento (DAS/IRPJ) %', 'irpj', 90)}
                 {field('INSS (% do pró-labore)', 'inss', 90)}
                 {field('Contabilidade (R$)', 'contabilidade', 90)}
                 {field('Outros descontos (R$)', 'outros', 90)}
               </div>
               {preview && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(preview.netCents)}</b> (pró-labore {brl(preview.proLaboreCents)} · IRPJ {brl(preview.irpjCents)} · INSS {brl(preview.inssCents)} · contabilidade {brl(preview.contabilidadeCents)} · outros {brl(preview.outrosCents)})
+                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(preview.netCents)}</b> (pró-labore {brl(preview.proLaboreCents)} · imposto {brl(preview.irpjCents)} · INSS {brl(preview.inssCents)} · contabilidade {brl(preview.contabilidadeCents)} · outros {brl(preview.outrosCents)})
                 </div>
               )}
+              <div className="muted" style={{ marginTop: 6 }}>Simples Nacional (DAS), lucro presumido ou outro regime: informe a alíquota efetiva sobre o faturamento. Pró-labore 0 se você não retira pró-labore.</div>
+            </>
+          )}
+          {form.kind === 'mei' && (
+            <>
+              <div className="row" style={{ marginTop: 6 }}>
+                {field('DAS do mês (R$)', 'das', 90)}
+                {field('Outros descontos (R$)', 'outros', 90)}
+              </div>
+              {preview && (
+                <div className="info" style={{ marginTop: 8 }}>
+                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(preview.netCents)}</b> (DAS {brl(preview.dasCents)}{preview.outrosCents > 0 && ` · outros ${brl(preview.outrosCents)}`})
+                </div>
+              )}
+              <div className="muted" style={{ marginTop: 6 }}>O DAS do MEI é um valor fixo por mês (já inclui o INSS); confira o valor do ano no Portal do Empreendedor.</div>
             </>
           )}
           {form.kind === 'clt' && (
@@ -168,7 +187,9 @@ export function FontesRenda() {
                   Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
                 </div>
               )}
-              <div className="muted" style={{ marginTop: 6 }}>INSS e IRRF pelas tabelas de 2026, com a isenção até R$ 5.000. Outros descontos: plano de saúde, VT, VR… do seu holerite.</div>
+              <div className="muted" style={{ marginTop: 6 }}>
+                INSS e IRRF pelas tabelas de {tabelaAno}{tabelaAno === 2026 && ', com a isenção até R$ 5.000'}.{tabelaAno !== year && ` A tabela de ${year} ainda não está no app: usando a tabela de ${tabelaAno}.`} Outros descontos: plano de saúde, VT, VR… do seu holerite.
+              </div>
             </>
           )}
           <div className="btns" style={{ marginTop: 8, justifyContent: 'flex-end' }}>

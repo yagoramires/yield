@@ -85,12 +85,12 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
   }
 }
 
-export function pluggyDate(iso: string): ISODate {
+/** `offsetMin`: minutos a leste do UTC (Brasília: −180); por padrão, o fuso da máquina naquele instante. */
+export function pluggyDate(iso: string, offsetMin = -new Date(iso).getTimezoneOffset()): ISODate {
   const d = new Date(iso)
   // Meia-noite UTC (Z ou +00:00) é data sem hora: o próprio dia.
   if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0) return d.toISOString().slice(0, 10)
-  // Brasília não tem horário de verão: UTC−3 fixo.
-  return new Date(d.getTime() - 3 * 3600_000).toISOString().slice(0, 10)
+  return new Date(d.getTime() + offsetMin * 60_000).toISOString().slice(0, 10)
 }
 
 export function toTxnRow(t: PluggyTxn, kind: AccountKind) {

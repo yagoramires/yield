@@ -96,6 +96,22 @@ describe('config e dispensas', () => {
 })
 
 describe('migração', () => {
+  test('banco v12 recebe a 013: fonte PJ igual, DAS zerado, vínculo das linhas mantido e MEI aceito', async () => {
+    const path = tmpPath('v12.db')
+    const d = new DatabaseSync(path)
+    for (const f of ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql', '006_categoria_visual.sql', '007_fonte_clt.sql', '008_cadastro_ir.sql', '009_renda_fixa_cripto.sql', '010_aportado_manual.sql', '011_etf_renda_fixa.sql', '012_aportado_cripto.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
+    d.exec(`INSERT INTO income_sources (id, name, kind, gross_cents, pro_labore_pct, irpj_pct, inss_pct, contabilidade_cents, outros_cents, net_cents, source_key, dependents)
+      VALUES ('s1', 'Empresa Exemplo', 'pj', 1000000, 28, 6, 11, 30000, 0, NULL, 'k1', 0);
+      INSERT INTO budget_months VALUES ('2026-01');
+      INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, source_id) VALUES ('l1', '2026-01', 'entrada', 'Salário', 879200, 1, 0, 's1')`)
+    d.close()
+    const migrado = createTestDb(path)
+    const o = await loadOrcamento(migrado)
+    expect(o.lines[0].sourceId).toBe('s1')
+    expect(o.sources[0]).toEqual({ id: 's1', name: 'Empresa Exemplo', kind: 'pj', grossCents: 1000000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 0, dasCents: 0, netCents: null, sourceKey: 'k1', dependents: 0 })
+    const id = await saveSource(migrado, fonte('MEI', { kind: 'mei', proLaborePct: 0, irpjPct: 0, inssPct: 0, dasCents: 7600 }))
+    expect((await loadOrcamento(migrado)).sources.find(x => x.id === id)).toMatchObject({ kind: 'mei', dasCents: 7600 })
+  })
   test('banco v6 recebe a 007: aceita CLT e as linhas continuam ligadas às fontes', async () => {
     const path = tmpPath('v6.db')
     const d = new DatabaseSync(path)
@@ -119,7 +135,7 @@ describe('migração', () => {
     d.exec("INSERT INTO meta (key, value) VALUES ('orcamento.pj', '{}'); INSERT INTO budget_months VALUES ('2026-01'); INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, pj_gross_cents) VALUES ('l', '2026-01', 'entrada', 'R', 99, 1, 0, 5)")
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('11')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('13')
     expect(await migrado.select("SELECT 1 FROM meta WHERE key = 'orcamento.pj'")).toEqual([])
     expect((await loadOrcamento(migrado)).lines[0]).toMatchObject({ amountCents: 99, sourceId: null })
   })
@@ -129,7 +145,7 @@ describe('migração', () => {
     for (const f of ['001_init.sql', '002_gastos.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('11')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('13')
     expect((await loadOrcamento(migrado)).months).toEqual([])
   })
 })

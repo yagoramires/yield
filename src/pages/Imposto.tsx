@@ -1,15 +1,16 @@
 import { useState } from 'react'
-import { deletePayment, savePayment } from '../db/repo'
+import { deletePayment, saveOpeningLoss, savePayment } from '../db/repo'
 import { DARF_CODE, type DarfStatus } from '../domain/darf'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
-import { buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type PaymentForm } from './imposto/build'
+import { buildOpeningLoss, buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type OpeningLossForm, type PaymentForm } from './imposto/build'
 import { DateField } from '../ui/DateField'
 
 const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const monLabel = (m: string) => `${MON[Number(m.slice(5)) - 1]}/${m.slice(2, 4)}`
 const brDay = (iso: string) => iso.split('-').reverse().join('/')
+const NOTA_SEM_NOTA = 'Comprou antes do período do relatório da B3? Lance a compra em Notas › Operação sem nota (data, quantidade e preço médio) ou a nota da corretora, se tiver.'
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const dash = (c: number, f: (c: number) => string = formatCents) => (c === 0 ? '—' : f(c))
 const STATUS: Record<DarfStatus, { label: string; cls: string }> = {
@@ -18,7 +19,9 @@ const STATUS: Record<DarfStatus, { label: string; cls: string }> = {
 }
 
 export function Imposto() {
-  const { derived, db, reload } = useData()
+  const { data, derived, db, reload } = useData()
+  const [opening, setOpening] = useState<OpeningLossForm | null>(null) // formulário do prejuízo inicial aberto
+  const [openingError, setOpeningError] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null) // mês com o formulário de pagamento aberto
   const [form, setForm] = useState<PaymentForm>({ paidAt: '', principal: '', total: '' })
   const [formError, setFormError] = useState<string | null>(null)
@@ -49,6 +52,14 @@ export function Imposto() {
   }
   const undo = async (month: string) => {
     try { await deletePayment(db, month); await reload(); setConfirm(null); setError(null) } catch (e) { setError(`Não foi possível desfazer: ${errText(e)}`) }
+  }
+  const startOpening = () => {
+    const o = data.openingLoss
+    setOpening(o ? { month: `${o.month.slice(5)}/${o.month.slice(0, 4)}`, comum: o.comumCents === null ? '' : formatCents(o.comumCents), fii: o.fiiCents === null ? '' : formatCents(o.fiiCents) } : { month: '', comum: '', fii: '' }); setOpeningError(null)
+  }
+  const saveOpening = async (v: OpeningLossForm | null) => {
+    try { await saveOpeningLoss(db, v && buildOpeningLoss(v)); await reload(); setOpening(null); setConfirm(null) }
+    catch (e) { setOpeningError(e instanceof Error && !e.message.includes('SQL') ? e.message : `Não foi possível salvar: ${errText(e)}`) }
   }
   const copy = async () => {
     try { await navigator.clipboard.writeText(SICALC); setCopied('Link copiado.') } catch { setCopied('Não foi possível copiar. Selecione o link e copie à mão.') }
@@ -81,6 +92,34 @@ export function Imposto() {
           <div className="v">{formatBRL(exemptSales(tax, year))}</div>
           <div className="s muted">meses abaixo de R$ 20 mil com lucro</div>
         </div>
+      </div>
+      <div className="card" style={{ marginBottom: 10 }}>
+        <div className="bar">
+          <b style={{ color: '#fff' }}>Prejuízo de antes do relatório da B3</b>
+          {!opening && <button className="b ghost" onClick={startOpening}>{data.openingLoss ? 'editar' : 'Informar'}</button>}
+        </div>
+        <div className="muted" style={{ margin: '4px 0 0' }}>
+          {data.openingLoss
+            ? <>Em {monLabel(data.openingLoss.month)}: comum {data.openingLoss.comumCents === null ? 'o calculado' : formatBRL(data.openingLoss.comumCents)} · FII {data.openingLoss.fiiCents === null ? 'o calculado' : formatBRL(data.openingLoss.fiiCents)}. Entra como prejuízo a compensar nesse mês e vai sendo usado pelos lucros seguintes.</>
+            : <>A Negociação da B3 só cobre os últimos anos. Se você já tinha prejuízo a compensar antes disso, informe o saldo uma vez (da última declaração, ficha Renda Variável, ou da sua planilha) e o mês a partir do qual ele vale.</>}
+        </div>
+        {opening && (
+          <>
+            <div className="row" style={{ margin: '10px 0' }}>
+              <label className="field"><span>Mês (mm/aaaa)</span><input className="in" style={{ width: 90 }} placeholder="01/2019" value={opening.month} onChange={e => setOpening({ ...opening, month: e.target.value })} /></label>
+              <label className="field"><span>Comum: ações, ETFs, BDRs (R$)</span><input className="in" style={{ width: 120 }} inputMode="decimal" value={opening.comum} onChange={e => setOpening({ ...opening, comum: e.target.value })} /></label>
+              <label className="field"><span>FII (R$)</span><input className="in" style={{ width: 120 }} inputMode="decimal" value={opening.fii} onChange={e => setOpening({ ...opening, fii: e.target.value })} onKeyDown={e => e.key === 'Enter' && void saveOpening(opening)} /></label>
+            </div>
+            <div className="muted" style={{ marginBottom: 8 }}>O valor substitui o prejuízo que o Yield calculou até esse mês. Comum e FII são compensados separados, como na Receita.</div>
+            {openingError && <div className="note" style={{ marginBottom: 8 }}>{openingError}</div>}
+            <div className="btns">
+              {data.openingLoss && (confirm === 'opening'
+                ? <span>Remover o prejuízo informado? <button className="link dn" onClick={() => void saveOpening(null)}>Remover</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
+                : <button className="b ghost" onClick={() => setConfirm('opening')}>Remover</button>)}
+              <button className="b" onClick={() => setOpening(null)}>Cancelar</button><button className="b pri" onClick={() => void saveOpening(opening)}>Salvar</button>
+            </div>
+          </>
+        )}
       </div>
       {darfs.orphanPayments.map(p => (
         <div className="note" key={p.month} style={{ marginBottom: 8 }}>
@@ -127,7 +166,7 @@ export function Imposto() {
                   (t.incomplete || dtMonths.has(m)) && (
                     <tr key={`${m}-w`}><td colSpan={13}>
                       {t.incomplete && <div className="note">
-                        Posição insuficiente em {incompleteWarnings(replay.warnings, m).map(w => `${w.ticker} (${w.kind === 'evento_sem_posicao' ? 'evento sem posição, ' : ''}${brDay(w.date).slice(0, 5)})`).join(', ')}: faltam notas antes destas datas
+                        Posição insuficiente em {incompleteWarnings(replay.warnings, m).map(w => `${w.ticker} (${w.kind === 'evento_sem_posicao' ? 'evento sem posição, ' : ''}${brDay(w.date).slice(0, 5)})`).join(', ')}: faltam notas antes destas datas. {NOTA_SEM_NOTA}
                       </div>}
                       {dtMonths.has(m) && <div className="note" style={{ marginTop: t.incomplete ? 4 : 0 }}>
                         Day trade em {replay.warnings.filter(w => w.kind === 'day_trade' && w.date.startsWith(m)).map(w => `${w.ticker} (${brDay(w.date).slice(0, 5)})`).join(', ')}: não apurado aqui, o imposto pode estar errado.

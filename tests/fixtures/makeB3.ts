@@ -26,10 +26,12 @@ export const makeProventos = (rows: (string | number)[][]) => book('Proventos Re
 export const TESOURO_HEADER = ['Produto', 'Instituição', 'Código ISIN', 'Indexador', 'Vencimento', 'Quantidade', 'Quantidade Disponível', 'Quantidade Indisponível', 'Motivo', 'Valor Aplicado', 'Valor bruto', 'Valor líquido', 'Valor Atualizado']
 export const RENDA_FIXA_HEADER = ['Produto', 'Instituição', 'Emissor', 'Código', 'Indexador', 'Tipo de regime', 'Data de Emissão', 'Vencimento', 'Quantidade', 'Quantidade Disponível', 'Quantidade Indisponível', 'Motivo', 'Contraparte', 'Preço Atualizado MTM', 'Valor Atualizado MTM', 'Preço Atualizado CURVA', 'Valor Atualizado CURVA', 'Preço Atualizado FECHAMENTO', 'Valor Atualizado FECHAMENTO']
 const withTotals = (header: string[], rows: (string | number)[][]) => [header, ...rows, ['Total'], header.map(() => 'Total'), [...header.slice(0, -1).map(() => ''), 999999]]
-export function makePosicao(tesouro: (string | number)[][], rendaFixa: (string | number)[][]): ArrayBuffer {
+// `outras`: abas de renda variável (com cabeçalho) no lugar da "Acoes" padrão; tesouro/rendaFixa null = sem a aba.
+export function makePosicao(tesouro: (string | number)[][] | null, rendaFixa: (string | number)[][] | null,
+  outras: Record<string, (string | number)[][]> = { Acoes: [['Produto', 'Instituição', 'Quantidade'], ['AAAA3 - EMPRESA TESTE S/A', 'CORRETORA TESTE S/A', 10]] }): ArrayBuffer {
   const wb = utils.book_new()
-  utils.book_append_sheet(wb, utils.aoa_to_sheet([['Produto', 'Instituição', 'Quantidade'], ['AAAA3 - EMPRESA TESTE S/A', 'CORRETORA TESTE S/A', 10]]), 'Acoes')
-  utils.book_append_sheet(wb, utils.aoa_to_sheet(withTotals(RENDA_FIXA_HEADER, rendaFixa)), 'Renda Fixa')
-  utils.book_append_sheet(wb, utils.aoa_to_sheet(withTotals(TESOURO_HEADER, tesouro)), 'Tesouro Direto')
+  for (const [name, rows] of Object.entries(outras)) utils.book_append_sheet(wb, utils.aoa_to_sheet(rows), name)
+  if (rendaFixa) utils.book_append_sheet(wb, utils.aoa_to_sheet(withTotals(RENDA_FIXA_HEADER, rendaFixa)), 'Renda Fixa')
+  if (tesouro) utils.book_append_sheet(wb, utils.aoa_to_sheet(withTotals(TESOURO_HEADER, tesouro)), 'Tesouro Direto')
   return write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer
 }

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
 import { loadAll, saveManualAsset } from './repo'
-import { saveCryptoBalances, setCryptoCost, upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from './rendaFixaRepo'
+import { saveComputedCryptoCosts, saveCryptoBalances, setCryptoCost, upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from './rendaFixaRepo'
 import { createTestDb, tmpPath } from './testDb'
 
 const move = (over: Partial<Omit<RfMove, 'id'>> = {}): Omit<RfMove, 'id'> => ({
@@ -46,6 +46,22 @@ describe('renda fixa e cripto no banco', () => {
     expect(byAsset.get('ETH')?.qty).toBe(0)
   })
 
+  test('aportado calculado da Binance não sobrescreve o informado à mão; limpar o à mão libera o calculado', async () => {
+    const db = createTestDb()
+    await saveCryptoBalances(db, [{ asset: 'BTC', qty: 0.5 }, { asset: 'ETH', qty: 2 }], '2026-10-27T10:00:00Z')
+    await setCryptoCost(db, 'BTC', 10000)
+    await saveComputedCryptoCosts(db, [{ asset: 'BTC', costCents: 99, partial: false }, { asset: 'ETH', costCents: 5000, partial: true }])
+    const get = async () => new Map((await loadAll(db)).cryptoBalances.map(c => [c.asset, c]))
+    expect((await get()).get('BTC')).toMatchObject({ costCents: 10000, costManual: 1, costPartial: 0 })
+    expect((await get()).get('ETH')).toMatchObject({ costCents: 5000, costManual: 0, costPartial: 1 })
+    await setCryptoCost(db, 'BTC', null)
+    expect((await get()).get('BTC')).toMatchObject({ costCents: null, costManual: 0 })
+    await saveComputedCryptoCosts(db, [{ asset: 'BTC', costCents: 99, partial: false }])
+    expect((await get()).get('BTC')).toMatchObject({ costCents: 99, costManual: 0, costPartial: 0 })
+    await setCryptoCost(db, 'ETH', 4000)
+    expect((await get()).get('ETH')).toMatchObject({ costCents: 4000, costManual: 1, costPartial: 0 })
+  })
+
   test('ativo manual do exterior guarda a moeda; os antigos são em real', async () => {
     const db = createTestDb()
     await saveManualAsset(db, { name: 'ZZZZ', assetClass: 'exterior', currency: 'USD', costCents: 9000, quoteSymbol: 'ZZZZ', quantity: 2, valueCents: null, updatedAt: '2026-10-27', sourceKey: null })
@@ -74,6 +90,18 @@ describe('migração 011', () => {
     await db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source) VALUES ('n', '1', 'CLEAR', '2026-01-05', '2026-01-07', 'manual')")
     await db.execute("INSERT INTO trades (id, note_id, seq, side, asset_type, ticker, qty, price_cents, fees_cents, irrf_cents) VALUES ('t', 'n', 1, 'C', 'ETF RF', 'ABCD11', 3, 10000, 0, 0)")
     expect((await loadAll(db)).trades[0]).toMatchObject({ assetType: 'ETF RF', ticker: 'ABCD11' })
-    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('11')
+  })
+})
+
+describe('migração 012', () => {
+  test('aportado de cripto informado antes da migração vira à mão', async () => {
+    const path = tmpPath('v11.db')
+    const d = new DatabaseSync(path)
+    for (const f of ['001_init', '002_gastos', '003_orcamento', '004_fontes_renda', '005_categoria_pluggy', '006_categoria_visual', '007_fonte_clt', '008_cadastro_ir', '009_renda_fixa_cripto', '010_aportado_manual', '011_etf_renda_fixa']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}.sql`, import.meta.url), 'utf8'))
+    d.exec("INSERT INTO crypto_balances (asset, qty, cost_cents, fetched_at) VALUES ('BTC', 0.1, 5000, '2026-01-01'), ('ETH', 1, NULL, '2026-01-01')")
+    d.close()
+    const migrado = createTestDb(path)
+    expect((await loadAll(migrado)).cryptoBalances.map(c => [c.asset, c.costManual, c.costPartial])).toEqual([['BTC', 1, 0], ['ETH', 0, 0]])
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('13')
   })
 })

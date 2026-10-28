@@ -1,7 +1,6 @@
-import { Landmark, Pencil, Upload } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
-import { importCadastro, saveBroker, saveIssuer, type Broker, type Issuer } from '../../db/irRepo'
-import { parseCadastroPlanilha } from '../../import/cadastroPlanilha'
+import { Landmark, Pencil } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { saveBroker, saveIssuer, type Broker, type Issuer } from '../../db/irRepo'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 import { classColor } from '../resumoInvestimentos/build'
@@ -14,11 +13,9 @@ export function Cadastro({ issuers, brokers, tickers, brokerCodes, pending, onCh
   pending: { tickers: string[]; brokers: string[] }; onChanged(): Promise<void>
 }) {
   const { db } = useData()
-  const input = useRef<HTMLInputElement>(null)
   const [edit, setEdit] = useState<Edit | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [msg, setMsg] = useState<string | null>(null)
 
   const save = async () => {
     if (!edit) return
@@ -28,19 +25,6 @@ export function Cadastro({ issuers, brokers, tickers, brokerCodes, pending, onCh
       else await saveBroker(db, { code: edit.key, name: edit.name, cnpj: edit.cnpj })
       await onChanged(); setEdit(null); setError(null)
     } catch (e) { setError(errText(e)) }
-    setBusy(false)
-  }
-
-  const importFile = async (f: File) => {
-    setBusy(true); setMsg(null); setError(null)
-    try {
-      const p = parseCadastroPlanilha(await f.arrayBuffer(), brokerCodes)
-      const r = await importCadastro(db, p)
-      await onChanged()
-      setMsg([`${r.issuers} ${r.issuers === 1 ? 'empresa importada' : 'empresas importadas'}`, `${r.brokers} ${r.brokers === 1 ? 'corretora' : 'corretoras'}`, `${r.skipped} já existiam`,
-        ...(p.unknownBrokers ? [`${p.unknownBrokers} ${p.unknownBrokers === 1 ? 'corretora não reconhecida' : 'corretoras não reconhecidas'}`] : []),
-        ...(p.invalid ? [`${p.invalid} com CNPJ inválido`] : [])].join(' · '))
-    } catch (e) { setError(`Não foi possível ler ${f.name}: ${errText(e)}`) }
     setBusy(false)
   }
 
@@ -72,17 +56,13 @@ export function Cadastro({ issuers, brokers, tickers, brokerCodes, pending, onCh
   const cls = new Map(tickers.map(t => [t.ticker, t.cls]))
   return (
     <>
-      {msg && <div className="info" style={{ marginBottom: 10 }}>{msg}</div>}
       {error && !edit && <div className="note" style={{ marginBottom: 10 }}>{error}</div>}
       <div className="decl-cols">
         <div className="day-card">
-          <div className="day-h"><span>Empresas e fundos</span>
-            <button className="b with-ico" disabled={busy} onClick={() => input.current?.click()}><Upload size={13} aria-hidden />Importar da planilha</button>
-            <input ref={input} type="file" accept=".xlsx,.xlsm" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
-          </div>
+          <div className="day-h"><span>Empresas e fundos</span></div>
           {order(tickers.map(t => t.ticker), pending.tickers).map(t => row('issuer', t, issuers.get(t),
             <span className="tk-av" style={{ background: `${classColor(cls.get(t) ?? '')}22`, color: classColor(cls.get(t) ?? '') }} aria-hidden>{t.slice(0, 4)}</span>, pending.tickers.includes(t)))}
-          <div className="muted cad-hint">A planilha antiga tem a aba “Empresas Listadas”: importar só acrescenta quem ainda não está aqui.</div>
+          <div className="muted cad-hint">Preenchido ao importar a Posição da B3 em Configurações › Importar da B3 (razão social e CNPJ de ações, ETFs e fundos). O que você editar aqui não é sobrescrito.</div>
         </div>
         <div className="day-card">
           <div className="day-h"><span>Corretoras</span><span className="muted">nomes como vêm das notas e da B3</span></div>

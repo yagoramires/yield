@@ -3,9 +3,10 @@ import type { Db } from './client'
 
 export type LineKind = 'entrada' | 'saida'
 export interface BudgetLine { id: string; month: Month; kind: LineKind; name: string; amountCents: Cents; recurring: boolean; position: number; categoryId: string | null; installmentCurrent: number | null; installmentTotal: number | null; sourceId: string | null; sourceKey: string | null }
-export interface PjConfig { proLaborePct: number; irpjPct: number; inssPct: number /* sobre o pró-labore */; contabilidadeCents: Cents; outrosCents: Cents }
-export const DEFAULT_PJ: PjConfig = { proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0 }
-export type SourceKind = 'pj' | 'clt' | 'fixo'
+// irpjPct: imposto sobre o faturamento (DAS do Simples ou IRPJ); dasCents: DAS fixo do MEI
+export interface PjConfig { proLaborePct: number; irpjPct: number; inssPct: number /* sobre o pró-labore */; contabilidadeCents: Cents; outrosCents: Cents; dasCents: Cents }
+export const DEFAULT_PJ: PjConfig = { proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dasCents: 0 }
+export type SourceKind = 'pj' | 'mei' | 'clt' | 'fixo'
 export interface IncomeSource extends PjConfig { id: string; name: string; kind: SourceKind; grossCents: Cents | null /* pj e clt */; netCents: Cents | null /* fixo */; dependents: number /* clt, para o IRRF */; sourceKey: string | null }
 export interface OrcamentoData { months: Month[]; lines: BudgetLine[]; dismissed: { month: Month; key: string }[]; sources: IncomeSource[] }
 
@@ -17,7 +18,7 @@ export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
       FROM budget_lines ORDER BY month, position`),
     db.select<{ month: Month; key: string }>('SELECT month, key FROM budget_dismissals ORDER BY month, key'),
     db.select<IncomeSource>(`SELECT id, name, kind, gross_cents AS grossCents, pro_labore_pct AS proLaborePct, irpj_pct AS irpjPct, inss_pct AS inssPct,
-      contabilidade_cents AS contabilidadeCents, outros_cents AS outrosCents, net_cents AS netCents, source_key AS sourceKey, dependents FROM income_sources ORDER BY name`),
+      contabilidade_cents AS contabilidadeCents, outros_cents AS outrosCents, das_cents AS dasCents, net_cents AS netCents, source_key AS sourceKey, dependents FROM income_sources ORDER BY name`),
   ])
   return { months: months.map(m => m.month), lines: lines.map(l => ({ ...l, recurring: !!l.recurring })), dismissed, sources }
 }
@@ -64,13 +65,13 @@ export async function dismissSuggestion(db: Db, month: Month, key: string): Prom
 }
 
 export async function saveSource(db: Db, s: Omit<IncomeSource, 'id'> & { id?: string }): Promise<string> {
-  const f = [s.name, s.kind, s.grossCents, s.proLaborePct, s.irpjPct, s.inssPct, s.contabilidadeCents, s.outrosCents, s.netCents, s.dependents]
+  const f = [s.name, s.kind, s.grossCents, s.proLaborePct, s.irpjPct, s.inssPct, s.contabilidadeCents, s.outrosCents, s.netCents, s.dependents, s.dasCents]
   if (s.id) {
-    await db.execute('UPDATE income_sources SET name = ?, kind = ?, gross_cents = ?, pro_labore_pct = ?, irpj_pct = ?, inss_pct = ?, contabilidade_cents = ?, outros_cents = ?, net_cents = ?, dependents = ? WHERE id = ?', [...f, s.id])
+    await db.execute('UPDATE income_sources SET name = ?, kind = ?, gross_cents = ?, pro_labore_pct = ?, irpj_pct = ?, inss_pct = ?, contabilidade_cents = ?, outros_cents = ?, net_cents = ?, dependents = ?, das_cents = ? WHERE id = ?', [...f, s.id])
     return s.id
   }
   const id = crypto.randomUUID()
-  await db.execute('INSERT INTO income_sources (name, kind, gross_cents, pro_labore_pct, irpj_pct, inss_pct, contabilidade_cents, outros_cents, net_cents, dependents, source_key, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [...f, s.sourceKey, id])
+  await db.execute('INSERT INTO income_sources (name, kind, gross_cents, pro_labore_pct, irpj_pct, inss_pct, contabilidade_cents, outros_cents, net_cents, dependents, das_cents, source_key, id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [...f, s.sourceKey, id])
   return id
 }
 

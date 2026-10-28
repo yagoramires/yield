@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { NoteDraft } from '../../import/clearPdf'
+import type { NoteDraft } from '../../import/sinacorPdf'
 import { buildEvent, buildNote, draftToSave, formFromNote, noteNet, parseMoney, parsePosInt, emptyForm } from './build'
 
 const base = () => ({ ...emptyForm(), number: '8812', broker: 'clear', tradeDate: '2026-10-14', settleDate: '2026-10-16', items: [{ side: 'C' as const, assetType: 'Ação' as const, ticker: ' itsa4 ', qty: '200', price: '10,80' }] })
@@ -24,6 +24,10 @@ describe('buildNote', () => {
     const { note, trades } = buildNote(f, 'manual')
     expect(note).toMatchObject({ number: '8812', broker: 'CLEAR', source: 'manual', sourceKey: 'manual:CLEAR:8812:2026-10-14', label: null })
     expect(trades).toEqual([{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'ITSA4', qty: 200, priceCents: 1080, feesCents: 100, irrfCents: 0 }])
+  })
+  it('nota nova começa sem corretora e pede para informar', () => {
+    expect(emptyForm().broker).toBe('')
+    expect(() => buildNote({ ...base(), broker: emptyForm().broker }, 'manual')).toThrow('Corretora: informe a corretora.')
   })
   it('erros em pt-BR: sem itens, qtd fracionada, IRRF sem venda, data', () => {
     expect(() => buildNote({ ...base(), items: [] }, 'manual')).toThrow(/ao menos um item/)
@@ -69,6 +73,10 @@ describe('draftToSave', () => {
   it('exige ticker e tipo', () => {
     expect(() => draftToSave(draft, [{ ticker: '', assetType: 'Ação' }])).toThrow(/ticker/)
     expect(() => draftToSave(draft, [{ ticker: 'ITSA4', assetType: '' }])).toThrow(/tipo/)
+  })
+  it('corretora que o PDF não trouxe vem da tela, normalizada', () => {
+    expect(() => draftToSave({ ...draft, broker: null }, [{ ticker: 'itsa4', assetType: 'Ação' }])).toThrow(/corretora/)
+    expect(draftToSave({ ...draft, broker: ' xp investimentos ' }, [{ ticker: 'itsa4', assetType: 'Ação' }]).note).toMatchObject({ broker: 'XP', sourceKey: 'pdf:XP:99' })
   })
 })
 

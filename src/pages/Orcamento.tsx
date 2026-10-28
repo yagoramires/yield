@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createMonth, deleteLine, dismissSuggestion, saveLine, type BudgetLine, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
-import { copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from '../domain/orcamento'
+import { cltTabelaAno, copyLines, monthSummary, nextMonthLines, pjNet, planVsReal, sourceNet } from '../domain/orcamento'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
@@ -85,7 +85,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             {prev && copy.length > 0 && <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível copiar o mês', async () => { await createMonth(db, month, copy) })}>Copiar de {lower(prev)}</button>}
             <button className="b" disabled={busy} onClick={() => void run('Não foi possível criar o mês', async () => { await createMonth(db, month, []) })}>Começar vazio</button>
           </div>
-          <div className="muted" style={{ marginTop: 12 }}>Primeira vez? Importe sua planilha em <button className="link" onClick={onOpenSettings}>Configurações › Importar planilha de orçamento</button>.</div>
+          <div className="muted" style={{ marginTop: 12 }}>Já tem o orçamento numa planilha? Salve como CSV (mes;tipo;nome;valor) e importe em <button className="link" onClick={onOpenSettings}>Configurações › Importar orçamento (CSV)</button>.</div>
         </div>
       </>
     )
@@ -110,7 +110,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   // fonte com líquido ≤ 0 trazida para o formulário: o parseMoney daria um erro genérico
   const zeroSource = (f: Form) => {
     const s = f.kind === 'entrada' ? data.sources.find(x => x.id === f.sourceId) : undefined
-    return !!s && sourceNet(s) <= 0 && f.amount === formatCents(sourceNet(s))
+    return !!s && sourceNet(s, month) <= 0 && f.amount === formatCents(sourceNet(s, month))
   }
   const save = (f: Form) => void run('Não foi possível salvar a linha', async () => {
     if (zeroSource(f)) throw new Error(NET_ZERO)
@@ -143,7 +143,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div className="row" style={{ alignItems: 'center' }}>
           <Select ariaLabel="Fonte" value={f.sourceId} onChange={v => {
             const s = data.sources.find(x => x.id === v)
-            setForm(s ? { ...f, sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s)) } : { ...f, sourceId: '' })
+            setForm(s ? { ...f, sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s, month)) } : { ...f, sourceId: '' })
           }} options={[...data.sources.map(s => ({ value: s.id, label: `Fonte: ${s.name}` })), { value: '', label: 'Valor avulso' }]} />
           <input className="in" aria-label="Nome" placeholder="nome" style={{ width: 140 }} value={f.name} onChange={e => setForm({ ...f, name: e.target.value })} />
           <input className="in" aria-label="Valor" placeholder="0,00" style={{ width: 90 }} readOnly={!!source} value={f.amount} onChange={e => setForm({ ...f, amount: e.target.value })} />
@@ -247,7 +247,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       <div className="card" style={{ marginTop: 12 }}>
         <div className="bar"><h5 style={{ margin: 0 }}>Entradas</h5><button className="b ghost" disabled={busy} onClick={() => {
           const s = data.sources[0]
-          open('entrada', s ? { sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s)) } : {})
+          open('entrada', s ? { sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s, month)) } : {})
         }}>+ Entrada</button></div>
         <div className="muted" style={{ marginTop: 2 }}>Uma entrada pode usar uma fonte de renda (o valor acompanha a fonte) ou ser um valor avulso.</div>
         <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="lt" style={{ marginTop: 6 }}>
@@ -257,13 +257,14 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             {entradas.map(l => {
               if (form?.id === l.id) return entradaForm(form)
               const source = data.sources.find(s => s.id === l.sourceId)
-              const pj = source?.kind === 'pj' && l.amountCents === sourceNet(source) ? pjNet(source.grossCents ?? 0, source) : null
+              const pj = (source?.kind === 'pj' || source?.kind === 'mei') && l.amountCents === sourceNet(source, month) ? pjNet(source.grossCents ?? 0, source) : null
               return (
                 <tr key={l.id}>
                   <td>
-                    <div style={{ color: '#fff' }}>{l.name} {source && <span className="pill">{source.kind === 'pj' ? 'fonte PJ' : 'fonte'}</span>} {recur(l)}</div>
-                    {pj ? <div className="pj">bruto {formatCents(pj.grossCents)} − IRPJ {formatCents(pj.irpjCents)} − INSS {formatCents(pj.inssCents)} − contabilidade {formatCents(pj.contabilidadeCents)} − outros {formatCents(pj.outrosCents)} · pró-labore {formatCents(pj.proLaboreCents)}</div>
-                      : !source && <div className="d2">valor avulso{l.recurring ? '' : ' · só este mês'}</div>}
+                    <div style={{ color: '#fff' }}>{l.name} {source && <span className="pill">{source.kind === 'pj' ? 'fonte PJ' : source.kind === 'mei' ? 'fonte MEI' : 'fonte'}</span>} {recur(l)}</div>
+                    {pj ? <div className="pj">{source?.kind === 'mei' ? <>bruto {formatCents(pj.grossCents)} − DAS {formatCents(pj.dasCents)} − outros {formatCents(pj.outrosCents)}</> : <>bruto {formatCents(pj.grossCents)} − imposto {formatCents(pj.irpjCents)} − INSS {formatCents(pj.inssCents)} − contabilidade {formatCents(pj.contabilidadeCents)} − outros {formatCents(pj.outrosCents)} · pró-labore {formatCents(pj.proLaboreCents)}</>}</div>
+                      : !source ? <div className="d2">valor avulso{l.recurring ? '' : ' · só este mês'}</div>
+                      : source.kind === 'clt' && cltTabelaAno(Number(month.slice(0, 4))) !== Number(month.slice(0, 4)) && <div className="d2">usando a tabela de {cltTabelaAno(Number(month.slice(0, 4)))}</div>}
                   </td>
                   <td className="r">{formatCents(l.amountCents)}</td>
                   {actions(l)}

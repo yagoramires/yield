@@ -1,5 +1,5 @@
-import type { Account, Txn } from '../db/gastosRepo'
-import { normalizeDescription } from './gastos'
+import type { Account, Category, Txn } from '../db/gastosRepo'
+import { fold, normalizeDescription } from './gastos'
 
 export interface TransferLink { otherAccountId: string; outgoing: boolean }
 
@@ -30,22 +30,19 @@ export function pairTransfers(txns: Txn[], accounts: Account[], overrides: Recor
   return out
 }
 
-// Depois do nome do titular, uma destas palavras indica a empresa dele ("ANA SOUZA DESENVOLVIMENTO DE SOFTWARE"), não ele.
-const COMPANY = /\b(ltda|me|mei|eireli|epp|s a|sa|desenvolvimento|servicos|software|consultoria|tecnologia|comercio|representacoes|solucoes|sistemas|holding|participacoes|negocios|digital)\b/
+const words = (s: string) => ` ${fold(s).replace(/[^a-z]+/g, ' ').trim()} `
+const digits = (s: string) => s.replace(/\D/g, '')
 
 /**
  * Pix/TED com o seu nome na descrição. `pessoa`: você mesmo, numa conta que não está no app (Transferência);
- * `empresa`: uma empresa com o seu nome, como a sua PJ (o que ela paga é Receita).
+ * `empresa`: uma das empresas que você configurou, pelo nome ou CNPJ (o que ela paga é Receita).
  */
-export function ownerMention(description: string, names: string[]): 'pessoa' | 'empresa' | null {
+export function ownerMention(description: string, names: string[], companies: string[] = []): 'pessoa' | 'empresa' | null {
+  const plain = words(description), num = digits(description)
+  // antes do titular: o nome da PJ costuma conter o dele ("ANA TESTE ODONTOLOGIA")
+  if (companies.some(c => (digits(c).length === 14 ? num.includes(digits(c)) : plain.includes(words(c))))) return 'empresa'
   const desc = keepSeparators(description)
-  for (const n of names) {
-    const name = keepSeparators(n).replace(/\|/g, ' ').replace(/\s+/g, ' ').trim()
-    const at = name ? desc.indexOf(name) : -1
-    // só o trecho colado ao nome conta: o banco depois de um " - " (ex. "BCO EXEMPLO S.A.") não é a sua empresa
-    if (at >= 0) return COMPANY.test(desc.slice(at + name.length).split('|')[0]) ? 'empresa' : 'pessoa'
-  }
-  return null
+  return names.some(n => { const name = keepSeparators(n).replace(/\|/g, ' ').replace(/\s+/g, ' ').trim(); return name && desc.includes(name) }) ? 'pessoa' : null
 }
 
 // minúsculas sem acento; hífen, barra vertical, marcador e números viram o separador "|", o resto da pontuação vira espaço
@@ -57,4 +54,24 @@ export function validOwnerNames(text: string): { names: string[] } | { error: st
   const names = text.split(',').map(s => s.trim().replace(/\s+/g, ' ')).filter(Boolean)
   const short = names.find(n => normalizeDescription(n).split(' ').length < 2)
   return short ? { error: `Use nome e sobrenome em cada variação ("${short}" é curto demais e pegaria Pix de outras pessoas).` } : { names }
+}
+
+/** "Ana Teste Odontologia, 11.222.333/0001-81" → nomes (duas palavras ou mais) ou CNPJs completos. */
+export function validCompanyNames(text: string): { names: string[] } | { error: string } {
+  const names = text.split(',').map(s => s.trim().replace(/\s+/g, ' ')).filter(Boolean)
+  const short = names.find(n => digits(n).length !== 14 && words(n).trim().split(' ').length < 2)
+  return short ? { error: `Use o nome com pelo menos duas palavras ou o CNPJ completo ("${short}" pegaria Pix de outras empresas).` } : { names }
+}
+
+const PIX_TED = / (pix|ted|doc|transf\w*) /
+const PJ = /\b(ltda|eireli|mei|me)\b|\bs[/.]a\b|(?<!\d)\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}(?!\d)/i
+
+/**
+ * Sem "sua empresa" configurada, Pix/TED recebido de uma PJ (LTDA, ME, EIRELI, S/A, MEI ou CNPJ na descrição)
+ * que caiu em Transferência: provável pagamento da empresa do titular, que seria Receita. Para a dica em Lançamentos.
+ */
+export function companyCreditHints(txns: Txn[], accounts: Account[], cat: (t: Txn) => Category | null, companyNames: string[]): Txn[] {
+  if (companyNames.length) return []
+  const contas = new Set(accounts.filter(a => a.kind === 'conta').map(a => a.id))
+  return txns.filter(t => t.amountCents > 0 && contas.has(t.accountId) && PIX_TED.test(words(t.description)) && PJ.test(t.description) && cat(t)?.id === 'transferencia')
 }

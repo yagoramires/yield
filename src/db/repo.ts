@@ -1,4 +1,5 @@
 import { normalizeTicker } from '../domain/ledger'
+import type { OpeningLoss } from '../domain/tax'
 import type { Cents, CorporateEvent, DarfPayment, Dividend, ISODate, Month, NewCorporateEvent, Trade } from '../domain/types'
 import { normalizeBroker } from '../import/parse'
 import type { Db } from './client'
@@ -7,13 +8,13 @@ import { loadCryptoBalances, loadRfMoves, loadRfPositions, type CryptoBalance, t
 export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'exterior' | 'outro'; currency: 'BRL' | 'USD' /* USD: cotação em dólar × BRL=X */; costCents: Cents | null /* aportado, na moeda do ativo */; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate; sourceKey: string | null }
 export interface Note { id: string; number: string; broker: string; tradeDate: ISODate; settleDate: ISODate; source: 'manual' | 'pdf' | 'planilha' | 'sem_nota'; sourceKey: string | null; label: string | null }
 export interface Quote { symbol: string /* sempre yahooSymbol(ticker), ex. 'ITSA4.SA' */; priceCents: Cents; fetchedAt: string; source: 'yahoo' | 'manual' /* manual prevalece e nunca é sobrescrita */ }
-export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[]; rfMoves: RfMove[]; rfPositions: RfPosition[]; cryptoBalances: CryptoBalance[] }
+export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[]; rfMoves: RfMove[]; rfPositions: RfPosition[]; cryptoBalances: CryptoBalance[]; openingLoss: OpeningLoss | null }
 
 type TradeInput = Omit<Trade, 'id' | 'noteId' | 'broker' | 'tradeDate' | 'settleDate'>
 type NoteInput = Omit<Note, 'id'>
 
 export async function loadAll(db: Db): Promise<Dataset> {
-  const [notes, trades, events, dividends, payments, quotes, manualAssets, rfMoves, rfPositions, cryptoBalances] = await Promise.all([
+  const [notes, trades, events, dividends, payments, quotes, manualAssets, rfMoves, rfPositions, cryptoBalances, opening] = await Promise.all([
     db.select<Note>('SELECT id, number, broker, trade_date AS tradeDate, settle_date AS settleDate, source, source_key AS sourceKey, label FROM notes ORDER BY trade_date, number'),
     db.select<Trade>(`SELECT t.id, t.note_id AS noteId, t.seq, n.broker, n.trade_date AS tradeDate, n.settle_date AS settleDate, t.side, t.asset_type AS assetType,
         t.ticker, t.qty, t.price_cents AS priceCents, t.fees_cents AS feesCents, t.irrf_cents AS irrfCents
@@ -25,9 +26,11 @@ export async function loadAll(db: Db): Promise<Dataset> {
     db.select<Quote>('SELECT symbol, price_cents AS priceCents, fetched_at AS fetchedAt, source FROM quotes ORDER BY symbol'),
     db.select<ManualAsset>('SELECT id, name, asset_class AS assetClass, currency, cost_cents AS costCents, quote_symbol AS quoteSymbol, quantity, value_cents AS valueCents, updated_at AS updatedAt, source_key AS sourceKey FROM manual_assets ORDER BY name'),
     loadRfMoves(db), loadRfPositions(db), loadCryptoBalances(db),
+    db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [OPENING_LOSS_KEY]),
   ])
   return {
     notes, trades, dividends, payments, quotes, manualAssets, rfMoves, rfPositions, cryptoBalances,
+    openingLoss: opening.length ? JSON.parse(opening[0].value) as OpeningLoss : null,
     events: events.map(e => {
       if (e.kind === 'mudanca_ticker') return { id: e.id, kind: e.kind, ticker: e.ticker, newTicker: e.newTicker!, date: e.date }
       if (e.kind === 'bonificacao') return { id: e.id, kind: e.kind, ticker: e.ticker, date: e.date, qtyDelta: e.qtyDelta!, unitCostCents: e.unitCostCents }
@@ -67,6 +70,51 @@ export async function saveNote(db: Db, note: NoteInput, trades: TradeInput[]): P
   const id = crypto.randomUUID()
   await insertNote(db, id, note, trades)
   return { id }
+}
+
+const BROKERS_KEY = 'reparo.corretoras'
+const BROKERS_VERSION = '1' // suba quando normalizeBroker mudar, para a rotina rodar de novo
+
+/** Versões antigas gravavam por extenso as corretoras fora de CLEAR/INTER/BTG ('XP INVESTIMENTOS CCTVM S/A');
+ * sem passar à chave curta, a mesma Negociação da B3 reimportada viraria outra nota. Roda uma vez por versão.
+ * Se a nota com a chave curta já existe (mesmo número e data): se ela já tem todas as operações, a por extenso some;
+ * com operações diferentes ficam as duas e entra em `conflicts`, para a pessoa conferir. */
+export async function renormalizeBrokers(db: Db): Promise<{ conflicts: number }> {
+  const [done] = await db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [BROKERS_KEY])
+  if (done?.value === BROKERS_VERSION) return { conflicts: 0 }
+  let conflicts = 0
+  type TradeRow = { ticker: string; side: string; qty: number; price_cents: number }
+  const same = (a: TradeRow, b: TradeRow) => a.ticker === b.ticker && a.side === b.side && a.qty === b.qty && a.price_cents === b.price_cents
+  const tradesOf = (id: string) => db.select<TradeRow>('SELECT ticker, side, qty, price_cents FROM trades WHERE note_id = ?', [id])
+  const notes = await db.select<{ id: string; number: string; broker: string; trade_date: string }>('SELECT id, number, broker, trade_date FROM notes')
+  for (const n of notes) {
+    const key = normalizeBroker(n.broker)
+    if (key === n.broker) continue
+    const [target] = await db.select<{ id: string }>('SELECT id FROM notes WHERE broker = ? AND number = ? AND trade_date = ?', [key, n.number, n.trade_date])
+    if (!target) {
+      await db.execute('UPDATE notes SET broker = ?, source_key = replace(source_key, ?, ?) WHERE id = ?', [key, `:${n.broker}`, `:${key}`, n.id])
+      continue
+    }
+    const pool = await tradesOf(target.id)
+    // cada operação da por extenso precisa de uma igual (e ainda não usada) na curta
+    const dup = (await tradesOf(n.id)).every(t => {
+      const i = pool.findIndex(o => same(o, t))
+      if (i >= 0) pool.splice(i, 1)
+      return i >= 0
+    })
+    if (dup) await db.execute('DELETE FROM notes WHERE id = ?', [n.id])
+    else conflicts++
+  }
+  const rows = await db.select<{ b: string }>('SELECT broker AS b FROM dividends WHERE broker IS NOT NULL UNION SELECT code FROM brokers')
+  for (const { b } of rows) {
+    const key = normalizeBroker(b)
+    if (key === b) continue
+    await db.execute('UPDATE dividends SET broker = ? WHERE broker = ?', [key, b])
+    // OR IGNORE: se o cadastro do IR já existe com a chave curta, fica o que já estava
+    await db.execute('UPDATE OR IGNORE brokers SET code = ? WHERE code = ?', [key, b])
+  }
+  await db.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', [BROKERS_KEY, BROKERS_VERSION])
+  return { conflicts }
 }
 
 export async function deleteNote(db: Db, id: string): Promise<void> {
@@ -134,6 +182,14 @@ export async function deleteDividend(db: Db, id: string): Promise<void> {
 
 export async function savePayment(db: Db, p: DarfPayment): Promise<void> {
   await db.execute('INSERT OR REPLACE INTO darf_payments (month, paid_at, principal_cents, total_paid_cents) VALUES (?, ?, ?, ?)', [p.month, p.paidAt, p.principalCents, p.totalPaidCents])
+}
+
+const OPENING_LOSS_KEY = 'imposto.prejuizo_inicial'
+
+/** Prejuízo a compensar informado à mão (anos antes do relatório da B3); null apaga. */
+export async function saveOpeningLoss(db: Db, v: OpeningLoss | null): Promise<void> {
+  if (!v) await db.execute('DELETE FROM meta WHERE key = ?', [OPENING_LOSS_KEY])
+  else await db.execute('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', [OPENING_LOSS_KEY, JSON.stringify(v)])
 }
 
 export async function deletePayment(db: Db, month: Month): Promise<void> {

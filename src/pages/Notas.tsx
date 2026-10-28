@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { deleteEvent, deleteNote, replaceNote, saveEvent, saveNote, setBonificacaoCost, type Note } from '../db/repo'
 import { formatCents } from '../domain/money'
 import type { CorporateEvent, NewCorporateEvent } from '../domain/types'
+import { normalizeBroker } from '../import/parse'
 import { useData } from '../state/DataProvider'
 import { DUP_MSG, emptyForm, formFromNote, noteNet, parseMoney, type Built, type NoteForm as Form } from './notas/build'
 import { EVENT_LABEL, EventForm } from './notas/EventForm'
@@ -60,18 +61,25 @@ export function Notas() {
     <>{onEdit && <><button className="link" onClick={onEdit}>editar</button> · </>}<button className="link" onClick={() => setConfirm(key)}>excluir</button></>
   )
 
+  // conflitos que renormalizeBrokers deixou: a mesma nota com a corretora por extenso e abreviada, com operações diferentes
+  const brokerDups = data.notes.filter(n => normalizeBroker(n.broker) !== n.broker && data.notes.some(o => o.broker === normalizeBroker(n.broker) && o.number === n.number && o.tradeDate === n.tradeDate))
+
   return (
     <>
       <div className="bar">
         <h1>Notas</h1>
         <div className="btns">
           <button className="b pri" onClick={() => open('manual')}>+ Nota</button>
-          <button className="b" onClick={() => setPanel({ t: 'pdf' })}>Importar PDF da Clear</button>
+          <button className="b" onClick={() => setPanel({ t: 'pdf' })}>Importar nota em PDF</button>
           <button className="b" onClick={() => open('sem_nota')}>Operação sem nota</button>
           <button className="b" onClick={() => { setView('eventos'); setPanel({ t: 'evento' }) }}>Evento corporativo</button>
         </div>
       </div>
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
+      {brokerDups.length > 0 && <div className="note" style={{ marginTop: 10 }}>
+        {brokerDups.length === 1 ? 'Uma nota aparece' : `${brokerDups.length} notas aparecem`} duas vezes, com o nome da corretora por extenso e abreviado e operações diferentes
+        ({brokerDups.map(n => `nº ${n.number} de ${br(n.tradeDate)}`).join(', ')}). Confira e exclua a que estiver errada para as operações não contarem duas vezes.
+      </div>}
       <div className={`notes-layout${panel ? ' split' : ''}`}>
         <div>
           <div className="row" style={{ marginBottom: 8 }}>
@@ -79,7 +87,7 @@ export function Notas() {
             <button className={`chip ${view === 'eventos' ? 'on' : ''}`} onClick={() => setView('eventos')}>Eventos</button>
           </div>
           {view === 'notas' ? (
-            notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe o PDF da Clear ou a Negociação da B3 em Configurações.</div> : (
+            notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe a nota em PDF ou a Negociação da B3 em Configurações.</div> : (
               <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
                 <thead><tr><th>Pregão</th><th>Nº</th><th>Corretora</th><th>Itens</th><th className="r">Líquido</th><th /></tr></thead>
                 <tbody>

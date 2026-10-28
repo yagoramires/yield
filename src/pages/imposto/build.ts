@@ -1,6 +1,6 @@
 // Lógica pura da tela de Imposto: agrupamento por ano, saldo de IRRF de dezembro, avisos e validação do pagamento.
 import type { DarfRow } from '../../domain/darf'
-import type { TaxMonth } from '../../domain/tax'
+import type { OpeningLoss, TaxMonth } from '../../domain/tax'
 import type { Cents, DarfPayment, ISODate, Month, Warning } from '../../domain/types'
 import { parseDate, parseMoney } from '../notas/build'
 
@@ -35,6 +35,20 @@ export const dayTradeMonths = (ws: Warning[]): Set<Month> =>
 // Avisos do mês que explicam o "incompleto": venda maior que a posição e evento sem posição.
 export const incompleteWarnings = (ws: Warning[], m: Month): Warning[] =>
   ws.filter(w => (w.kind === 'venda_maior_que_posicao' || w.kind === 'evento_sem_posicao') && w.date.startsWith(m))
+
+export interface OpeningLossForm { month: string /* mm/aaaa */; comum: string; fii: string }
+
+export function buildOpeningLoss(f: OpeningLossForm, now = new Date()): OpeningLoss {
+  const m = /^(\d{2})\/(\d{4})$/.exec(f.month.trim())
+  if (!m || Number(m[1]) < 1 || Number(m[1]) > 12) throw new Error('Mês: use mm/aaaa, por exemplo 01/2019.')
+  // a apuração vai só até o mês atual: prejuízo de um mês futuro nunca entraria na conta
+  if (`${m[2]}-${m[1]}` > `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`) throw new Error('Mês: o prejuízo inicial não pode ser de um mês futuro.')
+  // campo vazio = não informado (fica o prejuízo calculado daquele lado); zero digitado zera
+  const read = (t: string, what: string) => (t.trim() ? parseMoney(t, what, false) : null)
+  const comumCents = read(f.comum, 'Prejuízo comum'), fiiCents = read(f.fii, 'Prejuízo FII')
+  if (!comumCents && !fiiCents) throw new Error('Informe o valor do prejuízo comum, de FII ou dos dois.')
+  return { month: `${m[2]}-${m[1]}`, comumCents, fiiCents }
+}
 
 export function buildPayment(month: Month, f: PaymentForm): DarfPayment {
   const paidAt = parseDate(f.paidAt, 'Data do pagamento')

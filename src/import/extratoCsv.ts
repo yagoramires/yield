@@ -1,9 +1,11 @@
 import { normalizeDescription } from '../domain/gastos'
-import type { ISODate } from '../domain/types'
+import type { Cents, ISODate } from '../domain/types'
 import { parseBRDate, parseBRL } from './parse'
 import { parseAmount, type ParsedStatement } from './ofx'
 
 export type CsvPreset = 'nubank-conta' | 'mercadopago'
+// atalhos do mapeador genérico: só preenchem as colunas
+export type MapPreset = 'nubank-cartao'
 
 // Presets montados só com cabeçalhos públicos: pendentes de validação com um arquivo real.
 const clean = (t: string) => t.replace(/^﻿/, '')
@@ -15,7 +17,7 @@ export function detectCsvPreset(text: string): CsvPreset | null {
   return ls.some(l => l.startsWith('RELEASE_DATE;')) ? 'mercadopago' : null
 }
 
-function splitRow(line: string, sep: string): string[] {
+export function splitRow(line: string, sep: string): string[] {
   const out: string[] = []
   let cur = '', q = false
   for (let i = 0; i < line.length; i++) {
@@ -66,4 +68,79 @@ export function parseExtratoCsv(text: string, preset: CsvPreset, accountLabel: s
     } catch (e) { throw new Error(`Linha ${line}: ${(e as Error).message}`) }
   })
   return { institution: nu ? 'Nubank' : 'Mercado Pago', name: accountLabel, externalId: `csv:${preset}:${normalizeDescription(accountLabel)}`, kind: 'conta', number: null, rows }
+}
+
+/** Colunas pelo índice no cabeçalho; -1 = sem. Valor numa coluna só ou em débito e crédito separados. */
+export interface CsvMapping { date: number; description: number; amount: number; debit: number; credit: number; expensesPositive: boolean /* fatura de cartão */ }
+export interface CsvSniff { sep: string; start: number /* linha do cabeçalho */; header: string[]; preset: MapPreset | null; mapping: CsvMapping }
+
+const SEPS = [';', '\t', ',']
+const findCol = (header: string[], re: RegExp, skip = -1) => header.findIndex((h, i) => i !== skip && re.test(h))
+
+/** Separador pela contagem de colunas mais repetida (a vírgula decimal num arquivo com ";" dá contagens desencontradas). */
+export function sniffCsv(text: string): CsvSniff {
+  const all = lines(text)
+  const sample = all.slice(0, 40)
+  let best = { sep: ',', n: 0, score: 0 }
+  for (const sep of SEPS) {
+    const counts = new Map<number, number>()
+    for (const l of sample) if (l.trim()) { const n = splitRow(l, sep).length; if (n >= 2) counts.set(n, (counts.get(n) ?? 0) + 1) }
+    const [n, score] = [...counts].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0] ?? [0, 0]
+    if (score > best.score) best = { sep, n, score }
+  }
+  if (!best.score) throw new Error('Não encontrei colunas neste CSV (separador ; , ou tabulação)')
+  const start = all.findIndex(l => l.trim() && splitRow(l, best.sep).length === best.n)
+  const header = splitRow(all[start], best.sep)
+  const preset: MapPreset | null = header.join(',').toLowerCase() === 'date,title,amount' ? 'nubank-cartao' : null
+  const amount = findCol(header, /^(valor|amount|value|quantia)/i)
+  const date = findCol(header, /^(data|date|dt\b)/i)
+  // "Data Lançamento" é a data: a descrição nunca é a coluna da data, e Histórico/Descrição ganham de Lançamento
+  const description = [/descri|hist[oó]rico|^title$|t[ií]tulo|estabelecimento/i, /lan[cç]amento|memo/i].map(re => findCol(header, re, date)).find(i => i >= 0) ?? -1
+  return {
+    sep: best.sep, start, header, preset,
+    mapping: {
+      date,
+      description,
+      amount,
+      debit: amount < 0 ? findCol(header, /d[eé]bito|sa[ií]da|debit/i) : -1,
+      credit: amount < 0 ? findCol(header, /cr[eé]dito|entrada|credit/i) : -1,
+      expensesPositive: preset === 'nubank-cartao',
+    },
+  }
+}
+
+function anyDate(s: string): ISODate {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+  const br = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/.exec(s)
+  const [y, m, d] = iso ? [iso[1], iso[2], iso[3]] : br ? [br[3].length === 2 ? `20${br[3]}` : br[3], br[2], br[1]] : ['', '', '']
+  if (!y || +m < 1 || +m > 12 || +d < 1 || +d > 31) throw new Error(`Data inválida: "${s}"`)
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+}
+
+export function parseMappedCsv(text: string, layout: Pick<CsvSniff, 'sep' | 'start' | 'preset'>, m: CsvMapping, accountLabel: string): ParsedStatement {
+  if (m.date < 0) throw new Error('Escolha a coluna da data')
+  if (m.description < 0) throw new Error('Escolha a coluna da descrição')
+  if (m.amount < 0 && m.debit < 0 && m.credit < 0) throw new Error('Escolha a coluna do valor (ou as de débito e crédito)')
+  const body = lines(text).map((l, i) => ({ cells: splitRow(l, layout.sep), line: i + 1 })).slice(layout.start + 1).filter((_, i, a) => a[i].cells.some(Boolean))
+  const cols = (m.amount >= 0 ? [m.amount] : [m.debit, m.credit]).filter(c => c >= 0)
+  // sinal no fim: "45,90 D" (débito), "45,90 C" (crédito), "45,90-"
+  const signed = (v: string): [string, number] => { const m = /^(.*\d)\s*([DC]|-)$/i.exec(v.trim()); return m ? [m[1], /c/i.test(m[2]) ? 1 : -1] : [v, 0] }
+  const vals = body.flatMap(r => cols.map(c => signed(r.cells[c] ?? '')[0].trim()))
+  // vírgula decimal se algum valor termina em ",dd", ou milhar com ponto ("1.000") sem nenhum ponto decimal no arquivo; senão ponto ("45.90", "1,234.56")
+  const comma = vals.some(v => /,\d{1,2}$/.test(v)) || (!vals.some(v => /\.\d{1,2}$/.test(v)) && vals.some(v => /\d{1,3}(\.\d{3})+$/.test(v)))
+  const num = (v: string): Cents => {
+    const [s, sign] = signed(v)
+    const c = comma ? parseBRL(s) : parseBRL(s.replace(/,/g, '').replace('.', ','))
+    return sign ? sign * Math.abs(c) + 0 : c
+  }
+  const rows = body.flatMap(({ cells, line }) => {
+    const cell = (c: number) => (c >= 0 ? cells[c] ?? '' : '')
+    if (cols.every(c => !cell(c))) return [] // saldo do dia, linha informativa
+    try {
+      let amountCents = m.amount >= 0 ? num(cell(m.amount)) : Math.abs(num(cell(m.credit))) - Math.abs(num(cell(m.debit)))
+      if (m.expensesPositive) amountCents = -amountCents + 0
+      return [{ date: anyDate(cell(m.date)), description: cell(m.description), amountCents, fitid: null }]
+    } catch (e) { throw new Error(`Linha ${line}: ${(e as Error).message}`) }
+  })
+  return { institution: accountLabel, name: accountLabel, externalId: `csv:${layout.preset ?? 'mapa'}:${normalizeDescription(accountLabel)}`, kind: m.expensesPositive ? 'cartao' : 'conta', number: null, rows }
 }

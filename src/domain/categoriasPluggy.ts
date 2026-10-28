@@ -1,10 +1,11 @@
 // Categoria da Pluggy (em inglês, ex. "Groceries", "Transfer - PIX") → id de categoria do app.
 // A ordem importa: o primeiro padrão que bate vence ("gas stations" antes de "gas").
 // shortcut: lista montada pelos nomes conhecidos da Pluggy; nome novo cai em null (sem categoria) até entrar aqui.
+const INVEST = /invest|fixed income|mutual fund|variable income|pension|proceeds|dividend/
 const MAP: [RegExp, string][] = [
   [/same person transfer/, 'transferencia'],
   [/credit card payment/, 'pagamento-de-fatura'],
-  [/invest|fixed income|mutual fund|variable income|pension|proceeds|dividend/, 'investimento'],
+  [INVEST, 'investimento'],
   [/gas station|fuel|parking|toll|taxi|ride|public transport|car rental|bicycle|automotive|transport/, 'transporte'],
   [/supermarket|groceries/, 'mercado'],
   [/eating out|restaurant|food|delivery|bakery|coffee/, 'alimentacao'],
@@ -25,7 +26,7 @@ const INCOME = /income|salary|wage|retirement|government aid|benefit|refund/
 export function pluggyCategoryId(category: string | null | undefined, amountCents: number): string | null {
   if (!category) return null
   const c = category.toLowerCase()
-  if (amountCents > 0 && INCOME.test(c)) return 'receita'
+  if (amountCents > 0 && INCOME.test(c) && !INVEST.test(c)) return 'receita' // "Fixed income" é resgate, não renda
   if (/transfer/.test(c) && !/same person/.test(c)) return null // Pix/TED para outra pessoa: gasto de verdade, sem categoria
   return MAP.find(([re]) => re.test(c))?.[1] ?? null
 }

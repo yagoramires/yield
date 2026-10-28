@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createRawDb, createTestDb, tmpPath, type Db } from './testDb'
 import {
-  deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, replaceNote,
-  saveAlias, saveEvent, saveManualAsset, saveNote, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
+  deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, renormalizeBrokers, replaceNote,
+  saveAlias, saveEvent, saveManualAsset, saveNote, saveOpeningLoss, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
 } from './repo'
 
 let db: Db
@@ -59,6 +59,56 @@ describe('notas', () => {
   test('falha ao inserir trades apaga a nota', async () => {
     await expect(saveNote(db, nota, [{ ...trades[0], side: 'X' as never }])).rejects.toThrow()
     expect((await loadAll(db)).notes).toHaveLength(0)
+  })
+})
+
+describe('renormalizeBrokers', () => {
+  test('chaves gravadas por extenso passam à chave curta; o cadastro do IR já existente com a curta fica', async () => {
+    const raw = 'XP INVESTIMENTOS CCTVM S/A'
+    await db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source, source_key) VALUES ('n1', 'B3 2024-01-05', ?, '2024-01-05', '2024-01-09', 'sem_nota', ?)", [raw, `b3neg:2024-01-05:${raw}`])
+    await db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source) VALUES ('n2', '1', 'CLEAR', '2024-01-05', '2024-01-09', 'manual')")
+    await db.execute("INSERT INTO dividends (id, ticker, kind, pay_date, amount_cents, broker, source) VALUES ('d1', 'AAAA3', 'Dividendo', '2024-02-01', 100, ?, 'b3')", [raw])
+    await db.execute("INSERT INTO brokers (code, name, cnpj) VALUES (?, 'XP INVESTIMENTOS CCTVM S/A', '11.222.333/0001-81'), ('NU INVEST CORRETORA DE VALORES S.A.', 'Nu', ''), ('NU', 'Nu Invest', '11.444.777/0001-61')", [raw])
+    await renormalizeBrokers(db)
+    await renormalizeBrokers(db) // idempotente
+    const d = await loadAll(db)
+    expect(d.notes.map(n => [n.broker, n.sourceKey])).toEqual([['CLEAR', null], ['XP', 'b3neg:2024-01-05:XP']])
+    expect(d.dividends[0].broker).toBe('XP')
+    expect(await db.select('SELECT code, cnpj FROM brokers ORDER BY code')).toEqual([
+      { code: 'NU', cnpj: '11.444.777/0001-61' }, { code: 'NU INVEST CORRETORA DE VALORES S.A.', cnpj: '' }, { code: 'XP', cnpj: '11.222.333/0001-81' },
+    ])
+  })
+})
+
+describe('renormalizeBrokers com a nota curta já gravada', () => {
+  const raw = 'XP INVESTIMENTOS CCTVM S/A'
+  const note = (id: string, broker: string, number = '7') => db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source) VALUES (?, ?, ?, '2024-01-05', '2024-01-09', 'pdf')", [id, number, broker])
+  const trade = (id: string, noteId: string, qty = 100) => db.execute("INSERT INTO trades (id, note_id, seq, side, asset_type, ticker, qty, price_cents, fees_cents, irrf_cents) VALUES (?, ?, 1, 'C', 'Ação', 'AAAA3', ?, 1000, 0, 0)", [id, noteId, qty])
+
+  test('mesmas operações: a nota por extenso some e nada conta duas vezes', async () => {
+    await note('curta', 'XP'); await trade('t1', 'curta')
+    await note('longa', raw); await trade('t2', 'longa')
+    expect(await renormalizeBrokers(db)).toEqual({ conflicts: 0 })
+    const d = await loadAll(db)
+    expect(d.notes.map(n => [n.id, n.broker])).toEqual([['curta', 'XP']])
+    expect(d.trades.map(t => t.id)).toEqual(['t1'])
+  })
+
+  test('operações diferentes: mantém as duas e devolve o conflito', async () => {
+    await note('curta', 'XP'); await trade('t1', 'curta')
+    await note('longa', raw); await trade('t2', 'longa', 200)
+    expect(await renormalizeBrokers(db)).toEqual({ conflicts: 1 })
+    expect((await loadAll(db)).notes.map(n => n.id).sort()).toEqual(['curta', 'longa'])
+  })
+
+  test('roda uma vez por versão da normalização', async () => {
+    await renormalizeBrokers(db)
+    await note('longa', raw)
+    await renormalizeBrokers(db)
+    expect((await loadAll(db)).notes[0].broker).toBe(raw)
+    await db.execute("UPDATE meta SET value = '0' WHERE key = 'reparo.corretoras'") // versão antiga
+    await renormalizeBrokers(db)
+    expect((await loadAll(db)).notes[0].broker).toBe('XP')
   })
 })
 
@@ -122,6 +172,17 @@ describe('eventos, pagamentos, cotações, manuais, aliases', () => {
     expect(await getAlias(db, 'ITAUSA PN')).toBeNull()
     await saveAlias(db, 'ITAUSA PN', 'itsa4')
     expect(await getAlias(db, 'ITAUSA PN')).toBe('ITSA4')
+  })
+})
+
+describe('prejuízo inicial', () => {
+  test('salva, troca e apaga o prejuízo a compensar informado', async () => {
+    expect((await loadAll(db)).openingLoss).toBeNull()
+    await saveOpeningLoss(db, { month: '2019-01', comumCents: 120_000, fiiCents: 5_000 })
+    await saveOpeningLoss(db, { month: '2019-02', comumCents: 100_000, fiiCents: 0 })
+    expect((await loadAll(db)).openingLoss).toEqual({ month: '2019-02', comumCents: 100_000, fiiCents: 0 })
+    await saveOpeningLoss(db, null)
+    expect((await loadAll(db)).openingLoss).toBeNull()
   })
 })
 

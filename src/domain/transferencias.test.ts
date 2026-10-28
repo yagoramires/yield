@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Account, Txn } from '../db/gastosRepo'
-import { ownerMention, pairTransfers, validOwnerNames } from './transferencias'
+import type { Account, Category, Txn } from '../db/gastosRepo'
+import { companyCreditHints, ownerMention, pairTransfers, validCompanyNames, validOwnerNames } from './transferencias'
 
 const acc = (id: string, kind: Account['kind'] = 'conta'): Account => ({ id, source: 'pluggy', externalId: id, institution: id, name: id, kind, number: null, itemId: null, lastSyncAt: null })
 const accounts = [acc('nu'), acc('itau'), acc('inter'), acc('cartao', 'cartao')]
@@ -44,8 +44,9 @@ describe('nome do titular', () => {
     const me = ['Ana Teste Souza']
     expect(ownerMention('Transferência enviada pelo Pix - ANA TESTE SOUZA', me)).toBe('pessoa')
     expect(ownerMention('Pix recebido de Ana Teste Souza', me)).toBe('pessoa')
-    expect(ownerMention('Transferência Recebida|ANA TESTE SOUZA DESENVOLVIMENTO DE SOFTWARE', me)).toBe('empresa')
-    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA LTDA', me)).toBe('empresa')
+    // sem a empresa configurada, nenhum sufixo vira empresa
+    expect(ownerMention('Transferência Recebida|ANA TESTE SOUZA DESENVOLVIMENTO DE SOFTWARE', me)).toBe('pessoa')
+    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA LTDA', me)).toBe('pessoa')
     expect(ownerMention('PIX RECEBIDO JOÃO SILVA', ['Ana Teste Souza', 'João Silva'])).toBe('pessoa')
     expect(ownerMention('PIX ENVIADO ANA', me)).toBeNull()
     // o nome do banco depois de um separador não faz o titular virar empresa
@@ -53,9 +54,47 @@ describe('nome do titular', () => {
     expect(ownerMention('PIX RECEBIDO - REM  Ana Teste Souza  03/03 - DOCTO: 123 PAGAMENTOS DIGITAL', me)).toBe('pessoa')
     expect(ownerMention('qualquer coisa', [])).toBeNull()
   })
+  it('a empresa é a que você configurou, pelo nome ou pelo CNPJ', () => {
+    const me = ['Ana Teste Souza'], pj = ['Ana Teste Odontologia', '11.222.333/0001-81']
+    expect(ownerMention('PIX RECEBIDO ANA TESTE ODONTOLOGIA LTDA', me, pj)).toBe('empresa')
+    expect(ownerMention('Pix recebido de Ana Teste Odontologia', [], pj)).toBe('empresa')
+    expect(ownerMention('TED RECEBIDA 11222333000181 CLINICA SORRISO', me, pj)).toBe('empresa')
+    expect(ownerMention('PIX RECEBIDO 11.222.333/0001-81', me, pj)).toBe('empresa')
+    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA', me, pj)).toBe('pessoa')
+    // nome parecido não basta: precisa das palavras inteiras
+    expect(ownerMention('PIX RECEBIDO ANA TESTE ODONTOLOGICA', [], ['Ana Teste Odonto'])).toBeNull()
+    expect(ownerMention('PIX RECEBIDO BANCO LARANJA', me, pj)).toBeNull()
+  })
+  it('validCompanyNames aceita nome com duas palavras ou CNPJ de 14 dígitos', () => {
+    expect(validCompanyNames('Ana Teste Odontologia, 11.222.333/0001-81')).toEqual({ names: ['Ana Teste Odontologia', '11.222.333/0001-81'] })
+    expect(validCompanyNames('')).toEqual({ names: [] })
+    expect(validCompanyNames('Odonto')).toEqual({ error: 'Use o nome com pelo menos duas palavras ou o CNPJ completo ("Odonto" pegaria Pix de outras empresas).' })
+    expect(validCompanyNames('11.222.333')).toEqual({ error: 'Use o nome com pelo menos duas palavras ou o CNPJ completo ("11.222.333" pegaria Pix de outras empresas).' })
+  })
   it('validOwnerNames separa por vírgula e exige nome e sobrenome', () => {
     expect(validOwnerNames('Ana Teste,  ANA T S ')).toEqual({ names: ['Ana Teste', 'ANA T S'] })
     expect(validOwnerNames('')).toEqual({ names: [] })
     expect(validOwnerNames('Ana')).toEqual({ error: 'Use nome e sobrenome em cada variação ("Ana" é curto demais e pegaria Pix de outras pessoas).' })
+  })
+})
+
+describe('companyCreditHints', () => {
+  const tr: Category = { id: 'transferencia', name: 'Transferência', countsAsSpending: false, builtin: true, icon: null, color: null }
+  const cat = () => tr
+  const pj = t('nu', '2026-10-05', 900000, { description: 'Pix recebido - ACME CONSULTORIA LTDA' })
+  const cnpj = t('nu', '2026-10-06', 50000, { description: 'TED recebida 11.222.333/0001-81 FULANO' })
+  const sa = t('itau', '2026-10-07', 70000, { description: 'PIX RECEBIDO EMPRESA X S.A.' })
+  it('sem empresa configurada: Pix/TED de entrada de PJ que caiu em Transferência', () => {
+    const others = [
+      t('nu', '2026-10-05', -900000, { description: 'Pix enviado - ACME CONSULTORIA LTDA' }), // saída
+      t('nu', '2026-10-05', 30000, { description: 'Pix recebido - BETO SILVA' }), // pessoa física
+      t('cartao', '2026-10-05', 900000, { description: 'PIX ACME LTDA' }), // cartão
+      t('nu', '2026-10-05', 40000, { description: 'Depósito ACME LTDA' }), // não é Pix/TED
+    ]
+    expect(companyCreditHints([pj, cnpj, sa, ...others], accounts, cat, []).map(x => x.id)).toEqual([pj.id, cnpj.id, sa.id])
+  })
+  it('com empresa configurada ou outra categoria: nada', () => {
+    expect(companyCreditHints([pj], accounts, cat, ['ACME CONSULTORIA'])).toEqual([])
+    expect(companyCreditHints([pj], accounts, () => null, [])).toEqual([])
   })
 })

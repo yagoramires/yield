@@ -33,7 +33,7 @@ export function buildPortfolio(positions: Position[], quotes: Quote[], manual: M
       // sem a data de cada compra não há o câmbio da época: o aportado em US$ vira real pelo dólar de hoje
       const toBrl = (usd: Cents | null) => (usd !== null && dollar ? Math.round((usd * dollar) / 100) : null)
       const usdCents = quote && a.quantity !== null ? Math.round(a.quantity * quote.priceCents) : null
-      return { id: a.id, name: a.name, assetClass: a.assetClass, usdCents, valueCents: toBrl(usdCents), usdCostCents: a.costCents, costCents: toBrl(a.costCents) }
+      return { id: a.id, name: a.name, assetClass: a.assetClass, usdCents, valueCents: toBrl(usdCents) ?? a.valueCents /* sem cotação: o valor informado em R$, como no ramo em real */, usdCostCents: a.costCents, costCents: toBrl(a.costCents) }
     }
     const valueCents = quote && a.quantity !== null ? Math.round(a.quantity * quote.priceCents) : a.valueCents
     return { id: a.id, name: a.name, assetClass: a.assetClass, valueCents, usdCents: null, costCents: a.costCents, usdCostCents: null }

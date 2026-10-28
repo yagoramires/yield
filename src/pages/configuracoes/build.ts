@@ -24,7 +24,7 @@ export function planilhaReplacedByB3(existing: Dividend[], incoming: B3Import['d
 export const mergeB3 = (list: B3Import[]): B3Import => ({
   trades: list.flatMap(p => p.trades), names: Object.assign({}, ...list.map(p => p.names)), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
   ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview), checks: list.flatMap(p => p.checks), sales: list.flatMap(p => p.sales), subscriptions: list.flatMap(p => p.subscriptions),
-  rfMoves: list.flatMap(p => p.rfMoves), rfPositions: list.flatMap(p => p.rfPositions),
+  rfMoves: list.flatMap(p => p.rfMoves), rfPositions: list.flatMap(p => p.rfPositions), issuers: list.flatMap(p => p.issuers),
 })
 
 type TickerType = { ticker: string; type: AssetType }
@@ -70,6 +70,7 @@ export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>
     ...(r.checked ? [`${n(r.checked, 'posição conferida com a B3', 'posições conferidas com a B3')}`] : []),
     ...(r.rfMoves.inserted || r.rfMoves.skipped ? [n(r.rfMoves.inserted, 'movimentação de renda fixa', 'movimentações de renda fixa'), ...(r.rfMoves.skipped ? [n(r.rfMoves.skipped, 'já existia', 'já existiam')] : [])] : []),
     ...(r.rfPositions.updated || r.rfPositions.older ? [n(r.rfPositions.updated, 'título de renda fixa atualizado', 'títulos de renda fixa atualizados'), ...(r.rfPositions.older ? [n(r.rfPositions.older, 'de uma Posição mais antiga ignorado', 'de uma Posição mais antiga ignorados')] : [])] : []),
+    ...(r.issuers ? [n(r.issuers, 'empresa no cadastro do IR', 'empresas no cadastro do IR')] : []),
     ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações e frações; as compras e vendas vêm do relatório de Negociação)`] : []),
   ]
   return {
@@ -119,11 +120,11 @@ export function parseItemId(text: string): string {
 }
 
 /** Avisos aparecem em lista própria na tela; aqui só as contagens. */
-export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }, sourceCreated: boolean): string {
-  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`, ...(sourceCreated ? ['1 fonte de renda PJ criada'] : [])].join(' · ')
+export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }): string {
+  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`].join(' · ')
 }
 
-export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string }
+export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string; das: string }
 
 const pct = (text: string): number => {
   const t = text.trim().replace(',', '.')
@@ -143,7 +144,13 @@ export function validateSource(f: SourceForm): Omit<IncomeSource, 'id' | 'source
     if (cltNet(grossCents, dependents, outrosCents).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
     return { name, kind: 'clt', grossCents, netCents: null, ...DEFAULT_PJ, outrosCents, dependents }
   }
-  const cfg = { proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
+  if (f.kind === 'mei') {
+    const grossCents = parseMoney(f.gross, 'Bruto'), dasCents = parseMoney(f.das, 'DAS do mês'), outrosCents = parseMoney(f.outros, 'Outros descontos', false)
+    const cfg = { proLaborePct: 0, irpjPct: 0, inssPct: 0, contabilidadeCents: 0, outrosCents, dasCents }
+    if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
+    return { name, kind: 'mei', grossCents, netCents: null, ...cfg, dependents: 0 }
+  }
+  const cfg = { dasCents: 0, proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
   const grossCents = parseMoney(f.gross, 'Bruto')
   if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
   return { name, kind: 'pj', grossCents, netCents: null, ...cfg, dependents: 0 }
@@ -154,7 +161,7 @@ export async function saveSourceForm(db: Db, v: ReturnType<typeof validateSource
   const sourceKey = editing?.sourceKey ?? null
   const s = { ...v, id: await saveSource(db, { ...v, ...(editing ? { id: editing.id } : {}), sourceKey }), sourceKey }
   onSaved(s) // antes do applySource: se ele falhar, o próximo Salvar edita esta fonte em vez de criar outra
-  return applySource(db, s.id, fromMonth, sourceNet(s))
+  return applySource(db, s.id, fromMonth, sourceNet(s, fromMonth))
 }
 
 /** Senha do backup: mínimo de 8 caracteres e confirmação igual. */
@@ -168,4 +175,10 @@ export function binanceErrorText(e: unknown): string {
   if (e instanceof BinanceError && e.kind === 'chave') return 'Binance: chave inválida ou sem permissão de leitura'
   if (e instanceof BinanceError && e.kind === 'rede') return 'Sem conexão com a Binance'
   return `Binance: ${errText(e)}`
+}
+
+/** Fontes do histórico da Binance que ficaram de fora do aportado calculado. */
+export function historyFailText(failed: { source: string; error: unknown }[]): string | null {
+  const why = (e: unknown) => (e instanceof BinanceError && e.kind === 'chave' ? 'a chave não tem acesso' : e instanceof BinanceError && e.kind === 'rede' ? 'sem conexão' : errText(e))
+  return failed.length ? `Não lido: ${failed.map(f => `${f.source} (${why(f.error)})`).join('; ')}.` : null
 }

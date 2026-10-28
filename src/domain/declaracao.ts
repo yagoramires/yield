@@ -1,5 +1,8 @@
 import type { Broker, Issuer } from '../db/irRepo'
+import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
+import { normalizeBroker } from '../import/parse'
 import { replay } from './ledger'
+import { nameOf, rfInstitution, rfOpenByKey } from './rendaFixa'
 import type { TaxMonth } from './tax'
 import type { AssetType, Cents, CorporateEvent, DarfPayment, Dividend, Month, Trade } from './types'
 
@@ -82,8 +85,11 @@ export function discriminacao(b: Bem, year: number, issuer: Issuer | undefined, 
   return `${num(b.qty)} ${unit} de ${name} ao custo de R$ ${(b.costCents / b.qty / 100).toFixed(4).replace('.', ',')} cada - Ticker: ${b.ticker}${where}`
 }
 
-export type LinhaRendimento = '09' | '26' | '10' | 'bdr'
-export const RENDIMENTO_LABEL: Record<LinhaRendimento, string> = { '09': '09 – Lucros e dividendos recebidos', '26': '26 – Outros (rendimentos de FII)', '10': '10 – Juros sobre capital próprio', bdr: 'Dividendos de BDR (renda do exterior, tributável)' }
+export type LinhaRendimento = '09' | '26' | '10' | 'bdr' | '06' | '12'
+export const RENDIMENTO_LABEL: Record<LinhaRendimento, string> = {
+  '09': '09 – Lucros e dividendos recebidos', '26': '26 – Outros (rendimentos de FII)', '10': '10 – Juros sobre capital próprio', bdr: 'Dividendos de BDR (renda do exterior, tributável)',
+  '06': '06 – Rendimentos de aplicações financeiras', '12': '12 – Rendimentos de poupança, LCI, LCA, CRI e CRA',
+}
 export interface Rendimento { linha: LinhaRendimento; payerKey: string; name: string | null; cnpj: string | null; tickers: string[]; cents: Cents }
 
 /**
@@ -127,4 +133,57 @@ export function pendencias(bens: Bem[], rendimentos: Rendimento[], issuers: Map<
   const tickers = new Set([...bens.map(b => b.ticker).filter(t => !issuers.has(t)), ...rendimentos.filter(r => !r.cnpj).flatMap(r => r.tickers)])
   const bs = new Set(bens.flatMap(b => b.brokers).filter(c => !brokers.has(c)))
   return { tickers: [...tickers].sort(), brokers: [...bs].sort() }
+}
+
+// shortcut: códigos de renda fixa do IRPF 2026 (ano-calendário 2025); conferir no programa da Receita a cada ano.
+// Debênture incentivada (Lei 12.431) é isenta e vai no 04-03, mas o relatório da B3 não diz qual é: entra no 04-02 (tributáveis).
+export const RF_CODES = {
+  tributavel: { grupo: '04', codigo: '02', label: '04 – Aplicações e investimentos / 02 – Títulos públicos e privados sujeitos à tributação (Tesouro Direto, CDB, RDB e outros)', classe: 'Renda fixa tributável' },
+  isento: { grupo: '04', codigo: '03', label: '04 – Aplicações e investimentos / 03 – Títulos isentos de tributação (LCI, LCA, CRI, CRA e outros)', classe: 'Renda fixa isenta' },
+} as const
+export type TipoRf = keyof typeof RF_CODES
+const tipoRf = (product: string): TipoRf => (/^(lci|lca|lcd|cri|cra|cdca|lig)\b/i.test(product.trim()) ? 'isento' : 'tributavel')
+
+export interface BemRf { key: string; name: string; tipo: TipoRf; qtyPrev: number; appliedPrevCents: Cents; qty: number; appliedCents: Cents; institutions: string[]; partial: boolean }
+
+/** Renda fixa da B3 em cada 31/12 pelo custo de aquisição: o aplicado ainda em aberto, pelas movimentações. */
+export function rendaFixaDoAno(moves: RfMove[], positions: RfPosition[], year: number): BemRf[] {
+  const end = `${year}-12-31`
+  const prev = rfOpenByKey(moves, `${year - 1}-12-31`), cur = rfOpenByKey(moves, end)
+  const posByKey = new Map(positions.map(p => [p.key, p]))
+  return [...cur].flatMap(([key, c]) => {
+    const p = prev.get(key) ?? { qty: 0, applied: 0 }
+    const ms = moves.filter(m => m.key === key && m.date <= end)
+    // saída sem a compra no relatório (comprado antes dele): aparece para a pessoa completar à mão
+    if (c.qty <= 1e-9 && p.qty <= 1e-9 && !(c.partial && ms.some(m => m.date.startsWith(`${year}-`)))) return []
+    const pos = posByKey.get(key)
+    return [{
+      key, name: pos ? nameOf(pos.product, true) : nameOf(ms[0].product, false), tipo: tipoRf(ms[0].product),
+      qtyPrev: p.qty, appliedPrevCents: p.applied, qty: c.qty, appliedCents: c.applied, partial: c.partial,
+      institutions: [...new Set(ms.flatMap(m => rfInstitution(m) ?? []))],
+    }]
+  }).sort((a, b) => b.appliedCents - a.appliedCents || b.appliedPrevCents - a.appliedPrevCents || a.name.localeCompare(b.name))
+}
+
+export function discriminacaoRf(b: BemRf, year: number, brokers: Map<string, Broker>): string {
+  const custody = b.institutions.map(i => { const br = brokers.get(normalizeBroker(i)); return `${br?.name ?? i} - CNPJ: ${br?.cnpj ?? '[CNPJ não cadastrado]'}` }).join(' e ')
+  const text = (qty: number) => `${b.name} - Quantidade: ${num(Math.round(qty * 100) / 100)} - custodiado na B3${custody ? ` via ${custody}` : ''}, valor aplicado`
+  return b.qty <= 1e-9 ? `Resgatado ou vendido em ${year}. Em 31/12/${year - 1}: ${text(b.qtyPrev)}` : text(b.qty)
+}
+
+/** Juros de renda fixa pagos no ano, por fonte (emissor; Tesouro Direto à parte). LCI/LCA/CRI/CRA são isentos (linha 12); o resto é exclusiva (06). */
+export function rendimentosRfDoAno(moves: RfMove[], positions: RfPosition[], year: number): Rendimento[] {
+  const issuer = new Map(positions.map(p => [p.key, p.issuer]))
+  const by = new Map<string, Rendimento>()
+  for (const m of moves) {
+    if (m.kind !== 'juros' || m.valueCents === null || !m.date.startsWith(`${year}-`)) continue
+    const linha: LinhaRendimento = tipoRf(m.product) === 'isento' ? '12' : '06'
+    const name = /^tesouro\b/i.test(m.product.trim()) ? 'Tesouro Direto' : issuer.get(m.key) ?? m.product.split(' - ')[2]?.trim() ?? nameOf(m.product, false)
+    const r = by.get(`${linha}|${name}`) ?? { linha, payerKey: name, name, cnpj: null, tickers: [], cents: 0 }
+    const title = nameOf(m.product, false)
+    if (!r.tickers.includes(title)) r.tickers.push(title)
+    r.cents += m.valueCents
+    by.set(`${linha}|${name}`, r)
+  }
+  return [...by.values()].sort((a, b) => a.linha.localeCompare(b.linha) || b.cents - a.cents)
 }

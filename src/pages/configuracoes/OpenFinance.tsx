@@ -1,7 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useEffect, useState } from 'react'
-import { deleteAccount, deletePluggyItem, saveOwnerNames, savePluggyItem, type Account } from '../../db/gastosRepo'
-import { validOwnerNames } from '../../domain/transferencias'
+import { deleteAccount, deletePluggyItem, saveCompanyNames, saveOwnerNames, savePluggyItem, type Account } from '../../db/gastosRepo'
+import { validCompanyNames, validOwnerNames } from '../../domain/transferencias'
 import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
 import { clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } from '../../openfinance/secrets'
 import { useData } from '../../state/DataProvider'
@@ -203,6 +203,8 @@ export function Contas() {
   const [error, setError] = useState<string | null>(null)
   const [names, setNames] = useState(data.ownerNames.join(', '))
   const [namesMsg, setNamesMsg] = useState<string | null>(null)
+  const [companies, setCompanies] = useState(data.companyNames.join(', '))
+  const [companiesMsg, setCompaniesMsg] = useState<string | null>(null)
   const count = (id: string) => data.txns.filter(t => t.accountId === id).length
 
   const salvarNomes = async () => {
@@ -211,6 +213,15 @@ export function Contas() {
     setBusy(true)
     try { await saveOwnerNames(db, v.names); await reload(); setNames(v.names.join(', ')); setNamesMsg('Salvo.') }
     catch (e) { setNamesMsg(`Não foi possível salvar: ${errText(e)}`) }
+    setBusy(false)
+  }
+
+  const salvarEmpresas = async () => {
+    const v = validCompanyNames(companies)
+    if ('error' in v) return setCompaniesMsg(v.error)
+    setBusy(true)
+    try { await saveCompanyNames(db, v.names); await reload(); setCompanies(v.names.join(', ')); setCompaniesMsg('Salvo.') }
+    catch (e) { setCompaniesMsg(`Não foi possível salvar: ${errText(e)}`) }
     setBusy(false)
   }
 
@@ -255,13 +266,18 @@ export function Contas() {
         <b style={{ color: '#fff' }}>Transferências entre suas contas</b>
         <div className="muted" style={{ margin: '4px 0 8px' }}>
           Saída numa conta e entrada do mesmo valor noutra, até 3 dias depois, viram Transferência sozinhas e não contam como gasto nem como entrada.
-          Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência. Se o nome vier seguido de LTDA, Desenvolvimento, Serviços etc. (a sua PJ), o que ela paga conta como Receita.
+          Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência. Se você tem empresa (PJ ou MEI), informe o nome ou o CNPJ dela: o que ela paga conta como Receita.
         </div>
         <div className="row">
           <input className="in" style={{ flex: 1, minWidth: 220 }} placeholder="Seu nome nos extratos (variações separadas por vírgula)" aria-label="Seu nome nos extratos" value={names} onChange={e => { setNames(e.target.value); setNamesMsg(null) }} />
           <button className="b" disabled={busy} onClick={() => void salvarNomes()}>Salvar</button>
         </div>
         {namesMsg && <div className={namesMsg === 'Salvo.' ? 'muted' : 'note'} style={{ marginTop: 6 }}>{namesMsg}</div>}
+        <div className="row" style={{ marginTop: 8 }}>
+          <input className="in" style={{ flex: 1, minWidth: 220 }} placeholder="Nome ou CNPJ da sua empresa (separados por vírgula)" aria-label="Nome ou CNPJ da sua empresa" value={companies} onChange={e => { setCompanies(e.target.value); setCompaniesMsg(null) }} />
+          <button className="b" disabled={busy} onClick={() => void salvarEmpresas()}>Salvar</button>
+        </div>
+        {companiesMsg && <div className={companiesMsg === 'Salvo.' ? 'muted' : 'note'} style={{ marginTop: 6 }}>{companiesMsg}</div>}
       </div>
     </div>
   )

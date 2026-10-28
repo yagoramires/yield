@@ -125,4 +125,53 @@ describe('computeTax', () => {
     expect(jan.comum.baseCents).toBe(200_000)
     expect(jan.comum.taxDueCents).toBe(30_000)
   })
+
+  test('prejuízo inicial informado reduz o imposto do mês e vai sendo consumido', () => {
+    const opening = { month: '2024-01', comumCents: 150_000, fiiCents: 0 }
+    const [jan, fev, mar] = computeTax([
+      s({ date: '2024-01-10', type: 'ETF', result: 100_000 }),
+      s({ date: '2024-02-10', type: 'ETF', result: 100_000 }),
+      s({ date: '2024-03-10', type: 'ETF', result: 100_000 }),
+    ], [], '2024-01', '2024-03', opening)
+    expect(jan.comum.lossInCents).toBe(-150_000)
+    expect(jan.comum.taxDueCents).toBe(0)
+    expect(jan.comum.lossOutCents).toBe(-50_000)
+    expect(fev.comum.baseCents).toBe(50_000)
+    expect(fev.comum.taxDueCents).toBe(7_500)
+    expect(fev.comum.lossOutCents).toBe(0)
+    expect(mar.comum.taxDueCents).toBe(15_000)
+  })
+  test('prejuízo inicial de FII só compensa FII, e o comum só o comum', () => {
+    const [m] = computeTax([
+      s({ date: '2024-05-10', type: 'ETF', result: 100_000 }),
+      s({ date: '2024-05-11', type: 'FII', result: 100_000 }),
+    ], [], '2024-05', '2024-05', { month: '2024-05', comumCents: 0, fiiCents: 100_000 })
+    expect(m.fii.taxDueCents).toBe(0)
+    expect(m.comum.taxDueCents).toBe(15_000)
+  })
+  test('prejuízo inicial vale a partir do mês informado e substitui o calculado antes dele', () => {
+    const [, fev] = computeTax([
+      s({ date: '2024-01-10', type: 'ETF', result: -30_000 }),
+      s({ date: '2024-02-10', type: 'ETF', result: 100_000 }),
+    ], [], '2024-01', '2024-02', { month: '2024-02', comumCents: 80_000, fiiCents: 0 })
+    expect(fev.comum.lossInCents).toBe(-80_000)
+    expect(fev.comum.baseCents).toBe(20_000)
+  })
+  test('prejuízo inicial só de FII mantém o comum calculado, e vice-versa', () => {
+    const sales = [
+      s({ date: '2024-01-10', type: 'ETF', result: -30_000 }),
+      s({ date: '2024-01-11', type: 'FII', result: -20_000 }),
+      s({ date: '2024-02-10', type: 'ETF', result: 100_000 }),
+      s({ date: '2024-02-11', type: 'FII', result: 100_000 }),
+    ]
+    const [, soFii] = computeTax(sales, [], '2024-01', '2024-02', { month: '2024-02', comumCents: null, fiiCents: 80_000 })
+    expect(soFii.comum.lossInCents).toBe(-30_000)
+    expect(soFii.fii.lossInCents).toBe(-80_000)
+    const [, soComum] = computeTax(sales, [], '2024-01', '2024-02', { month: '2024-02', comumCents: 50_000, fiiCents: null })
+    expect(soComum.comum.lossInCents).toBe(-50_000)
+    expect(soComum.fii.lossInCents).toBe(-20_000)
+    // zero informado substitui de verdade
+    const [, zero] = computeTax(sales, [], '2024-01', '2024-02', { month: '2024-02', comumCents: 0, fiiCents: 80_000 })
+    expect(zero.comum.lossInCents).toBe(-0)
+  })
 })

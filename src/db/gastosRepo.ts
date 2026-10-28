@@ -6,7 +6,7 @@ export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId:
 export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
 export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean; icon: string | null /* nome Lucide */; color: string | null }
 export interface CategoryRule { id: string; pattern: string; categoryId: string }
-export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */; ruleSuggestionsDismissed: string[] /* padrões que o usuário não quer virar regra */ }
+export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */; companyNames: string[] /* nome ou CNPJ da empresa do titular: o que ela paga é Receita */; ruleSuggestionsDismissed: string[] /* padrões que o usuário não quer virar regra */ }
 
 type TxnInput = Omit<Txn, 'id' | 'accountId'>
 
@@ -16,7 +16,7 @@ const TXN_COLS = `id, account_id AS accountId, date, description, amount_cents A
 const SUGGESTIONS_KEY = 'categorias.sugestoesRecusadas'
 
 export async function loadGastos(db: Db): Promise<GastosData> {
-  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner, refused] = await Promise.all([
+  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner, company, refused] = await Promise.all([
     db.select<Account>('SELECT id, source, external_id AS externalId, institution, name, kind, number, item_id AS itemId, last_sync_at AS lastSyncAt FROM accounts ORDER BY institution, name'),
     db.select<Txn>(`SELECT ${TXN_COLS} FROM transactions ORDER BY date, id`),
     db.select<Category>('SELECT id, name, counts_as_spending AS countsAsSpending, builtin, icon, color FROM categories ORDER BY builtin DESC, rowid'),
@@ -25,6 +25,7 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     db.select<{ merchantKey: string }>('SELECT merchant_key AS merchantKey FROM subscription_dismissals ORDER BY merchant_key'),
     db.select<{ itemId: string; label: string }>('SELECT item_id AS itemId, label FROM pluggy_items ORDER BY label'),
     db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'gastos.titular'"),
+    db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'gastos.empresa'"),
     db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [SUGGESTIONS_KEY]),
   ])
   return {
@@ -36,12 +37,17 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     dismissed: dismissed.map(d => d.merchantKey),
     pluggyItems,
     ownerNames: owner[0] ? JSON.parse(owner[0].value) as string[] : [],
+    companyNames: company[0] ? JSON.parse(company[0].value) as string[] : [],
     ruleSuggestionsDismissed: refused[0] ? JSON.parse(refused[0].value) as string[] : [],
   }
 }
 
 export async function saveOwnerNames(db: Db, names: string[]): Promise<void> {
   await db.execute("INSERT INTO meta (key, value) VALUES ('gastos.titular', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [JSON.stringify(names)])
+}
+
+export async function saveCompanyNames(db: Db, names: string[]): Promise<void> {
+  await db.execute("INSERT INTO meta (key, value) VALUES ('gastos.empresa', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [JSON.stringify(names)])
 }
 
 export async function upsertAccount(db: Db, a: Omit<Account, 'id'>): Promise<string> {

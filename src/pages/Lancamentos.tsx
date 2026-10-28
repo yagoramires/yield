@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { saveRule, setOverride, type Txn } from '../db/gastosRepo'
 import { pluggyCategoryId } from '../domain/categoriasPluggy'
 import { monthTotals, normalizeDescription } from '../domain/gastos'
-import { ownerMention } from '../domain/transferencias'
+import { companyCreditHints, ownerMention } from '../domain/transferencias'
 import { formatBRL, formatCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { CategoryIcon } from '../ui/CategoryIcon'
@@ -16,6 +16,7 @@ const dayTitle = (iso: string) => {
   const s = new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
   return s[0].toUpperCase() + s.slice(1)
 }
+const HINT_KEY = 'yield.dicaEmpresaDispensada'
 const KINDS: [TxnFilter['accountKind'], string][] = [['todas', 'Tudo'], ['conta', 'Contas'], ['cartao', 'Cartões']]
 
 export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
@@ -24,6 +25,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
   const [picking, setPicking] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hintOff, setHintOff] = useState(() => { try { return localStorage.getItem(HINT_KEY) === '1' } catch { return false } })
   if (!data.txns.length) return <><GastosHeader title="Lançamentos" /><GastosVazio onOpenSettings={onOpenSettings} /></>
 
   const totals = monthTotals(data.txns, data.accounts, cat, month)
@@ -36,6 +38,9 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
   const filtered = filter.accountKind !== 'todas' || filter.categoryId !== null || filter.search !== ''
   const toggle = (id: string | null) => setFilter({ ...filter, categoryId: filter.categoryId === id ? null : id })
   const open = (id: string | null) => { setPicking(id); setError(null) }
+  // sem "sua empresa" configurada, o que a PJ paga cai em Transferência (o nome dela costuma conter o do titular)
+  const pjCredits = hintOff ? [] : companyCreditHints(data.txns, data.accounts, cat, data.companyNames)
+  const dismissHint = () => { try { localStorage.setItem(HINT_KEY, '1') } catch { /* sem storage: vale só nesta tela */ } setHintOff(true) }
 
   // "fazer isso sempre" grava a regra no lugar da escolha manual (e apaga uma antiga), para a compra seguir a regra.
   const pick = async (t: Txn, categoryId: string, always: boolean) => {
@@ -59,7 +64,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
     const tr = !rule && !data.overrides[t.fingerprint] && c?.id === 'transferencia' ? transfers.get(t.id) : undefined
     const between = tr && `${tr.outgoing ? 'para' : 'de'} ${shortAccountLabel(accounts.get(tr.otherAccountId))}, entre suas contas`
     const auto = !rule && !between && !data.overrides[t.fingerprint]
-    const company = auto && c?.id === 'receita' && accounts.get(t.accountId)?.kind === 'conta' && ownerMention(t.description, data.ownerNames) === 'empresa' && 'da sua empresa'
+    const company = auto && c?.id === 'receita' && accounts.get(t.accountId)?.kind === 'conta' && ownerMention(t.description, data.ownerNames, data.companyNames) === 'empresa' && 'da sua empresa'
     const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
     const { name, via } = cleanDescription(t.description)
     const meta = [via, shortAccountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
@@ -93,6 +98,13 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
         <div className="k"><div className="muted">Sobrou</div><div className={`v ${left < 0 ? 'dn' : ''}`}>{formatBRL(left)}</div></div>
       </div>
 
+      {pjCredits.length > 0 && (
+        <div className="note" style={{ marginBottom: 10 }}>
+          {pjCredits.length === 1 ? '1 Pix/TED recebido de empresa está' : `${pjCredits.length} Pix/TED recebidos de empresa estão`} como Transferência (por exemplo, "{cleanDescription(pjCredits[0].description).name}").
+          {' '}Se for a sua empresa, informe o nome ou o CNPJ dela em Configurações › Transferências entre suas contas para contar como Receita.
+          {' '}<button className="link" onClick={onOpenSettings}>Abrir Configurações</button> · <button className="link" onClick={dismissHint}>dispensar</button>
+        </div>
+      )}
       <div className="lan-tools">
         <label className="search-box"><Search size={14} aria-hidden />
           <input placeholder="buscar" aria-label="Buscar descrição" value={filter.search} onChange={e => setFilter({ ...filter, search: e.target.value })} />

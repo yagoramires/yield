@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { parseClearNote } from './clearPdf'
+import { parseSinacorNote } from './sinacorPdf'
 import { buildLines, extractPdfText, PdfPasswordError } from './pdfText'
 
 const fixture = readFileSync('tests/fixtures/clear-nota-sintetica.txt', 'utf8')
 
-describe('parseClearNote', () => {
+describe('parseSinacorNote', () => {
   it('lê cabeçalho, itens e taxas da nota sintética', () => {
-    const drafts = parseClearNote([fixture])
+    const drafts = parseSinacorNote([fixture])
     expect(drafts).toHaveLength(1)
     expect(drafts[0]).toMatchObject({ number: '123456', broker: 'CLEAR', tradeDate: '2024-01-05', settleDate: '2024-01-09' })
     expect(drafts[0].items).toEqual([
@@ -20,15 +20,26 @@ describe('parseClearNote', () => {
   it('separa várias notas e junta folhas da mesma nota', () => {
     const second = fixture.replace('123456 1', '777 1').replace('05/01/2024', '06/01/2024').replace('1-BOVESPA C VISTA ITAUSA', '1-BOVESPA V VISTA ITAUSA')
     const folha2 = 'Nr. nota Folha Data pregão\n123456 2 05/01/2024\n1-BOVESPA V VISTA FII XPTO XPLG11 CI 3 100,00 300,00 C'
-    const drafts = parseClearNote([fixture, folha2, second])
+    const drafts = parseSinacorNote([fixture, folha2, second])
     expect(drafts.map(d => d.number)).toEqual(['123456', '777'])
     expect(drafts[0].items).toHaveLength(3)
     expect(drafts[0].items[2]).toMatchObject({ side: 'V', ticker: 'XPLG11', qty: 3 })
     expect(drafts[1].items[0].side).toBe('V')
   })
 
+  it('lê a corretora do cabeçalho de outra corretora SINACOR', () => {
+    const xp = fixture.replace('CLEAR CORRETORA - GRUPO XP', 'Corretora Azul CCTVM S/A\nAv. Teste, 100 - São Paulo\nC.N.P.J: 11.222.333/0001-81')
+    expect(parseSinacorNote([xp])[0].broker).toBe('AZUL')
+  })
+
+  it('sem razão social reconhecível no cabeçalho a corretora fica em branco', () => {
+    const [d] = parseSinacorNote([fixture.replace('CLEAR CORRETORA - GRUPO XP\n', '')])
+    expect(d.broker).toBeNull()
+    expect(d.items).toHaveLength(2)
+  })
+
   it('falha em linha de negócio que não reconhece', () => {
-    expect(() => parseClearNote([fixture.replace('100 10,50', 'cem')])).toThrow(/negócio/i)
+    expect(() => parseSinacorNote([fixture.replace('100 10,50', 'cem')])).toThrow(/negócio/i)
   })
 })
 

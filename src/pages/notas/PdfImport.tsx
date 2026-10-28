@@ -3,13 +3,12 @@ import type { Db } from '../../db/client'
 import { getAlias, saveAlias, type Note } from '../../db/repo'
 import { formatCents } from '../../domain/money'
 import type { AssetType } from '../../domain/types'
-import { parseClearNote, type NoteDraft } from '../../import/clearPdf'
+import { parseSinacorNote, type NoteDraft } from '../../import/sinacorPdf'
 import { extractPdfText, PdfPasswordError } from '../../import/pdfText'
-import { normalizeBroker } from '../../import/parse'
 import { ASSET_TYPES, DUP_MSG, draftToSave, FEE_FIELDS, noteNet, type Built } from './build'
 import { Select } from '../../ui/Select'
 
-interface Entry { draft: NoteDraft; dup: boolean; resolved: { ticker: string; assetType: AssetType | '' }[]; remember: boolean[]; done: boolean }
+interface Entry { draft: NoteDraft; askBroker: boolean; dup: boolean; resolved: { ticker: string; assetType: AssetType | '' }[]; remember: boolean[]; done: boolean }
 const br = (iso: string) => iso.split('-').reverse().join('/')
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -28,12 +27,12 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
     const problems: string[] = []
     for (const [n, file] of files.entries()) {
       try {
-        const drafts = parseClearNote(await extractPdfText(new Uint8Array(await file.arrayBuffer()), password))
-        if (!drafts.length) problems.push(`${file.name}: nenhuma nota da Clear encontrada.`)
+        const drafts = parseSinacorNote(await extractPdfText(new Uint8Array(await file.arrayBuffer()), password))
+        if (!drafts.length) problems.push(`${file.name}: nenhuma nota no padrão SINACOR encontrada.`)
         for (const d of drafts) {
-          const dup = notes.some(x => (x.broker === normalizeBroker(d.broker) && x.number === d.number && x.tradeDate === d.tradeDate) || x.sourceKey === `pdf:${d.broker}:${d.number}`)
+          const dup = d.broker !== null && notes.some(x => (x.broker === d.broker && x.number === d.number && x.tradeDate === d.tradeDate) || x.sourceKey === `pdf:${d.broker}:${d.number}`)
           const resolved = await Promise.all(d.items.map(async it => ({ ticker: it.ticker ?? (await getAlias(db, it.spec)) ?? '', assetType: it.assetType ?? '' as const })))
-          found.push({ draft: d, dup, resolved, remember: d.items.map(() => true), done: false })
+          found.push({ draft: d, askBroker: d.broker === null, dup, resolved, remember: d.items.map(() => true), done: false })
         }
       } catch (e) {
         if (e instanceof PdfPasswordError) { setPwd({ file, rest: files.slice(n + 1), text: '' }); break }
@@ -65,7 +64,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
 
   return (
     <div className="card">
-      <div className="bar"><b style={{ color: '#fff' }}>Importar PDF da Clear</b><button className="link t2" onClick={onClose}>fechar</button></div>
+      <div className="bar"><b style={{ color: '#fff' }}>Importar nota em PDF (padrão SINACOR)</b><button className="link t2" onClick={onClose}>fechar</button></div>
       <div style={{ margin: '10px 0' }}>
         <input type="file" accept="application/pdf" multiple disabled={busy} onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; if (fs.length) void load(fs) }} />
       </div>
@@ -83,11 +82,12 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
       {cur && (
         <>
           <div className="bar">
-            <b style={{ color: '#fff' }}>Nota {cur.draft.number} · {cur.draft.broker} · {br(cur.draft.tradeDate)}</b>
+            <b style={{ color: '#fff' }}>Nota {cur.draft.number} · {cur.askBroker ? <input className="in" style={{ width: 140 }} placeholder="corretora" aria-label="Corretora" value={cur.draft.broker ?? ''} onChange={e => upd(idx, x => ({ ...x, draft: { ...x.draft, broker: e.target.value } }))} /> : cur.draft.broker} · {br(cur.draft.tradeDate)}</b>
             <span className="muted">
               {entries.length > 1 && <><button className="link" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>‹</button> {idx + 1} de {entries.length} <button className="link" disabled={idx === entries.length - 1} onClick={() => setIdx(idx + 1)}>›</button></>}
             </span>
           </div>
+          {cur.askBroker && !cur.done && <div className="note" style={{ margin: '8px 0' }}>Não deu para ler a corretora no cabeçalho da nota: escreva o nome dela (ex. XP, Rico).</div>}
           {cur.dup && <div className="info" style={{ margin: '8px 0' }}>Já importada: essa nota já existe e não será salva de novo.</div>}
           {cur.done && <div className="info" style={{ margin: '8px 0' }}>Nota salva.</div>}
           {cur.draft.items.some((_, k) => !cur.resolved[k].ticker || !cur.resolved[k].assetType) && <div className="note" style={{ margin: '8px 0' }}>Há itens sem ticker ou sem tipo: preencha antes de salvar.</div>}

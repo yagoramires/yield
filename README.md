@@ -52,7 +52,7 @@ Só isto sai do computador:
 As transações chegam de dois jeitos:
 
 - **Open Finance (Pluggy + Meu Pluggy)**, de graça para uso pessoal, **somente leitura**;
-- **extratos** OFX (Bradesco, Itaú, BB, Inter…) e CSV (Nubank conta, Mercado Pago). Importar o mesmo arquivo de novo não duplica nada.
+- **extratos** OFX (Bradesco, Itaú, BB, Inter…) e CSV de qualquer banco ou cartão (Nubank e Mercado Pago reconhecidos sozinhos; nos outros você escolhe as colunas de data, descrição e valor). Importar o mesmo arquivo de novo não duplica nada.
 
 <p align="center">
   <img src="docs/screenshots/lancamentos.png" width="860" alt="Lançamentos por dia com faixa de categorias">
@@ -69,7 +69,7 @@ As transações chegam de dois jeitos:
 | **Mês atual** | Entradas, saídas e saldo do mês; planejado × gasto real até agora (com a marca de quanto do mês passou) e por categoria; criar o mês seguinte copiando as linhas recorrentes, com as parcelas avançando sozinhas. |
 | **Sugestões** | Assinaturas e parcelas que faltam, vindas dos seus gastos reais. Nada entra no plano sem você aceitar. |
 | **Fontes de renda** | Salário **CLT** (INSS e IRRF de 2026, com a isenção até R$ 5 mil, dependentes e outros descontos), salário **PJ** (pró-labore, IRPJ, INSS, contabilidade) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
-| **Importação** | Lê a aba de orçamento de uma planilha, inclusive a calculadora de salário PJ, sem duplicar ao reimportar. |
+| **Importação** | Lê um CSV simples (`mes;tipo;nome;valor`, com exemplo na tela) com o orçamento de vários meses, sem duplicar ao reimportar. |
 
 ### 📈 Investimentos
 
@@ -77,10 +77,10 @@ As transações chegam de dois jeitos:
 |---|---|
 | **Resumo** | Patrimônio, resultado, proventos (com o rendimento sobre o custo) e imposto; **onde está seu dinheiro** (bolsa, renda fixa, exterior, cripto e dólar); **quanto da sua renda passiva já cobre o gasto médio**; **rentabilidade em 12 meses contra o CDI e o Ibovespa**; aportado × valor de hoje; classes com o ganho de cada uma; proventos por mês (clicar abre Proventos filtrado); maiores posições. |
 | **Carteira** | Classes à esquerda (com peso, total e resultado) e as posições da classe à direita, todas no mesmo formato. **Renda fixa da B3** (Tesouro, CDB, LCI/LCA…) com aplicado, valor de hoje e rendimento de cada título; **cripto da Binance** (saldos lidos com uma chave só de leitura, com o aportado que você informa); **ações do exterior** por ticker e quantidade, convertidas pelo dólar do dia; e ativos manuais. |
-| **Notas** | Compras e vendas **importadas do relatório de Negociação da B3**, notas de corretagem digitadas ou **lidas do PDF da Clear** (com taxas rateadas), e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
+| **Notas** | Compras e vendas **importadas do relatório de Negociação da B3**, notas de corretagem digitadas ou **lidas do PDF no padrão SINACOR** (Clear, XP, Rico e outras) (com taxas rateadas), e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
 | **Proventos** | Dividendos, JCP, rendimentos e juros da renda fixa (importados da B3 ou à mão): 12 meses, ano contra ano, rendimento sobre o custo, gráfico de 24 meses que filtra a lista, ranking por ativo e totais por ano. |
 | **Imposto** | Apuração mensal de renda variável: isenção de R$ 20 mil para ações, prejuízo a compensar (comum e FII), IRRF, DARF (código 6015) com vencimento em dia útil e acompanhamento do que foi pago. |
-| **Declaração IR** | Tudo o que vai na declaração sobre a bolsa, pronto para copiar campo a campo: **Bens e Direitos** (grupo/código, CNPJ, situação nos dois 31/12 e a discriminação pronta), **Rendimentos** isentos e de tributação exclusiva por fonte pagadora, **Renda variável** mês a mês e o cadastro de empresas e corretoras (importável da planilha antiga). |
+| **Declaração IR** | Tudo o que vai na declaração sobre a bolsa, pronto para copiar campo a campo: **Bens e Direitos** (grupo/código, CNPJ, situação nos dois 31/12 e a discriminação pronta), **Rendimentos** isentos e de tributação exclusiva por fonte pagadora, **Renda variável** mês a mês e o cadastro de empresas e corretoras (empresas e fundos preenchidos pela Posição da B3). |
 
 <p align="center">
   <img src="docs/screenshots/resumo-investimentos.png" width="860" alt="Resumo de investimentos com renda passiva e classes">
@@ -132,7 +132,7 @@ O caminho gratuito é o conector **MeuPluggy**. O teste da Pluggy dura 15 dias e
 ```
 src/
   domain/        regras puras: preço médio, imposto, DARF, categorias, assinaturas
-  import/        relatórios da B3, PDF da Clear, planilha de orçamento, OFX e CSV
+  import/        relatórios da B3, nota em PDF (SINACOR), orçamento em CSV, OFX e CSV
   openfinance/   cliente Pluggy só leitura, sincronização, cofre
   db/            SQLite (migrações em src-tauri/migrations)
   state/         DataProvider: carrega o banco e deriva tudo em memória

@@ -16,10 +16,17 @@ function fake(handler: (url: URL) => Response) {
 const ok = (url: URL) => url.pathname === '/auth' ? json({ apiKey: 'K1' }) : url.pathname === '/accounts' ? json({ results: [] }) : json({ results: [], next: null })
 
 describe('pluggyDate', () => {
-  it('meia-noite UTC é o próprio dia; outro horário vai para UTC−3', () => {
-    expect(pluggyDate('2026-10-05T00:00:00.000Z')).toBe('2026-10-05')
-    expect(pluggyDate('2026-10-05T00:00:00Z')).toBe('2026-10-05')
-    expect(pluggyDate('2026-10-06T01:30:00.000Z')).toBe('2026-10-05')
+  it('meia-noite UTC é o próprio dia; outro horário vai para o fuso da máquina', () => {
+    expect(pluggyDate('2026-10-05T00:00:00.000Z', -180)).toBe('2026-10-05')
+    expect(pluggyDate('2026-10-05T00:00:00Z', -300)).toBe('2026-10-05')
+    expect(pluggyDate('2026-10-06T01:30:00.000Z', -180)).toBe('2026-10-05')
+    expect(pluggyDate('2026-10-06T04:30:00.000Z', -180)).toBe('2026-10-06')
+    expect(pluggyDate('2026-10-06T04:30:00.000Z', -300)).toBe('2026-10-05') // Acre, UTC−5
+    expect(pluggyDate('2026-10-06T23:30:00.000Z', 60)).toBe('2026-10-07')
+  })
+  it('sem offset usa o fuso local', () => {
+    const d = new Date('2026-10-06T01:30:00.000Z'), pad = (n: number) => String(n).padStart(2, '0')
+    expect(pluggyDate(d.toISOString())).toBe(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`)
   })
   it('meia-noite UTC com offset explícito também é o próprio dia', () => {
     expect(pluggyDate('2026-10-05T00:00:00+00:00')).toBe('2026-10-05')

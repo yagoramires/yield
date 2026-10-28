@@ -1,12 +1,13 @@
 import { ChevronLeft, ChevronRight, RefreshCw, Upload } from 'lucide-react'
-import { useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Account } from '../../db/gastosRepo'
-import { addMonths } from '../../domain/money'
+import { addMonths, formatCents } from '../../domain/money'
 import type { Month } from '../../domain/types'
 import { importStatement } from '../../import/extrato'
-import { detectCsvPreset, parseExtratoCsv, type CsvPreset } from '../../import/extratoCsv'
+import { detectCsvPreset, parseExtratoCsv, parseMappedCsv, sniffCsv, type CsvMapping, type CsvPreset, type CsvSniff } from '../../import/extratoCsv'
 import { decodeStatement, parseOfx, type ParsedStatement } from '../../import/ofx'
 import { useData } from '../../state/DataProvider'
+import { Select } from '../../ui/Select'
 import { duplicateAccountWarning } from './build'
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
@@ -62,6 +63,7 @@ function useExtratoImport() {
   const { db, reload } = useData()
   const input = useRef<HTMLInputElement>(null)
   const [csv, setCsv] = useState<{ text: string; preset: CsvPreset; file: string; label: string } | null>(null)
+  const [mapped, setMapped] = useState<Mapped | null>(null)
   const [summary, setSummary] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -71,20 +73,21 @@ function useExtratoImport() {
     try {
       const r = await importStatement(db, parse())
       setSummary(`${file}: ${r.inserted} novos · ${r.skipped} já existiam`)
-      setCsv(null)
+      setCsv(null); setMapped(null)
     } catch (e) { setError(`Não foi possível importar ${file}: ${errText(e)}`) }
     try { await reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
     setBusy(false)
   }
 
   const pick = async (f: File) => {
-    setCsv(null); setSummary(null); setError(null)
+    setCsv(null); setMapped(null); setSummary(null); setError(null)
     try {
       const text = decodeStatement(await f.arrayBuffer())
       if (/\.ofx$/i.test(f.name)) return await save(f.name, () => parseOfx(text))
       const preset = detectCsvPreset(text)
-      if (!preset) return setError(`${f.name}: Formato de CSV não reconhecido (aceito: Nubank conta, Mercado Pago)`)
-      setCsv({ text, preset, file: f.name, label: PRESET_LABEL[preset] })
+      if (preset) return setCsv({ text, preset, file: f.name, label: PRESET_LABEL[preset] })
+      const sniff = sniffCsv(text)
+      setMapped({ text, sniff, mapping: sniff.mapping, file: f.name, label: sniff.preset === 'nubank-cartao' ? 'Nubank cartão' : '' })
     } catch (e) { setError(`Não foi possível ler ${f.name}: ${errText(e)}`) }
   }
 
@@ -95,7 +98,7 @@ function useExtratoImport() {
         <input ref={input} type="file" accept=".ofx,.csv" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pick(f) }} />
       </>
     ),
-    panel: (error || csv || summary) && (
+    panel: (error || csv || mapped || summary) && (
       <div style={{ marginTop: 10 }}>
         {error && <div className="note" style={{ marginBottom: 8 }}>{error}</div>}
         {csv && (
@@ -111,17 +114,57 @@ function useExtratoImport() {
             </div>
           </div>
         )}
+        {mapped && <CsvMapper m={mapped} busy={busy} onChange={setMapped} onCancel={() => setMapped(null)}
+          onImport={() => void save(mapped.file, () => parseMappedCsv(mapped.text, mapped.sniff, mapped.mapping, mapped.label.trim()))} />}
         {summary && <div className="info">Última importação: {summary}</div>}
       </div>
     ),
   }
 }
 
+type Mapped = { text: string; sniff: CsvSniff; mapping: CsvMapping; file: string; label: string }
+
+/** CSV sem formato conhecido: o usuário diz qual coluna é o quê; a prévia mostra as primeiras linhas já lidas. */
+function CsvMapper({ m, busy, onChange, onCancel, onImport }: { m: Mapped; busy: boolean; onChange(m: Mapped): void; onCancel(): void; onImport(): void }) {
+  const cols = [{ value: '-1', label: '— nenhuma —' }, ...m.sniff.header.map((h, i) => ({ value: String(i), label: h || `coluna ${i + 1}` }))]
+  const pick = (k: 'date' | 'description' | 'amount' | 'debit' | 'credit', label: string) => (
+    <label className="field"><span>{label}</span>
+      <Select small ariaLabel={label} value={String(m.mapping[k])} onChange={v => onChange({ ...m, mapping: { ...m.mapping, [k]: Number(v) } })} options={cols} /></label>
+  )
+  // o nome da conta não muda a leitura: digitá-lo não relê o arquivo
+  const { preview, problem } = useMemo((): { preview: ParsedStatement | null; problem: string | null } => {
+    try { return { preview: parseMappedCsv(m.text, m.sniff, m.mapping, 'CSV'), problem: null } } catch (e) { return { preview: null, problem: errText(e) } }
+  }, [m.text, m.sniff, m.mapping])
+  return (
+    <div className="note">
+      {m.file}: escolha as colunas (formatos de data dd/mm/aaaa e aaaa-mm-dd; vírgula ou ponto decimal são detectados sozinhos).
+      <div className="row" style={{ marginTop: 8, alignItems: 'flex-end' }}>
+        {pick('date', 'Data')}{pick('description', 'Descrição')}{pick('amount', 'Valor')}
+        {m.mapping.amount < 0 && <>{pick('debit', 'Débito')}{pick('credit', 'Crédito')}</>}
+        <label className="t2"><input type="checkbox" checked={m.mapping.expensesPositive} onChange={e => onChange({ ...m, mapping: { ...m.mapping, expensesPositive: e.target.checked } })} /> despesas vêm positivas (fatura de cartão)</label>
+      </div>
+      {problem ? <div className="t2" style={{ marginTop: 8 }}>{problem}</div> : preview && (
+        <div className="t2" style={{ marginTop: 8 }}>
+          {preview.rows.length} lançamentos. {preview.rows.slice(0, 3).map(r => `${brDay(r.date)} ${r.description} ${formatCents(r.amountCents)}`).join(' · ')}
+        </div>
+      )}
+      <div className="row" style={{ marginTop: 8, alignItems: 'flex-end' }}>
+        <label className="field"><span>Nome da conta</span>
+          <input className="in" value={m.label} onChange={e => onChange({ ...m, label: e.target.value })} /></label>
+        <div className="btns">
+          <button className="b" disabled={busy} onClick={onCancel}>Cancelar</button>
+          <button className="b pri" disabled={busy || !!problem || !m.label.trim()} onClick={onImport}>{busy ? 'Importando…' : 'Importar'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function GastosVazio({ onOpenSettings }: { onOpenSettings(): void }) {
   return (
     <div className="info" style={{ marginTop: 14 }}>
       Nenhum lançamento ainda. Conecte seus bancos em <button className="link" onClick={onOpenSettings}>Configurações › Open Finance</button> ou
-      use "Importar extrato…" acima (OFX, ou CSV do Nubank conta e do Mercado Pago).
+      use "Importar extrato…" acima (OFX, ou CSV de qualquer banco: você escolhe as colunas).
     </div>
   )
 }
