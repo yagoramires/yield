@@ -14,6 +14,11 @@ export function yahooSymbol(tickerOrSymbol: string): string {
   return /[.\-=]/.test(s) ? s : `${normalizeTicker(s)}.SA`
 }
 
+// o Yahoo não tem mais os pares em real (BTC-BRL dá 404): cripto é cotada em dólar; .SA e -BRL vêm de ativos antigos
+export function cryptoSymbol(coinOrSymbol: string): string {
+  return `${coinOrSymbol.trim().toUpperCase().replace(/(-USD|-BRL|\.SA)$/, '')}-USD`
+}
+
 export async function fetchYahooQuote(symbol: string, fetchFn: typeof fetch): Promise<{ priceCents: Cents; at: string }> {
   const res = await fetchFn(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=1d`, { headers: { 'User-Agent': UA } })
   if (!res.ok) throw new Error(`Yahoo ${symbol}: HTTP ${res.status}`)

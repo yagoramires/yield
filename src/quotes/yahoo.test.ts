@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, type Db } from '../db/testDb'
 import { loadAll, upsertQuote } from '../db/repo'
-import { fetchYahooQuote, refreshQuotes, yahooSymbol } from './yahoo'
+import { cryptoSymbol, fetchYahooQuote, refreshQuotes, yahooSymbol } from './yahoo'
 
 const resp = (price: number, time = 1793030000) =>
   new Response(JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, regularMarketTime: time } }] } }))
@@ -18,6 +18,10 @@ test('yahooSymbol', () => {
   expect(yahooSymbol('itsa4')).toBe('ITSA4.SA')
   expect(yahooSymbol('ITSA4.SA')).toBe('ITSA4.SA')
   for (const s of ['BTC-BRL', 'ETH-BRL', 'BRL=X']) expect(yahooSymbol(s)).toBe(s)
+})
+
+test('cryptoSymbol: moeda vira o par em dólar do Yahoo', () => {
+  expect(['btc', ' ETH ', 'SOL-USD', 'BTC-BRL', 'BTC.SA'].map(cryptoSymbol)).toEqual(['BTC-USD', 'ETH-USD', 'SOL-USD', 'BTC-USD', 'BTC-USD'])
 })
 
 describe('fetchYahooQuote', () => {

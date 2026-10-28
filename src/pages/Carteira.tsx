@@ -5,7 +5,7 @@ import type { Cents } from '../domain/types'
 import { portfolioResult, type ManualRow, type PortfolioRow } from '../domain/portfolio'
 import { rfJurosByMonth } from '../domain/rendaFixa'
 import { AMBIGUOUS_MSG, parseDecimal } from '../import/parse'
-import { yahooSymbol } from '../quotes/yahoo'
+import { cryptoSymbol, yahooSymbol } from '../quotes/yahoo'
 import { parseMoney } from './notas/build'
 import { todayISO, useData } from '../state/DataProvider'
 import { Select } from '../ui/Select'
@@ -58,7 +58,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
     }
     try { value = form.value.trim() ? parseMoney(form.value, 'Valor', false) : null; cost = form.cost.trim() ? parseMoney(form.cost, 'Aportado', false) : null } catch (e) { return setFormError(errText(e)) }
     // ticker americano vai cru para o Yahoo (yahooSymbol acrescentaria .SA)
-    const symbol = !form.quoteSymbol.trim() ? null : form.assetClass === 'exterior' ? form.quoteSymbol.trim().toUpperCase() : yahooSymbol(form.quoteSymbol)
+    const symbol = !form.quoteSymbol.trim() ? null : form.assetClass === 'exterior' ? form.quoteSymbol.trim().toUpperCase() : form.assetClass === 'cripto' ? cryptoSymbol(form.quoteSymbol) : yahooSymbol(form.quoteSymbol)
     if (form.assetClass === 'exterior' && (!symbol || qty === null)) return setFormError('No exterior, informe o ticker (como no Yahoo) e a quantidade.')
     if (!form.name.trim()) return setFormError('Informe o nome do ativo.')
     if (qty !== null && !(qty >= 0)) return setFormError('Quantidade inválida.')
@@ -66,7 +66,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
     if (!symbol && value === null) return setFormError('Informe o valor ou um símbolo de cotação com quantidade.')
     setFormError(null)
     await run(async () => {
-      await saveManualAsset(db, { id: form.id, name: form.name.trim(), assetClass: form.assetClass, currency: form.assetClass === 'exterior' ? 'USD' : 'BRL', costCents: form.assetClass === 'exterior' ? cost : null, quoteSymbol: symbol, quantity: qty, valueCents: value, updatedAt: today, sourceKey: form.sourceKey })
+      await saveManualAsset(db, { id: form.id, name: form.name.trim(), assetClass: form.assetClass, currency: form.assetClass === 'exterior' || (form.assetClass === 'cripto' && symbol) ? 'USD' : 'BRL', costCents: form.assetClass === 'exterior' ? cost : null, quoteSymbol: symbol, quantity: qty, valueCents: value, updatedAt: today, sourceKey: form.sourceKey })
       setForm(null); setWanted(form.assetClass)
     })
   }
@@ -159,7 +159,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
             <label className="field"><span>Nome</span><input className="in" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
             <div className="field"><span>Classe</span>
               <Select ariaLabel="Classe" value={form.assetClass} onChange={v => setForm({ ...form, assetClass: v as Form['assetClass'], quoteSymbol: v === 'dolar' && !form.quoteSymbol.trim() ? 'BRL=X' : form.quoteSymbol })} options={Object.entries(FORM_CLASSES).map(([k, v]) => ({ value: k, label: v }))} /></div>
-            <label className="field"><span>{form.assetClass === 'exterior' ? 'Ticker no Yahoo' : 'Símbolo da cotação (opcional)'}</span><input className="in" placeholder={form.assetClass === 'exterior' ? 'VOO, AAPL' : 'BRL=X'} value={form.quoteSymbol} onChange={e => setForm({ ...form, quoteSymbol: e.target.value })} /></label>
+            <label className="field"><span>{form.assetClass === 'exterior' ? 'Ticker no Yahoo' : form.assetClass === 'cripto' ? 'Moeda (opcional)' : 'Símbolo da cotação (opcional)'}</span><input className="in" placeholder={form.assetClass === 'exterior' ? 'VOO, AAPL' : form.assetClass === 'cripto' ? 'BTC, ETH, SOL' : 'BRL=X'} value={form.quoteSymbol} onChange={e => setForm({ ...form, quoteSymbol: e.target.value })} /></label>
             <label className="field"><span>Quantidade</span><input className="in" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
             {form.assetClass !== 'exterior' ? <label className="field"><span>Valor (R$)</span><input className="in" value={form.value} onChange={e => setForm({ ...form, value: e.target.value })} /></label>
               : <label className="field"><span>Aportado (US$, opcional)</span><input className="in" inputMode="decimal" placeholder="0,00" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} /></label>}
@@ -175,7 +175,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
       {classes.length === 0 ? (
         <div className="card">
           <b style={{ color: '#fff' }}>{data.notes.length ? 'Nenhuma posição agora' : 'Comece importando da B3'}</b>
-          <div className="muted" style={{ margin: '4px 0 10px' }}>{data.notes.length ? 'Tudo o que você tinha foi vendido. Lance compras em Notas, importe da B3 ou adicione um ativo em + Ativo. ' : ''}Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior e dólar entram em + Ativo; cripto, pela Binance em Configurações.</div>
+          <div className="muted" style={{ margin: '4px 0 10px' }}>{data.notes.length ? 'Tudo o que você tinha foi vendido. Lance compras em Notas, importe da B3 ou adicione um ativo em + Ativo. ' : ''}Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior, dólar e cripto entram em + Ativo; cripto também pela Binance em Configurações.</div>
           <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
         </div>
       ) : (
