@@ -22,7 +22,7 @@ export function RendaFixa({ list, onOpenSettings }: { list: RfHolding[]; onOpenS
         <td className={`r ${tone(h.gainCents)}`}>{h.gainCents === null ? <span className="t2">{h.closed ? 'sem valor de resgate na B3' : '—'}</span> : <>{sign(h.gainCents, formatCents(h.gainCents))}{h.gainPct !== null && <div className="t2">{pct(h.gainPct)}</div>}</>}</td>
         <td className="t2">{h.needsNewerPosicao ? <span className="tag">importe uma Posição mais recente</span> : h.asOf ? `valor de ${br(h.asOf).slice(0, 5)}` : ''}</td>
       </tr>
-      )
+    )
   }
   return (
     <>
