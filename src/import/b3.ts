@@ -180,7 +180,7 @@ export function typeFromName(name: string): AssetType | null {
   return null
 }
 
-function settleDate(d: ISODate): ISODate { // D+2 em dias úteis
+export function settleDate(d: ISODate): ISODate { // D+2 em dias úteis
   let t = Date.parse(`${d}T00:00:00Z`)
   for (let n = 0; n < 2;) { t += 86_400_000; if (isBusinessDay(new Date(t).toISOString().slice(0, 10))) n++ }
   return new Date(t).toISOString().slice(0, 10)

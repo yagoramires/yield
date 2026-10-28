@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { loadGastos, savePluggyItem, setLastSync, setOverride } from '../db/gastosRepo'
+import { loadAll, saveNote } from '../db/repo'
 import { createTestDb } from '../db/testDb'
+import type { PluggyInvestment } from './pluggy'
 import { syncPluggy } from './sync'
 
 const fx = (n: string) => JSON.parse(readFileSync(new URL(`../../tests/fixtures/pluggy/${n}.json`, import.meta.url), 'utf8'))
@@ -20,6 +22,7 @@ function fake(over: (url: URL) => Response | null = () => null) {
     if (o) return o
     if (url.pathname === '/auth') return json({ apiKey: 'K' })
     if (url.pathname === '/accounts') return json(fx('accounts'))
+    if (url.pathname.startsWith('/investments')) return json({ page: 1, total: 0, totalPages: 0, results: [] })
     return json(url.searchParams.get('accountId') === BANK ? fx('transactions-banco') : fx('transactions-cartao'))
   }) as typeof fetch
   return { fn, calls }
@@ -36,7 +39,7 @@ describe('syncPluggy', () => {
     const db = await setup(); const f = fake()
     const r = await syncPluggy(db, creds, f.fn, today)
     expect(r).toMatchObject({ accounts: 2, inserted: 3, errors: [] })
-    expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || (c.method === 'GET' && /\/accounts\?itemId=|\/v2\/transactions\?/.test(c.url)))).toBe(true)
+    expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || (c.method === 'GET' && /\/accounts\?itemId=|\/v2\/transactions\?|\/investments\?itemId=/.test(c.url)))).toBe(true)
     expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2025-10-26&dateTo=2026-11-26')
     const g = await loadGastos(db)
     expect(g.accounts.map(a => [a.externalId, a.kind, a.name, a.institution]).sort()).toEqual([
@@ -109,5 +112,116 @@ describe('syncPluggy', () => {
     const r2 = await syncPluggy(db, creds, fake(u => u.pathname === '/v2/transactions' ? json(loop) : null).fn, today)
     expect(r2.errors[0].message).toBe('A Pluggy devolveu dados fora do formato esperado')
     expect((await loadGastos(db)).txns).toEqual(before)
+  })
+})
+
+const INV = { acao: '33333333-3333-4333-8333-333333333331', fii: '33333333-3333-4333-8333-333333333332', opcao: '33333333-3333-4333-8333-333333333333', cdb: '33333333-3333-4333-8333-333333333334', semTipo: '33333333-3333-4333-8333-333333333335' }
+const page = (results: unknown[]) => json({ page: 1, total: results.length, totalPages: 1, results })
+const op = (id: string, type: string, tradeDate: string, quantity: number, value: number, expenses: Record<string, number | null> = {}) =>
+  ({ id, type, movementType: type === 'BUY' ? 'DEBIT' : 'CREDIT', quantity, value, amount: quantity * value, tradeDate: `${tradeDate}T00:00:00.000Z`, date: `${tradeDate}T00:00:00.000Z`, expenses })
+const INVESTMENTS: PluggyInvestment[] = [
+  { id: INV.acao, code: 'AAAA3', name: 'AAAA3 ON NM', type: 'EQUITY', subtype: 'STOCK' },
+  { id: INV.fii, code: null, name: 'FIIA11 Fundo Imobiliário Exemplo', type: 'EQUITY', subtype: 'REAL_ESTATE_FUND' },
+  { id: INV.opcao, code: 'AAAAC150', name: 'Opção AAAA', type: 'EQUITY', subtype: 'OPTION' },
+  { id: INV.cdb, code: null, name: 'CDB Banco Exemplo', type: 'FIXED_INCOME', subtype: 'CDB' },
+]
+const OPS: Record<string, unknown[]> = {
+  [INV.acao]: [
+    op('t1', 'BUY', '2026-03-10', 100, 12.34, { brokerageFee: 4.9, settlementFee: 0.31, stockExchangeFee: 0.06, incomeTax: null }),
+    op('t2', 'SELL', '2026-04-07', 50, 13, { brokerageFee: 4.9, incomeTax: 0.03 }),
+    op('t3', 'TAX', '2026-04-07', 1, 0.5),
+  ],
+  [INV.fii]: [op('t4', 'BUY', '2026-03-10', 10, 100, { settlementFee: 0.25, stockExchangeFee: 0.05 })],
+}
+function invFake(over: (url: URL) => Response | null = () => null, investments = INVESTMENTS, ops = OPS) {
+  return fake(u => {
+    const o = over(u)
+    if (o) return o
+    if (u.pathname === '/investments') return page(investments)
+    const m = /^\/investments\/([^/]+)\/transactions$/.exec(u.pathname)
+    return m ? page(ops[m[1]] ?? []) : null
+  })
+}
+async function broker() {
+  const db = createTestDb()
+  await savePluggyItem(db, ITEM, 'Corretora Azul')
+  return db
+}
+const tradesOf = async (db: ReturnType<typeof createTestDb>) => {
+  const d = await loadAll(db)
+  return d.trades.map(t => ({ ...t, note: d.notes.find(n => n.id === t.noteId)! }))
+}
+
+describe('syncPluggy — renda variável', () => {
+  it('compras e vendas viram notas da Pluggy por dia; opção e renda fixa ficam de fora; 2ª vez não muda nada', async () => {
+    const db = await broker(); const f = invFake()
+    const r = await syncPluggy(db, creds, f.fn, today)
+    expect(r.errors).toEqual([])
+    expect(r.investments).toEqual([{ itemId: ITEM, label: 'Corretora Azul', found: 2, inserted: 3, updated: 0, existing: 0 }])
+    expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || c.method === 'GET')).toBe(true)
+    expect(f.calls.some(c => c.url.includes(INV.opcao) || c.url.includes(INV.cdb))).toBe(false)
+    const d = await loadAll(db)
+    expect(d.notes).toEqual([
+      { id: expect.any(String), number: 'Pluggy 2026-03-10', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'sem_nota', sourceKey: 'pluggy:2026-03-10:AZUL', label: 'Pluggy (sem nota)' },
+      { id: expect.any(String), number: 'Pluggy 2026-04-07', broker: 'AZUL', tradeDate: '2026-04-07', settleDate: '2026-04-09', source: 'sem_nota', sourceKey: 'pluggy:2026-04-07:AZUL', label: 'Pluggy (sem nota)' },
+    ])
+    expect(d.trades.map(t => [t.tradeDate, t.seq, t.side, t.assetType, t.ticker, t.qty, t.priceCents, t.feesCents, t.irrfCents])).toEqual([
+      ['2026-03-10', 1, 'C', 'Ação', 'AAAA3', 100, 1234, 527, 0],
+      ['2026-03-10', 2, 'C', 'FII', 'FIIA11', 10, 10000, 30, 0],
+      ['2026-04-07', 1, 'V', 'Ação', 'AAAA3', 50, 1300, 490, 3],
+    ])
+    const again = await syncPluggy(db, creds, invFake().fn, today)
+    expect(again.investments).toEqual([{ itemId: ITEM, label: 'Corretora Azul', found: 2, inserted: 0, updated: 0, existing: 3 }])
+    expect(await loadAll(db)).toEqual(d)
+  })
+
+  it('nota em PDF fica como está; operação da B3 ganha as taxas; nova entra na nota da Pluggy do dia', async () => {
+    const db = await broker()
+    const t = (ticker: string, qty: number, side: 'C' | 'V', feesCents: number, assetType: 'Ação' | 'FII' | 'ETF' = 'Ação') => ({ seq: 1, side, assetType, ticker, qty, priceCents: 999, feesCents, irrfCents: 0 })
+    await saveNote(db, { number: '55', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:55', label: null }, [t('AAAA3', 100, 'C', 777)])
+    await saveNote(db, { number: 'B3 2026-03-10', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'sem_nota', sourceKey: 'b3neg:2026-03-10:AZUL', label: 'Negociação da B3 (sem taxas)' }, [t('FIIA11', 10, 'C', 0, 'FII')])
+    await saveNote(db, { number: 'Pluggy 2026-04-07', broker: 'AZUL', tradeDate: '2026-04-07', settleDate: '2026-04-09', source: 'sem_nota', sourceKey: 'pluggy:2026-04-07:AZUL', label: 'Pluggy (sem nota)' }, [t('ETFX11', 3, 'C', 0, 'ETF')])
+    const investments = [...INVESTMENTS, { id: INV.semTipo, code: 'ETFX11', name: 'ETFX11', type: 'EQUITY', subtype: null }]
+    const ops = { ...OPS, [INV.semTipo]: [op('t5', 'BUY', '2026-04-07', 3, 50), op('t6', 'SELL', '2026-04-07', 1, 52)] }
+    const r = await syncPluggy(db, creds, invFake(() => null, investments, ops).fn, today)
+    expect(r.investments).toEqual([{ itemId: ITEM, label: 'Corretora Azul', found: 3, inserted: 2, updated: 1, existing: 2 }])
+    const all = await tradesOf(db)
+    const row = (ticker: string, side = 'C') => all.find(x => x.ticker === ticker && x.side === side)!
+    expect(row('AAAA3')).toMatchObject({ priceCents: 999, feesCents: 777, note: { source: 'pdf' } })
+    expect(row('FIIA11')).toMatchObject({ priceCents: 999, qty: 10, feesCents: 30, note: { sourceKey: 'b3neg:2026-03-10:AZUL' } })
+    expect(row('ETFX11')).toMatchObject({ priceCents: 999, feesCents: 0 }) // Pluggy sem taxa: nada a atualizar
+    // o dia 04-07 já tinha nota da Pluggy: a venda de AAAA3 e a de ETFX11 entram nela, com o tipo que o banco já conhece
+    expect(row('AAAA3', 'V')).toMatchObject({ seq: 2, note: { sourceKey: 'pluggy:2026-04-07:AZUL' } })
+    expect(row('ETFX11', 'V')).toMatchObject({ seq: 3, assetType: 'ETF', note: { sourceKey: 'pluggy:2026-04-07:AZUL' } })
+    expect((await loadAll(db)).notes).toHaveLength(3)
+    const before = await loadAll(db)
+    expect((await syncPluggy(db, creds, invFake(() => null, investments, ops).fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 5 })
+    expect(await loadAll(db)).toEqual(before)
+  })
+
+  it('nota em PDF salva depois tira a operação da Pluggy, e a próxima sincronização não a traz de volta', async () => {
+    const db = await broker()
+    await syncPluggy(db, creds, invFake().fn, today)
+    await saveNote(db, { number: '56', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:56', label: null }, [
+      { seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 100, priceCents: 1234, feesCents: 600, irrfCents: 0 },
+      { seq: 2, side: 'C', assetType: 'FII', ticker: 'FIIA11', qty: 10, priceCents: 10000, feesCents: 40, irrfCents: 0 },
+    ])
+    const d = await loadAll(db)
+    expect(d.notes.map(n => n.sourceKey)).toEqual(['pdf:AZUL:56', 'pluggy:2026-04-07:AZUL'])
+    expect(d.trades).toHaveLength(3)
+    expect((await syncPluggy(db, creds, invFake().fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 3 })
+    expect(await loadAll(db)).toEqual(d)
+  })
+
+  it('erro nos investimentos não atrapalha contas e lançamentos; item sem renda variável é contado', async () => {
+    const db = await setup()
+    const r = await syncPluggy(db, creds, invFake(u => u.pathname === '/investments' ? json({}, 500) : null).fn, today)
+    expect(r).toMatchObject({ accounts: 2, inserted: 3, investments: [] })
+    expect(r.errors).toEqual([{ itemId: ITEM, label: 'Banco Exemplo', message: 'investimentos não lidos (A Pluggy respondeu com erro (HTTP 500))' }])
+    expect((await loadGastos(db)).txns).toHaveLength(3)
+    const r2 = await syncPluggy(db, creds, invFake(u => u.pathname.endsWith('/transactions') && u.pathname.includes(INV.fii) ? json({}, 500) : null).fn, today)
+    expect(r2.errors).toHaveLength(1)
+    expect((await loadAll(db)).trades).toHaveLength(0) // erro no meio não grava parte do item
+    expect((await syncPluggy(db, creds, fake().fn, today)).investments).toEqual([{ itemId: ITEM, label: 'Banco Exemplo', found: 0, inserted: 0, updated: 0, existing: 0 }])
   })
 })

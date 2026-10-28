@@ -108,14 +108,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const d = dbRef.current
     if (!d || syncingRef.current) return
     syncingRef.current = true; setSyncing(true)
-    const fail = (message: string): SyncResult => ({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message }] })
+    const fail = (message: string): SyncResult => ({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message }], investments: [] })
     try {
       const creds = known ?? (await getPluggyCredentials())
       const items = (await loadGastos(d)).pluggyItems
       if (!creds) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Open Finance.'))
       else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Open Finance.'))
       else setLastSyncResult(await syncPluggy(d, creds, tauriFetch as typeof fetch, todayISO()))
-      setGastosData(await loadGastos(d))
+      const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)]) // compras e vendas da Pluggy mudam a carteira
+      setData(ds); setGastosData(g)
     } catch (e) { setLastSyncResult(fail(`Não foi possível sincronizar: ${e instanceof Error ? e.message : String(e)}`)) }
     syncingRef.current = false; setSyncing(false)
   }, [])
@@ -184,7 +185,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (needsSync(g, Date.now())) {
           getPluggyCredentials().then(
             c => { if (c && !cancelled) void syncNow(c) },
-            e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }] }),
+            e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
           )
         }
         timer = setInterval(() => void refreshQuotesNow(), REFRESH_MS)

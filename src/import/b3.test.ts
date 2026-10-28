@@ -253,3 +253,12 @@ test('reimportar não devolve operação da B3 que o usuário editou na nota do 
   await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'ITSA4', 10, 10)])))
   expect((await loadAll(db)).trades.map(t => t.qty)).toEqual([11])
 })
+
+test('operação já trazida pela Pluggy não volta pela Negociação da B3', async () => {
+  const db = createTestDb()
+  await saveNote(db, { number: 'Pluggy 2024-01-05', broker: 'CLEAR', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'sem_nota', sourceKey: 'pluggy:2024-01-05:CLEAR', label: 'Pluggy (sem nota)' },
+    [{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 10, priceCents: 1000, feesCents: 12, irrfCents: 0 }])
+  const r = await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'AAAA3', 10, 10), neg('05/01/2024', 'Compra', 'BBBB4', 1, 10)])))
+  expect(r).toMatchObject({ notes: 1, trades: 1, tradesSkipped: 1 })
+  expect((await loadAll(db)).trades.map(t => [t.ticker, t.feesCents])).toEqual([['BBBB4', 0], ['AAAA3', 12]])
+})
