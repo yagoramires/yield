@@ -63,8 +63,8 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
       }
       result.investments.push({ itemId: item.itemId, label: item.label, found, ...await mergeTrades(db, normalizeBroker(item.label), trades) })
     } catch (e) {
+      // as contas deste item acabaram de passar com a mesma chave: 403 aqui é falta do produto, não credencial ruim
       const message = e instanceof Error ? e.message : 'Erro ao sincronizar'
-      if (e instanceof PluggyError && e.kind === 'credenciais') badCreds = message
       result.errors.push({ itemId: item.itemId, label: item.label, message: `investimentos não lidos (${message})` })
     }
   }

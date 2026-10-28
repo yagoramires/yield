@@ -213,6 +213,14 @@ describe('syncPluggy — renda variável', () => {
     expect(await loadAll(db)).toEqual(d)
   })
 
+  it('403 nos investimentos não marca a credencial como ruim nem trava o próximo item', async () => {
+    const db = await setup()
+    await savePluggyItem(db, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Outro Banco')
+    const r = await syncPluggy(db, creds, fake(u => u.pathname === '/investments' ? json({}, 403) : null).fn, today)
+    expect(r.errors.map(e => e.label)).toEqual(['Banco Exemplo', 'Outro Banco'])
+    expect(r.errors.every(e => e.message.startsWith('investimentos não lidos'))).toBe(true)
+  })
+
   it('erro nos investimentos não atrapalha contas e lançamentos; item sem renda variável é contado', async () => {
     const db = await setup()
     const r = await syncPluggy(db, creds, invFake(u => u.pathname === '/investments' ? json({}, 500) : null).fn, today)
