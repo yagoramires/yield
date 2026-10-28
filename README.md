@@ -76,9 +76,9 @@ As transações chegam de dois jeitos:
 | | |
 |---|---|
 | **Resumo** | Patrimônio, resultado, proventos (com o rendimento sobre o custo) e imposto; **quanto da sua renda passiva já cobre o gasto médio**; **rentabilidade em 12 meses contra o CDI e o Ibovespa**; aportado × valor de hoje; classes com o ganho de cada uma; proventos por mês (clicar abre Proventos filtrado); maiores posições. |
-| **Carteira** | Posições com preço médio, custo, cotação e variação, agrupadas por classe, mais ativos manuais (renda fixa, cripto, dólar). |
+| **Carteira** | Posições com preço médio, custo, cotação e variação, agrupadas por classe. **Renda fixa da B3** (Tesouro, CDB, LCI/LCA…) com aplicado, valor de hoje e rendimento de cada título; **cripto da Binance** (saldos lidos com uma chave só de leitura, com o aportado que você informa); **ações do exterior** por ticker e quantidade, convertidas pelo dólar do dia; e ativos manuais. |
 | **Notas** | Compras e vendas **importadas do relatório de Negociação da B3**, notas de corretagem digitadas ou **lidas do PDF da Clear** (com taxas rateadas), e eventos corporativos (bonificação, desdobramento, grupamento, troca de ticker). |
-| **Proventos** | Dividendos, JCP e rendimentos (importados da B3 ou à mão): 12 meses, ano contra ano, rendimento sobre o custo, gráfico de 24 meses que filtra a lista, ranking por ativo e totais por ano. |
+| **Proventos** | Dividendos, JCP, rendimentos e juros da renda fixa (importados da B3 ou à mão): 12 meses, ano contra ano, rendimento sobre o custo, gráfico de 24 meses que filtra a lista, ranking por ativo e totais por ano. |
 | **Imposto** | Apuração mensal de renda variável: isenção de R$ 20 mil para ações, prejuízo a compensar (comum e FII), IRRF, DARF (código 6015) com vencimento em dia útil e acompanhamento do que foi pago. |
 | **Declaração IR** | Tudo o que vai na declaração sobre a bolsa, pronto para copiar campo a campo: **Bens e Direitos** (grupo/código, CNPJ, situação nos dois 31/12 e a discriminação pronta), **Rendimentos** isentos e de tributação exclusiva por fonte pagadora, **Renda variável** mês a mês e o cadastro de empresas e corretoras (importável da planilha antiga). |
 
@@ -92,7 +92,7 @@ As transações chegam de dois jeitos:
 
 ### ⚙️ Sistema
 
-- Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos e Movimentação, vários de uma vez, sem duplicar.
+- Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição, vários de uma vez, sem duplicar.
 - Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). Antes de importar um backup, o app guarda uma cópia de segurança do banco atual.
 - Cotações automáticas a cada 15 minutos.
 - Atualização automática: o app avisa quando sai versão nova no GitHub e se atualiza sozinho (pacotes assinados).
@@ -100,9 +100,10 @@ As transações chegam de dois jeitos:
 ## 🔒 Privacidade e segurança
 
 - **Open Finance somente leitura.** O cliente da Pluggy só consegue fazer `POST /auth`, `GET /accounts` e `GET /v2/transactions`. Qualquer outra rota é recusada antes de sair da máquina, e há um teste que garante isso. O app nunca move dinheiro nem inicia pagamentos.
+- **Binance somente leitura.** O Yield só faz três leituras assinadas (saldo da conta e do Simple Earn); qualquer outra chamada é recusada antes de sair da máquina, e a guia pede uma chave com só "Enable Reading".
 - **Backup com senha.** O arquivo exportado só abre com a senha escolhida na hora; sem ela nem o Yield recupera os dados.
-- **Credenciais no cofre do sistema**: Keychain no macOS, Credential Manager no Windows. Elas nunca vão para o banco, para o backup ou para log.
-- **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance, `api.bcb.gov.br` (CDI) e `api.pluggy.ai`.
+- **Credenciais no cofre do sistema** (Pluggy e Binance): Keychain no macOS, Credential Manager no Windows. Elas nunca vão para o banco, para o backup ou para log.
+- **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance, `api.bcb.gov.br` (CDI), `api.pluggy.ai` e `api.binance.com`.
 - **Seus arquivos fora do git.** `planilhas/`, `notas/` e `extratos/` são ignorados; os testes usam só dados sintéticos.
 
 <p align="center">
