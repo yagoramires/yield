@@ -23,7 +23,7 @@ function rangeTicks(min: number, max: number, n = 4): number[] {
   const raw = Math.max(max - min, 2) / n
   const mag = 10 ** Math.floor(Math.log10(raw))
   const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw)!
-  const lo = Math.floor(min / step) * step, hi = Math.ceil(max / step) * step
+  const lo = Math.floor(min / step) * step, hi = Math.max(Math.ceil(max / step) * step, lo + step) // tudo igual: ainda um intervalo
   return Array.from({ length: Math.round((hi - lo) / step) + 1 }, (_, i) => lo + i * step)
 }
 

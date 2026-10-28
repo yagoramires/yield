@@ -49,7 +49,8 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const filtered = filterDividends(all, filter)
   const groups = groupByMonth(filtered)
   const filtering = Boolean(filter.ticker || filter.kind || filter.month)
-  const payMonths = [...new Set(data.dividends.map(d => monthOf(d.payDate)))].sort().reverse()
+  // o mês vindo do clique no Resumo aparece no seletor mesmo sem provento nele
+  const payMonths = [...new Set([...data.dividends.map(d => monthOf(d.payDate)), ...(filter.month ? [filter.month] : [])])].sort().reverse()
   const shown = showAll || filtering ? groups : groups.slice(0, 3)
   const ytdDiff = sm.ytdPrevCents ? sm.ytdCents / sm.ytdPrevCents - 1 : null
   const total = (m: (typeof months)[number]) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP

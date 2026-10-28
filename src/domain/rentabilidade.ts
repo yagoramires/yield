@@ -9,14 +9,17 @@ const upTo = (series: Map<Month, number> | undefined, m: Month): number | undefi
 }
 
 /**
- * Índice da carteira de bolsa (base 100 no primeiro mês com posição), mês a mês pelo Dietz modificado:
- * r = (V_fim − V_início − aportes + proventos) / (V_início + aportes/2). Compras e vendas do mês não contam como ganho.
+ * Índice da carteira de bolsa (base 100 no primeiro mês com posição). Retorno do mês =
+ * (valor no fim + vendas + proventos) / (valor no início + compras) − 1: compra e venda não contam como ganho,
+ * e vender tudo ou voltar a comprar depois de zerado não distorce o mês.
  * `closes` = fechamento mensal por ticker; sem preço no mês vale o último conhecido, e sem nenhum, o preço médio.
  */
 export function portfolioIndex(trades: Trade[], events: CorporateEvent[], dividends: Dividend[], closes: Map<string, Map<Month, Cents>>, months: Month[]): (number | null)[] {
   const value = (m: Month) => replay(trades.filter(t => t.tradeDate <= `${m}-31`), events.filter(e => e.date <= `${m}-31`)).positions
     .filter(p => p.qty > 0).reduce((s, p) => s + p.qty * (upTo(closes.get(p.ticker), m) ?? p.totalCostCents / p.qty), 0)
-  const flow = (m: Month) => trades.filter(t => t.tradeDate.startsWith(m)).reduce((s, t) => s + (t.side === 'C' ? t.qty * t.priceCents + t.feesCents : -(t.qty * t.priceCents - t.feesCents)), 0)
+  const inMonth = (m: Month) => trades.filter(t => t.tradeDate.startsWith(m))
+  const bought = (m: Month) => inMonth(m).filter(t => t.side === 'C').reduce((s, t) => s + t.qty * t.priceCents + t.feesCents, 0)
+  const sold = (m: Month) => inMonth(m).filter(t => t.side === 'V').reduce((s, t) => s + t.qty * t.priceCents - t.feesCents, 0)
   const paid = (m: Month) => dividends.filter(d => d.payDate.startsWith(m)).reduce((s, d) => s + d.amountCents, 0)
   const out: (number | null)[] = []
   let prev = 0
@@ -25,8 +28,8 @@ export function portfolioIndex(trades: Trade[], events: CorporateEvent[], divide
     const last = out[out.length - 1] ?? null
     if (last === null) out.push(v > 0 ? 100 : null)
     else {
-      const f = flow(m), denom = prev + f / 2
-      out.push(denom > 0 ? last * (1 + (v - prev - f + paid(m)) / denom) : last)
+      const base = prev + bought(m)
+      out.push(base > 0 ? last * ((v + sold(m) + paid(m)) / base) : last)
     }
     prev = v
   }
