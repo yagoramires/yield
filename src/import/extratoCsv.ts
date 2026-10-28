@@ -75,7 +75,7 @@ export interface CsvMapping { date: number; description: number; amount: number;
 export interface CsvSniff { sep: string; start: number /* linha do cabeçalho */; header: string[]; preset: MapPreset | null; mapping: CsvMapping }
 
 const SEPS = [';', '\t', ',']
-const findCol = (header: string[], re: RegExp) => header.findIndex(h => re.test(h))
+const findCol = (header: string[], re: RegExp, skip = -1) => header.findIndex((h, i) => i !== skip && re.test(h))
 
 /** Separador pela contagem de colunas mais repetida (a vírgula decimal num arquivo com ";" dá contagens desencontradas). */
 export function sniffCsv(text: string): CsvSniff {
@@ -93,11 +93,14 @@ export function sniffCsv(text: string): CsvSniff {
   const header = splitRow(all[start], best.sep)
   const preset: MapPreset | null = header.join(',').toLowerCase() === 'date,title,amount' ? 'nubank-cartao' : null
   const amount = findCol(header, /^(valor|amount|value|quantia)/i)
+  const date = findCol(header, /^(data|date|dt\b)/i)
+  // "Data Lançamento" é a data: a descrição nunca é a coluna da data, e Histórico/Descrição ganham de Lançamento
+  const description = [/descri|hist[oó]rico|^title$|t[ií]tulo|estabelecimento/i, /lan[cç]amento|memo/i].map(re => findCol(header, re, date)).find(i => i >= 0) ?? -1
   return {
     sep: best.sep, start, header, preset,
     mapping: {
-      date: findCol(header, /^(data|date|dt\b)/i),
-      description: findCol(header, /descri|hist[oó]rico|^title$|t[ií]tulo|lan[cç]amento|estabelecimento|memo/i),
+      date,
+      description,
       amount,
       debit: amount < 0 ? findCol(header, /d[eé]bito|sa[ií]da|debit/i) : -1,
       credit: amount < 0 ? findCol(header, /cr[eé]dito|entrada|credit/i) : -1,
@@ -108,7 +111,7 @@ export function sniffCsv(text: string): CsvSniff {
 
 function anyDate(s: string): ISODate {
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
-  const br = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})$/.exec(s)
+  const br = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/.exec(s)
   const [y, m, d] = iso ? [iso[1], iso[2], iso[3]] : br ? [br[3].length === 2 ? `20${br[3]}` : br[3], br[2], br[1]] : ['', '', '']
   if (!y || +m < 1 || +m > 12 || +d < 1 || +d > 31) throw new Error(`Data inválida: "${s}"`)
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`

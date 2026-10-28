@@ -75,6 +75,13 @@ describe('CSV genérico', () => {
     expect(st.rows.map(r => [r.date, r.amountCents])).toEqual([['2025-03-02', -1234], ['2025-03-03', -100050]])
   })
 
+  test('"Data Lançamento" fica com a data; a descrição é o Histórico; data com hora é aceita', () => {
+    const text = 'Data Lançamento;Histórico;Valor\n11/03/2024 10:22;PADARIA;-12,50\n12/03/2024 08:05:09;MERCADO;-30,00\n'
+    const s = sniffCsv(text)
+    expect(s.mapping).toMatchObject({ date: 0, description: 1, amount: 2 })
+    expect(parse(text).rows.map(r => [r.date, r.description, r.amountCents])).toEqual([['2024-03-11', 'PADARIA', -1250], ['2024-03-12', 'MERCADO', -3000]])
+  })
+
   test('erro com o número da linha', () => {
     expect(() => parse('Data;Descrição;Valor\n02/03/2025;A;1,00\nontem;B;2,00')).toThrow(/Linha 3.*Data inválida/)
     expect(() => parse('Data;Descrição;Valor\n02/03/2025;A;abc')).toThrow(/Linha 2/)
