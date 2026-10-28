@@ -2,6 +2,16 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## 0.7.0
+
+### Novidades
+- **Compras e vendas pela Pluggy**: a sincronização do Open Finance traz as operações de ações, FIIs, ETFs e BDRs das corretoras conectadas. A importação da B3 continua; o que já existe não duplica (a comparação é pela quantidade do dia), as operações da B3 ganham as taxas e o IR retido que a Pluggy informa, e a nota em PDF ou à mão continua mandando. Configurações › Open Finance mostra o resumo por corretora.
+- **Busca do aportado na Binance** mostra o progresso enquanto lê e, no fim, quantas compras achou em cada fonte e o que ficou sem histórico.
+
+### Correções
+- Banco sem investimentos na Pluggy não derruba a sincronização dos outros.
+- Editar uma nota em PDF não deixa nota duplicada se algo falhar no meio.
+
 ## 0.6.0
 
 O app agora funciona do mesmo jeito para qualquer pessoa, não só para quem tem os mesmos bancos e corretoras.
