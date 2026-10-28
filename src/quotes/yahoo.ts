@@ -4,7 +4,6 @@ import { normalizeTicker } from '../domain/ledger'
 import type { Cents } from '../domain/types'
 import { parseBRL } from '../import/parse'
 
-export const MANUAL_QUOTE_SYMBOLS = { dolar: 'BRL=X', BTC: 'BTC-BRL', ETH: 'ETH-BRL' }
 export const REFRESH_MS = 15 * 60 * 1000
 
 // Sem o User-Agent de navegador o Yahoo às vezes responde 429.

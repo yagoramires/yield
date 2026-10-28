@@ -2,6 +2,26 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## 0.4.0
+
+### Novidades
+- **Renda fixa da B3**: importe a **Posição** da Área do Investidor junto com a Movimentação e a Carteira mostra cada título (Tesouro, CDB, LCI/LCA…) com aplicado, valor de hoje e rendimento; os vencidos ficam em "ver encerrados". A renda fixa entra no patrimônio, no resultado e nas classes do Resumo.
+- **Juros da renda fixa** aparecem em Proventos e no gráfico por mês como "Juros RF", e contam na renda passiva — sem entrar na declaração de IR nem no imposto.
+- **Binance**: com uma chave só de leitura (Configurações › Binance), o Yield lê os saldos de cripto, inclusive do Simple Earn. O aportado de cada moeda você informa na Carteira.
+- **Ações do exterior**: novo tipo de ativo manual "Exterior (US$)", por ticker, quantidade e aportado em dólar (opcional), convertido pelo dólar do dia, com o rendimento em US$. O ativo "Dólar" já vem com a cotação certa.
+- **Olhinho nos resumos**: um botão esconde todos os valores em reais das duas telas de Resumo.
+
+### Melhorias
+- **Importação da Movimentação da B3** mais esperta:
+  - **Leilão de Fração** vira venda automática (a fração sai da posição e entra na apuração do imposto).
+  - **Resgate** vai para revisão com a explicação: pode ser liquidação do fundo (venda) ou a parte em dinheiro de uma incorporação (não é venda).
+  - **Atualização** que bate com a sua posição é só conferida e não aparece mais para revisar; a que não bate diz por quê — "B3: X, Yield: Y" ou, logo depois de uma subscrição exercida, "provável crédito de subscrição: lance a compra em Notas com o preço pago".
+  - **Fração em Ativos** e as linhas de direitos/recibos de subscrição deixam de aparecer como pendência.
+- **Keychain pede menos**: as credenciais (Pluggy e Binance) ficam num item só, então cada versão nova pede a senha do Keychain uma vez, e não uma por credencial. Os itens antigos são migrados sozinhos na primeira abertura.
+- **Cripto pelo par em dólar**: o Yahoo deixou de ter os pares em real (BTC-BRL); a cotação agora é o par em dólar × o dólar do dia.
+- **Listas suspensas no visual do app** (no lugar do menu do sistema), com teclado (↑ ↓ Enter Esc), e campos de texto com o mesmo acabamento de borda e foco.
+- **Campo de data novo** em todos os formulários: digita direto (as barras entram sozinhas) ou escolhe num calendário em português, com setas de mês e de ano, "Hoje" e "Limpar". O campo do sistema mostrava a data de hoje em cinza com o campo vazio e dava "informe uma data válida".
+
 ## 0.3.0
 
 ### Novidades

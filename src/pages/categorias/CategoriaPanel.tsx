@@ -6,6 +6,7 @@ import { categoryLook, COLOR_CHOICES, ICON_CHOICES, IconGlyph } from '../../ui/C
 import { errText } from '../lancamentos/GastosHeader'
 import { deleteImpact, validateCategoryName } from './build'
 import { AddRule, plural, RuleList } from './RegrasPanel'
+import { Select } from '../../ui/Select'
 
 
 /** Coluna direita ao editar (`category`) ou criar (`null`) uma categoria. Esc ou Cancelar volta para as regras. */
@@ -78,10 +79,7 @@ export function CategoriaPanel({ category, onClose }: { category: Category | nul
         <div className="panel-foot danger-zone">
           {moving.length === 0 ? <div>Apagar <b>{category.name}</b>? Ela não tem compras escolhidas à mão, regras nem orçamento.</div> : (
             <div>Apagar <b>{category.name}</b>? {moving.join(', ').replace(/, ([^,]*)$/, ' e $1')} {moving.length > 1 || !moving[0].startsWith('1 ') ? 'vão' : 'vai'} para{' '}
-              <select className="in" aria-label="Mover para" value={moveTo} onChange={e => setMoveTo(e.target.value)}>
-                {data.categories.filter(c => c.id !== category.id).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                <option value="">Sem categoria</option>
-              </select>
+              <Select small ariaLabel="Mover para" value={moveTo} onChange={setMoveTo} options={[...data.categories.filter(c => c.id !== category.id).map(c => ({ value: c.id, label: c.name })), { value: '', label: 'Sem categoria' }]} />
               {!moveTo && <div className="muted">Sem categoria: as compras voltam para a categoria automática e as linhas do orçamento ficam sem categoria.</div>}
             </div>
           )}

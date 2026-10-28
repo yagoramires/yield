@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { buildEvent, emptyEvent, type EventForm as Form } from './build'
 import type { NewCorporateEvent } from '../../domain/types'
+import { DateField } from '../../ui/DateField'
+import { Select } from '../../ui/Select'
 
 export const EVENT_LABEL: Record<NewCorporateEvent['kind'], string> = { bonificacao: 'Bonificação', desdobramento: 'Desdobramento', grupamento: 'Grupamento', mudanca_ticker: 'Mudança de ticker' }
 
@@ -16,11 +18,10 @@ export function EventForm({ onSave, onCancel }: { onSave(e: NewCorporateEvent): 
     <div className="card">
       <b style={{ color: '#fff' }}>Novo evento corporativo</b>
       <div className="row" style={{ margin: '10px 0' }}>
-        <label className="field"><span>Evento</span>
-          <select className="in" value={f.kind} onChange={e => setF({ ...f, kind: e.target.value as Form['kind'] })}>
-            {Object.entries(EVENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        <div className="field"><span>Evento</span>
+          <Select ariaLabel="Evento" value={f.kind} onChange={v => setF({ ...f, kind: v as Form['kind'] })} options={Object.entries(EVENT_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
         <label className="field"><span>Ativo</span><input className="in" autoFocus style={{ width: 90 }} value={f.ticker} onChange={e => setF({ ...f, ticker: e.target.value.toUpperCase() })} /></label>
-        <label className="field"><span>Data</span><input className="in" type="date" value={f.date} onChange={e => setF({ ...f, date: e.target.value })} /></label>
+        <div className="field"><span>Data</span><DateField ariaLabel="Data do evento" value={f.date} onChange={v => setF({ ...f, date: v })} /></div>
         {f.kind === 'mudanca_ticker' ? (
           <label className="field"><span>Novo ticker</span><input className="in" style={{ width: 90 }} value={f.newTicker} onChange={e => setF({ ...f, newTicker: e.target.value.toUpperCase() })} /></label>
         ) : (

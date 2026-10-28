@@ -1,10 +1,13 @@
 import { read, utils } from 'xlsx'
 import type { Db } from '../db/client'
-import { saveEvent, saveNote, upsertDividends } from '../db/repo'
+import { loadAll, saveEvent, saveNote, upsertDividends, type Dataset } from '../db/repo'
+import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
-import { normalizeTicker } from '../domain/ledger'
+import { normalizeTicker, replay } from '../domain/ledger'
+import { formatCents } from '../domain/money'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
+import { isRendaFixa, parsePosicao, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
 
 export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents }
 export interface B3Import {
@@ -13,12 +16,18 @@ export interface B3Import {
   dividends: Omit<Dividend, 'id'>[]
   events: (NewCorporateEvent & { sourceKey: string })[]
   ignored: number
-  toReview: { date: ISODate; movimentacao: string; produto: string }[]
+  toReview: { date: ISODate; movimentacao: string; produto: string; nota?: string }[]
+  checks: { date: ISODate; ticker: string; qty: number; produto: string }[] // "Atualização": a B3 reafirmando a posição inteira
+  // "Leilão de Fração": a B3 vendeu a fração e pagou, então vira venda
+  sales: { kind: 'Leilão de Fração'; date: ISODate; ticker: string; qty: number; valueCents: Cents; broker: string; produto: string }[]
+  subscriptions: { base: string; date: ISODate }[] // subscrição exercida: explica uma "Atualização" que credita cotas
+  rfMoves: Omit<RfMove, 'id'>[] // renda fixa da Movimentação (Tesouro, CDB…)
+  rfPositions: RfPosition[] // valor de hoje de cada título, do relatório Posição
 }
 
 type Cell = string | number | boolean | null
 const PROVENTOS: Record<string, DividendKind> = { Rendimento: 'Rendimento', Dividendo: 'Dividendo', 'Juros Sobre Capital Próprio': 'JCP' }
-const REVISAR = ['Atualização', 'Amortização', 'Leilão de Fração', 'Incorporação', 'Fração em Ativos', 'Cisão']
+const REVISAR = ['Amortização', 'Incorporação', 'Cisão']
 const text = (v: Cell | undefined) => (v == null ? '' : String(v).trim())
 const str = (v: Cell | undefined) => (typeof v === 'number' ? v : text(v))
 const columns = (rows: Cell[][]) => new Map(rows[0]?.map((h, i) => [text(h), i]))
@@ -54,6 +63,15 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
     const qty = parseQty(str(qtyCell))
     const sign = /^d/i.test(text(get('Entrada/Saída'))) ? -1 : 1
 
+    if (isRendaFixa(produto)) {
+      const kind = rfMoveKind(mov, sign > 0)
+      const value = parseBRL(str(valueCell))
+      if (!kind) out.toReview.push({ date, movimentacao: mov, produto, nota: 'movimentação de renda fixa que o Yield não conhece' })
+      // "VENCIMENTO" vem com valor 0: a B3 não informa quanto foi resgatado
+      else out.rfMoves.push({ key: rfKey(produto), product: produto, date, kind, qty, valueCents: value > 0 ? value : null, sourceKey: uniqueKey(seen, `b3rf:${date}:${mov}:${produto}:${inst}:${text(qtyCell)}:${text(valueCell)}`) })
+      continue
+    }
+
     const amountCents = PROVENTOS[mov] ? parseBRL(str(valueCell)) : 0
     // Provento sem valor ou Grupamento a crédito (sinal não confirmado num extrato real) vão para revisão.
     if ((PROVENTOS[mov] && amountCents <= 0) || (mov === 'Grupamento' && sign > 0)) {
@@ -64,10 +82,22 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
       out.events.push({ kind: 'bonificacao', ticker, date, qtyDelta: qty, unitCostCents: null, sourceKey })
     } else if (mov === 'Desdobro' || mov === 'Grupamento') {
       out.events.push({ kind: mov === 'Desdobro' ? 'desdobramento' : 'grupamento', ticker, date, qtyDelta: sign * qty, sourceKey })
+    } else if (mov === 'Atualização') {
+      out.checks.push({ date, ticker, qty, produto })
+    } else if (mov === 'Resgate') {
+      // liquidação do fundo (venda) ou parte em dinheiro de uma incorporação (não é venda): só o usuário sabe
+      out.toReview.push({ date, movimentacao: mov, produto, nota: `R$ ${formatCents(parseBRL(str(valueCell)))}: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento` })
+    } else if (mov === 'Leilão de Fração') {
+      const valueCents = parseBRL(str(valueCell))
+      if (qty > 0 && valueCents > 0) out.sales.push({ kind: mov, date, ticker, qty, valueCents, broker: normalizeBroker(inst), produto })
+      else out.toReview.push({ date, movimentacao: mov, produto }) // sem quantidade ou valor não dá para lançar a venda
     } else if (REVISAR.includes(mov)) {
       out.toReview.push({ date, movimentacao: mov, produto })
     } else {
-      out.ignored++ // a liquidação das compras e vendas: elas entram pelo relatório de Negociação ou pelas notas
+      // liquidação das compras e vendas (entram pela Negociação ou pelas notas), "Fração em Ativos" (quem tira a fração é a venda do leilão),
+      // direitos e recibos de subscrição (as cotas chegam depois, numa "Atualização")
+      if (/^(Direitos de Subscrição - Exercido|Recibo de Subscrição|Solicitação de Subscrição)$/.test(mov)) out.subscriptions.push({ base: ticker.slice(0, 4), date })
+      out.ignored++
     }
   }
 }
@@ -109,12 +139,18 @@ function parseProventos(rows: Cell[][], out: B3Import) {
   }
 }
 
-/** Lê os relatórios da Área do Investidor: Movimentação, Negociação ou Proventos Recebidos (reconhecidos pelo cabeçalho). */
-export function parseB3(data: ArrayBuffer): B3Import {
+const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+
+/** Lê os relatórios da Área do Investidor: Movimentação, Negociação, Proventos Recebidos (pelo cabeçalho) ou Posição (pelas abas). */
+export function parseB3(data: ArrayBuffer, fileName = '', today: ISODate = localToday()): B3Import {
   const wb = read(data, { cellDates: false })
+  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [], rfMoves: [], rfPositions: [] }
+  if (wb.SheetNames.includes('Tesouro Direto') || wb.SheetNames.includes('Renda Fixa')) {
+    out.rfPositions = parsePosicao(wb, posicaoDate(fileName) ?? today)
+    return out
+  }
   const rows = utils.sheet_to_json<Cell[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false })
   const header = new Set(rows[0]?.map(text))
-  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [] }
   if (header.has('Código de Negociação')) parseNegociacao(rows, out)
   else if (header.has('Tipo de Evento')) parseProventos(rows, out)
   else if (header.has('Movimentação')) parseMovimentacao(rows, out)
@@ -168,5 +204,41 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
   const applied: B3Import['events'] = []
   let eventsSkipped = 0
   for (const e of p.events) ('skipped' in (await saveEvent(db, e)) ? eventsSkipped++ : applied.push(e))
-  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped }
+
+  // Com tudo gravado: o leilão de fração vira venda da fração e a "Atualização" confere a posição (pela liquidação, como a custódia).
+  const review: B3Import['toReview'] = []
+  // carrega só se houver leilão ou Atualização, e de novo só depois de gravar uma venda
+  let ds: Dataset | null = null
+  const positionAt = async (date: ISODate, ticker: string) => {
+    const all = (ds ??= await loadAll(db))
+    return replay(all.trades.filter(t => t.settleDate <= date), all.events.filter(e => e.date <= date)).positions.find(x => x.ticker === ticker)?.qty ?? 0
+  }
+  let sales = 0
+  for (const a of p.sales) {
+    const sourceKey = `b3leilao:${a.date}:${a.ticker}:${a.qty}`
+    if ((await db.select('SELECT 1 FROM notes WHERE source_key = ?', [sourceKey])).length) continue
+    const have = await positionAt(a.date, a.ticker)
+    if (have <= 1e-9) { review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: 'o Yield não tem essa posição' }); continue }
+    const qty = Math.min(a.qty, have)
+    const [known] = await db.select<{ assetType: AssetType }>('SELECT asset_type AS assetType FROM trades WHERE ticker = ? LIMIT 1', [a.ticker])
+    await saveNote(db, { number: `Leilão ${a.date}`, broker: a.broker, tradeDate: a.date, settleDate: a.date, source: 'sem_nota', sourceKey, label: 'Leilão de fração da B3' },
+      [{ seq: 1, side: 'V', assetType: known?.assetType ?? types.get(a.ticker) ?? assetTypeOf(a.ticker), ticker: a.ticker, qty, priceCents: Math.round(a.valueCents / a.qty), feesCents: 0, irrfCents: 0 }])
+    ds = null
+    sales++
+  }
+  const daysBetween = (a: ISODate, b: ISODate) => (Date.parse(a) - Date.parse(b)) / 86_400_000
+  let checked = 0
+  for (const c of p.checks) {
+    const have = await positionAt(c.date, c.ticker)
+    if (Math.abs(have - c.qty) < 1e-6) checked++
+    else {
+      // a B3 usa "Atualização" tanto para reafirmar a posição quanto para creditar cotas de uma subscrição exercida
+      const sub = p.subscriptions.some(x => x.base === c.ticker.slice(0, 4) && daysBetween(c.date, x.date) >= 0 && daysBetween(c.date, x.date) <= 90)
+      const q = (x: number) => String(Math.round(x * 1e6) / 1e6).replace('.', ',')
+      review.push({ date: c.date, movimentacao: 'Atualização', produto: c.produto, nota: sub ? `provável crédito de subscrição (+${q(c.qty)}): lance a compra em Notas com o preço pago` : `B3: ${q(c.qty)}, Yield: ${q(have)}` })
+    }
+  }
+  const rfMoves = await upsertRfMoves(db, p.rfMoves)
+  const rfPositions = await upsertRfPositions(db, p.rfPositions)
+  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped, sales, checked, review, rfMoves, rfPositions }
 }

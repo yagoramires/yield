@@ -9,6 +9,7 @@ import { backupPasswordError, refreshLine, restoreBackup } from './configuracoes
 import { AtualizacaoCard } from '../ui/Atualizacao'
 import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
+import { Binance } from './configuracoes/Binance'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -169,6 +170,7 @@ export function Configuracoes() {
       </div>
       <div style={{ marginTop: 12 }}><FontesRenda /></div>
       <OpenFinance />
+      <Binance />
       <Contas />
     </>
   )

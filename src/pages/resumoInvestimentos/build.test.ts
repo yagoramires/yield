@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Dividend, Trade } from '../../domain/types'
-import { dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './build'
+import { classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './build'
 
 const trade = (o: Partial<Trade>): Trade => ({
   id: 't', noteId: 'n', seq: 1, broker: 'X', tradeDate: '2026-01-10', settleDate: '2026-01-12', side: 'C', assetType: 'Ação',
@@ -50,10 +50,26 @@ describe('topPositions', () => {
       totalValueCents: 100_000,
     } as unknown as Portfolio
     expect(topPositions(p, 5)).toEqual([
-      { name: 'CDB Teste', cls: 'Renda fixa', valueCents: 70_000, pct: 0.7, varPct: null, manual: true },
-      { name: 'AAAA3', cls: 'Ação', valueCents: 30_000, pct: 0.3, varPct: 0.1, manual: false },
+      { name: 'CDB Teste', cls: 'Renda fixa', clsKey: 'renda_fixa', valueCents: 70_000, pct: 0.7, varPct: null, manual: true },
+      { name: 'AAAA3', cls: 'Ação', clsKey: 'Ação', valueCents: 30_000, pct: 0.3, varPct: 0.1, manual: false },
     ])
     expect(topPositions(p, 1)).toHaveLength(1)
+  })
+
+  it('inclui títulos de renda fixa abertos e saldos de cripto', () => {
+    const p = {
+      rows: [], manual: [], totalValueCents: 100_000,
+      rf: [
+        { name: 'Tesouro Prefixado 2099', closed: false, valueCents: 60_000, gainPct: 0.05 },
+        { name: 'CDB Encerrado', closed: true, valueCents: 0, gainPct: 0.1 },
+      ],
+      crypto: [{ asset: 'BTC', qty: 0.1, valueCents: 40_000, costCents: null }],
+    } as unknown as Portfolio
+    expect(topPositions(p, 5)).toEqual([
+      { name: 'Tesouro Prefixado 2099', cls: 'Renda fixa', clsKey: 'renda_fixa', valueCents: 60_000, pct: 0.6, varPct: 0.05, manual: false },
+      { name: 'BTC', cls: 'Cripto', clsKey: 'cripto', valueCents: 40_000, pct: 0.4, varPct: null, manual: false },
+    ])
+    expect(classLabel('exterior')).toBe('Exterior')
   })
 })
 

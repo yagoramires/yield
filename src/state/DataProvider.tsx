@@ -5,6 +5,7 @@ import { loadAll, type Dataset } from '../db/repo'
 import { computeDarfs, type DarfResult } from '../domain/darf'
 import { replay, type ReplayResult } from '../domain/ledger'
 import { buildPortfolio, type Portfolio } from '../domain/portfolio'
+import { rfHoldings } from '../domain/rendaFixa'
 import { computeTax, type TaxMonth } from '../domain/tax'
 import { REFRESH_MS, refreshQuotes, yahooSymbol } from '../quotes/yahoo'
 import { monthOf } from '../domain/money'
@@ -14,6 +15,10 @@ import { pairTransfers, type TransferLink } from '../domain/transferencias'
 import { detectSubscriptions, type Subscription } from '../domain/assinaturas'
 import type { Month } from '../domain/types'
 import { getPluggyCredentials } from '../openfinance/secrets'
+import { fetchBinanceBalances } from '../cripto/binance'
+import { getBinanceCredentials } from '../cripto/secrets'
+import { saveCryptoBalances } from '../db/rendaFixaRepo'
+import { binanceErrorText } from '../pages/configuracoes/build'
 import { syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
@@ -50,6 +55,7 @@ export interface AppData {
   lastRefresh: { at: string; ok: string[]; failed: string[] } | null
   gastos: Gastos
   orcamento: Orcamento
+  binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void }
 }
 
 const Ctx = createContext<AppData | null>(null)
@@ -74,6 +80,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [gastosData, setGastosData] = useState<GastosData | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [lastSyncResult, setLastSyncResult] = useState<SyncResult | null>(null)
+  const [binance, setBinance] = useState<{ syncing: boolean; error: string | null; earnSkipped: boolean }>({ syncing: false, error: null, earnSkipped: false })
   const [month, setMonth] = useState<Month>(monthOf(todayISO()))
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
   const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
@@ -110,6 +117,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     syncingRef.current = false; setSyncing(false)
   }, [])
 
+  // Saldos da Binance: só leitura; erro fica no aviso do card Cripto e os últimos saldos continuam guardados.
+  const syncBinance = useCallback(async () => {
+    const d = dbRef.current
+    if (!d) return
+    setBinance(b => ({ ...b, syncing: true }))
+    try {
+      const creds = await getBinanceCredentials()
+      if (!creds) return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false })
+      const r = await fetchBinanceBalances(creds, tauriFetch as typeof fetch)
+      await saveCryptoBalances(d, r.balances, new Date().toISOString())
+      setData(await loadAll(d))
+      setBinance({ syncing: false, error: null, earnSkipped: r.earnSkipped })
+    } catch (e) { setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
+  }, [])
+
   // Falha de cotação nunca derruba a tela: só deixa as cotações antigas.
   const refreshQuotesNow = useCallback(async () => {
     const d = dbRef.current
@@ -118,7 +140,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const ds = await loadAll(d)
       const { positions } = replay(ds.trades, ds.events)
-      const symbols = new Set([...positions.filter(p => p.qty > 0).map(p => yahooSymbol(p.ticker)), ...ds.manualAssets.flatMap(a => (a.quoteSymbol ? [a.quoteSymbol] : []))])
+      const symbols = new Set([...positions.filter(p => p.qty > 0).map(p => yahooSymbol(p.ticker)), ...ds.manualAssets.flatMap(a => (a.quoteSymbol ? [a.quoteSymbol] : [])),
+        // exterior é cotado em US$ e convertido pelo dólar do dia; cripto da Binance pela cotação em real
+        ...(ds.manualAssets.some(a => a.currency === 'USD') || ds.cryptoBalances.some(c => c.qty > 0) ? ['BRL=X'] : []), ...ds.cryptoBalances.flatMap(c => (c.qty > 0 && c.asset !== 'BRL' ? [`${c.asset}-USD`] : []))])
       setLastRefresh({ at: new Date().toISOString(), ...(await refreshQuotes(d, [...symbols], tauriFetch as typeof fetch)) })
       setData(await loadAll(d))
     } catch { /* offline ou Yahoo fora do ar */ }
@@ -136,7 +160,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setDb(d)
         const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
         setData(ds); setGastosData(g); setOrcData(o)
-        void refreshQuotesNow()
+        // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
+        void (ds.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
         if (needsSync(g, Date.now())) {
           getPluggyCredentials().then(
             c => { if (c && !cancelled) void syncNow(c) },
@@ -149,7 +174,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     })()
     return () => { cancelled = true; if (timer) clearInterval(timer) }
-  }, [refreshQuotesNow, syncNow])
+  }, [refreshQuotesNow, syncNow, syncBinance])
 
   const derived = useMemo(() => {
     if (!data) return null
@@ -157,7 +182,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const today = todayISO()
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
     const tax = computeTax(rp.sales, rp.warnings, firstSale, monthOf(today))
-    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today) }
+    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today, { rf: rfHoldings(data.rfMoves, data.rfPositions), crypto: data.cryptoBalances }) }
   }, [data])
 
   // Separado do derived de investimentos: trocar mês ou filtro não refaz o replay.
@@ -180,8 +205,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
       orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
+      binance: { ...binance, syncNow: syncBinance, reset: () => setBinance({ syncing: false, error: null, earnSkipped: false }) },
     }
-  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento])
+  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance])
 
   if (error) return <main className="main"><h1>Yield</h1><div className="note">{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>

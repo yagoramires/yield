@@ -1,9 +1,10 @@
 import { ArrowDownRight, ArrowUpRight, CircleHelp, PiggyBank, Target } from 'lucide-react'
 import { monthTotals } from '../domain/gastos'
-import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
+import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
 import { BarChart, LineChart } from '../ui/charts'
+import { EyeToggle, useHideValues } from '../ui/HideValues'
 import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
 import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
@@ -13,6 +14,8 @@ import { monthProgress, spendingPlan } from './orcamento/build'
 export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
   const { gastos, orcamento } = useData()
   const { data, categorize: cat, month, setMonth, setFilter, subscriptions } = gastos
+  const { hidden, toggle, brl, cents, short } = useHideValues()
+  const eye = <EyeToggle hidden={hidden} toggle={toggle} />
   if (!data.txns.length) return <><GastosHeader title="Resumo" /><GastosVazio onOpenSettings={onOpenSettings} /></>
 
   const today = todayISO()
@@ -51,27 +54,27 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
 
   return (
     <>
-      <GastosHeader title="Resumo" />
+      <GastosHeader title="Resumo" actions={eye} />
       {sem && sem.cents > 0 && (
         <div className="sem-alert" style={{ marginTop: 12 }}><CircleHelp size={15} aria-hidden />
-          <span>{formatBRL(sem.cents)} em {semCount === 1 ? '1 compra' : `${semCount} compras`} sem categoria — os números ficam mais certos depois de categorizar</span>
+          <span>{brl(sem.cents)} em {semCount === 1 ? '1 compra' : `${semCount} compras`} sem categoria — os números ficam mais certos depois de categorizar</span>
           <button className="link" onClick={() => open({ categoryId: 'sem' })}>Categorizar</button>
         </div>
       )}
       <div className="kpis">
-        <div className="k"><div className="muted k-l"><ArrowDownRight size={12} aria-hidden />Gasto no mês</div><div className="v">{formatBRL(totals.spentCents)}</div>
-          <div className="s muted">{diff === 0 ? `igual a ${prevName}` : <><span className={diff > 0 ? 'dn' : 'up'}>{diff > 0 ? '▲' : '▼'} {formatBRL(Math.abs(diff))}</span> a {diff > 0 ? 'mais' : 'menos'} que {prevName}</>} até o dia {cmp.day}</div></div>
-        <div className="k"><div className="muted k-l"><ArrowUpRight size={12} aria-hidden />Entradas</div><div className="v up">{formatBRL(totals.incomeCents)}</div><div className="s muted">receita do mês</div></div>
-        <div className="k"><div className="muted k-l"><PiggyBank size={12} aria-hidden />Sobrou</div><div className={`v ${left < 0 ? 'dn' : ''}`}>{formatBRL(left)}</div>
+        <div className="k"><div className="muted k-l"><ArrowDownRight size={12} aria-hidden />Gasto no mês</div><div className="v">{brl(totals.spentCents)}</div>
+          <div className="s muted">{diff === 0 ? `igual a ${prevName}` : <><span className={diff > 0 ? 'dn' : 'up'}>{diff > 0 ? '▲' : '▼'} {brl(Math.abs(diff))}</span> a {diff > 0 ? 'mais' : 'menos'} que {prevName}</>} até o dia {cmp.day}</div></div>
+        <div className="k"><div className="muted k-l"><ArrowUpRight size={12} aria-hidden />Entradas</div><div className="v up">{brl(totals.incomeCents)}</div><div className="s muted">receita do mês</div></div>
+        <div className="k"><div className="muted k-l"><PiggyBank size={12} aria-hidden />Sobrou</div><div className={`v ${left < 0 ? 'dn' : ''}`}>{brl(left)}</div>
           <div className="s muted">{totals.incomeCents > 0 ? `${Math.round((left / totals.incomeCents) * 100)}% do que entrou` : 'entradas − gasto'}</div></div>
         <div className="k"><div className="muted k-l"><Target size={12} aria-hidden />Orçamento</div>
           {planned > 0 ? <>
-            <div className="v">{formatBRL(totals.spentCents)} <span className="k-of">de {formatCents(planned)}</span></div>
+            <div className="v">{brl(totals.spentCents)} <span className="k-of">de {cents(planned)}</span></div>
             <div className="meter" aria-hidden><i style={{ width: `${Math.min(100, (totals.spentCents / planned) * 100)}%`, background: totals.spentCents > planned ? 'var(--negative)' : undefined }} />{isCurrent && <b style={{ left: `${progress * 100}%` }} />}</div>
-            <div className="s muted">{forecast !== null ? <>no ritmo atual fecha em <b className={forecast > planned ? 'dn' : ''}>{formatBRL(forecast)}</b> · traço = hoje</> : totals.spentCents > planned ? `passou ${formatBRL(totals.spentCents - planned)}` : `sobraram ${formatBRL(planned - totals.spentCents)}`}</div>
+            <div className="s muted">{forecast !== null ? <>no ritmo atual fecha em <b className={forecast > planned ? 'dn' : ''}>{brl(forecast)}</b> · traço = hoje</> : totals.spentCents > planned ? `passou ${brl(totals.spentCents - planned)}` : `sobraram ${brl(planned - totals.spentCents)}`}</div>
           </> : <>
             <div className="v muted-v">sem orçamento</div>
-            <div className="s muted">{forecast !== null ? <>no ritmo atual {cur} fecha em <b>{formatBRL(forecast)}</b></> : `nenhum orçamento para ${cur}`}</div>
+            <div className="s muted">{forecast !== null ? <>no ritmo atual {cur} fecha em <b>{brl(forecast)}</b></> : `nenhum orçamento para ${cur}`}</div>
           </>}
         </div>
       </div>
@@ -85,7 +88,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
               return (
                 <button key={ch.id} className="change-chip" onClick={() => open({ categoryId: ch.id })}>
                   <CategoryIcon category={c} size={22} />{c?.name ?? ch.id}
-                  <b className={ch.deltaCents > 0 ? 'dn' : 'up'}>{ch.deltaCents > 0 ? '▲' : '▼'} {formatBRL(Math.abs(ch.deltaCents))}</b>
+                  <b className={ch.deltaCents > 0 ? 'dn' : 'up'}>{ch.deltaCents > 0 ? '▲' : '▼'} {brl(Math.abs(ch.deltaCents))}</b>
                   {ch.pct !== null && <span className="muted">{ch.pct > 0 ? '+' : '−'}{Math.round(Math.abs(ch.pct) * 100)}%</span>}
                 </button>
               )
@@ -100,8 +103,8 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
           <LineChart fill
             series={[{ label: cur, values: curShown }, { label: prevName, values: prevLine, dashed: true }]}
             xLabels={Array.from({ length: n }, (_, i) => String(i + 1))} xTicks={[0, 10, 20, n - 1]} tipTitle={i => `dia ${i + 1}`}
-            marker={isCurrent ? cmp.day - 1 : undefined} format={formatCents}
-            ariaLabel={`Gasto acumulado: ${cur} ${formatBRL(cmp.currentCents)} até o dia ${cmp.day}; ${prevName} ${formatBRL(cmp.previousSameDayCents)} no mesmo dia e ${formatBRL(prevLine[prevLine.length - 1])} no fim do mês`} />
+            marker={isCurrent ? cmp.day - 1 : undefined} format={cents} tickFormat={short}
+            ariaLabel={`Gasto acumulado: ${cur} ${brl(cmp.currentCents)} até o dia ${cmp.day}; ${prevName} ${brl(cmp.previousSameDayCents)} no mesmo dia e ${brl(prevLine[prevLine.length - 1])} no fim do mês`} />
         </div>
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Por categoria</h5><span className="muted">clique para ver os lançamentos</span></div>
@@ -118,7 +121,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
                     <span className="lmid"><span className="sum-name">{b.label}</span>
                       <span className="tile-bar"><i style={{ width: `${info.pct}%`, background: info.over ? 'var(--negative)' : categoryLook(look).color }} /></span>
                       <span className={`sum-cap ${info.over ? 'dn' : ''}`}>{b.categoryId === 'sem' ? `${semCount} ${semCount === 1 ? 'compra' : 'compras'}` : info.caption}</span></span>
-                    <span className="sum-val">{formatCents(b.cents)}</span>
+                    <span className="sum-val">{cents(b.cents)}</span>
                   </button>
                 )
               })}
@@ -130,7 +133,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
       <div className="grid2" style={{ marginTop: 12 }}>
         <div className="card stretch">
           <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5><span className="muted">clique num mês para ver o resumo dele{months.some(m => plannedFor(m.month) > 0) ? ' · traço = orçamento' : ''}{months.some(m => m.month === thisMonth) ? ` · ${monthName(thisMonth).toLowerCase()} até hoje (listrado)` : ''}</span></div>
-          <BarChart fill format={formatBRL} selected={months.some(m => m.month === month) ? months.findIndex(m => m.month === month) : null} onSelect={i => setMonth(months[i].month)} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.cents)}`).join('; ')}`}
+          <BarChart fill format={brl} valueLabel={short} selected={months.some(m => m.month === month) ? months.findIndex(m => m.month === month) : null} onSelect={i => setMonth(months[i].month)} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${brl(m.cents)}`).join('; ')}`}
             bars={months.map(m => {
               const partial = m.month === thisMonth
               const target = plannedFor(m.month) || undefined
@@ -147,7 +150,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
                   <button key={t.id} className="sum-row" onClick={() => open({ search: t.description })}>
                     <CategoryIcon category={c} size={28} />
                     <span className="lmid"><span className="sum-name" title={t.description}>{cleanDescription(t.description).name}</span><span className="muted">{c?.name ?? 'Sem categoria'} · {brDay(t.date)}{t.pending ? ' · pendente' : ''}</span></span>
-                    <span className="sum-val">−{formatCents(-t.amountCents)}</span>
+                    <span className="sum-val">−{cents(-t.amountCents)}</span>
                   </button>
                 )
               })}
@@ -155,7 +158,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
           )}
           {soon.length > 0 && <>
             <div className="bar" style={{ marginTop: 12 }}><h5 style={{ margin: 0 }}>Próximas cobranças</h5><button className="link muted" onClick={onOpenAssinaturas}>assinaturas</button></div>
-            <NextCharges list={soon} today={today} three />
+            <NextCharges list={soon} today={today} three format={cents} />
           </>}
         </div>
       </div>
