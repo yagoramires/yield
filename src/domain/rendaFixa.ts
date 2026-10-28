@@ -22,30 +22,35 @@ function nameOf(product: string, fromPosicao: boolean): string {
 export function rfHoldings(moves: RfMove[], positions: RfPosition[]): RfHolding[] {
   const byKey = new Map<string, RfMove[]>()
   for (const m of [...moves].sort((a, b) => a.date.localeCompare(b.date))) byKey.set(m.key, [...(byKey.get(m.key) ?? []), m])
-  const posByKey = new Map(positions.map(p => [p.key, p]))
+  // só a Posição mais recente vale: título que não está nela foi vendido ou venceu
+  const latest = positions.reduce((m, p) => (p.asOf > m ? p.asOf : m), '')
+  const posByKey = new Map(positions.filter(p => p.asOf === latest).map(p => [p.key, p]))
   const keys = [...new Set([...byKey.keys(), ...posByKey.keys()])]
 
   const list = keys.map(key => {
     const ms = byKey.get(key) ?? []
     const pos = posByKey.get(key)
-    let qty = 0, applied = 0, invested = 0, received = 0, unknownReceived = false
+    let qty = 0, applied = 0, invested = 0, received = 0, unknownReceived = false, oversold = false
     for (const m of ms) {
       if (m.kind === 'aplicacao') { qty += m.qty; applied += m.valueCents ?? 0; invested += m.valueCents ?? 0 }
       else if (m.kind === 'juros') received += m.valueCents ?? 0
       else {
+        if (m.qty > qty + 1e-6) oversold = true // saiu mais do que entrou no período: faltam compras antigas
         applied -= qty > 0 ? Math.round(applied * Math.min(1, m.qty / qty)) : 0
         qty = Math.max(0, qty - m.qty)
         if (m.valueCents === null) unknownReceived = true
         else received += m.valueCents
       }
     }
-    const hasBuys = ms.some(m => m.kind === 'aplicacao')
+    // a Movimentação só cobre parte do histórico se a quantidade não bate com a da Posição: aí vale o aplicado da Posição
+    const hasBuys = ms.some(m => m.kind === 'aplicacao') && !(pos && Math.abs(pos.qty - qty) > 1e-4)
     // fora da Posição mais recente: encerrado se acabou numa saída ou sem quantidade; senão falta uma Posição nova
     const closed = !pos && (qty <= 1e-9 || ms.at(-1)?.kind === 'saida')
     const valueCents = pos ? pos.valueCents : closed ? 0 : null
     const investedCents = hasBuys ? invested : pos?.appliedCents ?? null
     const appliedCents = closed ? 0 : hasBuys ? applied : pos?.appliedCents ?? null
-    const gainCents = valueCents === null || investedCents === null || unknownReceived ? null : valueCents + received - investedCents
+    const partial = !hasBuys || oversold
+    const gainCents = valueCents === null || investedCents === null || unknownReceived || (closed && oversold) ? null : valueCents + (partial ? 0 : received) - investedCents
     return {
       key, name: pos ? nameOf(pos.product, true) : nameOf(ms[0].product, false), issuer: pos?.issuer ?? null, indexer: pos?.indexer ?? null, maturity: pos?.maturity ?? null,
       qty: pos?.qty ?? qty, appliedCents, investedCents, receivedCents: received, valueCents, gainCents,

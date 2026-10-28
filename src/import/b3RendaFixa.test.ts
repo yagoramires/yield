@@ -71,3 +71,9 @@ test('reimportar não duplica a renda fixa', async () => {
   expect((await importB3(db, parseB3(POS, 'posicao-2026-10-01.xlsx'))).rfPositions).toEqual({ updated: 0, older: 3 })
   expect((await loadAll(db)).rfMoves).toHaveLength(7)
 })
+
+test('mesmo Tesouro em duas corretoras na Posição: soma as linhas', () => {
+  const p = parseB3(makePosicao([[TD, INST, 'X', 'Prefixado', '01/01/2099', 1, 1, 0, '-', 500, 560, 550, 555.55], [TD, 'OUTRA CORRETORA', 'X', 'Prefixado', '01/01/2099', 2, 2, 0, '-', 1000, 1100, 1090, 1111.1]], []), 'posicao-2026-10-27.xlsx')
+  expect(p.rfPositions).toHaveLength(1)
+  expect(p.rfPositions[0]).toMatchObject({ qty: 3, appliedCents: 150000, valueCents: 166665 })
+})

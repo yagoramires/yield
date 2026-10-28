@@ -1,3 +1,4 @@
+import { describe } from 'vitest'
 import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
 import { rfHoldings, rfJurosByMonth } from './rendaFixa'
 
@@ -51,4 +52,25 @@ test('juros por mês, com os meses vazios', () => {
 test('fora da Posição e terminando numa saída: encerrado mesmo com quantidade diferente', () => {
   const [h] = rfHoldings([mv(CDB, 'aplicacao', 3, 30000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 1, 33000, '2026-01-01', CDB_PROD)], [])
   expect(h).toMatchObject({ closed: true, valueCents: 0, appliedCents: 0, gainCents: 3000, needsNewerPosicao: false })
+})
+
+describe('revisão final', () => {
+  test('título que sumiu da Posição mais recente não fica aberto com o valor antigo', () => {
+    const list = rfHoldings([mv(CDB, 'aplicacao', 1, 1_000_000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 1, null, '2026-03-01', CDB_PROD)],
+      [pos(CDB, 1_000_000, { family: 'rf', asOf: '2026-01-31' }), pos(TD, 5000, { asOf: '2026-04-30' })])
+    expect(list.find(h => h.key === CDB)).toMatchObject({ closed: true, valueCents: 0 })
+  })
+
+  test('Movimentação sem o começo do histórico não inventa rendimento', () => {
+    // 10 cotas compradas antes do período, 1 dentro; a Posição tem 11
+    const [h] = rfHoldings([mv(TD, 'aplicacao', 1, 100_000)], [pos(TD, 1_300_000, { qty: 11, appliedCents: 1_100_000 })])
+    expect(h).toMatchObject({ investedCents: 1_100_000, appliedCents: 1_100_000, gainCents: 200_000 })
+    const [cdb] = rfHoldings([mv(CDB, 'aplicacao', 1, 100_000, '2025-01-01', CDB_PROD)], [pos(CDB, 1_300_000, { family: 'rf', qty: 11 })])
+    expect(cdb).toMatchObject({ investedCents: null, gainCents: null })
+  })
+
+  test('resgate maior que o comprado no período: encerrado sem rendimento', () => {
+    const [h] = rfHoldings([mv(CDB, 'aplicacao', 1, 30_000, '2025-01-01', CDB_PROD), mv(CDB, 'saida', 3, 99_000, '2026-01-01', CDB_PROD)], [])
+    expect(h).toMatchObject({ closed: true, gainCents: null })
+  })
 })

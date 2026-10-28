@@ -56,10 +56,9 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 
   // Mesmas definições da Carteira, para as duas telas nunca divergirem.
   const quoted = p.rows.filter(r => r.valueCents !== null)
-  // renda variável cotada + títulos de renda fixa abertos com rendimento conhecido
-  const openRf = p.rf.filter(h => !h.closed && h.gainCents !== null)
-  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.rfGainCents
-  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + openRf.reduce((s, h) => s + (h.investedCents ?? 0), 0)
+  // renda variável cotada + renda fixa e cripto com rendimento conhecido
+  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.otherGainCents
+  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + p.otherCostCents
   const avg12 = Math.round(p.dividends12mCents / 12)
 
   const due = darfs.rows.filter(r => r.status === 'a_vencer' || r.status === 'em_aberto' || r.status === 'pago_a_menor')

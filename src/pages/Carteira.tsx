@@ -48,9 +48,9 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
   const lastQuote = yahooTimes[yahooTimes.length - 1]
 
   const quoted = p.rows.filter(r => r.valueCents !== null)
-  // mesmas contas do Resumo: renda variável cotada + títulos abertos com rendimento conhecido
-  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.rfGainCents
-  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + p.rf.filter(h => !h.closed && h.gainCents !== null).reduce((s, h) => s + (h.investedCents ?? 0), 0)
+  // mesmas contas do Resumo: renda variável cotada + renda fixa e cripto com rendimento conhecido
+  const varTotal = quoted.reduce((s, r) => s + (r.varCents ?? 0), 0) + p.otherGainCents
+  const costQuoted = quoted.reduce((s, r) => s + r.costCents, 0) + p.otherCostCents
   // o mesmo dinheiro pode estar num ativo manual antigo e agora vir da B3 / Binance
   const dupRf = p.rf.some(h => !h.closed) ? data.manualAssets.filter(a => a.assetClass === 'renda_fixa') : []
   const dupCripto = p.crypto.length ? data.manualAssets.filter(a => a.assetClass === 'cripto') : []

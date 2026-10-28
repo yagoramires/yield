@@ -34,7 +34,8 @@ async function signedGet(path: string, creds: Creds, fetchFn: typeof fetch, now:
 const num = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? Number(v) : NaN)
 
 /**
- * Saldos da conta spot + Simple Earn. "LD<moeda>" no spot é o espelho do Earn flexível: fica de fora para não contar duas vezes.
+ * Saldos da conta spot + Simple Earn. "LD<moeda>" no spot é o espelho do Earn flexível: sai só quando o Earn de <moeda> foi lido
+ * (LDO é uma moeda de verdade; sem o Earn, o espelho é a única pista do saldo).
  * Sem permissão para o Earn a chave ainda serve: `earnSkipped` avisa a tela.
  */
 export async function fetchBinanceBalances(creds: Creds, fetchFn: typeof fetch, now: () => number = Date.now): Promise<{ balances: { asset: string; qty: number }[]; earnSkipped: boolean }> {
@@ -45,14 +46,21 @@ export async function fetchBinanceBalances(creds: Creds, fetchFn: typeof fetch, 
 
   const total = new Map<string, number>()
   const add = (asset: unknown, qty: number) => { if (typeof asset === 'string' && qty > 0) total.set(asset, (total.get(asset) ?? 0) + qty) }
-  for (const b of body.balances) if (!/^LD/.test(b?.asset)) add(b?.asset, num(b?.free) + num(b?.locked))
 
   let earnSkipped = false
+  const inFlexible = new Set<string>()
   for (const path of EARN) {
     const r = await signedGet(path, creds, fetchFn, now)
     const rows = r.ok ? (await r.json().catch(() => null))?.rows : null
     if (!Array.isArray(rows)) { earnSkipped = true; continue }
-    for (const row of rows) add(row?.asset, num(row?.totalAmount ?? row?.amount))
+    for (const row of rows) {
+      add(row?.asset, num(row?.totalAmount ?? row?.amount))
+      if (path === EARN[0] && typeof row?.asset === 'string') inFlexible.add(row.asset)
+    }
+  }
+  for (const b of body.balances) {
+    const asset = String(b?.asset ?? '')
+    if (!(asset.startsWith('LD') && inFlexible.has(asset.slice(2)))) add(asset, num(b?.free) + num(b?.locked))
   }
   return { balances: [...total].map(([asset, qty]) => ({ asset, qty })), earnSkipped }
 }
