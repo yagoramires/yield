@@ -48,10 +48,10 @@ describe('renda fixa e cripto no banco', () => {
 
   test('ativo manual do exterior guarda a moeda; os antigos são em real', async () => {
     const db = createTestDb()
-    await saveManualAsset(db, { name: 'ZZZZ', assetClass: 'exterior', currency: 'USD', quoteSymbol: 'ZZZZ', quantity: 2, valueCents: null, updatedAt: '2026-10-27', sourceKey: null })
+    await saveManualAsset(db, { name: 'ZZZZ', assetClass: 'exterior', currency: 'USD', costCents: 9000, quoteSymbol: 'ZZZZ', quantity: 2, valueCents: null, updatedAt: '2026-10-27', sourceKey: null })
     await db.execute("INSERT INTO manual_assets (id, name, asset_class, updated_at) VALUES ('velho', 'Tesouro à mão', 'renda_fixa', '2026-01-01')")
     const list = (await loadAll(db)).manualAssets
-    expect(list.find(a => a.name === 'ZZZZ')).toMatchObject({ assetClass: 'exterior', currency: 'USD', quantity: 2 })
+    expect(list.find(a => a.name === 'ZZZZ')).toMatchObject({ assetClass: 'exterior', currency: 'USD', quantity: 2, costCents: 9000 })
     expect(list.find(a => a.id === 'velho')?.currency).toBe('BRL')
   })
 })
@@ -64,6 +64,6 @@ describe('migração 009', () => {
     d.exec("INSERT INTO manual_assets (id, name, asset_class, quote_symbol, quantity, updated_at, source_key) VALUES ('m1', 'BTC à mão', 'cripto', 'BTC-BRL', 0.1, '2026-01-01', 'k1')")
     d.close()
     const migrado = createTestDb(path)
-    expect((await loadAll(migrado)).manualAssets).toEqual([{ id: 'm1', name: 'BTC à mão', assetClass: 'cripto', currency: 'BRL', quoteSymbol: 'BTC-BRL', quantity: 0.1, valueCents: null, updatedAt: '2026-01-01', sourceKey: 'k1' }])
+    expect((await loadAll(migrado)).manualAssets).toEqual([{ id: 'm1', name: 'BTC à mão', assetClass: 'cripto', currency: 'BRL', costCents: null, quoteSymbol: 'BTC-BRL', quantity: 0.1, valueCents: null, updatedAt: '2026-01-01', sourceKey: 'k1' }])
   })
 })

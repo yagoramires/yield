@@ -4,7 +4,7 @@ import { normalizeBroker } from '../import/parse'
 import type { Db } from './client'
 import { loadCryptoBalances, loadRfMoves, loadRfPositions, type CryptoBalance, type RfMove, type RfPosition } from './rendaFixaRepo'
 
-export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'exterior' | 'outro'; currency: 'BRL' | 'USD' /* USD: cotação em dólar × BRL=X */; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate; sourceKey: string | null }
+export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'exterior' | 'outro'; currency: 'BRL' | 'USD' /* USD: cotação em dólar × BRL=X */; costCents: Cents | null /* aportado, na moeda do ativo */; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate; sourceKey: string | null }
 export interface Note { id: string; number: string; broker: string; tradeDate: ISODate; settleDate: ISODate; source: 'manual' | 'pdf' | 'planilha' | 'sem_nota'; sourceKey: string | null; label: string | null }
 export interface Quote { symbol: string /* sempre yahooSymbol(ticker), ex. 'ITSA4.SA' */; priceCents: Cents; fetchedAt: string; source: 'yahoo' | 'manual' /* manual prevalece e nunca é sobrescrita */ }
 export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[]; rfMoves: RfMove[]; rfPositions: RfPosition[]; cryptoBalances: CryptoBalance[] }
@@ -23,7 +23,7 @@ export async function loadAll(db: Db): Promise<Dataset> {
     db.select<Dividend>('SELECT id, ticker, kind, pay_date AS payDate, amount_cents AS amountCents, broker, source, source_key AS sourceKey FROM dividends ORDER BY pay_date, id'),
     db.select<DarfPayment>('SELECT month, paid_at AS paidAt, principal_cents AS principalCents, total_paid_cents AS totalPaidCents FROM darf_payments ORDER BY month'),
     db.select<Quote>('SELECT symbol, price_cents AS priceCents, fetched_at AS fetchedAt, source FROM quotes ORDER BY symbol'),
-    db.select<ManualAsset>('SELECT id, name, asset_class AS assetClass, currency, quote_symbol AS quoteSymbol, quantity, value_cents AS valueCents, updated_at AS updatedAt, source_key AS sourceKey FROM manual_assets ORDER BY name'),
+    db.select<ManualAsset>('SELECT id, name, asset_class AS assetClass, currency, cost_cents AS costCents, quote_symbol AS quoteSymbol, quantity, value_cents AS valueCents, updated_at AS updatedAt, source_key AS sourceKey FROM manual_assets ORDER BY name'),
     loadRfMoves(db), loadRfPositions(db), loadCryptoBalances(db),
   ])
   return {
@@ -153,8 +153,8 @@ export async function saveManualAsset(db: Db, a: Omit<ManualAsset, 'id'> & { id?
   if (!a.id && a.sourceKey && (await db.select('SELECT 1 FROM manual_assets WHERE source_key = ?', [a.sourceKey])).length) return { skipped: 'duplicada' }
   const id = a.id ?? crypto.randomUUID()
   await db.execute(
-    'INSERT OR REPLACE INTO manual_assets (id, name, asset_class, currency, quote_symbol, quantity, value_cents, updated_at, source_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    [id, a.name, a.assetClass, a.currency, a.quoteSymbol, a.quantity, a.valueCents, a.updatedAt, a.sourceKey],
+    'INSERT OR REPLACE INTO manual_assets (id, name, asset_class, currency, cost_cents, quote_symbol, quantity, value_cents, updated_at, source_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, a.name, a.assetClass, a.currency, a.costCents, a.quoteSymbol, a.quantity, a.valueCents, a.updatedAt, a.sourceKey],
   )
   return id
 }
