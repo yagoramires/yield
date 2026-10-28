@@ -2,6 +2,14 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## Próxima versão
+
+### Melhorias
+- **Importação da Movimentação da B3** mais esperta:
+  - **Leilão de Fração** e **Resgate** viram venda automática (a fração ou as cotas saem da posição e entram na apuração do imposto).
+  - **Atualização** que bate com a sua posição é só conferida e não aparece mais para revisar; a que não bate diz por quê — "B3: X, Yield: Y" ou, logo depois de uma subscrição exercida, "provável crédito de subscrição: lance a compra em Notas com o preço pago".
+  - **Fração em Ativos** e as linhas de direitos/recibos de subscrição deixam de aparecer como pendência.
+
 ## 0.3.0
 
 ### Novidades
