@@ -44,7 +44,9 @@ export function typesToConfirm(p: B3Import, existing: Trade[], dividends: Pick<D
     return !k ? null : k.has('Dividendo') || k.has('JCP') ? 'Ação' : 'FII'
   }
   const out = { ask: [] as TickerType[], inferred: [] as TickerType[] }
+  const given = new Map(p.trades.flatMap(t => (t.assetType ? [[t.ticker, t.assetType] as const] : [])))
   for (const ticker of [...new Set(p.trades.map(t => t.ticker))].filter(t => !known.has(t) && /11$/.test(t)).sort()) {
+    if (given.has(ticker)) { out.inferred.push({ ticker, type: given.get(ticker)! }); continue }
     const type = (p.names[ticker] && typeFromName(p.names[ticker])) || byKind(ticker)
     if (type) out.inferred.push({ ticker, type })
     else out.ask.push({ ticker, type: kinds.size ? 'ETF' : 'FII' })

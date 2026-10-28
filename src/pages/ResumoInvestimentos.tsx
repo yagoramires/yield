@@ -66,8 +66,10 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
   const nextDue = due.find(r => r.status !== 'pago_a_menor' && r.dueDate)
   const incomplete = darfs.rows.filter(r => r.incomplete)
 
-  const invested = investedByMonth(data.trades, data.events, thisMonth, 24)
-  const rfApplied = rfAppliedByMonth(data.rfMoves, thisMonth, 24)
+  // ETF de renda fixa sai da linha da bolsa e soma na da renda fixa
+  const invested = investedByMonth(data.trades.filter(t => t.assetType !== 'ETF RF'), data.events, thisMonth, 24)
+  const etfRf = investedByMonth(data.trades.filter(t => t.assetType === 'ETF RF'), data.events, thisMonth, 24)
+  const rfApplied = rfAppliedByMonth(data.rfMoves, thisMonth, 24).map((m, i) => ({ ...m, cents: m.cents + etfRf[i].cents }))
   const hasRf = rfApplied.some(m => m.cents > 0)
   const allQuoted = p.totalValueCents > 0 && p.missingQuotes.length === 0
   // o ponto de hoje é o patrimônio inteiro (inclui exterior, cripto e dólar, que não têm histórico)

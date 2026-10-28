@@ -4,10 +4,10 @@ import type { Portfolio } from '../../domain/portfolio'
 import type { Cents, CorporateEvent, Dividend, DividendKind, Month, Trade } from '../../domain/types'
 import { BOLSA, carteiraClasses } from '../carteira/build'
 
-const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior', outro: 'Outros' }
+const CLASS_LABEL: Record<string, string> = { 'ETF RF': 'ETF de renda fixa', renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior', outro: 'Outros' }
 export const classLabel = (c: string) => CLASS_LABEL[c] ?? c
 // Cor fixa por classe (barra empilhada, bolinhas e o quadradinho do ticker), igual no Resumo e na Declaração.
-const CLASS_COLOR: Record<string, string> = { Ação: '#5fb3ff', FII: '#c79bff', ETF: '#f5d76e', BDR: '#ff9f5a', renda_fixa: '#4fd1a5', cripto: '#ff8fd0', dolar: '#6fdc8c', exterior: '#7fd3e6', outro: '#9a9da6' }
+const CLASS_COLOR: Record<string, string> = { Ação: '#5fb3ff', FII: '#c79bff', ETF: '#f5d76e', BDR: '#ff9f5a', renda_fixa: '#4fd1a5', 'ETF RF': '#4fd1a5', cripto: '#ff8fd0', dolar: '#6fdc8c', exterior: '#7fd3e6', outro: '#9a9da6' }
 export const classColor = (c: string) => CLASS_COLOR[c] ?? '#9a9da6'
 
 const lastN = (lastMonth: Month, n: number) => Array.from({ length: n }, (_, i) => addMonths(lastMonth, i - n + 1))

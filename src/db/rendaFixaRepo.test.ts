@@ -67,3 +67,13 @@ describe('migração 009', () => {
     expect((await loadAll(migrado)).manualAssets).toEqual([{ id: 'm1', name: 'BTC à mão', assetClass: 'cripto', currency: 'BRL', costCents: null, quoteSymbol: 'BTC-BRL', quantity: 0.1, valueCents: null, updatedAt: '2026-01-01', sourceKey: 'k1' }])
   })
 })
+
+describe('migração 011', () => {
+  test('trades aceita ETF de renda fixa e mantém as operações antigas', async () => {
+    const db = createTestDb()
+    await db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source) VALUES ('n', '1', 'CLEAR', '2026-01-05', '2026-01-07', 'manual')")
+    await db.execute("INSERT INTO trades (id, note_id, seq, side, asset_type, ticker, qty, price_cents, fees_cents, irrf_cents) VALUES ('t', 'n', 1, 'C', 'ETF RF', 'ABCD11', 3, 10000, 0, 0)")
+    expect((await loadAll(db)).trades[0]).toMatchObject({ assetType: 'ETF RF', ticker: 'ABCD11' })
+    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('11')
+  })
+})

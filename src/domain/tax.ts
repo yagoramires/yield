@@ -32,8 +32,9 @@ export function computeTax(sales: Sale[], warnings: Warning[], from: Month, to: 
   const out: TaxMonth[] = []
   for (const month of monthsBetween(from, to)) {
     const prev = out[out.length - 1]
-    const sold = sales.filter((x) => monthOf(x.tradeDate) === month)
-    const settled = sales.filter((x) => monthOf(x.settleDate) === month)
+    // ETF de renda fixa: o imposto é retido na fonte (tabela regressiva), não entra no DARF
+    const sold = sales.filter((x) => monthOf(x.tradeDate) === month && x.assetType !== 'ETF RF')
+    const settled = sales.filter((x) => monthOf(x.settleDate) === month && x.assetType !== 'ETF RF')
     const comum = (x: Sale) => x.assetType !== 'FII'
     const acoes = sold.filter((x) => x.assetType === 'Ação')
     const stockSalesCents = sum(acoes.map((x) => x.alienationCents))

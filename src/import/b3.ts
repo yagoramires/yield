@@ -1,6 +1,6 @@
 import { read, utils } from 'xlsx'
 import type { Db } from '../db/client'
-import { loadAll, saveEvent, saveNote, upsertDividends, type Dataset } from '../db/repo'
+import { addTrades, loadAll, saveEvent, saveNote, upsertDividends, type Dataset } from '../db/repo'
 import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
 import { normalizeTicker, replay } from '../domain/ledger'
@@ -9,7 +9,7 @@ import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEve
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 import { isRendaFixa, parsePosicao, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
 
-export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents }
+export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents; assetType?: AssetType /* só quando o relatório já diz o tipo */ }
 export interface B3Import {
   trades: B3Trade[]
   names: Record<string, string> // ticker → nome do produto, para deduzir o tipo
@@ -114,7 +114,10 @@ function parseNegociacao(rows: Cell[][], out: B3Import) {
     const ticker = normalizeTicker(codigo)
     const mercado = text(get('Mercado'))
     // Renda fixa, opções, termo e direitos de subscrição (12–15) não entram na carteira de renda variável.
-    if (!['Mercado à Vista', 'Mercado Fracionário'].includes(mercado)) out.toReview.push({ date, movimentacao: `${tipo} em ${mercado}`, produto: codigo })
+    // ETF de renda fixa (IMAB11…) vem no mercado "Renda Fixa", mas é cota negociada em bolsa
+    const etfRf = mercado === 'Renda Fixa' && /^[A-Z]{4}11$/.test(ticker) && !text(get('Prazo/Vencimento')).replace('-', '')
+    if (etfRf) out.trades.push({ date, broker: normalizeBroker(text(get('Instituição'))), side: tipo === 'Venda' ? 'V' : 'C', ticker, qty: parseQty(str(get('Quantidade'))), priceCents: parseBRL(str(get('Preço'))), assetType: 'ETF RF' })
+    else if (!['Mercado à Vista', 'Mercado Fracionário'].includes(mercado)) out.toReview.push({ date, movimentacao: `${tipo} em ${mercado}`, produto: codigo })
     else if (text(get('Prazo/Vencimento')).replace('-', '') || /1[2-5]$/.test(ticker)) out.toReview.push({ date, movimentacao: `${tipo} com vencimento`, produto: codigo })
     else out.trades.push({ date, broker: normalizeBroker(text(get('Instituição'))), side: tipo === 'Venda' ? 'V' : 'C', ticker, qty: parseQty(str(get('Quantidade'))), priceCents: parseBRL(str(get('Preço'))) })
   }
@@ -194,9 +197,26 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
       else fresh.push(t)
     }
     if (!fresh.length) continue
+    const typeOf = (t: B3Trade) => t.assetType ?? types.get(t.ticker) ?? assetTypeOf(t.ticker)
+    // dia já importado: completa a nota com o que uma Negociação mais nova trouxe a mais (ex. ETF de renda fixa)
+    const [day] = await db.select<{ id: string }>('SELECT id FROM notes WHERE source_key = ?', [`b3neg:${date}:${broker}`])
+    if (day) {
+      const pool = await db.select<{ ticker: string; side: string; qty: number; priceCents: number; seq: number }>('SELECT ticker, side, qty, price_cents AS priceCents, seq FROM trades WHERE note_id = ?', [day.id])
+      const maxSeq = Math.max(0, ...pool.map(h => h.seq))
+      const missing = fresh.filter(t => {
+        const i = pool.findIndex(h => h.ticker === t.ticker && h.side === t.side && h.qty === t.qty && h.priceCents === t.priceCents)
+        if (i < 0) return true
+        pool.splice(i, 1)
+        return false
+      })
+      if (!missing.length) { notesSkipped++; continue }
+      await addTrades(db, day.id, missing.map((t, i) => ({ seq: maxSeq + i + 1, side: t.side, assetType: typeOf(t), ticker: t.ticker, qty: t.qty, priceCents: t.priceCents, feesCents: 0, irrfCents: 0 })))
+      trades += missing.length
+      continue
+    }
     const r = await saveNote(db,
       { number: `B3 ${date}`, broker, tradeDate: date, settleDate: settleDate(date), source: 'sem_nota', sourceKey: `b3neg:${date}:${broker}`, label: 'Negociação da B3 (sem taxas)' },
-      fresh.map((t, i) => ({ seq: i + 1, side: t.side, assetType: types.get(t.ticker) ?? assetTypeOf(t.ticker), ticker: t.ticker, qty: t.qty, priceCents: t.priceCents, feesCents: 0, irrfCents: 0 })))
+      fresh.map((t, i) => ({ seq: i + 1, side: t.side, assetType: typeOf(t), ticker: t.ticker, qty: t.qty, priceCents: t.priceCents, feesCents: 0, irrfCents: 0 })))
     if ('skipped' in r) notesSkipped++
     else { notes++; trades += fresh.length }
   }

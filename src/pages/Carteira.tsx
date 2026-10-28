@@ -123,7 +123,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
   const panel = (k: ClassKey) => {
     if (BOLSA.includes(k) || (k === 'outro' && p.rows.some(r => !r.assetType)))
       return <>{[...p.rows].filter(r => (r.assetType ?? 'outro') === k).sort((a, b) => (b.valueCents ?? -1) - (a.valueCents ?? -1)).map(stockRow)}{k === 'outro' && manualOf(k)}</>
-    if (k === 'renda_fixa') return <><RendaFixa list={p.rf} onOpenSettings={onOpenSettings} />{manualOf(k)}</>
+    if (k === 'renda_fixa') return <>{p.rows.filter(r => r.assetType === 'ETF RF').map(stockRow)}<RendaFixa list={p.rf} onOpenSettings={onOpenSettings} />{manualOf(k)}</>
     if (k === 'cripto') return <><Cripto rows={p.crypto} onOpenSettings={onOpenSettings} />{manualOf(k)}</>
     return <>{manualOf(k)}{k === 'exterior' && data.manualAssets.some(a => a.currency === 'USD' && a.costCents !== null) && <div className="muted pos-empty">O rendimento do exterior é em dólar; no patrimônio e no resultado em reais, o aportado em US$ é convertido pelo dólar de hoje (sem a variação do câmbio).</div>}</>
   }

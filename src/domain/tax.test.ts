@@ -23,6 +23,13 @@ describe('computeTax', () => {
     expect(m.comum.exemptProfitCents).toBe(300_000)
     expect(m.comum.taxDueCents).toBe(0)
   })
+  test('ETF de renda fixa fica fora da apuração (imposto retido na fonte)', () => {
+    const [m] = run([s({ date: '2024-03-10', type: 'ETF RF', gross: 5_000_000, result: 1_000_000 })], '2024-03', '2024-03')
+    expect(m.stockSalesCents).toBe(0)
+    expect(m.comum.baseCents).toBe(0)
+    expect(m.comum.taxPayableCents).toBe(0)
+  })
+
   test('acima de 20 mil: 15% sobre o lucro', () => {
     const [m] = run([s({ date: '2024-03-10', gross: 2_500_000, result: 300_000 })], '2024-03', '2024-03')
     expect(m.comum.exemptProfitCents).toBe(0)
