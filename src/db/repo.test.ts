@@ -107,7 +107,7 @@ describe('eventos, pagamentos, cotações, manuais, aliases', () => {
     expect((await loadAll(db)).quotes).toEqual([])
   })
   test('ativos manuais: sourceKey repetido é ignorado; id existente atualiza', async () => {
-    const base = { name: 'CDB', assetClass: 'renda_fixa' as const, quoteSymbol: null, quantity: null, valueCents: 5000, updatedAt: '2024-01-01', sourceKey: 'pl:cdb' }
+    const base = { name: 'CDB', assetClass: 'renda_fixa' as const, currency: 'BRL' as const, quoteSymbol: null, quantity: null, valueCents: 5000, updatedAt: '2024-01-01', sourceKey: 'pl:cdb' }
     const id = await saveManualAsset(db, base)
     expect(typeof id).toBe('string')
     expect(await saveManualAsset(db, base)).toEqual({ skipped: 'duplicada' })

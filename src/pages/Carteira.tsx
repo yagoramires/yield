@@ -68,7 +68,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
     if (!symbol && value === null) return setFormError('Informe o valor ou um símbolo de cotação com quantidade.')
     setFormError(null)
     await run(async () => {
-      await saveManualAsset(db, { id: form.id, name: form.name.trim(), assetClass: form.assetClass, quoteSymbol: symbol, quantity: qty, valueCents: value, updatedAt: today(), sourceKey: form.sourceKey })
+      await saveManualAsset(db, { id: form.id, name: form.name.trim(), assetClass: form.assetClass, currency: form.assetClass === 'exterior' ? 'USD' : 'BRL', quoteSymbol: symbol, quantity: qty, valueCents: value, updatedAt: today(), sourceKey: form.sourceKey })
       setForm(null)
     })
   }
