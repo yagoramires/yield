@@ -72,7 +72,7 @@ export function Notas() {
         </div>
       </div>
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: panel ? 'minmax(320px, 2fr) 3fr' : '1fr', gap: 14, marginTop: 12, alignItems: 'start' }}>
+      <div className={`notes-layout${panel ? ' split' : ''}`}>
         <div>
           <div className="row" style={{ marginBottom: 8 }}>
             <button className={`chip ${view === 'notas' ? 'on' : ''}`} onClick={() => setView('notas')}>Notas</button>
@@ -80,7 +80,7 @@ export function Notas() {
           </div>
           {view === 'notas' ? (
             notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe o PDF da Clear ou a Negociação da B3 em Configurações.</div> : (
-              <table>
+              <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
                 <thead><tr><th>Pregão</th><th>Nº</th><th>Corretora</th><th>Itens</th><th className="r">Líquido</th><th /></tr></thead>
                 <tbody>
                   {notes.map(n => {
@@ -98,10 +98,10 @@ export function Notas() {
                     )
                   })}
                 </tbody>
-              </table>
+              </table></div>
             )
           ) : events.length === 0 ? <div className="info">Nenhum evento corporativo.</div> : (
-            <table>
+            <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
               <thead><tr><th>Data</th><th>Evento</th><th>Ativo</th><th className="r">Qtd</th><th>Origem</th><th /></tr></thead>
               <tbody>
                 {events.map(e => {
@@ -123,7 +123,7 @@ export function Notas() {
                   )
                 })}
               </tbody>
-            </table>
+            </table></div>
           )}
         </div>
         {panel?.t === 'nota' && <NoteForm key={panel.editing?.id ?? panel.mode} mode={panel.mode} editing={panel.editing} initial={panel.initial} onSave={saveBuilt} onCancel={() => setPanel(null)} />}

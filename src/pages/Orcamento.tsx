@@ -255,7 +255,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           open('entrada', s ? { sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s)) } : {})
         }}>+ Entrada</button></div>
         <div className="muted" style={{ marginTop: 2 }}>Uma entrada pode usar uma fonte de renda (o valor acompanha a fonte) ou ser um valor avulso.</div>
-        <table className="lt" style={{ marginTop: 6 }}>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="lt" style={{ marginTop: 6 }}>
           <thead><tr><th>Nome</th><th className="r">Valor</th><th></th></tr></thead>
           <tbody>
             {entradas.length === 0 && !(form?.kind === 'entrada' && !form.id) && <tr><td colSpan={3} className="muted">Nenhuma entrada neste mês.</td></tr>}
@@ -277,13 +277,13 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             })}
             {form?.kind === 'entrada' && !form.id && entradaForm(form)}
           </tbody>
-        </table>
+        </table></div>
         {del?.kind === 'entrada' && confirmDel(del)}
       </div>
 
       <div className="card" style={{ marginTop: 12 }}>
         <div className="bar"><h5 style={{ margin: 0 }}>Saídas</h5><button className="b ghost" disabled={busy} onClick={() => open('saida')}>+ Saída</button></div>
-        <table className="lt" style={{ marginTop: 6 }}>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table className="lt" style={{ marginTop: 6 }}>
           <thead><tr><th>Nome</th><th>Categoria</th><th className="r">Valor</th><th></th></tr></thead>
           <tbody>
             {saidas.length === 0 && !(form?.kind === 'saida' && !form.id) && <tr><td colSpan={4} className="muted">Nenhuma saída neste mês.</td></tr>}
@@ -297,7 +297,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             ))}
             {form?.kind === 'saida' && !form.id && saidaForm(form)}
           </tbody>
-        </table>
+        </table></div>
         {del?.kind === 'saida' && confirmDel(del)}
       </div>
     </>

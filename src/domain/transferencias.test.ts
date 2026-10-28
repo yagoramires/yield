@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Txn } from '../db/gastosRepo'
-import { mentionsOwner, pairTransfers, validOwnerNames } from './transferencias'
+import { ownerMention, pairTransfers, validOwnerNames } from './transferencias'
 
 const acc = (id: string, kind: Account['kind'] = 'conta'): Account => ({ id, source: 'pluggy', externalId: id, institution: id, name: id, kind, number: null, itemId: null, lastSyncAt: null })
 const accounts = [acc('nu'), acc('itau'), acc('inter'), acc('cartao', 'cartao')]
@@ -40,15 +40,19 @@ describe('pairTransfers', () => {
 })
 
 describe('nome do titular', () => {
-  it('acha o nome na descrição sem acento nem caixa', () => {
-    expect(mentionsOwner('Transferência enviada pelo Pix - ANA TESTE DE SOUZA', ['Ana Teste'])).toBe(true)
-    expect(mentionsOwner('PIX RECEBIDO JOÃO SILVA', ['Ana Teste', 'João Silva'])).toBe(true)
-    expect(mentionsOwner('PIX ENVIADO BRUNO', ['Ana Teste'])).toBe(false)
-    expect(mentionsOwner('qualquer coisa', [])).toBe(false)
+  it('acha o nome na descrição sem acento nem caixa e separa você da sua empresa', () => {
+    const me = ['Ana Teste Souza']
+    expect(ownerMention('Transferência enviada pelo Pix - ANA TESTE SOUZA', me)).toBe('pessoa')
+    expect(ownerMention('Pix recebido de Ana Teste Souza', me)).toBe('pessoa')
+    expect(ownerMention('Transferência Recebida|ANA TESTE SOUZA DESENVOLVIMENTO DE SOFTWARE', me)).toBe('empresa')
+    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA LTDA', me)).toBe('empresa')
+    expect(ownerMention('PIX RECEBIDO JOÃO SILVA', ['Ana Teste Souza', 'João Silva'])).toBe('pessoa')
+    expect(ownerMention('PIX ENVIADO ANA', me)).toBeNull()
+    expect(ownerMention('qualquer coisa', [])).toBeNull()
   })
   it('validOwnerNames separa por vírgula e exige nome e sobrenome', () => {
     expect(validOwnerNames('Ana Teste,  ANA T S ')).toEqual({ names: ['Ana Teste', 'ANA T S'] })
     expect(validOwnerNames('')).toEqual({ names: [] })
-    expect(validOwnerNames('o usuário')).toEqual({ error: 'Use nome e sobrenome em cada variação ("o usuário" é curto demais e pegaria Pix de outras pessoas).' })
+    expect(validOwnerNames('Ana')).toEqual({ error: 'Use nome e sobrenome em cada variação ("Ana" é curto demais e pegaria Pix de outras pessoas).' })
   })
 })

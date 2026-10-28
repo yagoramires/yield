@@ -100,7 +100,7 @@ export function FontesRenda() {
       <div className="bar"><b style={{ color: '#fff' }}>Fontes de renda</b><button className="b ghost" disabled={busy} onClick={() => open(null)}>+ Fonte de renda</button></div>
       <div className="muted" style={{ margin: '4px 0 8px' }}>As entradas do orçamento podem usar uma fonte. Mudar uma fonte recalcula este mês e os próximos; meses que já passaram ficam como estão.</div>
       {sources.length === 0 ? <div className="muted">Nenhuma fonte ainda.</div> : (
-        <table>
+        <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
           <thead><tr><th>Fonte</th><th>Tipo</th><th className="r">Bruto</th><th className="r">Líquido/mês</th><th></th></tr></thead>
           <tbody>
             {sources.map(s => (
@@ -113,7 +113,7 @@ export function FontesRenda() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
       {del && (
         <div className="note" style={{ marginTop: 10 }}>

@@ -1,6 +1,6 @@
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
 import { pluggyCategoryId } from './categoriasPluggy'
-import { mentionsOwner } from './transferencias'
+import { ownerMention } from './transferencias'
 import type { Cents, ISODate, Month } from './types'
 
 export function normalizeDescription(s: string): string {
@@ -45,7 +45,10 @@ export function categorize(t: Txn, account: Account, rules: CategoryRule[], over
     .sort((a, b) => b.pattern.length - a.pattern.length)[0]
   if (matched) return byId(matched.categoryId)
 
-  if (ctx.paired || (account.kind === 'conta' && ctx.ownerNames?.length && mentionsOwner(t.description, ctx.ownerNames))) return byId('transferencia')
+  if (ctx.paired) return byId('transferencia')
+  const owner = account.kind === 'conta' && ctx.ownerNames?.length ? ownerMention(t.description, ctx.ownerNames) : null
+  if (owner === 'pessoa') return byId('transferencia')
+  if (owner === 'empresa' && t.amountCents > 0) return byId('receita')
 
   if (t.operationType === 'PAGAMENTO_FATURA' || (account.kind === 'conta' && FATURA_NA_CONTA.test(desc))) return byId('pagamento-de-fatura')
   if (t.operationType === 'RENDIMENTO_APLIC_FINANCEIRA' || t.operationType === 'RESGATE_APLIC_FINANCEIRA') return byId('investimento')

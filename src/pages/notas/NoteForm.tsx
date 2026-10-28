@@ -43,7 +43,7 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
         {!semNota && <label className="field"><span>Liquidação</span><input className="in" type="date" value={f.settleDate} onChange={e => setF({ ...f, settleDate: e.target.value })} /></label>}
         {semNota && <label className="field"><span>Motivo</span><input className="in" autoFocus placeholder="IPO, subscrição…" value={f.label} onChange={e => setF({ ...f, label: e.target.value })} /></label>}
       </div>
-      <table>
+      <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
         <thead><tr><th>C/V</th><th>Tipo</th><th>Ticker</th><th className="r">Qtd</th><th className="r">Preço</th><th className="r">Total</th><th className="r">Taxa rateada</th><th /></tr></thead>
         <tbody>
           {f.items.map((r, i) => {
@@ -63,7 +63,7 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
           })}
           {!semNota && <tr><td colSpan={8}><button className="link t2" onClick={addItem}>+ adicionar item</button> <span className="muted">(Enter em qualquer campo também adiciona)</span></td></tr>}
         </tbody>
-      </table>
+      </table></div>
       {!semNota && (
         <>
           <h5>Taxas da nota <span className="muted">· rateadas pelo valor de cada item{editing && ' · as taxas da nota original aparecem somadas em Outros'}</span></h5>
