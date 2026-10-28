@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { NoteDraft } from '../../import/clearPdf'
+import type { NoteDraft } from '../../import/sinacorPdf'
 import { buildEvent, buildNote, draftToSave, formFromNote, noteNet, parseMoney, parsePosInt, emptyForm } from './build'
 
 const base = () => ({ ...emptyForm(), number: '8812', broker: 'clear', tradeDate: '2026-10-14', settleDate: '2026-10-16', items: [{ side: 'C' as const, assetType: 'Ação' as const, ticker: ' itsa4 ', qty: '200', price: '10,80' }] })
@@ -73,6 +73,10 @@ describe('draftToSave', () => {
   it('exige ticker e tipo', () => {
     expect(() => draftToSave(draft, [{ ticker: '', assetType: 'Ação' }])).toThrow(/ticker/)
     expect(() => draftToSave(draft, [{ ticker: 'ITSA4', assetType: '' }])).toThrow(/tipo/)
+  })
+  it('corretora que o PDF não trouxe vem da tela, normalizada', () => {
+    expect(() => draftToSave({ ...draft, broker: null }, [{ ticker: 'itsa4', assetType: 'Ação' }])).toThrow(/corretora/)
+    expect(draftToSave({ ...draft, broker: ' xp investimentos ' }, [{ ticker: 'itsa4', assetType: 'Ação' }]).note).toMatchObject({ broker: 'XP', sourceKey: 'pdf:XP:99' })
   })
 })
 

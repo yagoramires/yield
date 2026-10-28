@@ -66,7 +66,7 @@ export function Notas() {
         <h1>Notas</h1>
         <div className="btns">
           <button className="b pri" onClick={() => open('manual')}>+ Nota</button>
-          <button className="b" onClick={() => setPanel({ t: 'pdf' })}>Importar PDF da Clear</button>
+          <button className="b" onClick={() => setPanel({ t: 'pdf' })}>Importar nota em PDF</button>
           <button className="b" onClick={() => open('sem_nota')}>Operação sem nota</button>
           <button className="b" onClick={() => { setView('eventos'); setPanel({ t: 'evento' }) }}>Evento corporativo</button>
         </div>
@@ -79,7 +79,7 @@ export function Notas() {
             <button className={`chip ${view === 'eventos' ? 'on' : ''}`} onClick={() => setView('eventos')}>Eventos</button>
           </div>
           {view === 'notas' ? (
-            notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe o PDF da Clear ou a Negociação da B3 em Configurações.</div> : (
+            notes.length === 0 ? <div className="info">Nenhuma nota ainda. Lance uma nota, importe a nota em PDF ou a Negociação da B3 em Configurações.</div> : (
               <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
                 <thead><tr><th>Pregão</th><th>Nº</th><th>Corretora</th><th>Itens</th><th className="r">Líquido</th><th /></tr></thead>
                 <tbody>

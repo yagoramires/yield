@@ -4,11 +4,14 @@ import type { AssetType, Cents, ISODate, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 
 export interface NoteDraftItem { side: Side; spec: string; ticker: string | null; assetType: AssetType | null; qty: number; priceCents: Cents }
-export interface NoteDraft { number: string; broker: 'CLEAR'; tradeDate: ISODate; settleDate: ISODate | null; items: NoteDraftItem[]; fees: NoteFees }
+// broker null: o cabeçalho não trouxe razão social reconhecível; a tela pede
+export interface NoteDraft { number: string; broker: string | null; tradeDate: ISODate; settleDate: ISODate | null; items: NoteDraftItem[]; fees: NoteFees }
 
 const HEADER = /^(\d+)\s+\d+\s+(\d{2}\/\d{2}\/\d{4})$/ // linha de valores sob "Nr. nota Folha Data pregão"
 // 1-BOVESPA C VISTA <especificação> [obs] <qtd> <preço> <valor> <D/C>
 const TRADE = /^\d-BOVESPA\s+([CV])\s+\S+\s+(?:\d+\/\d+\s+)?(.+?)(?:\s+[#A-Z])?\s+(\d[\d.]*)\s+(\d[\d.]*,\d+)\s+\d[\d.]*,\d+\s+[DC]$/
+// razão social da corretora no cabeçalho (XP INVESTIMENTOS CCTVM S/A, CLEAR CORRETORA - GRUPO XP…)
+const CORP = /\b(CORRETORA|CCTVM|DTVM|CTVM|DISTRIBUIDORA|BANCO|INVESTIMENTOS)\b|\bS[./] ?A\.?$/i
 const AMOUNT = /(\d[\d.]*,\d{2})(?:\s+[DC])?\s*$/
 const FEE_LABELS: [RegExp, keyof NoteFees][] = [
   [/^Taxa de liquida[çc][ãa]o/i, 'liquidacaoCents'], [/^Taxa de registro/i, 'registroCents'],
@@ -28,9 +31,11 @@ function parseItem(m: RegExpExecArray): NoteDraftItem {
   }
 }
 
-export function parseClearNote(pages: string[]): NoteDraft[] {
+/** Nota de corretagem no padrão SINACOR (Clear, XP, Rico e outras): um PDF pode ter várias notas. */
+export function parseSinacorNote(pages: string[]): NoteDraft[] {
   const notes: NoteDraft[] = []
   let cur: NoteDraft | undefined
+  let head = false // entre o número da nota e o cliente: onde fica a razão social
   const lines = pages.join('\n').split('\n').map(l => l.trim())
   lines.forEach((line, i) => {
     const h = HEADER.exec(line)
@@ -38,11 +43,16 @@ export function parseClearNote(pages: string[]): NoteDraft[] {
       const tradeDate = parseBRDate(h[2])
       // Folha 2+ da mesma nota continua a anterior.
       if (cur?.number === h[1] && cur.tradeDate === tradeDate) return
-      cur = { number: h[1], broker: normalizeBroker('CLEAR') as 'CLEAR', tradeDate, settleDate: null, items: [], fees: noFees() }
+      head = true
+      cur = { number: h[1], broker: null, tradeDate, settleDate: null, items: [], fees: noFees() }
       notes.push(cur)
       return
     }
     if (!cur) return
+    if (head) {
+      if (/^(Cliente|Neg[óo]cios realizados)\b|^\d-BOVESPA\b/i.test(line)) head = false
+      else if (!cur.broker && CORP.test(line) && !/C\.?N\.?P\.?J/i.test(line)) { cur.broker = normalizeBroker(line); return }
+    }
     if (/^\d-BOVESPA\b/.test(line)) {
       const m = TRADE.exec(line)
       if (!m) throw new Error(`Linha de negócio não reconhecida na nota ${cur.number}: "${line}"`)

@@ -5,7 +5,7 @@ import { allocateFees, type NoteFees } from '../../domain/fees'
 import { normalizeTicker } from '../../domain/ledger'
 import { formatCents } from '../../domain/money'
 import type { AssetType, Cents, ISODate, NewCorporateEvent, Side, Trade } from '../../domain/types'
-import type { NoteDraft } from '../../import/clearPdf'
+import type { NoteDraft } from '../../import/sinacorPdf'
 import { normalizeBroker, parseBRL } from '../../import/parse'
 
 export const ASSET_TYPES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']
@@ -89,7 +89,9 @@ export function draftToSave(draft: NoteDraft, resolved: { ticker: string; assetT
     if (!Number.isSafeInteger(it.qty) || it.qty <= 0) throw new Error(`Item ${i + 1}: quantidade inválida no PDF.`)
     return { side: it.side, assetType, ticker, qty: it.qty, priceCents: it.priceCents }
   })
-  const { number, broker, tradeDate } = draft
+  const { number, tradeDate } = draft
+  const broker = normalizeBroker(draft.broker ?? '')
+  if (!broker) throw new Error('Informe a corretora da nota.')
   return { note: { number, broker, tradeDate, settleDate: draft.settleDate ?? tradeDate, source: 'pdf', sourceKey: `pdf:${broker}:${number}`, label: null }, trades: tradesFrom(items, draft.fees) }
 }
 
