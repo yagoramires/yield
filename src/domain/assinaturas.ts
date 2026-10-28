@@ -18,13 +18,17 @@ function addMonths(d: ISODate, n: number): ISODate {
 
 export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | null, dismissed: string[], today: ISODate): Subscription[] {
   const groups = new Map<string, Txn[]>()
+  const pending = new Map<string, Txn[]>()
   for (const t of txns) {
     const c = cat(t)
-    if (t.amountCents >= 0 || t.installment !== null || t.pending || (c !== null && !c.countsAsSpending)) continue
+    if (t.amountCents >= 0 || t.installment !== null || (c !== null && !c.countsAsSpending)) continue
     const norm = normalizeDescription(t.description)
     if (!norm) continue
     const key = `${t.accountId}|${norm}`
-    if (!dismissed.includes(key)) groups.set(key, [...(groups.get(key) ?? []), t])
+    if (dismissed.includes(key)) continue
+    // pendente ainda pode mudar de valor ou sumir: não entra na detecção, só mostra que o mês já foi cobrado
+    const into = t.pending ? pending : groups
+    into.set(key, [...(into.get(key) ?? []), t])
   }
   const out: Subscription[] = []
   for (const [merchantKey, g] of groups) {
@@ -39,13 +43,14 @@ export function detectSubscriptions(txns: Txn[], cat: (t: Txn) => Category | nul
     const last = g[g.length - 1]
     const amountCents = Math.abs(last.amountCents)
     const before = g.length > 1 ? Math.abs(g[g.length - 2].amountCents) : null
-    const sinceLast = Math.round((ms(today) - ms(last.date)) / DAY)
+    const charged = (pending.get(merchantKey) ?? []).filter(t => t.date > last.date && Math.abs(Math.abs(t.amountCents) - med) <= med * 0.15).map(t => t.date).sort().at(-1) ?? last.date
+    const sinceLast = Math.round((ms(today) - ms(charged)) / DAY)
     out.push({
       merchantKey, name: last.description, accountId: last.accountId, period, amountCents,
       monthlyCents: period === 'mensal' ? amountCents : Math.round(amountCents / 12),
       yearlyCents: period === 'mensal' ? amountCents * 12 : amountCents,
-      lastDate: last.date,
-      nextDate: addMonths(last.date, period === 'anual' ? 12 : 1),
+      lastDate: charged,
+      nextDate: addMonths(charged, period === 'anual' ? 12 : 1),
       active: sinceLast <= (period === 'mensal' ? 45 : 400), charges: g.length,
       previousAmountCents: before !== null && amountCents > before ? before : null,
     })
