@@ -49,6 +49,7 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
   const filtered = filterDividends(all, filter)
   const groups = groupByMonth(filtered)
   const filtering = Boolean(filter.ticker || filter.kind || filter.month)
+  const payMonths = [...new Set(data.dividends.map(d => monthOf(d.payDate)))].sort().reverse()
   const shown = showAll || filtering ? groups : groups.slice(0, 3)
   const ytdDiff = sm.ytdPrevCents ? sm.ytdCents / sm.ytdPrevCents - 1 : null
   const total = (m: (typeof months)[number]) => m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP
@@ -140,9 +141,10 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
               <h5 style={{ margin: 0, marginRight: 'auto' }}>Lançamentos</h5>
               <select className="in" aria-label="Ativo" value={filter.ticker} onChange={e => setFilter({ ...filter, ticker: e.target.value })}>
                 <option value="">Todos os ativos</option>{tickers.map(t => <option key={t}>{t}</option>)}</select>
+              <select className="in" aria-label="Mês" value={filter.month} onChange={e => { setFilter({ ...filter, month: e.target.value }); setShowAll(false) }}>
+                <option value="">Todos os meses</option>{payMonths.map(m => <option key={m} value={m}>{monthName(m)} {m.slice(0, 4)}</option>)}</select>
               <button className={`chip ${filter.kind === '' ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: '' })}>Todos</button>
               {KINDS.map(k => <button key={k} className={`chip ${filter.kind === k ? 'on' : ''}`} onClick={() => setFilter({ ...filter, kind: k })}>{k}</button>)}
-              {filter.month && <button className="chip on" onClick={() => setFilter({ ...filter, month: '' })}>{monthName(filter.month)} {filter.month.slice(0, 4)} ✕</button>}
             </div>
             {groups.length === 0 ? <div className="muted">Nenhum provento com esses filtros.</div> : (
               <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>

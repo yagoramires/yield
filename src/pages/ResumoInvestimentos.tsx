@@ -6,6 +6,7 @@ import { BarChart, LineChart } from '../ui/charts'
 import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
+import { Rentabilidade } from './resumoInvestimentos/Rentabilidade'
 import { classColor, classLabel, dividendsByMonth, investedByMonth, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 
 const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s.replace('-', '')}` : s)
@@ -107,6 +108,8 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         </div>
       )}
 
+      <Rentabilidade trades={data.trades} events={data.events} dividends={data.dividends} thisMonth={thisMonth} />
+
       <div className="grid2">
         <div className="card">
           <h5 style={{ margin: 0 }}>Aportado × valor de hoje</h5>
@@ -144,7 +147,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 
       <div className="grid2" style={{ marginTop: 12 }}>
         <div className="card">
-          <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para ver em Proventos · {monthName(thisMonth).toLowerCase()} até hoje (listrado)</span></div>
+          <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para abrir em Proventos</span></div>
           <BarChart onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP']} format={formatBRL}
             ariaLabel={`Proventos por mês: ${divs.map(m => `${monthName(m.month).toLowerCase()} ${formatBRL(m.byKind.Rendimento + m.byKind.Dividendo + m.byKind.JCP)}`).join('; ')}`}
             bars={divs.map(m => ({

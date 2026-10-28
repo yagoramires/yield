@@ -13,10 +13,12 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 - **Salário CLT** nas fontes de renda: INSS e IRRF de 2026 calculados pelo app (com a isenção até R$ 5 mil da Lei 15.270), dependentes e outros descontos. O líquido vira a entrada do orçamento.
 - **Categorias** de cara nova: grade com o gasto do mês, a variação contra o mês anterior e a barra do orçamento; ícone e cor escolhidos por você; prévia do que uma regra pega antes de criar; sugestões de regra a partir do que você categoriza à mão; apagar uma categoria move as compras, regras e linhas do orçamento para outra.
 - **Resumo de gastos**: orçamento do mês com a projeção "no ritmo atual fecha em…", o que mais mudou contra o mês anterior, categorias com ícone e barra do orçamento, traço do orçamento no gasto por mês e as próximas assinaturas.
-- **Resumo de investimentos**: quanto da sua renda passiva já cobre o gasto médio, rendimento sobre o custo, classes com o ganho de cada uma e clique no mês dos proventos abrindo Proventos filtrado.
+- **Resumo de investimentos**: rentabilidade da carteira em 12 meses contra o **CDI** e o **Ibovespa** (com proventos, sem contar aportes como ganho); quanto da sua renda passiva já cobre o gasto médio, rendimento sobre o custo, classes com o ganho de cada uma e clique no mês dos proventos abrindo Proventos filtrado.
 
 ### Melhorias
 - Ícones de verdade em todo o app (categorias, botões, avisos).
+- Menu do macOS em português, com **Procurar atualizações…**.
+- Proventos: filtro por mês na lista de lançamentos; dica dos gráficos de barras sem as linhas zeradas.
 
 ### Atenção
 - Esta versão atualiza o banco (esquemas 6, 7 e 8). Backups feitos em versões anteriores não podem ser importados nela — exporte um backup novo depois de atualizar.

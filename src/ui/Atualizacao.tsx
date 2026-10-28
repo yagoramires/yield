@@ -1,7 +1,8 @@
 import { getVersion } from '@tauri-apps/api/app'
+import { listen } from '@tauri-apps/api/event'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -43,10 +44,28 @@ export function useUpdate(auto: boolean) {
   return { version, update, state, procurar, instalar }
 }
 
-/** Faixa no topo quando há versão nova; some com "Depois" até o próximo início. */
+/** Faixa no topo quando há versão nova; some com "Depois" até o próximo início. Também responde ao menu "Procurar atualizações…". */
 export function UpdateBanner() {
-  const { update, state, instalar } = useUpdate(true)
+  const { update, state, procurar, instalar } = useUpdate(true)
   const [later, setLater] = useState(false)
+  const [asked, setAsked] = useState(false)
+  const procurarRef = useRef(procurar)
+  procurarRef.current = procurar
+  useEffect(() => {
+    const off = listen('menu-check-updates', () => { setLater(false); setAsked(true); void procurarRef.current(true) })
+    return () => { void off.then(f => f()).catch(() => {}) }
+  }, [])
+  useEffect(() => {
+    if (!asked || !state.upToDate) return
+    const t = setTimeout(() => setAsked(false), 4000)
+    return () => clearTimeout(t)
+  }, [asked, state.upToDate])
+  if ((!update || later) && asked && (state.checking || state.upToDate || state.error)) return (
+    <div className="info update-banner" role="status">
+      <span>{state.checking ? 'Procurando atualização…' : state.error ?? 'Você está na versão mais recente.'}</span>
+      <span className="btns"><button className="b ghost" onClick={() => setAsked(false)}>Fechar</button></span>
+    </div>
+  )
   if (!update || later) return null
   const installing = state.progress !== undefined
   return (

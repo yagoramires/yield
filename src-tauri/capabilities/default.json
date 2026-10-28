@@ -21,6 +21,9 @@
         },
         {
           "url": "https://api.pluggy.ai/*"
+        },
+        {
+          "url": "https://api.bcb.gov.br/*"
         }
       ]
     },
