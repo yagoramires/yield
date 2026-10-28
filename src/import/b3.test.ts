@@ -36,18 +36,39 @@ test('JCP e Dividendo viram proventos', () => {
   expect(p.dividends.map(d => [d.kind, d.amountCents])).toEqual([['JCP', 500], ['Dividendo', 1000]])
 })
 
-test('Atualização e Amortização vão para revisão', () => {
+test('Atualização vira conferência, leilão de fração vira venda, fração em ativos é informativa; Amortização vai para revisão', () => {
   const p = parseB3(makeB3([
     row('Credito', '03/03/2024', 'Atualização', 'HGLG11 - CSHG LOGISTICA FII', '10'),
     row('Credito', '04/03/2024', 'Amortização', 'XPLG11 - XP LOG FII', '10', '1,00', '10,00'),
+    row('Debito', '05/03/2024', 'Fração em Ativos', 'ITSA4 - ITAUSA S.A.', '0,9'),
+    row('Credito', '06/03/2024', 'Leilão de Fração', 'ITSA4 - ITAUSA S.A.', '0,9', '8,56', '7,70'),
   ]))
-  expect(p.toReview).toEqual([
-    { date: '2024-03-03', movimentacao: 'Atualização', produto: 'HGLG11 - CSHG LOGISTICA FII' },
-    { date: '2024-03-04', movimentacao: 'Amortização', produto: 'XPLG11 - XP LOG FII' },
+  expect(p.toReview).toEqual([{ date: '2024-03-04', movimentacao: 'Amortização', produto: 'XPLG11 - XP LOG FII' }])
+  expect(p.checks).toEqual([{ date: '2024-03-03', ticker: 'HGLG11', qty: 10, produto: 'HGLG11 - CSHG LOGISTICA FII' }])
+  expect(p.sales).toEqual([{ kind: 'Leilão de Fração', date: '2024-03-06', ticker: 'ITSA4', qty: 0.9, valueCents: 770, broker: 'CLEAR', produto: 'ITSA4 - ITAUSA S.A.' }])
+  expect(p.ignored).toBe(1)
+})
+
+test('na importação, o leilão vende a fração e a Atualização confere a posição', async () => {
+  const db = await createTestDb()
+  await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'ITSA4', 10, 10)])))
+  const mov = makeB3([
+    row('Credito', '10/02/2024', 'Bonificação em Ativos', 'ITSA4 - ITAUSA S.A.', '0,9'),
+    row('Debito', '05/03/2024', 'Fração em Ativos', 'ITSA4 - ITAUSA S.A.', '0,9'),
+    row('Credito', '06/03/2024', 'Leilão de Fração', 'ITSA4 - ITAUSA S.A.', '0,9', '8,56', '7,70'),
+    row('Credito', '20/03/2024', 'Atualização', 'ITSA4 - ITAUSA S.A.', '10'),
+    row('Credito', '20/03/2024', 'Atualização', 'HGLG11 - CSHG LOGISTICA FII', '5'),
+    row('Credito', '21/03/2024', 'Leilão de Fração', 'BBBB4 - EMPRESA EXEMPLO S.A.', '0,5', '10,00', '5,00'),
   ])
-  expect(p.dividends).toHaveLength(0)
-  expect(p.events).toHaveLength(0)
-  expect(p.ignored).toBe(0)
+  const r = await importB3(db, parseB3(mov))
+  expect(r).toMatchObject({ sales: 1, checked: 1 })
+  expect(r.review).toEqual([
+    { date: '2024-03-21', movimentacao: 'Leilão de Fração', produto: 'BBBB4 - EMPRESA EXEMPLO S.A.', nota: 'o Yield não tem essa posição' },
+    { date: '2024-03-20', movimentacao: 'Atualização', produto: 'HGLG11 - CSHG LOGISTICA FII', nota: 'B3: 5, Yield: 0' },
+  ])
+  const sale = (await loadAll(db)).trades.find(t => t.side === 'V')!
+  expect([sale.ticker, sale.qty, sale.priceCents, sale.tradeDate, sale.assetType]).toEqual(['ITSA4', 0.9, 856, '2024-03-06', 'Ação'])
+  expect(await importB3(db, parseB3(mov))).toMatchObject({ sales: 0 }) // reimportar não vende de novo
 })
 
 test('importar o mesmo extrato duas vezes não duplica', async () => {
@@ -126,6 +147,23 @@ test('Negociação vira operações; fracionário perde o F e o resto vai para r
 
 test('assetTypeOf: 11 é FII até o usuário dizer outra coisa, 34 é BDR, resto é ação', () => {
   expect(['HGLG11', 'AAPL34', 'ITSA4', 'B3SA3'].map(t => assetTypeOf(t))).toEqual(['FII', 'BDR', 'Ação', 'Ação'])
+})
+
+test('resgate vira venda; Atualização depois de subscrição exercida ganha a dica de lançar a compra', async () => {
+  const db = await createTestDb()
+  await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'FUND11', 100, 10), neg('05/01/2024', 'Compra', 'OUTR11', 10, 10)])))
+  const r = await importB3(db, parseB3(makeB3([
+    row('Debito', '11/02/2024', 'Direitos de Subscrição - Exercido', 'OUTR12 - FUNDO OUTRO FII', '2'),
+    row('Credito', '20/03/2024', 'Atualização', 'OUTR11 - FUNDO OUTRO FII', '2'),
+    row('Credito', '10/04/2024', 'Resgate', 'FUND11 - FUNDO EXEMPLO FII', '101', '4,31', '435,31'),
+  ])))
+  expect(r).toMatchObject({ sales: 1, checked: 0 })
+  expect(r.review).toEqual([
+    { date: '2024-04-10', movimentacao: 'Resgate', produto: 'FUND11 - FUNDO EXEMPLO FII', nota: 'vendidas as 100 cotas do Yield; a B3 resgatou 101 — a diferença veio de algo que falta lançar (ex.: subscrição)' },
+    { date: '2024-03-20', movimentacao: 'Atualização', produto: 'OUTR11 - FUNDO OUTRO FII', nota: 'provável crédito de subscrição (+2): lance a compra em Notas com o preço pago' },
+  ])
+  const sale = (await loadAll(db)).trades.find(t => t.side === 'V')!
+  expect([sale.ticker, sale.qty, sale.priceCents, sale.assetType]).toEqual(['FUND11', 100, 431, 'FII'])
 })
 
 test('operações viram uma nota sem taxa por dia e corretora; reimportar não duplica', async () => {

@@ -1,8 +1,8 @@
 import { read, utils } from 'xlsx'
 import type { Db } from '../db/client'
-import { saveEvent, saveNote, upsertDividends } from '../db/repo'
+import { loadAll, saveEvent, saveNote, upsertDividends } from '../db/repo'
 import { isBusinessDay } from '../domain/calendar'
-import { normalizeTicker } from '../domain/ledger'
+import { normalizeTicker, replay } from '../domain/ledger'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 
@@ -13,12 +13,16 @@ export interface B3Import {
   dividends: Omit<Dividend, 'id'>[]
   events: (NewCorporateEvent & { sourceKey: string })[]
   ignored: number
-  toReview: { date: ISODate; movimentacao: string; produto: string }[]
+  toReview: { date: ISODate; movimentacao: string; produto: string; nota?: string }[]
+  checks: { date: ISODate; ticker: string; qty: number; produto: string }[] // "Atualização": a B3 reafirmando a posição inteira
+  // "Leilão de Fração" e "Resgate": a B3 pagou pelas cotas, então viram venda
+  sales: { kind: 'Leilão de Fração' | 'Resgate'; date: ISODate; ticker: string; qty: number; valueCents: Cents; broker: string; produto: string }[]
+  subscriptions: { base: string; date: ISODate }[] // subscrição exercida: explica uma "Atualização" que credita cotas
 }
 
 type Cell = string | number | boolean | null
 const PROVENTOS: Record<string, DividendKind> = { Rendimento: 'Rendimento', Dividendo: 'Dividendo', 'Juros Sobre Capital Próprio': 'JCP' }
-const REVISAR = ['Atualização', 'Amortização', 'Leilão de Fração', 'Incorporação', 'Fração em Ativos', 'Cisão']
+const REVISAR = ['Amortização', 'Incorporação', 'Cisão']
 const text = (v: Cell | undefined) => (v == null ? '' : String(v).trim())
 const str = (v: Cell | undefined) => (typeof v === 'number' ? v : text(v))
 const columns = (rows: Cell[][]) => new Map(rows[0]?.map((h, i) => [text(h), i]))
@@ -64,10 +68,17 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
       out.events.push({ kind: 'bonificacao', ticker, date, qtyDelta: qty, unitCostCents: null, sourceKey })
     } else if (mov === 'Desdobro' || mov === 'Grupamento') {
       out.events.push({ kind: mov === 'Desdobro' ? 'desdobramento' : 'grupamento', ticker, date, qtyDelta: sign * qty, sourceKey })
+    } else if (mov === 'Atualização') {
+      out.checks.push({ date, ticker, qty, produto })
+    } else if ((mov === 'Leilão de Fração' || mov === 'Resgate') && qty > 0 && parseBRL(str(valueCell)) > 0) {
+      out.sales.push({ kind: mov, date, ticker, qty, valueCents: parseBRL(str(valueCell)), broker: normalizeBroker(inst), produto })
     } else if (REVISAR.includes(mov)) {
       out.toReview.push({ date, movimentacao: mov, produto })
     } else {
-      out.ignored++ // a liquidação das compras e vendas: elas entram pelo relatório de Negociação ou pelas notas
+      // liquidação das compras e vendas (entram pela Negociação ou pelas notas), "Fração em Ativos" (quem tira a fração é a venda do leilão),
+      // direitos e recibos de subscrição (as cotas chegam depois, numa "Atualização")
+      if (/^(Direitos de Subscrição - Exercido|Recibo de Subscrição|Solicitação de Subscrição)$/.test(mov)) out.subscriptions.push({ base: ticker.slice(0, 4), date })
+      out.ignored++
     }
   }
 }
@@ -114,7 +125,7 @@ export function parseB3(data: ArrayBuffer): B3Import {
   const wb = read(data, { cellDates: false })
   const rows = utils.sheet_to_json<Cell[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false })
   const header = new Set(rows[0]?.map(text))
-  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [] }
+  const out: B3Import = { trades: [], names: {}, dividends: [], events: [], ignored: 0, toReview: [], checks: [], sales: [], subscriptions: [] }
   if (header.has('Código de Negociação')) parseNegociacao(rows, out)
   else if (header.has('Tipo de Evento')) parseProventos(rows, out)
   else if (header.has('Movimentação')) parseMovimentacao(rows, out)
@@ -168,5 +179,39 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
   const applied: B3Import['events'] = []
   let eventsSkipped = 0
   for (const e of p.events) ('skipped' in (await saveEvent(db, e)) ? eventsSkipped++ : applied.push(e))
-  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped }
+
+  // Com tudo gravado: o leilão de fração vira venda da fração e a "Atualização" confere a posição (pela liquidação, como a custódia).
+  const review: B3Import['toReview'] = []
+  const positionAt = async (date: ISODate, ticker: string) => {
+    const { trades: ts, events: es } = await loadAll(db)
+    return replay(ts.filter(t => t.settleDate <= date), es.filter(e => e.date <= date)).positions.find(x => x.ticker === ticker)?.qty ?? 0
+  }
+  let sales = 0
+  for (const a of p.sales) {
+    const leilao = a.kind === 'Leilão de Fração'
+    const sourceKey = `b3${leilao ? 'leilao' : 'resgate'}:${a.date}:${a.ticker}:${a.qty}`
+    if ((await db.select('SELECT 1 FROM notes WHERE source_key = ?', [sourceKey])).length) continue
+    const have = await positionAt(a.date, a.ticker)
+    if (have <= 1e-9) { review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: 'o Yield não tem essa posição' }); continue }
+    // resgate maior que a posição do app (ex.: cotas de subscrição não lançadas): vende o que o app tem, pelo mesmo preço, e avisa
+    const qty = Math.min(a.qty, have)
+    if (qty + 1e-9 < a.qty) review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: `vendidas as ${String(qty).replace('.', ',')} cotas do Yield; a B3 resgatou ${String(a.qty).replace('.', ',')} — a diferença veio de algo que falta lançar (ex.: subscrição)` })
+    const [known] = await db.select<{ assetType: AssetType }>('SELECT asset_type AS assetType FROM trades WHERE ticker = ? LIMIT 1', [a.ticker])
+    await saveNote(db, { number: `${leilao ? 'Leilão' : 'Resgate'} ${a.date}`, broker: a.broker, tradeDate: a.date, settleDate: a.date, source: 'sem_nota', sourceKey, label: leilao ? 'Leilão de fração da B3' : 'Resgate da B3' },
+      [{ seq: 1, side: 'V', assetType: known?.assetType ?? types.get(a.ticker) ?? assetTypeOf(a.ticker), ticker: a.ticker, qty, priceCents: Math.round(a.valueCents / a.qty), feesCents: 0, irrfCents: 0 }])
+    sales++
+  }
+  const daysBetween = (a: ISODate, b: ISODate) => (Date.parse(a) - Date.parse(b)) / 86_400_000
+  let checked = 0
+  for (const c of p.checks) {
+    const have = await positionAt(c.date, c.ticker)
+    if (Math.abs(have - c.qty) < 1e-6) checked++
+    else {
+      // a B3 usa "Atualização" tanto para reafirmar a posição quanto para creditar cotas de uma subscrição exercida
+      const sub = p.subscriptions.some(x => x.base === c.ticker.slice(0, 4) && daysBetween(c.date, x.date) >= 0 && daysBetween(c.date, x.date) <= 90)
+      const q = (x: number) => String(Math.round(x * 1e6) / 1e6).replace('.', ',')
+      review.push({ date: c.date, movimentacao: 'Atualização', produto: c.produto, nota: sub ? `provável crédito de subscrição (+${q(c.qty)}): lance a compra em Notas com o preço pago` : `B3: ${q(c.qty)}, Yield: ${q(have)}` })
+    }
+  }
+  return { notes, notesSkipped, trades, tradesSkipped, dividends: d.inserted, dividendsSkipped: d.skipped, replaced: d.replaced, applied, eventsSkipped, sales, checked, review }
 }

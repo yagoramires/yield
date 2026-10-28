@@ -22,7 +22,7 @@ export function planilhaReplacedByB3(existing: Dividend[], incoming: B3Import['d
 /** Junta os relatórios escolhidos de uma vez num só import. */
 export const mergeB3 = (list: B3Import[]): B3Import => ({
   trades: list.flatMap(p => p.trades), names: Object.assign({}, ...list.map(p => p.names)), dividends: list.flatMap(p => p.dividends), events: list.flatMap(p => p.events),
-  ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview),
+  ignored: list.reduce((s, p) => s + p.ignored, 0), toReview: list.flatMap(p => p.toReview), checks: list.flatMap(p => p.checks), sales: list.flatMap(p => p.sales), subscriptions: list.flatMap(p => p.subscriptions),
 })
 
 type TickerType = { ticker: string; type: AssetType }
@@ -62,12 +62,14 @@ export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>
     ...(r.tradesSkipped ? [`${n(r.tradesSkipped, 'operação já estava numa nota', 'operações já estavam em notas')}`] : []),
     n(r.dividends, 'provento', 'proventos'), ...(r.replaced ? [`${r.replaced} substituíram os da planilha`] : []), `${r.dividendsSkipped} já existiam`,
     ...(r.eventsSkipped ? [r.eventsSkipped === 1 ? '1 evento já existia' : `${r.eventsSkipped} eventos já existiam`] : []),
-    ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações; as compras e vendas vêm do relatório de Negociação)`] : []),
+    ...(r.sales ? [`${n(r.sales, 'leilão de fração ou resgate lançado como venda', 'leilões de fração e resgates lançados como venda')}`] : []),
+    ...(r.checked ? [`${n(r.checked, 'posição conferida com a B3', 'posições conferidas com a B3')}`] : []),
+    ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações e frações; as compras e vendas vêm do relatório de Negociação)`] : []),
   ]
   return {
     counts: counts.join(' · '),
     applied: r.applied.map(e => (e.kind === 'mudanca_ticker' ? `${e.ticker} → ${e.newTicker} (${br(e.date)})` : `${e.ticker} ${KIND[e.kind]} ${signed(e.qtyDelta)} (${br(e.date)})`)),
-    toReview: p.toReview.map(t => `${t.movimentacao} ${t.produto.split(' - ')[0]} (${br(t.date)})`),
+    toReview: [...p.toReview, ...r.review].map(t => `${t.movimentacao} ${t.produto.split(' - ')[0]} (${br(t.date)})${t.nota ? `: ${t.nota}` : ''}`),
   }
 }
 
