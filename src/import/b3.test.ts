@@ -179,7 +179,7 @@ test('operações viram uma nota sem taxa por dia e corretora; reimportar não d
   expect(await importB3(db, parseB3(data), types)).toMatchObject({ notes: 0, trades: 0, notesSkipped: 3 })
   const all = await loadAll(db)
   expect(all.notes.map(n => [n.tradeDate, n.broker, n.source, n.settleDate]).sort()).toEqual([
-    ['2024-01-05', 'CLEAR', 'sem_nota', '2024-01-09'], ['2024-01-05', 'XP INVESTIMENTOS CCTVM S/A', 'sem_nota', '2024-01-09'], ['2024-01-08', 'CLEAR', 'sem_nota', '2024-01-10'],
+    ['2024-01-05', 'CLEAR', 'sem_nota', '2024-01-09'], ['2024-01-05', 'XP', 'sem_nota', '2024-01-09'], ['2024-01-08', 'CLEAR', 'sem_nota', '2024-01-10'],
   ])
   expect(all.trades.map(t => [t.ticker, t.assetType, t.feesCents]).sort()).toEqual([['BOVA11', 'ETF', 0], ['HGLG11', 'FII', 0], ['HGLG11', 'FII', 0], ['ITSA4', 'Ação', 0]])
 })

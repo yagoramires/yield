@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createRawDb, createTestDb, tmpPath, type Db } from './testDb'
 import {
-  deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, replaceNote,
+  deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, renormalizeBrokers, replaceNote,
   saveAlias, saveEvent, saveManualAsset, saveNote, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
 } from './repo'
 
@@ -59,6 +59,24 @@ describe('notas', () => {
   test('falha ao inserir trades apaga a nota', async () => {
     await expect(saveNote(db, nota, [{ ...trades[0], side: 'X' as never }])).rejects.toThrow()
     expect((await loadAll(db)).notes).toHaveLength(0)
+  })
+})
+
+describe('renormalizeBrokers', () => {
+  test('chaves gravadas por extenso passam à chave curta; o cadastro do IR já existente com a curta fica', async () => {
+    const raw = 'XP INVESTIMENTOS CCTVM S/A'
+    await db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source, source_key) VALUES ('n1', 'B3 2024-01-05', ?, '2024-01-05', '2024-01-09', 'sem_nota', ?)", [raw, `b3neg:2024-01-05:${raw}`])
+    await db.execute("INSERT INTO notes (id, number, broker, trade_date, settle_date, source) VALUES ('n2', '1', 'CLEAR', '2024-01-05', '2024-01-09', 'manual')")
+    await db.execute("INSERT INTO dividends (id, ticker, kind, pay_date, amount_cents, broker, source) VALUES ('d1', 'AAAA3', 'Dividendo', '2024-02-01', 100, ?, 'b3')", [raw])
+    await db.execute("INSERT INTO brokers (code, name, cnpj) VALUES (?, 'XP INVESTIMENTOS CCTVM S/A', '11.222.333/0001-81'), ('NU INVEST CORRETORA DE VALORES S.A.', 'Nu', ''), ('NU', 'Nu Invest', '11.444.777/0001-61')", [raw])
+    await renormalizeBrokers(db)
+    await renormalizeBrokers(db) // idempotente
+    const d = await loadAll(db)
+    expect(d.notes.map(n => [n.broker, n.sourceKey])).toEqual([['CLEAR', null], ['XP', 'b3neg:2024-01-05:XP']])
+    expect(d.dividends[0].broker).toBe('XP')
+    expect(await db.select('SELECT code, cnpj FROM brokers ORDER BY code')).toEqual([
+      { code: 'NU', cnpj: '11.444.777/0001-61' }, { code: 'NU INVEST CORRETORA DE VALORES S.A.', cnpj: '' }, { code: 'XP', cnpj: '11.222.333/0001-81' },
+    ])
   })
 })
 

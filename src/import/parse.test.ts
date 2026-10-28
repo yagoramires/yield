@@ -44,11 +44,27 @@ describe('parseBRDate', () => {
 })
 
 describe('normalizeBroker', () => {
-  test('corretoras conhecidas e demais', () => {
-    expect(normalizeBroker('CLEAR CORRETORA - GRUPO XP')).toBe('CLEAR')
-    expect(normalizeBroker('INTER DTVM')).toBe('INTER')
-    expect(normalizeBroker('BTG PACTUAL CTVM S/A')).toBe('BTG')
-    expect(normalizeBroker('  rico   investimentos ')).toBe('RICO INVESTIMENTOS')
+  test.each([
+    ['CLEAR CORRETORA - GRUPO XP', 'CLEAR'],
+    ['INTER DTVM', 'INTER'],
+    ['BTG PACTUAL CTVM S/A', 'BTG'],
+    ['BANCO INTER S.A.', 'INTER'],
+    ['Banco BTG Pactual S.A.', 'BTG'],
+    ['XP INVESTIMENTOS CCTVM S/A', 'XP'],
+    ['xp', 'XP'],
+    ['RICO INVESTIMENTOS - GRUPO XP', 'RICO'],
+    ['  rico   investimentos ', 'RICO'],
+    ['NU INVEST CORRETORA DE VALORES S.A.', 'NU'],
+    ['ITAÚ CORRETORA DE VALORES S/A', 'ITAU'],
+    ['SAFRA CORRETORA DE VALORES E CÂMBIO LTDA', 'SAFRA'],
+    ['TORO CTVM LTDA', 'TORO'],
+    ['BB BANCO DE INVESTIMENTO S.A.', 'BB'],
+    ['GENIAL INSTITUCIONAL CCTVM S/A', 'GENIAL INSTITUCIONAL'],
+    ['SEM NOTA', 'SEM NOTA'],
+    ['', ''],
+  ])('%s → %s', (raw, key) => {
+    expect(normalizeBroker(raw)).toBe(key)
+    expect(normalizeBroker(key)).toBe(key) // idempotente: chaves gravadas não mudam ao relê-las
   })
 })
 

@@ -1,7 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { openDb, type Db } from '../db/client'
-import { loadAll, type Dataset } from '../db/repo'
+import { loadAll, renormalizeBrokers, type Dataset } from '../db/repo'
 import { computeDarfs, type DarfResult } from '../domain/darf'
 import { replay, type ReplayResult } from '../domain/ledger'
 import { buildPortfolio, type Portfolio } from '../domain/portfolio'
@@ -175,6 +175,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         if (cancelled) return
         dbRef.current = d
         setDb(d)
+        await renormalizeBrokers(d)
         const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
         setData(ds); setGastosData(g); setOrcData(o)
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)

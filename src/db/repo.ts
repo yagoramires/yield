@@ -69,6 +69,20 @@ export async function saveNote(db: Db, note: NoteInput, trades: TradeInput[]): P
   return { id }
 }
 
+/** Versões antigas gravavam por extenso as corretoras fora de CLEAR/INTER/BTG ('XP INVESTIMENTOS CCTVM S/A');
+ * sem passar à chave curta, a mesma Negociação da B3 reimportada viraria outra nota. Idempotente, roda na abertura. */
+export async function renormalizeBrokers(db: Db): Promise<void> {
+  const rows = await db.select<{ b: string }>('SELECT broker AS b FROM notes UNION SELECT broker FROM dividends WHERE broker IS NOT NULL UNION SELECT code FROM brokers')
+  for (const { b } of rows) {
+    const key = normalizeBroker(b)
+    if (key === b) continue
+    // OR IGNORE: se a chave curta já existe (mesma nota, ou o cadastro do IR), fica a que já estava
+    await db.execute('UPDATE OR IGNORE notes SET broker = ?, source_key = replace(source_key, ?, ?) WHERE broker = ?', [key, `:${b}`, `:${key}`, b])
+    await db.execute('UPDATE dividends SET broker = ? WHERE broker = ?', [key, b])
+    await db.execute('UPDATE OR IGNORE brokers SET code = ? WHERE code = ?', [key, b])
+  }
+}
+
 export async function deleteNote(db: Db, id: string): Promise<void> {
   await db.execute('DELETE FROM notes WHERE id = ?', [id])
 }
