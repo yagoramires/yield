@@ -9,6 +9,7 @@ import { parseMoney } from './notas/build'
 import { useData } from '../state/DataProvider'
 import { Select } from '../ui/Select'
 import { RendaFixa } from './carteira/RendaFixa'
+import { Cripto } from './carteira/Cripto'
 
 const CLASS_LABEL: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior (US$)', outro: 'Outro' }
 const label = (c: string) => CLASS_LABEL[c] ?? c
@@ -187,6 +188,7 @@ export function Carteira({ onOpenSettings }: { onOpenSettings(): void }) {
       )}
 
       <RendaFixa list={p.rf} onOpenSettings={onOpenSettings} />
+      <Cripto rows={p.crypto} onOpenSettings={onOpenSettings} />
 
       <h5>Ativos manuais <span className="muted">· valor que você informa, ou quantidade × cotação</span></h5>
       {[{ list: dupRf, what: 'renda fixa', from: 'da B3' }, { list: dupCripto, what: 'cripto', from: 'da Binance' }].map(({ list, what, from }) => list.length > 0 && (
