@@ -237,6 +237,14 @@ describe('syncPluggy — renda variável', () => {
     expect(await loadAll(db)).toEqual(before)
   })
 
+  it('lê as operações do Yield uma vez por item, não uma por operação da Pluggy', async () => {
+    const db = await broker()
+    let reads = 0
+    const counted = { ...db, select: <T>(sql: string, p?: unknown[]) => { if (/FROM trades/.test(sql)) reads++; return db.select<T>(sql, p) } }
+    await syncPluggy(counted, creds, invFake().fn, today)
+    expect(reads).toBe(1)
+  })
+
   it('403 nos investimentos não marca a credencial como ruim nem trava o próximo item', async () => {
     const db = await setup()
     await savePluggyItem(db, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Outro Banco')

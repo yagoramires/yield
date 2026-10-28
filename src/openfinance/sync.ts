@@ -79,11 +79,16 @@ async function mergeTrades(db: Db, broker: string, trades: PluggyTrade[]) {
   for (const t of trades) { const k = `${t.date}|${t.ticker}|${t.side}`; groups.set(k, [...(groups.get(k) ?? []), t]) }
   const fresh = new Map<ISODate, PluggyTrade[]>()
   const sum = <T>(xs: T[], f: (x: T) => number) => xs.reduce((a, x) => a + f(x), 0)
+  // uma leitura só: as operações dos tickers que a Pluggy trouxe, em qualquer data
+  const tickers = [...new Set(trades.map(t => t.ticker))]
+  const known = tickers.length ? await db.select<{ id: string; date: ISODate; ticker: string; side: string; assetType: AssetType; source: string; sourceKey: string | null; qty: number; feesCents: number; irrfCents: number }>(
+    `SELECT t.id, n.trade_date AS date, t.ticker, t.side, t.asset_type AS assetType, n.source, n.source_key AS sourceKey, t.qty, t.fees_cents AS feesCents, t.irrf_cents AS irrfCents
+      FROM trades t JOIN notes n ON n.id = t.note_id WHERE t.ticker IN (${tickers.map(() => '?').join(', ')}) ORDER BY t.rowid`, tickers) : []
+  const typeOf = new Map<string, AssetType>()
+  for (const k of known) if (!typeOf.has(k.ticker)) typeOf.set(k.ticker, k.assetType)
   for (const list of groups.values()) {
     const t = list[0]
-    const have = await db.select<{ id: string; source: string; sourceKey: string | null; qty: number; feesCents: number; irrfCents: number }>(
-      `SELECT t.id, n.source, n.source_key AS sourceKey, t.qty, t.fees_cents AS feesCents, t.irrf_cents AS irrfCents FROM trades t JOIN notes n ON n.id = t.note_id
-        WHERE n.trade_date = ? AND t.ticker = ? AND t.side = ?`, [t.date, t.ticker, t.side])
+    const have = known.filter(k => k.date === t.date && k.ticker === t.ticker && k.side === t.side)
     const qty = sum(list, x => x.qty), haveQty = sum(have, x => x.qty)
     if (haveQty >= qty - 1e-9) {
       const m = have[0]
@@ -103,9 +108,8 @@ async function mergeTrades(db: Db, broker: string, trades: PluggyTrade[]) {
   for (const [date, list] of fresh) {
     const rows = []
     for (const t of list) {
-      const [known] = await db.select<{ assetType: AssetType }>('SELECT asset_type AS assetType FROM trades WHERE ticker = ? LIMIT 1', [t.ticker])
       // ETF de renda fixa a Pluggy chama só de ETF; o tipo já escolhido no Yield vale
-      const assetType = t.assetType === 'ETF' && known?.assetType === 'ETF RF' ? 'ETF RF' : t.assetType ?? known?.assetType ?? assetTypeOf(t.ticker)
+      const assetType = t.assetType === 'ETF' && typeOf.get(t.ticker) === 'ETF RF' ? 'ETF RF' : t.assetType ?? typeOf.get(t.ticker) ?? assetTypeOf(t.ticker)
       rows.push({ side: t.side, assetType, ticker: t.ticker, qty: t.qty, priceCents: t.priceCents, feesCents: t.feesCents, irrfCents: t.irrfCents })
     }
     const sourceKey = `pluggy:${date}:${broker}`
