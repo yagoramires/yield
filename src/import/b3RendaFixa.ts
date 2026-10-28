@@ -14,13 +14,15 @@ export const isRendaFixa = (produto: string) => /^(tesouro|cdb|lci|lca|cri|cra|d
  */
 export function rfKey(produto: string, codigo?: string): string {
   if (/^tesouro\b/i.test(produto.trim())) return `td:${produto.trim().replace(/\s+/g, ' ').toLowerCase()}`
-  return `rf:${(codigo || produto.split(' - ')[1] || produto).trim().toUpperCase()}`
+  // a B3 manda "-" na coluna Código quando não tem: sem isso, títulos diferentes cairiam na mesma chave "rf:-"
+  return `rf:${(codigo?.replace(/^\s*-\s*$/, '') || produto.split(' - ')[1] || produto).trim().toUpperCase()}`
 }
 
 export function rfMoveKind(mov: string, entrada: boolean): RfMoveKind | null {
   if (/juros/i.test(mov)) return 'juros'
   if (entrada && /^(compra|compra \/ venda)$/i.test(mov.trim())) return 'aplicacao'
-  if (!entrada && /^venda$|vencimento|resgate/i.test(mov.trim())) return 'saida'
+  // "COMPRA / VENDA" a débito é a venda antes do vencimento
+  if (!entrada && /^(venda|compra \/ venda)$|vencimento|resgate/i.test(mov.trim())) return 'saida'
   return null
 }
 

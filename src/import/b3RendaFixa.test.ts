@@ -2,7 +2,7 @@ import { createTestDb } from '../db/testDb'
 import { loadAll } from '../db/repo'
 import { makeB3, makePosicao, type B3Row } from '../../tests/fixtures/makeB3'
 import { importB3, parseB3 } from './b3'
-import { posicaoDate, rfKey } from './b3RendaFixa'
+import { posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
 
 const INST = 'CORRETORA TESTE S/A'
 const TD = 'Tesouro Prefixado 2099'
@@ -76,4 +76,9 @@ test('mesmo Tesouro em duas corretoras na Posição: soma as linhas', () => {
   const p = parseB3(makePosicao([[TD, INST, 'X', 'Prefixado', '01/01/2099', 1, 1, 0, '-', 500, 560, 550, 555.55], [TD, 'OUTRA CORRETORA', 'X', 'Prefixado', '01/01/2099', 2, 2, 0, '-', 1000, 1100, 1090, 1111.1]], []), 'posicao-2026-10-27.xlsx')
   expect(p.rfPositions).toHaveLength(1)
   expect(p.rfPositions[0]).toMatchObject({ qty: 3, appliedCents: 150000, valueCents: 166665 })
+})
+
+test('COMPRA / VENDA a débito é saída; Código "-" não junta títulos diferentes', () => {
+  expect(rfMoveKind('COMPRA / VENDA', false)).toBe('saida')
+  expect(rfKey('LCA - BANCO A S/A', '-')).not.toBe(rfKey('LCA - BANCO B S/A', '-'))
 })

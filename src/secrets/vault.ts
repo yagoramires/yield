@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core'
 export interface Vault { pluggy?: { clientId: string; clientSecret: string }; binance?: { apiKey: string; secret: string } }
 
 const KEY = 'yield.credentials'
-const OLD = { pluggyId: 'pluggy.clientId', pluggySecret: 'pluggy.clientSecret', binanceKey: 'binance.apiKey', binanceSecret: 'binance.secret' }
+const OLD = { pluggyId: 'pluggy.clientId', pluggySecret: 'pluggy.clientSecret' }
 const get = (key: string) => invoke<string | null>('secret_get', { key })
 
 // Cada leitura do Keychain pode abrir o pedido de senha do macOS: lê uma vez por sessão.
@@ -17,13 +17,10 @@ let cached: Promise<Vault> | null = null
 async function load(): Promise<Vault> {
   const raw = await get(KEY)
   if (raw) return JSON.parse(raw) as Vault
-  // versões até a 0.3: um item por credencial. Passa para o item único e apaga os antigos.
-  const [pluggyId, pluggySecret, binanceKey, binanceSecret] = await Promise.all(Object.values(OLD).map(get))
-  const v: Vault = {
-    ...(pluggyId && pluggySecret ? { pluggy: { clientId: pluggyId, clientSecret: pluggySecret } } : {}),
-    ...(binanceKey && binanceSecret ? { binance: { apiKey: binanceKey, secret: binanceSecret } } : {}),
-  }
-  if (v.pluggy || v.binance) {
+  // versões até a 0.3: um item por credencial da Pluggy. Passa para o item único e apaga os antigos.
+  const [pluggyId, pluggySecret] = await Promise.all(Object.values(OLD).map(get))
+  const v: Vault = pluggyId && pluggySecret ? { pluggy: { clientId: pluggyId, clientSecret: pluggySecret } } : {}
+  if (v.pluggy) {
     await invoke('secret_set', { key: KEY, value: JSON.stringify(v) })
     for (const k of Object.values(OLD)) await invoke('secret_delete', { key: k })
   }

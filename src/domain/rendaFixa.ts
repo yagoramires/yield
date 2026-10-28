@@ -21,7 +21,11 @@ function nameOf(product: string, fromPosicao: boolean): string {
 /** Cruza as movimentações da B3 com a última Posição: aplicado, recebido, valor de hoje e rendimento de cada título. */
 export function rfHoldings(moves: RfMove[], positions: RfPosition[]): RfHolding[] {
   const byKey = new Map<string, RfMove[]>()
-  for (const m of [...moves].sort((a, b) => a.date.localeCompare(b.date))) byKey.set(m.key, [...(byKey.get(m.key) ?? []), m])
+  for (const m of [...moves].sort((a, b) => a.date.localeCompare(b.date))) {
+    const l = byKey.get(m.key)
+    if (l) l.push(m)
+    else byKey.set(m.key, [m])
+  }
   // só a Posição mais recente vale: título que não está nela foi vendido ou venceu
   const latest = positions.reduce((m, p) => (p.asOf > m ? p.asOf : m), '')
   const posByKey = new Map(positions.filter(p => p.asOf === latest).map(p => [p.key, p]))
@@ -60,7 +64,8 @@ export function rfHoldings(moves: RfMove[], positions: RfPosition[]): RfHolding[
       key, name: pos ? nameOf(pos.product, true) : nameOf(ms[0].product, false), issuer: pos?.issuer ?? null, indexer: pos?.indexer ?? null, maturity: pos?.maturity ?? null,
       qty: pos?.qty ?? qty, appliedCents, investedCents, receivedCents: received, valueCents, gainCents,
       gainPct: gainCents === null || !investedCents ? null : gainCents / investedCents,
-      closed, asOf: pos?.asOf ?? null, needsNewerPosicao: !pos && !closed, last: ms.at(-1)?.date ?? '',
+      // aplicação depois da data da Posição: o valor dela não inclui esse dinheiro
+      closed, asOf: pos?.asOf ?? null, needsNewerPosicao: (!pos && !closed) || (pos !== undefined && ms.some(m => m.kind === 'aplicacao' && m.date > pos.asOf)), last: ms.at(-1)?.date ?? '',
     }
   })
   const open = list.filter(h => !h.closed).sort((a, b) => (b.valueCents ?? -1) - (a.valueCents ?? -1))
