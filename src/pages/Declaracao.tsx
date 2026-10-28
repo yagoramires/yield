@@ -147,7 +147,7 @@ export function Declaracao() {
             {rf.length > 0 && <div className="muted" style={{ marginBottom: 10 }}>
               Renda fixa pelo valor aplicado ainda em aberto em 31/12 (custo de aquisição), só pelo que a Movimentação da B3 mostra. Localização {LOCALIZACAO}.
               CNPJ: o do emissor ou da instituição, como no informe de rendimentos; no Tesouro Direto pode ficar em branco.
-              Debênture incentivada é isenta e vai no código 02. Confira grupo e código no programa da Receita.
+              Debênture incentivada é isenta e vai no código 03 (isentos). Confira grupo e código no programa da Receita.
             </div>}
           </div>
           {sel && (() => {
