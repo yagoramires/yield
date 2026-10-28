@@ -124,7 +124,7 @@ export function orcamentoImportSummary(r: { months: number; lines: number; skipp
   return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`].join(' · ')
 }
 
-export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string }
+export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string; das: string }
 
 const pct = (text: string): number => {
   const t = text.trim().replace(',', '.')
@@ -144,7 +144,13 @@ export function validateSource(f: SourceForm): Omit<IncomeSource, 'id' | 'source
     if (cltNet(grossCents, dependents, outrosCents).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
     return { name, kind: 'clt', grossCents, netCents: null, ...DEFAULT_PJ, outrosCents, dependents }
   }
-  const cfg = { proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
+  if (f.kind === 'mei') {
+    const grossCents = parseMoney(f.gross, 'Bruto'), dasCents = parseMoney(f.das, 'DAS do mês'), outrosCents = parseMoney(f.outros, 'Outros descontos', false)
+    const cfg = { proLaborePct: 0, irpjPct: 0, inssPct: 0, contabilidadeCents: 0, outrosCents, dasCents }
+    if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
+    return { name, kind: 'mei', grossCents, netCents: null, ...cfg, dependents: 0 }
+  }
+  const cfg = { dasCents: 0, proLaborePct: pct(f.proLabore), irpjPct: pct(f.irpj), inssPct: pct(f.inss), contabilidadeCents: parseMoney(f.contabilidade, 'Contabilidade', false), outrosCents: parseMoney(f.outros, 'Outros descontos', false) }
   const grossCents = parseMoney(f.gross, 'Bruto')
   if (pjNet(grossCents, cfg).netCents <= 0) throw new Error('O líquido ficou negativo: confira os descontos')
   return { name, kind: 'pj', grossCents, netCents: null, ...cfg, dependents: 0 }

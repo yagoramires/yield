@@ -4,14 +4,15 @@ import { monthTotals } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
 
-export interface PjBreakdown { grossCents: Cents; proLaboreCents: Cents; irpjCents: Cents; inssCents: Cents; contabilidadeCents: Cents; outrosCents: Cents; netCents: Cents }
+export interface PjBreakdown { grossCents: Cents; proLaboreCents: Cents; irpjCents: Cents; inssCents: Cents; contabilidadeCents: Cents; outrosCents: Cents; dasCents: Cents; netCents: Cents }
 
+/** PJ e MEI: o MEI vem com os percentuais zerados e o DAS fixo em `dasCents`; na PJ o DAS fica em 0. */
 export function pjNet(grossCents: Cents, cfg: PjConfig): PjBreakdown {
   const proLaboreCents = Math.round(grossCents * cfg.proLaborePct / 100)
   const irpjCents = Math.round(grossCents * cfg.irpjPct / 100)
   const inssCents = Math.round(proLaboreCents * cfg.inssPct / 100)
-  const { contabilidadeCents, outrosCents } = cfg
-  return { grossCents, proLaboreCents, irpjCents, inssCents, contabilidadeCents, outrosCents, netCents: grossCents - irpjCents - inssCents - contabilidadeCents - outrosCents }
+  const { contabilidadeCents, outrosCents, dasCents } = cfg
+  return { grossCents, proLaboreCents, irpjCents, inssCents, contabilidadeCents, outrosCents, dasCents, netCents: grossCents - irpjCents - inssCents - dasCents - contabilidadeCents - outrosCents }
 }
 
 const sum = (lines: BudgetLine[], kind: BudgetLine['kind']) => lines.filter(l => l.kind === kind).reduce((s, l) => s + l.amountCents, 0)
@@ -75,7 +76,7 @@ export function cltNet(grossCents: Cents, dependents: number, outrosCents: Cents
 
 /** `month` escolhe a tabela do CLT; sem ele, a mais recente. */
 export const sourceNet = (s: IncomeSource, month?: Month): Cents =>
-  s.kind === 'pj' ? pjNet(s.grossCents ?? 0, s).netCents : s.kind === 'clt' ? cltNet(s.grossCents ?? 0, s.dependents, s.outrosCents, month ? Number(month.slice(0, 4)) : undefined).netCents : s.netCents ?? 0
+  s.kind === 'pj' || s.kind === 'mei' ? pjNet(s.grossCents ?? 0, s).netCents : s.kind === 'clt' ? cltNet(s.grossCents ?? 0, s.dependents, s.outrosCents, month ? Number(month.slice(0, 4)) : undefined).netCents : s.netCents ?? 0
 
 // Recebe as linhas de UM mês e copia para `target`: parcelas avançam pela distância e as que já acabaram não são copiadas,
 // linhas de fonte são recalculadas, chave de sugestão vai com o mês novo (para não sugerir de novo) e a da planilha cai.

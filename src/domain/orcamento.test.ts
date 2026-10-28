@@ -15,7 +15,7 @@ const catOf = (t: Txn) => cats[t.description] ?? null
 
 describe('pjNet', () => {
   it('divide o bruto e fecha o líquido', () => {
-    expect(pjNet(1_000_000, { ...DEFAULT_PJ, contabilidadeCents: 30_000 })).toEqual({ grossCents: 1_000_000, proLaboreCents: 280_000, irpjCents: 60_000, inssCents: 30_800, contabilidadeCents: 30_000, outrosCents: 0, netCents: 879_200 })
+    expect(pjNet(1_000_000, { ...DEFAULT_PJ, contabilidadeCents: 30_000 })).toEqual({ grossCents: 1_000_000, proLaboreCents: 280_000, irpjCents: 60_000, inssCents: 30_800, contabilidadeCents: 30_000, outrosCents: 0, dasCents: 0, netCents: 879_200 })
   })
   it('bruto ímpar fecha em centavos', () => {
     const b = pjNet(333_333, { ...DEFAULT_PJ, contabilidadeCents: 12_345, outrosCents: 99 })
@@ -29,6 +29,11 @@ describe('sourceNet', () => {
   it('pj usa pjNet; fixo usa o líquido informado', () => {
     expect(sourceNet(src())).toBe(879_200)
     expect(sourceNet(src({ kind: 'fixo', grossCents: null, netCents: 400_000 }))).toBe(400_000)
+  })
+  it('MEI: bruto menos o DAS fixo do mês e os outros descontos, sem pró-labore nem INSS', () => {
+    const mei = src({ kind: 'mei', grossCents: 500_000, proLaborePct: 0, irpjPct: 0, inssPct: 0, contabilidadeCents: 0, outrosCents: 1_000, dasCents: 7_600 })
+    expect(sourceNet(mei)).toBe(491_400)
+    expect(pjNet(500_000, mei)).toMatchObject({ proLaboreCents: 0, inssCents: 0, dasCents: 7_600, netCents: 491_400 })
   })
 })
 

@@ -257,12 +257,12 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             {entradas.map(l => {
               if (form?.id === l.id) return entradaForm(form)
               const source = data.sources.find(s => s.id === l.sourceId)
-              const pj = source?.kind === 'pj' && l.amountCents === sourceNet(source, month) ? pjNet(source.grossCents ?? 0, source) : null
+              const pj = (source?.kind === 'pj' || source?.kind === 'mei') && l.amountCents === sourceNet(source, month) ? pjNet(source.grossCents ?? 0, source) : null
               return (
                 <tr key={l.id}>
                   <td>
-                    <div style={{ color: '#fff' }}>{l.name} {source && <span className="pill">{source.kind === 'pj' ? 'fonte PJ' : 'fonte'}</span>} {recur(l)}</div>
-                    {pj ? <div className="pj">bruto {formatCents(pj.grossCents)} − IRPJ {formatCents(pj.irpjCents)} − INSS {formatCents(pj.inssCents)} − contabilidade {formatCents(pj.contabilidadeCents)} − outros {formatCents(pj.outrosCents)} · pró-labore {formatCents(pj.proLaboreCents)}</div>
+                    <div style={{ color: '#fff' }}>{l.name} {source && <span className="pill">{source.kind === 'pj' ? 'fonte PJ' : source.kind === 'mei' ? 'fonte MEI' : 'fonte'}</span>} {recur(l)}</div>
+                    {pj ? <div className="pj">{source?.kind === 'mei' ? <>bruto {formatCents(pj.grossCents)} − DAS {formatCents(pj.dasCents)} − outros {formatCents(pj.outrosCents)}</> : <>bruto {formatCents(pj.grossCents)} − imposto {formatCents(pj.irpjCents)} − INSS {formatCents(pj.inssCents)} − contabilidade {formatCents(pj.contabilidadeCents)} − outros {formatCents(pj.outrosCents)} · pró-labore {formatCents(pj.proLaboreCents)}</>}</div>
                       : !source ? <div className="d2">valor avulso{l.recurring ? '' : ' · só este mês'}</div>
                       : source.kind === 'clt' && cltTabelaAno(Number(month.slice(0, 4))) !== Number(month.slice(0, 4)) && <div className="d2">usando a tabela de {cltTabelaAno(Number(month.slice(0, 4)))}</div>}
                   </td>

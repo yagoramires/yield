@@ -107,10 +107,14 @@ describe('parseItemId', () => {
 })
 
 describe('validateSource', () => {
-  const pj = { name: ' Empresa Alfa ', kind: 'pj' as const, gross: '15.000,00', proLabore: '28', irpj: '6', inss: '11', contabilidade: '300,00', outros: '150,00', net: '', dependents: '' }
+  const pj = { name: ' Empresa Alfa ', kind: 'pj' as const, gross: '15.000,00', proLabore: '28', irpj: '6', inss: '11', contabilidade: '300,00', outros: '150,00', net: '', dependents: '', das: '' }
   it('PJ ok: nome aparado, percentuais com vírgula, líquido fica nulo', () => {
-    expect(validateSource(pj)).toEqual({ name: 'Empresa Alfa', kind: 'pj', grossCents: 1500000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 15000, dependents: 0 })
+    expect(validateSource(pj)).toEqual({ name: 'Empresa Alfa', kind: 'pj', grossCents: 1500000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 30000, outrosCents: 15000, dasCents: 0, dependents: 0 })
     expect(validateSource({ ...pj, irpj: '6,5', contabilidade: '', outros: '0' })).toMatchObject({ irpjPct: 6.5, contabilidadeCents: 0, outrosCents: 0 })
+  })
+  it('MEI: bruto, DAS fixo e outros descontos; sem pró-labore, imposto % nem INSS', () => {
+    expect(validateSource({ ...pj, kind: 'mei', gross: '5.000,00', das: '76,00', outros: '' })).toEqual({ name: 'Empresa Alfa', kind: 'mei', grossCents: 500000, netCents: null, proLaborePct: 0, irpjPct: 0, inssPct: 0, contabilidadeCents: 0, outrosCents: 0, dasCents: 7600, dependents: 0 })
+    expect(() => validateSource({ ...pj, kind: 'mei', gross: '5.000,00', das: '' })).toThrow('DAS')
   })
   it('exige nome', () => expect(() => validateSource({ ...pj, name: '  ' })).toThrow('Dê um nome para a fonte'))
   it('percentual fora de 0–100 ou não numérico', () => {
@@ -121,11 +125,11 @@ describe('validateSource', () => {
     expect(() => validateSource({ ...pj, contabilidade: '20.000,00' })).toThrow('O líquido ficou negativo: confira os descontos')
   })
   it('fixo: só o líquido, PJ no padrão', () => {
-    expect(validateSource({ ...pj, kind: 'fixo', net: '6.500,00' })).toEqual({ name: 'Empresa Alfa', kind: 'fixo', grossCents: null, netCents: 650000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dependents: 0 })
+    expect(validateSource({ ...pj, kind: 'fixo', net: '6.500,00' })).toEqual({ name: 'Empresa Alfa', kind: 'fixo', grossCents: null, netCents: 650000, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dasCents: 0, dependents: 0 })
     expect(() => validateSource({ ...pj, kind: 'fixo', net: '' })).toThrow('Líquido')
   })
   it('CLT: bruto, dependentes e outros descontos; percentuais da PJ ficam no padrão', () => {
-    expect(validateSource({ ...pj, kind: 'clt', gross: '6.000,00', dependents: '2', outros: '150,00', proLabore: 'x' })).toEqual({ name: 'Empresa Alfa', kind: 'clt', grossCents: 600000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 15000, dependents: 2 })
+    expect(validateSource({ ...pj, kind: 'clt', gross: '6.000,00', dependents: '2', outros: '150,00', proLabore: 'x' })).toEqual({ name: 'Empresa Alfa', kind: 'clt', grossCents: 600000, netCents: null, proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 15000, dasCents: 0, dependents: 2 })
     expect(validateSource({ ...pj, kind: 'clt', gross: '3.000,00', dependents: '', outros: '' })).toMatchObject({ dependents: 0, outrosCents: 0 })
     for (const bad of ['-1', '1,5', 'dois', '31']) expect(() => validateSource({ ...pj, kind: 'clt', dependents: bad })).toThrow('Dependentes')
     expect(() => validateSource({ ...pj, kind: 'clt', gross: '2.000,00', outros: '5.000,00' })).toThrow('O líquido ficou negativo: confira os descontos')
@@ -143,7 +147,7 @@ describe('saveSourceForm', () => {
   it('se recalcular as entradas falhar, salvar de novo edita a mesma fonte em vez de criar outra', async () => {
     const db = createTestDb()
     const failing = { ...db, execute: (sql: string, p?: unknown[]) => (sql.startsWith('UPDATE budget_lines') ? Promise.reject(new Error('falhou')) : db.execute(sql, p)) }
-    const v = validateSource({ name: 'Freela', kind: 'fixo', gross: '', proLabore: '', irpj: '', inss: '', contabilidade: '', outros: '', net: '1000', dependents: '' })
+    const v = validateSource({ name: 'Freela', kind: 'fixo', gross: '', proLabore: '', irpj: '', inss: '', contabilidade: '', outros: '', net: '1000', dependents: '', das: '' })
     let editing: IncomeSource | null = null
     await expect(saveSourceForm(failing, v, editing, '2026-10', s => { editing = s })).rejects.toThrow('falhou')
     expect(await saveSourceForm(db, v, editing, '2026-10', s => { editing = s })).toBe(0)
