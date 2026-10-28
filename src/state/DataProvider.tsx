@@ -192,7 +192,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const transfers = pairTransfers(gastosData.txns, gastosData.accounts, gastosData.overrides)
     const of = (t: Txn) => {
       const a = accounts.get(t.accountId)
-      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), ownerNames: gastosData.ownerNames }) : null
+      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), ownerNames: gastosData.ownerNames, companyNames: gastosData.companyNames }) : null
     }
     const byId = new Map(gastosData.txns.map(t => [t.id, of(t)]))
     const cat = (t: Txn) => (byId.has(t.id) ? byId.get(t.id)! : of(t))

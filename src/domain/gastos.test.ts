@@ -114,9 +114,10 @@ describe('categorize com transferências', () => {
     expect(categorize(txn({}), conta, [], {}, categories, { paired: true })?.id).toBe('transferencia')
     expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE' }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('transferencia')
     expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE' }), cartao, [], {}, categories, { ownerNames: ['Ana Teste'] })).toBeNull()
-    expect(categorize(txn({ description: 'PIX RECEBIDO ANA TESTE TECNOLOGIA LTDA', amountCents: 500000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('receita')
+    expect(categorize(txn({ description: 'PIX RECEBIDO ANA TESTE TECNOLOGIA LTDA', amountCents: 500000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'], companyNames: ['Ana Teste Tecnologia'] })?.id).toBe('receita')
+    expect(categorize(txn({ description: 'PIX RECEBIDO ANA TESTE TECNOLOGIA LTDA', amountCents: 500000 }), conta, [], {}, categories, { companyNames: ['Ana Teste Tecnologia'] })?.id).toBe('receita')
     // dinheiro que você manda para a sua própria empresa é transferência, não gasto
-    expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE TECNOLOGIA LTDA', amountCents: -300000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'] })?.id).toBe('transferencia')
+    expect(categorize(txn({ description: 'PIX ENVIADO ANA TESTE TECNOLOGIA LTDA', amountCents: -300000 }), conta, [], {}, categories, { ownerNames: ['Ana Teste'], companyNames: ['Ana Teste Tecnologia'] })?.id).toBe('transferencia')
     expect(categorize(txn({}), conta, [], { fp: 'alimentacao' }, categories, { paired: true })?.id).toBe('alimentacao')
     expect(categorize(txn({ description: 'UBER' }), conta, [rule('uber', 'transporte')], {}, categories, { paired: true })?.id).toBe('transporte')
   })

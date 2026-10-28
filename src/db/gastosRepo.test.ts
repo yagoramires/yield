@@ -5,7 +5,7 @@ import { createTestDb, tmpPath, type Db } from './testDb'
 import {
   deleteAccount, deleteCategory, deletePluggyItem, deleteRule, dismissRuleSuggestion, dismissSubscription, insertTxns, loadGastos,
   replaceWindow, saveCategory, savePluggyItem, saveRule, setLastSync, setOverride, updateCategory, upsertAccount,
-  saveOwnerNames,
+  saveCompanyNames, saveOwnerNames,
 } from './gastosRepo'
 import { loadOrcamento, saveLine } from './orcamentoRepo'
 
@@ -170,6 +170,12 @@ test('nome do titular vai para o meta e volta no loadGastos', async () => {
   await saveOwnerNames(db, ['Ana Teste', 'ANA T S'])
   await saveOwnerNames(db, ['Ana Teste'])
   expect((await loadGastos(db)).ownerNames).toEqual(['Ana Teste'])
+})
+
+test('empresa do titular vai para o meta e volta no loadGastos', async () => {
+  expect((await loadGastos(db)).companyNames).toEqual([])
+  await saveCompanyNames(db, ['Ana Teste Odontologia', '11.222.333/0001-81'])
+  expect((await loadGastos(db)).companyNames).toEqual(['Ana Teste Odontologia', '11.222.333/0001-81'])
 })
 
 test('migração 005: categoria da Pluggy é gravada e lida', async () => {

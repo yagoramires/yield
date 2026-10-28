@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Txn } from '../db/gastosRepo'
-import { ownerMention, pairTransfers, validOwnerNames } from './transferencias'
+import { ownerMention, pairTransfers, validCompanyNames, validOwnerNames } from './transferencias'
 
 const acc = (id: string, kind: Account['kind'] = 'conta'): Account => ({ id, source: 'pluggy', externalId: id, institution: id, name: id, kind, number: null, itemId: null, lastSyncAt: null })
 const accounts = [acc('nu'), acc('itau'), acc('inter'), acc('cartao', 'cartao')]
@@ -44,14 +44,32 @@ describe('nome do titular', () => {
     const me = ['Ana Teste Souza']
     expect(ownerMention('Transferência enviada pelo Pix - ANA TESTE SOUZA', me)).toBe('pessoa')
     expect(ownerMention('Pix recebido de Ana Teste Souza', me)).toBe('pessoa')
-    expect(ownerMention('Transferência Recebida|ANA TESTE SOUZA DESENVOLVIMENTO DE SOFTWARE', me)).toBe('empresa')
-    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA LTDA', me)).toBe('empresa')
+    // sem a empresa configurada, nenhum sufixo vira empresa
+    expect(ownerMention('Transferência Recebida|ANA TESTE SOUZA DESENVOLVIMENTO DE SOFTWARE', me)).toBe('pessoa')
+    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA LTDA', me)).toBe('pessoa')
     expect(ownerMention('PIX RECEBIDO JOÃO SILVA', ['Ana Teste Souza', 'João Silva'])).toBe('pessoa')
     expect(ownerMention('PIX ENVIADO ANA', me)).toBeNull()
     // o nome do banco depois de um separador não faz o titular virar empresa
     expect(ownerMention('Transferência recebida pelo Pix - ANA TESTE SOUZA - •••.123.456-•• - BCO EXEMPLO S.A. (0237)', me)).toBe('pessoa')
     expect(ownerMention('PIX RECEBIDO - REM  Ana Teste Souza  03/03 - DOCTO: 123 PAGAMENTOS DIGITAL', me)).toBe('pessoa')
     expect(ownerMention('qualquer coisa', [])).toBeNull()
+  })
+  it('a empresa é a que você configurou, pelo nome ou pelo CNPJ', () => {
+    const me = ['Ana Teste Souza'], pj = ['Ana Teste Odontologia', '11.222.333/0001-81']
+    expect(ownerMention('PIX RECEBIDO ANA TESTE ODONTOLOGIA LTDA', me, pj)).toBe('empresa')
+    expect(ownerMention('Pix recebido de Ana Teste Odontologia', [], pj)).toBe('empresa')
+    expect(ownerMention('TED RECEBIDA 11222333000181 CLINICA SORRISO', me, pj)).toBe('empresa')
+    expect(ownerMention('PIX RECEBIDO 11.222.333/0001-81', me, pj)).toBe('empresa')
+    expect(ownerMention('PIX RECEBIDO ANA TESTE SOUZA', me, pj)).toBe('pessoa')
+    // nome parecido não basta: precisa das palavras inteiras
+    expect(ownerMention('PIX RECEBIDO ANA TESTE ODONTOLOGICA', [], ['Ana Teste Odonto'])).toBeNull()
+    expect(ownerMention('PIX RECEBIDO BANCO LARANJA', me, pj)).toBeNull()
+  })
+  it('validCompanyNames aceita nome com duas palavras ou CNPJ de 14 dígitos', () => {
+    expect(validCompanyNames('Ana Teste Odontologia, 11.222.333/0001-81')).toEqual({ names: ['Ana Teste Odontologia', '11.222.333/0001-81'] })
+    expect(validCompanyNames('')).toEqual({ names: [] })
+    expect(validCompanyNames('Odonto')).toEqual({ error: 'Use o nome com pelo menos duas palavras ou o CNPJ completo ("Odonto" pegaria Pix de outras empresas).' })
+    expect(validCompanyNames('11.222.333')).toEqual({ error: 'Use o nome com pelo menos duas palavras ou o CNPJ completo ("11.222.333" pegaria Pix de outras empresas).' })
   })
   it('validOwnerNames separa por vírgula e exige nome e sobrenome', () => {
     expect(validOwnerNames('Ana Teste,  ANA T S ')).toEqual({ names: ['Ana Teste', 'ANA T S'] })
