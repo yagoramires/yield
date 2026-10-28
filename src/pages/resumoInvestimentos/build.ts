@@ -1,4 +1,4 @@
-import { addMonths, monthOf } from '../../domain/money'
+import { addMonths, formatCents, monthOf } from '../../domain/money'
 import { replay } from '../../domain/ledger'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Cents, CorporateEvent, Dividend, DividendKind, Month, Trade } from '../../domain/types'
@@ -35,7 +35,7 @@ export function dividendsByMonth(dividends: Dividend[], lastMonth: Month, n: num
 export function topPositions(p: Portfolio, n: number): { name: string; cls: string; clsKey: string; valueCents: Cents; pct: number; varPct: number | null; manual: boolean }[] {
   const pct = (v: Cents) => (p.totalValueCents > 0 ? v / p.totalValueCents : 0)
   return [
-    ...p.rows.flatMap(r => (r.valueCents === null ? [] : [{ name: r.ticker, cls: r.assetType as string, clsKey: r.assetType as string, valueCents: r.valueCents, pct: pct(r.valueCents), varPct: r.varPct, manual: false }])),
+    ...p.rows.flatMap(r => (r.valueCents === null ? [] : [{ name: r.ticker, cls: r.assetType as string, clsKey: r.assetType === 'ETF RF' ? 'renda_fixa' : r.assetType as string, valueCents: r.valueCents, pct: pct(r.valueCents), varPct: r.varPct, manual: false }])),
     ...p.manual.flatMap(m => (m.valueCents === null ? [] : [{ name: m.name, cls: classLabel(m.assetClass), clsKey: m.assetClass, valueCents: m.valueCents, pct: pct(m.valueCents), varPct: m.costCents ? (m.valueCents - m.costCents) / m.costCents : null, manual: true }])),
     ...(p.rf ?? []).flatMap(h => (h.closed || h.valueCents === null ? [] : [{ name: h.name, cls: classLabel('renda_fixa'), clsKey: 'renda_fixa', valueCents: h.valueCents, pct: pct(h.valueCents), varPct: h.gainPct, manual: false }])),
     ...(p.crypto ?? []).flatMap(c => (c.valueCents === null ? [] : [{ name: c.asset, cls: classLabel('cripto'), clsKey: 'cripto', valueCents: c.valueCents, pct: pct(c.valueCents), varPct: c.costCents ? (c.valueCents - c.costCents) / c.costCents : null, manual: false }])),
@@ -59,13 +59,12 @@ export function moneyBuckets(p: Portfolio, ctx: { cryptoAt: string | null; dolla
   const classes = carteiraClasses(p)
   const of = (keys: string[]) => classes.filter(c => keys.includes(c.key))
   const hhmm = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }
-  const money = (c: Cents) => (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   const notes: Record<BucketKey, string> = {
     bolsa: 'ações, FIIs, ETFs, BDRs',
     renda_fixa: ((n: number) => `${n} ${n === 1 ? 'título' : 'títulos'}`)(of(['renda_fixa'])[0]?.count ?? 0),
-    exterior: `US$ ${money(p.manual.reduce((s, m) => s + (m.usdCents ?? 0), 0))}`,
+    exterior: `US$ ${formatCents(p.manual.reduce((s, m) => s + (m.usdCents ?? 0), 0))}`,
     cripto: ctx.cryptoAt ? `Binance, ${hhmm(ctx.cryptoAt)}` : 'informado à mão',
-    dolar: ctx.dollarCents ? `dólar R$ ${money(ctx.dollarCents)}` : 'sem cotação do dólar',
+    dolar: ctx.dollarCents ? `dólar R$ ${formatCents(ctx.dollarCents)}` : 'sem cotação do dólar',
     outro: 'ativos manuais',
   }
   const parts: [BucketKey, string, string[]][] = [['bolsa', 'Bolsa', BOLSA], ['renda_fixa', 'Renda fixa', ['renda_fixa']], ['exterior', 'Exterior', ['exterior']], ['cripto', 'Cripto', ['cripto']], ['dolar', 'Dólar', ['dolar']], ['outro', 'Outros', ['outro']]]

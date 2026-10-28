@@ -116,10 +116,11 @@ function parseNegociacao(rows: Cell[][], out: B3Import) {
     // Renda fixa, opções, termo e direitos de subscrição (12–15) não entram na carteira de renda variável.
     // ETF de renda fixa (IMAB11…) vem no mercado "Renda Fixa", mas é cota negociada em bolsa
     const etfRf = mercado === 'Renda Fixa' && /^[A-Z]{4}11$/.test(ticker) && !text(get('Prazo/Vencimento')).replace('-', '')
-    if (etfRf) out.trades.push({ date, broker: normalizeBroker(text(get('Instituição'))), side: tipo === 'Venda' ? 'V' : 'C', ticker, qty: parseQty(str(get('Quantidade'))), priceCents: parseBRL(str(get('Preço'))), assetType: 'ETF RF' })
+    const trade = (): B3Trade => ({ date, broker: normalizeBroker(text(get('Instituição'))), side: tipo === 'Venda' ? 'V' : 'C', ticker, qty: parseQty(str(get('Quantidade'))), priceCents: parseBRL(str(get('Preço'))) })
+    if (etfRf) out.trades.push({ ...trade(), assetType: 'ETF RF' })
     else if (!['Mercado à Vista', 'Mercado Fracionário'].includes(mercado)) out.toReview.push({ date, movimentacao: `${tipo} em ${mercado}`, produto: codigo })
     else if (text(get('Prazo/Vencimento')).replace('-', '') || /1[2-5]$/.test(ticker)) out.toReview.push({ date, movimentacao: `${tipo} com vencimento`, produto: codigo })
-    else out.trades.push({ date, broker: normalizeBroker(text(get('Instituição'))), side: tipo === 'Venda' ? 'V' : 'C', ticker, qty: parseQty(str(get('Quantidade'))), priceCents: parseBRL(str(get('Preço'))) })
+    else out.trades.push(trade())
   }
 }
 
@@ -198,12 +199,13 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
     }
     if (!fresh.length) continue
     const typeOf = (t: B3Trade) => t.assetType ?? types.get(t.ticker) ?? assetTypeOf(t.ticker)
-    // dia já importado: completa a nota com o que uma Negociação mais nova trouxe a mais (ex. ETF de renda fixa)
+    // dia já importado: completa a nota só com o que versões antigas do importador não liam (ETF de renda fixa);
+    // o resto da nota pode ter sido editado à mão e não volta
     const [day] = await db.select<{ id: string }>('SELECT id FROM notes WHERE source_key = ?', [`b3neg:${date}:${broker}`])
     if (day) {
       const pool = await db.select<{ ticker: string; side: string; qty: number; priceCents: number; seq: number }>('SELECT ticker, side, qty, price_cents AS priceCents, seq FROM trades WHERE note_id = ?', [day.id])
       const maxSeq = Math.max(0, ...pool.map(h => h.seq))
-      const missing = fresh.filter(t => {
+      const missing = fresh.filter(t => t.assetType).filter(t => {
         const i = pool.findIndex(h => h.ticker === t.ticker && h.side === t.side && h.qty === t.qty && h.priceCents === t.priceCents)
         if (i < 0) return true
         pool.splice(i, 1)

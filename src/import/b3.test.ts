@@ -245,3 +245,11 @@ test('dia já importado: a Negociação nova completa a nota do dia com o que fa
   await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'IMAB11', 3, 90, 'Renda Fixa')])), new Map([['IMAB11', 'ETF RF']]))
   expect((await loadAll(db)).trades).toHaveLength(2)
 })
+
+test('reimportar não devolve operação da B3 que o usuário editou na nota do dia', async () => {
+  const db = createTestDb()
+  await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'ITSA4', 10, 10)])))
+  await db.execute("UPDATE trades SET qty = 11 WHERE ticker = 'ITSA4'")
+  await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'ITSA4', 10, 10)])))
+  expect((await loadAll(db)).trades.map(t => t.qty)).toEqual([11])
+})

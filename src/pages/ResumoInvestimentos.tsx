@@ -11,16 +11,9 @@ import { brDay, monthName } from './lancamentos/GastosHeader'
 import { Rentabilidade } from './resumoInvestimentos/Rentabilidade'
 import { rfAppliedByMonth, rfJurosByMonth } from '../domain/rendaFixa'
 import { carteiraClasses } from './carteira/build'
+import { pct as pct1, sign, tone, when } from './carteira/fmt'
 import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 
-const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s.replace('-', '')}` : s)
-const tone = (c: number | null) => (c === null || c === 0 ? '' : c > 0 ? 'up' : 'dn')
-const pct1 = (p: number) => sign(p, `${(p * 100).toFixed(1).replace('.', ',')}%`)
-const when = (iso: string) => {
-  const d = new Date(iso)
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)} às ${p(d.getHours())}:${p(d.getMinutes())}`
-}
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
 
@@ -135,7 +128,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         </div>
       )}
 
-      <Rentabilidade trades={data.trades} events={data.events} dividends={data.dividends} thisMonth={thisMonth} />
+      <Rentabilidade trades={data.trades.filter(t => t.assetType !== 'ETF RF')} events={data.events} dividends={data.dividends} thisMonth={thisMonth} />
 
       <div className="grid2">
         <div className="card stretch">
