@@ -85,7 +85,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             {prev && copy.length > 0 && <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível copiar o mês', async () => { await createMonth(db, month, copy) })}>Copiar de {lower(prev)}</button>}
             <button className="b" disabled={busy} onClick={() => void run('Não foi possível criar o mês', async () => { await createMonth(db, month, []) })}>Começar vazio</button>
           </div>
-          <div className="muted" style={{ marginTop: 12 }}>Primeira vez? Importe sua planilha em <button className="link" onClick={onOpenSettings}>Configurações › Importar planilha de orçamento</button>.</div>
+          <div className="muted" style={{ marginTop: 12 }}>Já tem o orçamento numa planilha? Salve como CSV (mes;tipo;nome;valor) e importe em <button className="link" onClick={onOpenSettings}>Configurações › Importar orçamento (CSV)</button>.</div>
         </div>
       </>
     )

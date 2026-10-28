@@ -119,8 +119,8 @@ export function parseItemId(text: string): string {
 }
 
 /** Avisos aparecem em lista própria na tela; aqui só as contagens. */
-export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }, sourceCreated: boolean): string {
-  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`, ...(sourceCreated ? ['1 fonte de renda PJ criada'] : [])].join(' · ')
+export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }): string {
+  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`].join(' · ')
 }
 
 export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string }

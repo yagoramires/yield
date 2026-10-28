@@ -17,7 +17,7 @@ export function detectCsvPreset(text: string): CsvPreset | null {
   return ls.some(l => l.startsWith('RELEASE_DATE;')) ? 'mercadopago' : null
 }
 
-function splitRow(line: string, sep: string): string[] {
+export function splitRow(line: string, sep: string): string[] {
   const out: string[] = []
   let cur = '', q = false
   for (let i = 0; i < line.length; i++) {

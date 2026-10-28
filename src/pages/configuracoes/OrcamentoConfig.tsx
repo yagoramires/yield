@@ -2,7 +2,9 @@ import { useRef, useState } from 'react'
 import { DEFAULT_PJ, deleteSource, type IncomeSource } from '../../db/orcamentoRepo'
 import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
 import { formatBRL, monthOf } from '../../domain/money'
-import { importOrcamento, parseOrcamentoPlanilha } from '../../import/orcamentoPlanilha'
+import { decodeStatement } from '../../import/ofx'
+import { importOrcamentoCsv, ORCAMENTO_CSV_EXEMPLO, parseOrcamentoCsv } from '../../import/orcamentoCsv'
+import { CopyButton } from '../declaracao/Copy'
 import { todayISO, useData } from '../../state/DataProvider'
 import { orcamentoImportSummary, saveSourceForm, validateSource, type SourceForm } from './build'
 import { Select } from '../../ui/Select'
@@ -24,33 +26,31 @@ export function ImportarOrcamento() {
   const input = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ text: string; warnings: string[] } | null>(null)
+  const [result, setResult] = useState<string | null>(null)
 
   const importFile = async (file: File) => {
     setBusy(true); setResult(null); setError(null)
-    try {
-      const p = parseOrcamentoPlanilha(await file.arrayBuffer())
-      const r = await importOrcamento(db, p)
-      setResult({ text: orcamentoImportSummary(r, r.sourceCreated), warnings: [...p.warnings, ...r.warnings] })
-    } catch (e) { setError(`Não foi possível importar ${file.name}: ${errText(e)}`) }
+    try { setResult(orcamentoImportSummary(await importOrcamentoCsv(db, parseOrcamentoCsv(decodeStatement(await file.arrayBuffer()))))) } catch (e) { setError(`Não foi possível importar ${file.name}: ${errText(e)}`) }
     try { await orcamento.reload() } catch (e) { setError(`Não foi possível recarregar os dados: ${errText(e)}`) }
     setBusy(false)
   }
 
   return (
     <div className="card">
-      <b style={{ color: '#fff' }}>Importar planilha de orçamento</b>
-      <div className="muted" style={{ margin: '4px 0 10px' }}>Aba "Finanças" (.xlsx) · pode importar de novo: o que já existe é pulado e o que você mudou no app fica como está, mas uma linha apagada no app volta se você importar de novo</div>
-      <button className="b pri" disabled={busy} onClick={() => input.current?.click()}>Escolher arquivo…</button>
-      <input ref={input} type="file" accept=".xlsx" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
+      <b style={{ color: '#fff' }}>Importar orçamento (CSV)</b>
+      <div className="muted" style={{ margin: '4px 0 10px' }}>
+        Uma linha por item com as colunas <b>mes</b> (AAAA-MM), <b>tipo</b> (receita, fixa, variavel ou meta), <b>nome</b> e <b>valor</b>, separadas por ponto e vírgula.
+        Salve sua planilha nesse formato como CSV. Pode importar de novo: o que já existe no mês é pulado.
+      </div>
+      <pre className="t2" style={{ margin: '0 0 10px', whiteSpace: 'pre-wrap' }}>{ORCAMENTO_CSV_EXEMPLO}</pre>
+      <div className="btns">
+        <button className="b pri" disabled={busy} onClick={() => input.current?.click()}>Escolher arquivo…</button>
+        <CopyButton text={ORCAMENTO_CSV_EXEMPLO} label="Copiar exemplo" what="exemplo de CSV" />
+      </div>
+      <input ref={input} type="file" accept=".csv,.txt" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
       {busy && <span className="muted"> Importando…</span>}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
-      {result && (
-        <div className="info" style={{ marginTop: 10 }}>
-          Última importação<br />{result.text}
-          {result.warnings.length > 0 && <><br /><span className="warn">Avisos:</span> {result.warnings.join(' · ')}</>}
-        </div>
-      )}
+      {result && <div className="info" style={{ marginTop: 10 }}>Última importação<br />{result}</div>}
     </div>
   )
 }

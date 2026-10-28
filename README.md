@@ -69,7 +69,7 @@ As transações chegam de dois jeitos:
 | **Mês atual** | Entradas, saídas e saldo do mês; planejado × gasto real até agora (com a marca de quanto do mês passou) e por categoria; criar o mês seguinte copiando as linhas recorrentes, com as parcelas avançando sozinhas. |
 | **Sugestões** | Assinaturas e parcelas que faltam, vindas dos seus gastos reais. Nada entra no plano sem você aceitar. |
 | **Fontes de renda** | Salário **CLT** (INSS e IRRF de 2026, com a isenção até R$ 5 mil, dependentes e outros descontos), salário **PJ** (pró-labore, IRPJ, INSS, contabilidade) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
-| **Importação** | Lê a aba de orçamento de uma planilha, inclusive a calculadora de salário PJ, sem duplicar ao reimportar. |
+| **Importação** | Lê um CSV simples (`mes;tipo;nome;valor`, com exemplo na tela) com o orçamento de vários meses, sem duplicar ao reimportar. |
 
 ### 📈 Investimentos
 
@@ -132,7 +132,7 @@ O caminho gratuito é o conector **MeuPluggy**. O teste da Pluggy dura 15 dias e
 ```
 src/
   domain/        regras puras: preço médio, imposto, DARF, categorias, assinaturas
-  import/        relatórios da B3, nota em PDF (SINACOR), planilha de orçamento, OFX e CSV
+  import/        relatórios da B3, nota em PDF (SINACOR), orçamento em CSV, OFX e CSV
   openfinance/   cliente Pluggy só leitura, sincronização, cofre
   db/            SQLite (migrações em src-tauri/migrations)
   state/         DataProvider: carrega o banco e deriva tudo em memória

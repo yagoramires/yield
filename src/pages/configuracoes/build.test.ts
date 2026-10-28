@@ -134,8 +134,8 @@ describe('validateSource', () => {
 
 describe('orcamentoImportSummary', () => {
   it('contagens e fonte criada', () => {
-    expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 }, true)).toBe('11 meses · 186 linhas · 0 já existiam · 1 fonte de renda PJ criada')
-    expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 }, false)).toBe('1 mês · 1 linha · 2 já existiam')
+    expect(orcamentoImportSummary({ months: 11, lines: 186, skipped: 0 })).toBe('11 meses · 186 linhas · 0 já existiam')
+    expect(orcamentoImportSummary({ months: 1, lines: 1, skipped: 2 })).toBe('1 mês · 1 linha · 2 já existiam')
   })
 })
 
