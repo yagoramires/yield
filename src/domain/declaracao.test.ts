@@ -118,6 +118,10 @@ describe('renda fixa da B3', () => {
     expect(r[0].institutions).toEqual([INST])
     expect([RF_CODES.tributavel.grupo, RF_CODES.tributavel.codigo, RF_CODES.isento.codigo]).toEqual(['04', '02', '03'])
   })
+  it('LCD e CDCA são isentos', () => {
+    const r = rendaFixaDoAno([mv('LCD - LCD0000CC00 - BANCO LARANJA S/A', 'aplicacao', '2025-01-10', 1, 1000), mv('CDCA - CDCA000DD00 - AGRO TESTE S/A', 'aplicacao', '2025-01-10', 1, 1000)], [], 2025)
+    expect(r.map(b => b.tipo)).toEqual(['isento', 'isento'])
+  })
   it('saída sem a compra no período marca o título como parcial', () => {
     const [b] = rendaFixaDoAno([mv(CDB, 'saida', '2025-03-01', 1, 1000)], [], 2025)
     expect(b.partial).toBe(true)

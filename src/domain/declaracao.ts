@@ -136,13 +136,13 @@ export function pendencias(bens: Bem[], rendimentos: Rendimento[], issuers: Map<
 }
 
 // shortcut: códigos de renda fixa do IRPF 2026 (ano-calendário 2025); conferir no programa da Receita a cada ano.
-// Debênture incentivada (Lei 12.431) é isenta e vai no 02, mas o relatório da B3 não diz qual é: entra no 01.
+// Debênture incentivada (Lei 12.431) é isenta e vai no 04-03, mas o relatório da B3 não diz qual é: entra no 04-02 (tributáveis).
 export const RF_CODES = {
   tributavel: { grupo: '04', codigo: '02', label: '04 – Aplicações e investimentos / 02 – Títulos públicos e privados sujeitos à tributação (Tesouro Direto, CDB, RDB e outros)', classe: 'Renda fixa tributável' },
   isento: { grupo: '04', codigo: '03', label: '04 – Aplicações e investimentos / 03 – Títulos isentos de tributação (LCI, LCA, CRI, CRA e outros)', classe: 'Renda fixa isenta' },
 } as const
 export type TipoRf = keyof typeof RF_CODES
-const tipoRf = (product: string): TipoRf => (/^(lci|lca|cri|cra|lig)\b/i.test(product.trim()) ? 'isento' : 'tributavel')
+const tipoRf = (product: string): TipoRf => (/^(lci|lca|lcd|cri|cra|cdca|lig)\b/i.test(product.trim()) ? 'isento' : 'tributavel')
 
 export interface BemRf { key: string; name: string; tipo: TipoRf; qtyPrev: number; appliedPrevCents: Cents; qty: number; appliedCents: Cents; institutions: string[]; partial: boolean }
 
