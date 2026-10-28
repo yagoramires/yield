@@ -62,7 +62,7 @@ export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>
     ...(r.tradesSkipped ? [`${n(r.tradesSkipped, 'operação já estava numa nota', 'operações já estavam em notas')}`] : []),
     n(r.dividends, 'provento', 'proventos'), ...(r.replaced ? [`${r.replaced} substituíram os da planilha`] : []), `${r.dividendsSkipped} já existiam`,
     ...(r.eventsSkipped ? [r.eventsSkipped === 1 ? '1 evento já existia' : `${r.eventsSkipped} eventos já existiam`] : []),
-    ...(r.sales ? [`${n(r.sales, 'leilão de fração ou resgate lançado como venda', 'leilões de fração e resgates lançados como venda')}`] : []),
+    ...(r.sales ? [`${n(r.sales, 'leilão de fração lançado como venda', 'leilões de fração lançados como venda')}`] : []),
     ...(r.checked ? [`${n(r.checked, 'posição conferida com a B3', 'posições conferidas com a B3')}`] : []),
     ...(p.ignored ? [`${n(p.ignored, 'movimentação ignorada', 'movimentações ignoradas')} (liquidações e frações; as compras e vendas vêm do relatório de Negociação)`] : []),
   ]

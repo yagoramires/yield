@@ -149,21 +149,19 @@ test('assetTypeOf: 11 é FII até o usuário dizer outra coisa, 34 é BDR, resto
   expect(['HGLG11', 'AAPL34', 'ITSA4', 'B3SA3'].map(t => assetTypeOf(t))).toEqual(['FII', 'BDR', 'Ação', 'Ação'])
 })
 
-test('resgate vira venda; Atualização depois de subscrição exercida ganha a dica de lançar a compra', async () => {
+test('resgate vai para revisão (pode ser incorporação); Atualização depois de subscrição exercida ganha a dica', async () => {
   const db = await createTestDb()
   await importB3(db, parseB3(makeNegociacao([neg('05/01/2024', 'Compra', 'FUND11', 100, 10), neg('05/01/2024', 'Compra', 'OUTR11', 10, 10)])))
   const r = await importB3(db, parseB3(makeB3([
     row('Debito', '11/02/2024', 'Direitos de Subscrição - Exercido', 'OUTR12 - FUNDO OUTRO FII', '2'),
     row('Credito', '20/03/2024', 'Atualização', 'OUTR11 - FUNDO OUTRO FII', '2'),
-    row('Credito', '10/04/2024', 'Resgate', 'FUND11 - FUNDO EXEMPLO FII', '101', '4,31', '435,31'),
+    row('Credito', '10/04/2024', 'Resgate', 'FUND11 - FUNDO EXEMPLO FII', '100', '4,31', '431,00'),
   ])))
-  expect(r).toMatchObject({ sales: 1, checked: 0 })
-  expect(r.review).toEqual([
-    { date: '2024-04-10', movimentacao: 'Resgate', produto: 'FUND11 - FUNDO EXEMPLO FII', nota: 'vendidas as 100 cotas do Yield; a B3 resgatou 101 — a diferença veio de algo que falta lançar (ex.: subscrição)' },
-    { date: '2024-03-20', movimentacao: 'Atualização', produto: 'OUTR11 - FUNDO OUTRO FII', nota: 'provável crédito de subscrição (+2): lance a compra em Notas com o preço pago' },
-  ])
-  const sale = (await loadAll(db)).trades.find(t => t.side === 'V')!
-  expect([sale.ticker, sale.qty, sale.priceCents, sale.assetType]).toEqual(['FUND11', 100, 431, 'FII'])
+  expect(r).toMatchObject({ sales: 0, checked: 0 })
+  expect(r.review).toEqual([{ date: '2024-03-20', movimentacao: 'Atualização', produto: 'OUTR11 - FUNDO OUTRO FII', nota: 'provável crédito de subscrição (+2): lance a compra em Notas com o preço pago' }])
+  const p = parseB3(makeB3([row('Credito', '10/04/2024', 'Resgate', 'FUND11 - FUNDO EXEMPLO FII', '100', '4,31', '431,00')]))
+  expect(p.toReview).toEqual([{ date: '2024-04-10', movimentacao: 'Resgate', produto: 'FUND11 - FUNDO EXEMPLO FII', nota: 'R$ 431,00: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento' }])
+  expect((await loadAll(db)).trades.filter(t => t.side === 'V')).toEqual([])
 })
 
 test('operações viram uma nota sem taxa por dia e corretora; reimportar não duplica', async () => {

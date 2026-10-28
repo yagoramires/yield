@@ -15,8 +15,8 @@ export interface B3Import {
   ignored: number
   toReview: { date: ISODate; movimentacao: string; produto: string; nota?: string }[]
   checks: { date: ISODate; ticker: string; qty: number; produto: string }[] // "Atualização": a B3 reafirmando a posição inteira
-  // "Leilão de Fração" e "Resgate": a B3 pagou pelas cotas, então viram venda
-  sales: { kind: 'Leilão de Fração' | 'Resgate'; date: ISODate; ticker: string; qty: number; valueCents: Cents; broker: string; produto: string }[]
+  // "Leilão de Fração": a B3 vendeu a fração e pagou, então vira venda
+  sales: { kind: 'Leilão de Fração'; date: ISODate; ticker: string; qty: number; valueCents: Cents; broker: string; produto: string }[]
   subscriptions: { base: string; date: ISODate }[] // subscrição exercida: explica uma "Atualização" que credita cotas
 }
 
@@ -70,7 +70,10 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
       out.events.push({ kind: mov === 'Desdobro' ? 'desdobramento' : 'grupamento', ticker, date, qtyDelta: sign * qty, sourceKey })
     } else if (mov === 'Atualização') {
       out.checks.push({ date, ticker, qty, produto })
-    } else if ((mov === 'Leilão de Fração' || mov === 'Resgate') && qty > 0 && parseBRL(str(valueCell)) > 0) {
+    } else if (mov === 'Resgate') {
+      // liquidação do fundo (venda) ou parte em dinheiro de uma incorporação (não é venda): só o usuário sabe
+      out.toReview.push({ date, movimentacao: mov, produto, nota: `R$ ${(parseBRL(str(valueCell)) / 100).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento` })
+    } else if (mov === 'Leilão de Fração' && qty > 0 && parseBRL(str(valueCell)) > 0) {
       out.sales.push({ kind: mov, date, ticker, qty, valueCents: parseBRL(str(valueCell)), broker: normalizeBroker(inst), produto })
     } else if (REVISAR.includes(mov)) {
       out.toReview.push({ date, movimentacao: mov, produto })
@@ -188,16 +191,13 @@ export async function importB3(db: Db, p: B3Import, types: Map<string, AssetType
   }
   let sales = 0
   for (const a of p.sales) {
-    const leilao = a.kind === 'Leilão de Fração'
-    const sourceKey = `b3${leilao ? 'leilao' : 'resgate'}:${a.date}:${a.ticker}:${a.qty}`
+    const sourceKey = `b3leilao:${a.date}:${a.ticker}:${a.qty}`
     if ((await db.select('SELECT 1 FROM notes WHERE source_key = ?', [sourceKey])).length) continue
     const have = await positionAt(a.date, a.ticker)
     if (have <= 1e-9) { review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: 'o Yield não tem essa posição' }); continue }
-    // resgate maior que a posição do app (ex.: cotas de subscrição não lançadas): vende o que o app tem, pelo mesmo preço, e avisa
     const qty = Math.min(a.qty, have)
-    if (qty + 1e-9 < a.qty) review.push({ date: a.date, movimentacao: a.kind, produto: a.produto, nota: `vendidas as ${String(qty).replace('.', ',')} cotas do Yield; a B3 resgatou ${String(a.qty).replace('.', ',')} — a diferença veio de algo que falta lançar (ex.: subscrição)` })
     const [known] = await db.select<{ assetType: AssetType }>('SELECT asset_type AS assetType FROM trades WHERE ticker = ? LIMIT 1', [a.ticker])
-    await saveNote(db, { number: `${leilao ? 'Leilão' : 'Resgate'} ${a.date}`, broker: a.broker, tradeDate: a.date, settleDate: a.date, source: 'sem_nota', sourceKey, label: leilao ? 'Leilão de fração da B3' : 'Resgate da B3' },
+    await saveNote(db, { number: `Leilão ${a.date}`, broker: a.broker, tradeDate: a.date, settleDate: a.date, source: 'sem_nota', sourceKey, label: 'Leilão de fração da B3' },
       [{ seq: 1, side: 'V', assetType: known?.assetType ?? types.get(a.ticker) ?? assetTypeOf(a.ticker), ticker: a.ticker, qty, priceCents: Math.round(a.valueCents / a.qty), feesCents: 0, irrfCents: 0 }])
     sales++
   }

@@ -45,7 +45,7 @@ describe('b3Summary', () => {
       },
       { ignored: 7, toReview: [{ date: '2024-06-10', movimentacao: 'Amortização', produto: 'HGLG11 - CSHG LOGISTICA FII' }] },
     )).toEqual({
-      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 2 leilões de fração e resgates lançados como venda · 9 posições conferidas com a B3 · 7 movimentações ignoradas (liquidações e frações; as compras e vendas vêm do relatório de Negociação)',
+      counts: '38 proventos · 12 substituíram os da planilha · 5 já existiam · 1 evento já existia · 2 leilões de fração lançados como venda · 9 posições conferidas com a B3 · 7 movimentações ignoradas (liquidações e frações; as compras e vendas vêm do relatório de Negociação)',
       applied: ['ITSA4 bonificação +160 (20/04/2024)', 'MGLU3 grupamento −1000 (02/05/2024)', 'BBAS3 desdobramento +0,5 (02/05/2024)'],
       toReview: ['Amortização HGLG11 (10/06/2024)', 'Atualização WEGE3 (12/06/2024): B3: 125, Yield: 100'],
     })
