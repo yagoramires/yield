@@ -12,6 +12,8 @@ import { AtualizacaoCard } from '../ui/Atualizacao'
 import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { Binance } from './configuracoes/Binance'
+import { Proventos } from './configuracoes/Proventos'
+import { Modulos } from './configuracoes/Modulos'
 import { IaLocal } from './configuracoes/IaLocal'
 import { useB3Import } from './configuracoes/useB3Import'
 
@@ -172,6 +174,8 @@ export function Configuracoes() {
         <AtualizacaoCard />
       </div>
       <div style={{ marginTop: 12 }}><FontesRenda /></div>
+      <Modulos />
+      <Proventos />
       <OpenFinance />
       <Binance />
       <IaLocal />

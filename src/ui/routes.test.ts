@@ -1,4 +1,4 @@
-import { ROUTES } from './routes'
+import { moduleOf, ROUTES } from './routes'
 
 test('todas as subseções estão ativas, inclusive o Mês atual do orçamento', () => {
   const inv = ROUTES.find(p => p.page === 'Investimentos')!
@@ -10,7 +10,11 @@ test('todas as subseções estão ativas, inclusive o Mês atual do orçamento',
   ])
   expect(gastos.items.every(i => !i.disabled)).toBe(true)
   const orc = ROUTES.find(p => p.page === 'Orçamento mensal')!
-  expect(orc.items).toEqual([{ route: 'orcamento', label: 'Mês atual', disabled: false }])
-  expect(ROUTES.at(-2)).toEqual({ page: 'Assistente', items: [{ route: 'assistente', label: 'Assistente', disabled: false }] })
+  expect(orc.items.map(({ icon: _, ...i }) => i)).toEqual([{ route: 'orcamento', label: 'Mês atual', disabled: false }])
+  expect({ ...ROUTES.at(-2)!, items: ROUTES.at(-2)!.items.map(({ icon: _, ...i }) => i) }).toEqual({ page: 'Assistente', module: null, items: [{ route: 'assistente', label: 'Assistente', disabled: false }] })
   expect(ROUTES.at(-1)!.items[0]).toMatchObject({ route: 'configuracoes', label: 'Configurações' })
+})
+
+test('cada tela pertence a um módulo; Configurações a nenhum (fica sempre)', () => {
+  expect([moduleOf('lancamentos'), moduleOf('orcamento'), moduleOf('carteira'), moduleOf('configuracoes')]).toEqual(['gastos', 'orcamento', 'investimentos', null])
 })

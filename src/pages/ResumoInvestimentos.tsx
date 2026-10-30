@@ -10,6 +10,7 @@ import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
 import { Rentabilidade } from './resumoInvestimentos/Rentabilidade'
 import { rfAppliedByMonth, rfJurosByMonth } from '../domain/rendaFixa'
+import { reinvested } from '../domain/reinvestimento'
 import { carteiraClasses } from './carteira/build'
 import { pct as pct1, sign, tone, when } from './carteira/fmt'
 import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './resumoInvestimentos/build'
@@ -36,7 +37,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       <div className="btns"><button className="b ghost with-ico" disabled={refreshing} onClick={() => void refreshQuotesNow()}><RefreshCw size={13} aria-hidden />{refreshing ? 'Atualizando…' : 'Atualizar cotações'}</button></div>
     </div>
   )
-  if (!data.trades.length && !data.manualAssets.length && !data.dividends.length && !data.rfMoves.length && !data.rfPositions.length && !data.cryptoBalances.length) {
+  if (!data.trades.length && !data.manualAssets.length && !data.bankInvestments.length && !data.dividends.length && !data.rfMoves.length && !data.rfPositions.length && !data.cryptoBalances.length) {
     return (
       <>
         {header}
@@ -49,7 +50,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
     )
   }
 
-  // Mesmo cálculo da Carteira, para as duas telas nunca divergirem.
+  // Valorização: mesmo cálculo da Carteira; o Resultado daqui soma ainda os proventos dos ativos em carteira (abaixo).
   const { gainCents: varTotal, baseCents: costQuoted } = portfolioResult(p)
   const avg12 = Math.round(p.dividends12mCents / 12)
 
@@ -60,7 +61,17 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
   const incomplete = darfs.rows.filter(r => r.incomplete)
 
   // ETF de renda fixa sai da linha da bolsa e soma na da renda fixa
+  // proventos reinvestidos (caixinha que paga as próximas compras) não saíram do bolso; o resultado conta todo provento recebido
+  // Mesma base do custo (posições abertas hoje): o reinvestido nunca passa do custo cotado, e o resultado soma só os proventos
+  // dos ativos ainda em carteira (o lucro ou prejuízo de quem já foi vendido não está aqui, então os proventos dele também não).
+  const held = new Set(p.rows.filter(r => r.valueCents !== null).map(r => r.ticker))
+  const rv = reinvested(data.trades, data.dividends, todayISO())
+  const heldDividends = data.dividends.filter(d => held.has(d.ticker)).reduce((s, d) => s + d.amountCents, 0)
+  const reinvest = data.proventos === 'reinvisto' ? Math.min(rv.reinvestedCents, costQuoted) : 0
+  const fromPocket = Math.max(0, p.totalCostCents - reinvest)
+  const gain = varTotal + heldDividends, gainBase = Math.max(0, costQuoted - reinvest)
   const invested = investedByMonth(data.trades.filter(t => t.assetType !== 'ETF RF'), data.events, thisMonth, 24)
+    .map(m => ({ ...m, cents: data.proventos === 'reinvisto' ? Math.max(0, m.cents - Math.min(m.cents, reinvested(data.trades, data.dividends, `${m.month}-31`).reinvestedCents)) : m.cents }))
   const etfRf = investedByMonth(data.trades.filter(t => t.assetType === 'ETF RF'), data.events, thisMonth, 24)
   const rfApplied = rfAppliedByMonth(data.rfMoves, thisMonth, 24).map((m, i) => ({ ...m, cents: m.cents + etfRf[i].cents }))
   const hasRf = rfApplied.some(m => m.cents > 0)
@@ -92,9 +103,10 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 
       <div className="kpis">
         <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{brl(p.totalValueCents)}</div>
-          <div className="s muted">aportado {brl(p.totalCostCents)}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}{p.noCostCount > 0 && ` · ${p.noCostCount} ${p.noCostCount === 1 ? 'item sem aportado' : 'itens sem aportado'}`}</div></div>
-        <div className="k"><div className="muted k-l"><TrendingUp size={12} aria-hidden />Resultado</div><div className={`v ${tone(varTotal)}`}>{sign(varTotal, brl(varTotal))}</div>
-          <div className={`s ${tone(varTotal)}`}>{costQuoted > 0 ? `${pct1(varTotal / costQuoted)} sobre o aportado` : '—'}</div></div>
+          <div className="s muted">{reinvest > 0 ? `do seu bolso ${brl(fromPocket)} · ${brl(reinvest)} de proventos reinvestidos` : `aportado ${brl(p.totalCostCents)}`}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}{p.noCostCount > 0 && ` · ${p.noCostCount} ${p.noCostCount === 1 ? 'item sem aportado' : 'itens sem aportado'}`}</div></div>
+        <div className="k"><div className="muted k-l"><TrendingUp size={12} aria-hidden />Resultado</div><div className={`v ${tone(gain)}`}>{sign(gain, brl(gain))}</div>
+          <div className={`s ${tone(gain)}`}>{gainBase > 0 ? `${pct1(gain / gainBase)} sobre ${reinvest > 0 ? 'o que saiu do bolso' : 'o aportado'}` : '—'}</div>
+          <div className="s muted">valorização {sign(varTotal, brl(varTotal))} · proventos {sign(heldDividends, brl(heldDividends))}</div></div>
         <div className="k"><div className="muted k-l"><Coins size={12} aria-hidden />Proventos 12 meses</div><div className="v">{brl(p.dividends12mCents)}</div>
           <div className="s muted">média {brl(avg12)}/mês{yoc !== null && ` · ${(yoc * 100).toFixed(1).replace('.', ',')}% sobre o custo`}</div></div>
         <div className="k"><div className="muted k-l"><Landmark size={12} aria-hidden />Imposto</div>
@@ -135,14 +147,14 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
           <h5 style={{ margin: 0 }}>Aportado × valor de hoje</h5>
           <LineChart fill
             series={[
-              { label: 'bolsa', values: invested.map(m => m.cents) },
+              { label: data.proventos === 'reinvisto' ? 'bolsa, do seu bolso' : 'bolsa', values: invested.map(m => m.cents) },
               ...(hasRf ? [{ label: 'bolsa + renda fixa', values: invested.map((m, i) => m.cents + rfApplied[i].cents) }] : []),
               ...(allQuoted ? [{ label: 'valor de hoje', values: invested.map((_, i) => (i === invested.length - 1 ? todayValue : null)) }] : []),
             ]}
             xLabels={lineLabels} xTicks={[0, 6, 12, 18, 23]} tipTitle={i => lineLabels[i]} format={cents} tickFormat={short}
             ariaLabel={`Aportado na bolsa: ${brl(invested[invested.length - 1].cents)}${hasRf ? `; com a renda fixa: ${brl(invested[invested.length - 1].cents + rfApplied[rfApplied.length - 1].cents)}` : ''}${allQuoted ? `; patrimônio hoje ${brl(todayValue)}` : ''}`} />
           <div className="muted">
-            As linhas são o que está aportado na bolsa (ações, FIIs, ETFs e BDRs){hasRf ? ' e, somada, a renda fixa aplicada' : ''}, mês a mês. O ponto de hoje é o patrimônio inteiro, com exterior, cripto e dólar, que não têm histórico no Yield.
+            As linhas são o que está aportado na bolsa (ações, FIIs, ETFs e BDRs){data.proventos === 'reinvisto' ? ', sem os proventos reinvestidos, que não saíram do seu bolso' : ''}{hasRf ? ' e, somada, a renda fixa aplicada' : ''}, mês a mês. O ponto de hoje é o patrimônio inteiro, com exterior, cripto e dólar, que não têm histórico no Yield.
             {!allQuoted && p.missingQuotes.length > 0 && ` ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'} sem cotação: o ponto de hoje não é mostrado.`}
           </div>
         </div>

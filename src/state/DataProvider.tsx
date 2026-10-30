@@ -1,7 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { openDb, type Db } from '../db/client'
-import { loadAll, renormalizeBrokers, type Dataset } from '../db/repo'
+import { loadAll, renormalizeBrokers, type Dataset, type ManualAsset } from '../db/repo'
 import { computeDarfs, type DarfResult } from '../domain/darf'
 import { replay, type ReplayResult } from '../domain/ledger'
 import { buildPortfolio, type Portfolio } from '../domain/portfolio'
@@ -20,9 +20,10 @@ import { getBinanceCredentials } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
 import { syncCryptoCosts } from '../cripto/aportado'
 import { binanceErrorText, costSummaryText } from '../pages/configuracoes/build'
-import { syncPluggy, type SyncResult } from '../openfinance/sync'
+import { SYNC_EVERY_MS, syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
+import { bankAssets, reservaInvestments } from '../domain/bancoInvest'
 import { defaultMonth } from '../pages/orcamento/build'
 
 export interface Gastos {
@@ -48,7 +49,7 @@ export interface Orcamento {
 
 export interface AppData {
   data: Dataset
-  derived: { replay: ReplayResult; tax: TaxMonth[]; darfs: DarfResult; portfolio: Portfolio }
+  derived: { replay: ReplayResult; tax: TaxMonth[]; darfs: DarfResult; portfolio: Portfolio; bank: ManualAsset[] /* investimentos do banco na Carteira, só leitura */ }
   db: Db
   reload(): Promise<void>
   refreshing: boolean
@@ -122,18 +123,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Saldos da Binance: só leitura; erro fica no aviso do card Cripto e os últimos saldos continuam guardados.
+  const binanceFailed = useRef(false) // falhou (sem chave, Keychain recusado, erro): o ciclo automático para até a pessoa sincronizar à mão
+  const pluggyAuto = useRef({ last: 0, off: false }) // última tentativa automática do Open Finance e se o Keychain foi recusado
   const syncBinance = useCallback(async () => {
     const d = dbRef.current
     if (!d) return
     setBinance(b => ({ ...b, syncing: true }))
     try {
       const creds = await getBinanceCredentials()
-      if (!creds) return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false })
+      if (!creds) { binanceFailed.current = true; return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false }) }
       const r = await fetchBinanceBalances(creds, tauriFetch as typeof fetch)
       await saveCryptoBalances(d, r.balances, new Date().toISOString())
       setData(await loadAll(d))
+      binanceFailed.current = false
       setBinance({ syncing: false, error: null, earnSkipped: r.earnSkipped })
-    } catch (e) { setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
+    } catch (e) { binanceFailed.current = true; setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
   }, [])
 
   // Histórico inteiro da Binance (centenas de chamadas): fonte que falha vira aviso e o resto é gravado.
@@ -183,17 +187,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
         void (ds.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
         if (needsSync(g, Date.now())) {
+          pluggyAuto.current.last = Date.now()
           getPluggyCredentials().then(
             c => { if (c && !cancelled) void syncNow(c) },
             e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
           )
         }
         // com o app aberto: cotações (e a Binance, de quem usa) a cada 15 min; o Open Finance quando passar do intervalo dele
+        // (item com erro na Pluggy segue pedindo sync: no máximo uma tentativa a cada SYNC_EVERY_MS; Keychain recusado para o automático)
         timer = setInterval(async () => {
           const cur = await loadAll(d).catch(() => null)
-          void (cur?.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
+          void (!binanceFailed.current && cur?.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
           const gNow = await loadGastos(d).catch(() => null)
-          if (gNow && needsSync(gNow, Date.now())) getPluggyCredentials().then(c => { if (c && !cancelled) void syncNow(c) }, () => {})
+          const auto = pluggyAuto.current
+          if (gNow && !auto.off && Date.now() - auto.last > SYNC_EVERY_MS && needsSync(gNow, Date.now())) {
+            auto.last = Date.now()
+            getPluggyCredentials().then(c => { if (c && !cancelled) void syncNow(c) }, () => { auto.off = true })
+          }
         }, REFRESH_MS)
       } catch (e) {
         setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
@@ -202,15 +212,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; if (timer) clearInterval(timer) }
   }, [refreshQuotesNow, syncNow, syncBinance])
 
-  const derived = useMemo(() => {
+  // replay, imposto e DARF só dependem da carteira: editar o orçamento não refaz essas contas
+  const core = useMemo(() => {
     if (!data) return null
     const rp = replay(data.trades, data.events)
     const today = todayISO()
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
     const from = data.openingLoss && data.openingLoss.month < firstSale ? data.openingLoss.month : firstSale
     const tax = computeTax(rp.sales, rp.warnings, from, monthOf(today), data.openingLoss)
-    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), portfolio: buildPortfolio(rp.positions, data.quotes, data.manualAssets, data.dividends, today, { rf: rfHoldings(data.rfMoves, data.rfPositions), crypto: data.cryptoBalances }) }
+    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), today }
   }, [data])
+  const derived = useMemo(() => {
+    if (!data || !core) return null
+    // investimentos do banco (Pluggy) entram como itens só de leitura: só de bancos ainda conectados e fora os ligados a uma reserva;
+    // com títulos abertos da B3, o que a Posição já mostra (CDB, LCI, Tesouro…) não entra de novo
+    const live = data.bankInvestments.filter(b => gastosData?.pluggyItems.some(i => i.itemId === b.itemId) ?? true)
+    const reserved = new Set([...reservaInvestments(orcData?.reservas ?? [], live, orcData?.reservaLinks ?? {}).values()].flat().map(b => b.id))
+    const rf = rfHoldings(data.rfMoves, data.rfPositions)
+    const bank = bankAssets(live, reserved, rf.some(h => !h.closed))
+    return { replay: core.replay, tax: core.tax, darfs: core.darfs, bank,
+      portfolio: buildPortfolio(core.replay.positions, data.quotes, [...data.manualAssets, ...bank], data.dividends, core.today, { rf, crypto: data.cryptoBalances }) }
+  }, [data, core, gastosData?.pluggyItems, orcData?.reservas, orcData?.reservaLinks])
 
   // Separado do derived de investimentos: trocar mês ou filtro não refaz o replay.
   const gastosDerived = useMemo(() => {

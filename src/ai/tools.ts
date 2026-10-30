@@ -25,7 +25,7 @@ export const TOOLS = [
   fn('gastos', 'Total gasto num período e quanto foi em cada categoria.', { de: mes, ate: mes, categoria: { type: 'string', description: 'nome da categoria (opcional)' } }, ['de', 'ate']),
   fn('lancamentos', 'Lista os gastos de um período (até 30, os mais recentes), com o total e a quantidade de todos.', { de: mes, ate: mes, busca: { type: 'string', description: 'parte da descrição, ex.: "padaria" (opcional)' }, categoria: { type: 'string', description: 'nome da categoria (opcional)' } }, ['de', 'ate']),
   fn('orcamento', 'Planejado × realizado do orçamento de um mês, por bloco, e as metas por categoria.', { mes }, ['mes']),
-  fn('carteira', 'Patrimônio investido, resultado e quanto há em cada classe de investimento.', {}, []),
+  fn('carteira', 'Patrimônio investido, valorização sobre o aportado (sem proventos) e quanto há em cada classe de investimento.', {}, []),
   fn('rentabilidade', 'Rentabilidade da carteira de bolsa comparada ao CDI e ao Ibovespa nos últimos meses.', { meses: { type: 'integer', description: 'de 1 a 24; padrão 12' } }, []),
   fn('proventos', 'Proventos (dividendos, JCP, rendimentos) recebidos num período, por mês e por ativo.', { de: mes, ate: mes }, ['de', 'ate']),
 ]
@@ -99,7 +99,7 @@ export async function runTool(name: string, args: unknown, input: AiInput, loadR
       const p = input.portfolio
       const { gainCents, baseCents } = portfolioResult(p)
       return {
-        patrimonio: plainBRL(p.totalValueCents), resultado: brlS(gainCents), ...(baseCents > 0 ? { resultadoPct: pctS((gainCents / baseCents) * 100) } : {}),
+        patrimonio: plainBRL(p.totalValueCents), valorizacao: brlS(gainCents), ...(baseCents > 0 ? { valorizacaoPct: pctS((gainCents / baseCents) * 100), aportado: plainBRL(baseCents) } : {}),
         porClasse: carteiraClasses(p).filter(x => x.valueCents > 0).map(x => ({ classe: x.label, valor: plainBRL(x.valueCents), pct: pctU(x.pct * 100) })),
       }
     }

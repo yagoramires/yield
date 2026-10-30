@@ -25,12 +25,17 @@ export function IaLocal() {
     try { await invoke('ai_delete_model', { file: current.file }); setAiSettings({ modelId: null, tokS: null }); setError(null) } catch (e) { setError(`Não foi possível remover: ${errText(e)}`) }
     setConfirm(false); void refresh()
   }
-  const toggle = () => { setAiSettings({ off: !s.off }); if (!s.off) void stopServer().catch(() => {}) }
+  const on = s.off === false
+  const toggle = () => { setAiSettings({ off: on }); if (on) void stopServer().catch(() => {}) }
   const row = (label: string, value: React.ReactNode) => <div className="sum-row" style={{ cursor: 'default' }}><span className="grow">{label}</span><b>{value}</b></div>
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <h5 style={{ margin: 0 }}>IA local <span className="muted">· Assistente que roda neste computador</span></h5>
+      <label className="toggle-row" style={{ marginTop: 8 }}>
+        <span>Usar o Assistente<small>insights do mês e perguntas sobre os seus dados; nenhum dado sai deste computador</small></span>
+        <input type="checkbox" className="switch" role="switch" checked={on} onChange={toggle} />
+      </label>
       {row('Este computador', hw ? machineLabel(hw) : '…')}
       {row('Modelo', current ? `${current.name}${size ? ` · ${gb(size)} no disco` : ' · não baixado'}` : 'nenhum')}
       {s.tokS !== null && row('Velocidade medida', `${s.tokS.toFixed(1).replace('.', ',')} tokens/s`)}
@@ -39,9 +44,8 @@ export function IaLocal() {
         {current && size !== undefined && (confirm
           ? <><span>Remover {current.name} ({gb(size)})?</span><button className="b ghost" onClick={() => void remove()}>Remover</button><button className="link" onClick={() => setConfirm(false)}>Cancelar</button></>
           : <button className="b ghost" onClick={() => setConfirm(true)}>Remover modelo</button>)}
-        <button className="b ghost" onClick={toggle}>{s.off ? 'Ligar o Assistente' : 'Desligar o Assistente'}</button>
       </div>
-      {current && size === undefined && !s.off && <div className="muted" style={{ marginTop: 8 }}>Abra o Assistente para baixar o {current.name}.</div>}
+      {current && size === undefined && on && <div className="muted" style={{ marginTop: 8 }}>Abra o Assistente para baixar o {current.name}.</div>}
       {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span></div>}
     </div>
   )

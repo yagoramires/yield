@@ -17,14 +17,14 @@ test('guarda os insights do mês e salvar de novo substitui', async () => {
   expect(await getInsights(db, '2026-09')).toBeNull()
 })
 
-test('a migração 017 só muda a versão do esquema no meta', () => {
+test('a migração 018 só muda a versão do esquema no meta', () => {
   const dir = new URL('../../src-tauri/migrations/', import.meta.url)
   const files = readdirSync(dir).filter(f => f.endsWith('.sql')).sort()
   const d = new DatabaseSync(':memory:')
-  files.filter(f => f < '017').forEach(f => d.exec(readFileSync(new URL(f, dir), 'utf8')))
+  files.filter(f => f < '018').forEach(f => d.exec(readFileSync(new URL(f, dir), 'utf8')))
   d.exec("INSERT OR REPLACE INTO meta (key, value) VALUES ('orcamento.fixas', '[\"x\"]')")
-  d.exec(readFileSync(new URL('017_ai_insights.sql', dir), 'utf8'))
+  d.exec(readFileSync(new URL('018_ai_insights.sql', dir), 'utf8'))
   expect(d.prepare("SELECT key, value FROM meta WHERE key IN ('orcamento.fixas', 'schema_version') ORDER BY key").all()).toEqual([
-    { key: 'orcamento.fixas', value: '["x"]' }, { key: 'schema_version', value: '17' },
+    { key: 'orcamento.fixas', value: '["x"]' }, { key: 'schema_version', value: '18' },
   ])
 })

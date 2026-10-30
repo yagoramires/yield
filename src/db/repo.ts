@@ -8,13 +8,17 @@ import { loadCryptoBalances, loadRfMoves, loadRfPositions, type CryptoBalance, t
 export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'exterior' | 'outro'; currency: 'BRL' | 'USD' /* USD: cotação em dólar × BRL=X */; costCents: Cents | null /* aportado, na moeda do ativo */; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate; sourceKey: string | null }
 export interface Note { id: string; number: string; broker: string; tradeDate: ISODate; settleDate: ISODate; source: 'manual' | 'pdf' | 'planilha' | 'sem_nota'; sourceKey: string | null; label: string | null }
 export interface Quote { symbol: string /* sempre yahooSymbol(ticker), ex. 'ITSA4.SA' */; priceCents: Cents; fetchedAt: string; source: 'yahoo' | 'manual' /* manual prevalece e nunca é sobrescrita */ }
-export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[]; rfMoves: RfMove[]; rfPositions: RfPosition[]; cryptoBalances: CryptoBalance[]; openingLoss: OpeningLoss | null }
+export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; manualAssets: ManualAsset[]; rfMoves: RfMove[]; rfPositions: RfPosition[]; cryptoBalances: CryptoBalance[]; openingLoss: OpeningLoss | null; proventos: ProventosMode; bankInvestments: BankInvestmentRow[] }
+// investimento que a Pluggy informa com saldo (fora ação/ETF); costCents = valor aplicado, quando ela informa
+export interface BankInvestmentRow { id: string; itemId: string; name: string; type: string; subtype: string | null; balanceCents: Cents; costCents: Cents | null; fetchedAt: string }
+// o que a pessoa faz com os proventos: reinvestir (entram na caixinha que paga as próximas compras) ou sacar
+export type ProventosMode = 'reinvisto' | 'saco'
 
 type TradeInput = Omit<Trade, 'id' | 'noteId' | 'broker' | 'tradeDate' | 'settleDate'>
 type NoteInput = Omit<Note, 'id'>
 
 export async function loadAll(db: Db): Promise<Dataset> {
-  const [notes, trades, events, dividends, payments, quotes, manualAssets, rfMoves, rfPositions, cryptoBalances, opening] = await Promise.all([
+  const [notes, trades, events, dividends, payments, quotes, manualAssets, rfMoves, rfPositions, cryptoBalances, opening, proventos, bankInvestments] = await Promise.all([
     db.select<Note>('SELECT id, number, broker, trade_date AS tradeDate, settle_date AS settleDate, source, source_key AS sourceKey, label FROM notes ORDER BY trade_date, number'),
     db.select<Trade>(`SELECT t.id, t.note_id AS noteId, t.seq, n.broker, n.trade_date AS tradeDate, n.settle_date AS settleDate, t.side, t.asset_type AS assetType,
         t.ticker, t.qty, t.price_cents AS priceCents, t.fees_cents AS feesCents, t.irrf_cents AS irrfCents
@@ -27,10 +31,13 @@ export async function loadAll(db: Db): Promise<Dataset> {
     db.select<ManualAsset>('SELECT id, name, asset_class AS assetClass, currency, cost_cents AS costCents, quote_symbol AS quoteSymbol, quantity, value_cents AS valueCents, updated_at AS updatedAt, source_key AS sourceKey FROM manual_assets ORDER BY name'),
     loadRfMoves(db), loadRfPositions(db), loadCryptoBalances(db),
     db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [OPENING_LOSS_KEY]),
+    db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'investimentos.proventos'"),
+    db.select<BankInvestmentRow>('SELECT id, item_id AS itemId, name, type, subtype, balance_cents AS balanceCents, cost_cents AS costCents, fetched_at AS fetchedAt FROM pluggy_investments ORDER BY name'),
   ])
   return {
     notes, trades, dividends, payments, quotes, manualAssets, rfMoves, rfPositions, cryptoBalances,
     openingLoss: opening.length ? JSON.parse(opening[0].value) as OpeningLoss : null,
+    proventos: proventos[0]?.value === 'saco' ? 'saco' : 'reinvisto', bankInvestments,
     events: events.map(e => {
       if (e.kind === 'mudanca_ticker') return { id: e.id, kind: e.kind, ticker: e.ticker, newTicker: e.newTicker!, date: e.date }
       if (e.kind === 'bonificacao') return { id: e.id, kind: e.kind, ticker: e.ticker, date: e.date, qtyDelta: e.qtyDelta!, unitCostCents: e.unitCostCents }
@@ -205,6 +212,17 @@ export async function deleteDividend(db: Db, id: string): Promise<void> {
 
 export async function savePayment(db: Db, p: DarfPayment): Promise<void> {
   await db.execute('INSERT OR REPLACE INTO darf_payments (month, paid_at, principal_cents, total_paid_cents) VALUES (?, ?, ?, ?)', [p.month, p.paidAt, p.principalCents, p.totalPaidCents])
+}
+
+/** Troca os investimentos de um item pelos da última leitura: o que sumiu na Pluggy (resgatado) some daqui também. */
+export async function replaceBankInvestments(db: Db, itemId: string, rows: BankInvestmentRow[]): Promise<void> {
+  await db.execute('DELETE FROM pluggy_investments WHERE item_id = ?', [itemId])
+  for (const r of rows) await db.execute('INSERT OR REPLACE INTO pluggy_investments (id, item_id, name, type, subtype, balance_cents, cost_cents, fetched_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [r.id, r.itemId, r.name, r.type, r.subtype, r.balanceCents, r.costCents, r.fetchedAt])
+}
+
+export async function saveProventosMode(db: Db, mode: ProventosMode): Promise<void> {
+  await db.execute("INSERT INTO meta (key, value) VALUES ('investimentos.proventos', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [mode])
 }
 
 const OPENING_LOSS_KEY = 'imposto.prejuizo_inicial'

@@ -3,6 +3,7 @@ import { createRawDb, createTestDb, tmpPath, type Db } from './testDb'
 import {
   deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, renormalizeBrokers, replaceNote,
   saveAlias, saveEvent, saveManualAsset, saveNote, saveOpeningLoss, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
+  saveProventosMode,
 } from './repo'
 
 let db: Db
@@ -219,4 +220,11 @@ describe('arquivo', () => {
     expect((await loadAll(createTestDb(p))).notes).toHaveLength(1)
     await expect(createRawDb().select('SELECT * FROM meta')).rejects.toThrow()
   })
+})
+
+test('proventos: reinvisto até a pessoa escolher sacar; a escolha fica gravada', async () => {
+  const db = createTestDb()
+  expect((await loadAll(db)).proventos).toBe('reinvisto')
+  await saveProventosMode(db, 'saco')
+  expect((await loadAll(db)).proventos).toBe('saco')
 })

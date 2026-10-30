@@ -7,4 +7,4 @@ CREATE TABLE ai_insights (
   created_at TEXT NOT NULL
 );
 
-UPDATE meta SET value = '17' WHERE key = 'schema_version';
+UPDATE meta SET value = '18' WHERE key = 'schema_version';

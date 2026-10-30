@@ -13,8 +13,10 @@ import { Assinaturas } from './pages/Assinaturas'
 import { Categorias } from './pages/Categorias'
 import { Orcamento } from './pages/Orcamento'
 import { Assistente } from './pages/Assistente'
-import { getAiSettings } from './ai/settings'
-import { ROUTES, type Route } from './ui/routes'
+import { useAiSettings } from './ai/settings'
+import { AiPergunta } from './pages/assistente/Pergunta'
+import { moduleOf, ROUTES, type Route } from './ui/routes'
+import { useModules } from './ui/prefs'
 import { EyeToggle, useHideValues } from './ui/HideValues'
 import { UpdateBanner } from './ui/Atualizacao'
 
@@ -27,11 +29,17 @@ export default function App() {
   const [route, setRoute] = useState<Route>(() => {
     try {
       const saved = localStorage.getItem('yield.route')
-      const off = saved === 'assistente' && getAiSettings().off // Assistente desligado depois de usado: não reabre nele
-      return !off && ROUTES.some(g => g.items.some(i => i.route === saved && !i.disabled)) ? (saved as Route) : 'carteira'
+      return ROUTES.some(g => g.items.some(i => i.route === saved && !i.disabled)) ? (saved as Route) : 'carteira'
     } catch { return 'carteira' }
   })
   useEffect(() => { try { localStorage.setItem('yield.route', route) } catch { /* sem storage, só não lembra */ } }, [route])
+  // módulo desligado em Configurações: a tela dele sai do menu e o app vai para a primeira tela de um módulo ligado
+  const { enabled } = useModules()
+  const ai = useAiSettings()
+  useEffect(() => {
+    // Assistente desligado (ou ainda sem resposta) também sai, como um módulo desligado
+    if (!enabled(moduleOf(route)) || (route === 'assistente' && ai.off !== false)) setRoute(ROUTES.find(g => g.module && enabled(g.module))?.items[0].route ?? 'configuracoes')
+  }, [route, enabled, ai.off])
   const [provMonth, setProvMonth] = useState('') // mês clicado no Resumo, para Proventos abrir filtrado
   const [carteiraClass, setCarteiraClass] = useState<string | null>(null) // classe clicada no Resumo, para a Carteira abrir nela
   const [menuOpen, setMenuOpen] = useState(false)
@@ -46,6 +54,7 @@ export default function App() {
         <button className="b ghost" aria-controls="app-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? 'Fechar menu' : 'Menu'}</button>
       </header>
       <Sidebar route={route} onNavigate={navigate} open={menuOpen} />
+      {ai.off === null && <AiPergunta onUse={() => navigate('assistente')} />}
       <main className="main">
         <UpdateBanner />
         {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={(cls?: string) => { setCarteiraClass(cls ?? null); setRoute('carteira') }} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira key={carteiraClass ?? ''} initialClass={carteiraClass} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'assistente' ? <Assistente onNavigate={setRoute} /> : route === 'configuracoes' ? <Configuracoes /> : (

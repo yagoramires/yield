@@ -22,6 +22,12 @@ test('dinheiro parado só das contas da Pluggy, com o rendimento a 100% do CDI',
   expect(t).not.toContain(plainBRL(600000))
 })
 
+test('banco desconectado não entra no dinheiro parado', () => {
+  const base = input()
+  const semBanco = { ...base, gastos: { ...base.gastos, data: { ...base.gastos.data, pluggyItems: [] } } }
+  expect(buildFacts('2026-10', semBanco).map(f => f.kind)).not.toContain('saldo_parado')
+})
+
 test('mês passado não leva os fatos de agora (carteira, rentabilidade, saldo)', () => {
   const kinds = buildFacts('2026-09', input()).map(f => f.kind)
   expect(kinds).toContain('gasto_mes')

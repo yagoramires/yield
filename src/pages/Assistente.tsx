@@ -32,7 +32,7 @@ export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
   return (
     <>
       <GastosHeader title="Assistente" actions={<EyeToggle />} />
-      {settings.off ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
+      {settings.off !== false ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
         : !hw || !installed ? <div className="muted" style={{ marginTop: 12 }}>Verificando este computador…</div>
         : !model ? <Ativar hw={hw} target={chosen} onReady={() => void refresh()} />

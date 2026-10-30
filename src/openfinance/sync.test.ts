@@ -52,6 +52,17 @@ describe('syncPluggy', () => {
     expect(await syncPluggy(db, creds, fake().fn, today)).toMatchObject({ accounts: 2, inserted: 0, removed: 0, errors: [] })
   })
 
+  it('investimento com saldo que não é ação/ETF fica guardado com o saldo; a próxima leitura troca os do item', async () => {
+    const db = await setup()
+    const invs = (rdb: number | null) => fake(url => url.pathname === '/investments' ? json({ page: 1, total: 2, totalPages: 1, results: [
+      { id: 'inv-rdb', name: 'RDB Banco Exemplo', type: 'FIXED_INCOME', subtype: 'RDB', balance: rdb, amountOriginal: 1000 },
+      { id: 'inv-fundo', name: 'Fundo Exemplo DI', type: 'MUTUAL_FUND', subtype: null, balance: 250.5, amountOriginal: 0 },
+    ] }) : url.pathname.startsWith('/investments/') ? json({ page: 1, total: 0, totalPages: 0, results: [] }) : null)
+    await syncPluggy(db, creds, invs(1234.56).fn, today)
+    expect((await loadAll(db)).bankInvestments.map(b => [b.name, b.type, b.balanceCents, b.costCents])).toEqual([['Fundo Exemplo DI', 'MUTUAL_FUND', 25050, null], ['RDB Banco Exemplo', 'FIXED_INCOME', 123456, 100000]])
+    await syncPluggy(db, creds, invs(null).fn, today) // RDB resgatado: sem saldo, sai
+    expect((await loadAll(db)).bankInvestments.map(b => b.id)).toEqual(['inv-fundo'])
+  })
   it('2ª sincronização não duplica e usa lastSyncAt − 35 dias, nunca além de hoje − 365', async () => {
     const db = await setup()
     await syncPluggy(db, creds, fake().fn, today, () => new Date('2026-09-01T12:00:00.000Z'))

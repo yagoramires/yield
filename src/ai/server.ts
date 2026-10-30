@@ -5,7 +5,7 @@ import { getAiSettings } from './settings'
 
 /** Sobe o llama-server com o modelo (o Rust espera ficar pronto); desliga sozinho após 10 min sem uso. */
 export async function ensureServer(m: CatalogModel): Promise<void> {
-  if (getAiSettings().off) throw new Error('O Assistente está desligado em Configurações.')
+  if (getAiSettings().off !== false) throw new Error('O Assistente está desligado em Configurações.')
   await invoke('ai_start', { file: m.file, ctx: m.ctx })
 }
 

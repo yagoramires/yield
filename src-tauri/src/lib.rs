@@ -279,8 +279,14 @@ pub fn run() {
         },
         Migration {
             version: 17,
+            description: "investimentos do banco",
+            sql: include_str!("../migrations/017_investimentos_banco.sql"),
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 18,
             description: "insights da ia",
-            sql: include_str!("../migrations/017_ai_insights.sql"),
+            sql: include_str!("../migrations/018_ai_insights.sql"),
             kind: MigrationKind::Up,
         },
     ];

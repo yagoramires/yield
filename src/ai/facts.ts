@@ -98,7 +98,8 @@ export function buildFacts(month: Month, input: AiInput): Fact[] {
   if (p.totalValueCents > 0) {
     const { gainCents, baseCents } = portfolioResult(p)
     out.push({ id: 'carteira', kind: 'carteira', route: 'carteira',
-      text: `Carteira: patrimônio de ${plainBRL(p.totalValueCents)}; resultado de ${brlS(gainCents)}${baseCents > 0 ? ` (${pctS((gainCents / baseCents) * 100)}) sobre ${plainBRL(baseCents)} investidos` : ''}.` })
+      // valorização como na Carteira (sem os proventos, que o Resumo soma no Resultado)
+      text: `Carteira: patrimônio de ${plainBRL(p.totalValueCents)}; valorização de ${brlS(gainCents)}${baseCents > 0 ? ` (${pctS((gainCents / baseCents) * 100)}) sobre ${plainBRL(baseCents)} investidos` : ''}.` })
   }
 
   const r = input.rent
@@ -116,8 +117,8 @@ export function buildFacts(month: Month, input: AiInput): Fact[] {
       text: `Renda passiva: proventos e juros dos últimos 12 meses dão em média ${plainBRL(cov.avgDividendsCents)} por mês, ${pctU(cov.pct * 100)} do gasto médio de ${plainBRL(cov.avgSpentCents)} por mês${cov.gapCents > 0 ? `; faltam ${plainBRL(cov.gapCents)} por mês para cobrir o gasto` : ''}.` })
   }
 
-  // saldo como a Pluggy informou; conta por arquivo não tem saldo
-  const contas = data.accounts.filter(a => a.source === 'pluggy' && a.kind === 'conta' && (a.balanceCents ?? 0) > 0)
+  // saldo como a Pluggy informou, só de banco ainda conectado (como no Resumo); conta por arquivo não tem saldo
+  const contas = data.accounts.filter(a => a.source === 'pluggy' && data.pluggyItems.some(i => i.itemId === a.itemId) && a.kind === 'conta' && (a.balanceCents ?? 0) > 0)
   if (contas.length) {
     const total = contas.reduce((s, a) => s + a.balanceCents!, 0)
     const at = contas.map(a => a.balanceAt).filter(Boolean).sort().at(-1)
