@@ -32,17 +32,9 @@ export function defaultMonth(months: Month[], today: ISODate): Month {
 /** Onde o gasto fecha no ritmo atual; null no primeiro instante do mês e fora do mês corrente. */
 export const pace = (realCents: Cents, progress: number): Cents | null => (progress > 0 && progress < 1 ? Math.round(realCents / progress) : null)
 
-/** Um teto por categoria no mês: o gasto real da categoria é um só, dois tetos o mostrariam duas vezes. */
-export function tetoError(lines: BudgetLine[], id: string | undefined, categoryId: string): string | null {
-  if (!categoryId) return 'Escolha a categoria: o gasto real do teto vem dos lançamentos dela.'
-  const self = lines.find(l => l.id === id)
-  if (self?.grupo === 'variavel' && self.categoryId === categoryId) return null // já era teto desta categoria: mudar o valor não cria outro
-  const other = lines.find(l => l.id !== id && l.kind === 'saida' && l.grupo === 'variavel' && l.installmentTotal === null && l.categoryId === categoryId)
-  return other ? `Já existe um teto nesta categoria (${other.name}): edite o valor dele.` : null
-}
-
-// planejado = saídas que contam como gasto; reservado = investimentos e metas (bloco ou categoria fora do gasto), que o Resumo não soma
-export function spendingPlan(lines: BudgetLine[], categories: Category[]): { plannedCents: Cents; reservedCents: Cents } {
+// planejado = saídas que contam como gasto mais a meta dos variáveis (o limite total ou a soma das metas por categoria);
+// reservado = investimentos (bloco ou categoria fora do gasto), que o Resumo não soma
+export function spendingPlan(lines: BudgetLine[], categories: Category[], goals: Map<string, Cents> = new Map()): { plannedCents: Cents; reservedCents: Cents } {
   const off = new Set(categories.filter(c => !c.countsAsSpending).map(c => c.id))
   let plannedCents = 0, reservedCents = 0
   for (const l of lines) {
@@ -50,5 +42,15 @@ export function spendingPlan(lines: BudgetLine[], categories: Category[]): { pla
     if (l.grupo === 'meta' || (l.categoryId && off.has(l.categoryId))) reservedCents += l.amountCents
     else plannedCents += l.amountCents
   }
-  return { plannedCents, reservedCents }
+  const cats = [...goals].filter(([k]) => k.startsWith('cat:')).reduce((s, [, v]) => s + v, 0)
+  return { plannedCents: plannedCents + (goals.get('variaveis') ?? cats), reservedCents }
+}
+
+/** Mudanças em relação às metas valendo: campo vazio desliga a meta; valor igual não grava nada. */
+export function goalChanges(inputs: Record<string, string>, current: Map<string, Cents>): { key: string; amountCents: Cents | null }[] {
+  return Object.entries(inputs).flatMap(([key, text]) => {
+    const amountCents = text.trim() ? parseMoney(text, 'Meta') : null
+    if (amountCents !== null && amountCents <= 0) throw new Error('Meta: use um valor maior que zero, ou deixe em branco para não ter meta.')
+    return amountCents === (current.get(key) ?? null) ? [] : [{ key, amountCents }]
+  })
 }

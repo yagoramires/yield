@@ -1,20 +1,21 @@
 import { useState, type ReactNode } from 'react'
-import { createMonth, deleteLine, dismissSuggestion, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, deleteLine, dismissSuggestion, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
-import { blocoOf, cltTabelaAno, copyLines, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, variaveis, withSources, type Bloco } from '../domain/orcamento'
+import { averageByCategory, blocoOf, cltTabelaAno, copyLines, goalsAt, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, variaveis, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
 import { errText, monthName } from './lancamentos/GastosHeader'
-import { monthProgress, pace, tetoError, validateLine } from './orcamento/build'
+import { monthProgress, pace, validateLine } from './orcamento/build'
+import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
 
 const NET_ZERO = 'O líquido desta fonte está zerado ou negativo: confira a fonte em Configurações'
-const GRUPOS: { value: Grupo; label: string }[] = [{ value: 'fixo', label: 'Custo fixo' }, { value: 'variavel', label: 'Variável (teto)' }, { value: 'meta', label: 'Investimento ou meta' }]
+const GRUPOS: { value: Grupo; label: string }[] = [{ value: 'fixo', label: 'Custo fixo' }, { value: 'variavel', label: 'Gasto variável' }, { value: 'meta', label: 'Investimento' }]
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
@@ -31,6 +32,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const [del, setDel] = useState<BudgetLine | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [metasOpen, setMetasOpen] = useState(false)
 
   // toda escrita passa por aqui: recarrega e mostra o erro em pt-BR na tela
   const run = async (what: string, fn: () => Promise<void>) => {
@@ -39,7 +41,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setBusy(false)
     return true
   }
-  const go = (m: Month) => { setForm(null); setDel(null); setError(null); setMonth(m) }
+  const go = (m: Month) => { setForm(null); setDel(null); setError(null); setMetasOpen(false); setMonth(m) }
 
   const today = todayISO()
   const hasPlan = data.months.includes(month)
@@ -56,11 +58,12 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
         <button className="chip" aria-label="Próximo mês" disabled={busy} onClick={() => go(next)}>›</button>
       </div>
-      {hasPlan && !data.months.includes(next) && (
+      {hasPlan && (
         <div className="btns">
-          <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível criar ${lower(next)}`, async () => {
+          <button className={metasOpen ? 'b' : 'b ghost'} disabled={busy} onClick={() => { setForm(null); setDel(null); setMetasOpen(!metasOpen) }}>Metas</button>
+          {!data.months.includes(next) && <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível criar ${lower(next)}`, async () => {
             await createMonth(db, next, withSources(nextMonthLines(lines, data.sources), data.sources, next))
-          }).then(ok => ok && go(next))}>Criar {lower(next)}</button>
+          }).then(ok => ok && go(next))}>Criar {lower(next)}</button>}
         </div>
       )}
     </div>
@@ -94,8 +97,10 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const entradas = lines.filter(l => l.kind === 'entrada')
   const saidas = lines.filter(l => l.kind === 'saida')
   const of = (b: Bloco) => saidas.filter(l => blocoOf(l) === b)
-  const fixos = of('fixo'), parcelas = of('parcela'), metas = of('meta')
-  const vars = variaveis(data.lines, gastos.data.txns, gastos.categorize, month)
+  const fixos = of('fixo'), parcelas = of('parcela')
+  const goals = goalsAt(data.goals, month)
+  const vars = variaveis(data.lines, gastos.data.txns, gastos.categorize, month, goals)
+  const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals)
   const sum = monthSummary(lines)
   const progress = monthProgress(month, today)
   const ritmo = pace(vars.realCents, progress)
@@ -125,8 +130,6 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     if (f.kind === 'entrada' && f.sourceId && entradas.some(l => l.id !== f.id && l.sourceId === f.sourceId)) throw new Error('Esta fonte já está no mês: edite a entrada dela ou escolha Valor avulso.')
     if (f.at === 'parcela' && !f.installment.trim()) throw new Error('Parcela: use n/total, por exemplo 3/10.')
     const v = validateLine(f.at === 'parcela' ? f : { ...f, installment: '' })
-    const teto = f.kind === 'saida' && f.at !== 'parcela' && f.grupo === 'variavel' ? tetoError(lines, f.id, f.categoryId) : null
-    if (teto) throw new Error(teto)
     await saveLine(db, {
       id: f.id, month, kind: f.kind, name: v.name, amountCents: v.amountCents, recurring: v.recurring, position: f.position,
       categoryId: f.kind === 'saida' ? f.categoryId || null : null, installmentCurrent: v.installmentCurrent, installmentTotal: v.installmentTotal,
@@ -212,22 +215,23 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   }
 
   // um bloco da tela: linhas do bloco, formulário no lugar da linha editada e o de linha nova no fim
-  const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode }) => {
+  const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode; goal?: { real: number; goal: number } }) => {
     const formRow = (f: Form) => (f.kind === 'entrada' ? entradaForm(f) : saidaForm(f))
     const inBlock = (l: BudgetLine) => (l.kind === 'entrada' ? 'entrada' : blocoOf(l)) === at
     return (
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="bar">
           <h5 style={{ margin: 0 }}>{title}</h5>
-          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra) && <b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
+          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.goal) && <b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
             <button className="b ghost" disabled={busy} onClick={opts.add ?? (() => open(at))}>+</button></span>
         </div>
+        {opts.goal && <Track real={opts.goal.real} planned={opts.goal.goal} />}
         {opts.hint && <div className="muted" style={{ marginTop: 2 }}>{opts.hint}</div>}
         <table className="lt blk" style={{ marginTop: 6 }}>
           <tbody>
             {ls.length === 0 && !opts.extra && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
-            {ls.map(l => (form?.id === l.id ? formRow(form) : <tr key={l.id}>{row(l)}</tr>))}
             {opts.extra}
+            {ls.map(l => (form?.id === l.id ? formRow(form) : <tr key={l.id}>{row(l)}</tr>))}
             {form?.at === at && !form.id && formRow(form)}
           </tbody>
         </table>
@@ -266,25 +270,27 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       </>
     )
   }
-  const tetoRow = (l: BudgetLine) => {
-    const real = vars.tetos.find(t => t.line.id === l.id)?.realCents ?? null
+  // categoria puxada dos lançamentos: o gasto do mês e, com meta, a barra
+  const catRow = (r: VarRow) => {
+    const over = r.goalCents !== null && r.realCents > r.goalCents
     return (
-      <>
+      <tr key={`cat-${r.categoryId}`}>
         <td>
-          <div className="nm" title={l.name}><span>{shown(l)} {l.categoryId && catName(l.categoryId) !== l.name && <span className="muted">· {catName(l.categoryId)}</span>}</span>{actions(l)}</div>
-          {real === null ? <div className="d2">escolha uma categoria para acompanhar o gasto</div> : hasTxns && <Track real={real} planned={l.amountCents} />}
+          <div className="nm"><span>{catName(r.categoryId) ?? 'Sem categoria'}</span></div>
+          {r.goalCents !== null && <Track real={r.realCents} planned={r.goalCents} />}
         </td>
-        <td className="r" style={{ whiteSpace: 'nowrap', ...(real !== null && real > l.amountCents ? { color: 'var(--negative)' } : {}) }}>
-          {real === null || !hasTxns ? formatCents(l.amountCents) : `${formatCents(real)} / ${formatCents(l.amountCents)}`}
+        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: 'var(--negative)' } : {}) }}>
+          {formatCents(r.realCents)}{r.goalCents !== null && <span className="muted"> / {formatCents(r.goalCents)}</span>}
         </td>
-      </>
+      </tr>
     )
   }
+  const ofGoal = (real: number, goal: number | null) => (goal === null ? formatCents(real) : `${formatCents(real)} de ${formatCents(goal)}`)
 
-  const varNote = !vars.tetos.length ? 'nenhum teto definido' : !hasTxns ? 'sem lançamentos para comparar'
+  const varNote = !hasTxns ? 'sem lançamentos para comparar'
     : progress >= 1 ? 'mês fechado' : progress <= 0 ? 'o mês ainda não começou'
-    : `${Math.round(progress * 100)}% do mês${ritmo !== null ? ` · no ritmo fecha em ${formatBRL(ritmo)}` : ''}`
-  const metasCents = total(metas)
+    : ritmo !== null ? `no ritmo fecha em ${formatBRL(ritmo)}` : `${Math.round(progress * 100)}% do mês`
+  const sobra = sum.entradasCents - total(fixos) - total(parcelas) - vars.realCents - inv.realCents
 
   return (
     <>
@@ -293,9 +299,13 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       <div className="kpis">
         <div className="k"><div className="muted">O que entra</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada', 'entradas')} · líquido</div></div>
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(total(fixos) + total(parcelas))}</div><div className="s muted">{plural(fixos.length, 'custo fixo', 'custos fixos')} · {plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
-        <div className="k"><div className="muted">Variáveis</div><div className="v">{!vars.tetos.length ? '—' : hasTxns ? <>{formatBRL(vars.realCents)} <span className="muted" style={{ fontSize: 12 }}>de {formatBRL(vars.plannedCents)}</span></> : formatBRL(vars.plannedCents)}</div><div className="s muted">{varNote}</div></div>
-        <div className="k"><div className="muted">Sobra</div><div className={`v ${sum.saldoCents > 0 ? 'up' : sum.saldoCents < 0 ? 'dn' : ''}`}>{sum.saldoCents > 0 ? '+' : ''}{formatBRL(sum.saldoCents)}</div><div className="s muted">{metasCents > 0 ? `depois de investir ${formatBRL(metasCents)}` : 'o que entra − o que sai'}</div></div>
+        <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
+        <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
+        <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">o que entra − o que já saiu</div></div>
       </div>
+
+      {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={averageByCategory(gastos.data.txns, gastos.categorize, month)} busy={busy}
+        onClose={() => setMetasOpen(false)} onSave={changes => void run('Não foi possível salvar as metas', () => saveGoals(db, month, changes)).then(ok => ok && setMetasOpen(false))} />}
 
       {suggestions.length > 0 && (
         <div className="card" style={{ marginBottom: 12, borderColor: '#2c3a14' }}>
@@ -328,11 +338,19 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               </tr>
             )),
           })}
-          {block('variavel', 'Custos variáveis', vars.tetos.map(t => t.line), hasTxns ? `${formatCents(vars.realCents)} de ${formatCents(vars.plannedCents)}` : formatCents(vars.plannedCents), tetoRow, {
-            empty: 'Um teto por categoria (mercado, restaurante, lazer…); o gasto real vem dos lançamentos.',
-            hint: !hasTxns && <>Para ver o gasto real, conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</>,
+          {block('variavel', 'Custos variáveis', vars.manual, ofGoal(vars.realCents, vars.goalCents), plainRow, {
+            empty: 'Nenhum gasto variável neste mês ainda.',
+            hint: !hasTxns && <>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</>,
+            goal: vars.goalCents !== null ? { real: vars.realCents, goal: vars.goalCents } : undefined,
+            extra: vars.rows.length > 0 && vars.rows.map(catRow),
           })}
-          {block('meta', 'Investimentos e metas', metas, formatCents(metasCents), plainRow, { empty: 'Aportes e reservas que você separa todo mês. Não contam como gasto.' })}
+          {block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
+            empty: 'Nada investido neste mês ainda.',
+            goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
+            extra: inv.fromTxnsCents > 0 && (
+              <tr key="inv-txns"><td><div className="nm"><span>Saiu para investir</span></div><div className="d2">lançamentos na categoria Investimento</div></td><td className="r">{formatCents(inv.fromTxnsCents)}</td></tr>
+            ),
+          })}
         </div>
         <div>
           {block('fixo', 'Custos fixos', fixos, formatCents(total(fixos)), plainRow, { empty: 'Assinaturas e contas que se repetem. As assinaturas detectadas aparecem nas sugestões acima.' })}

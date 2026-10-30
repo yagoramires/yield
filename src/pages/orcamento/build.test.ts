@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '../../db/gastosRepo'
 import type { BudgetLine } from '../../db/orcamentoRepo'
-import { defaultMonth, monthProgress, pace, spendingPlan, tetoError, validateLine } from './build'
+import { defaultMonth, goalChanges, monthProgress, pace, spendingPlan, validateLine } from './build'
 
 describe('validateLine', () => {
   it('exige nome', () => {
@@ -59,24 +59,23 @@ describe('spendingPlan', () => {
   it('saída no bloco de investimento e metas também fica fora do gasto', () => {
     expect(spendingPlan([line({ amountCents: 500, grupo: 'meta' }), line({ amountCents: 70, categoryId: 'moradia', grupo: 'fixo' })], cats)).toEqual({ plannedCents: 70, reservedCents: 500 })
   })
-})
-
-describe('tetoError', () => {
-  const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'Mercado', amountCents: 0, recurring: true, position: 0, categoryId: 'mercado', installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: 'variavel', sourceKey: null, ...o })
-  it('variável precisa de categoria e só um teto por categoria no mês', () => {
-    expect(tetoError([], undefined, '')).toMatch(/categoria/)
-    expect(tetoError([line({})], undefined, 'mercado')).toMatch(/Mercado/)
-    expect(tetoError([line({})], 'x', 'mercado')).toBeNull() // editando o próprio
-    expect(tetoError([line({ grupo: 'fixo' }), line({ installmentCurrent: 1, installmentTotal: 2 })], undefined, 'mercado')).toBeNull()
-    // dois tetos que já existiam (dado antigo): editar o valor de um deles não trava; virar teto de novo trava
-    const dois = [line({ id: 'a' }), line({ id: 'b', name: 'Feira' })]
-    expect(tetoError(dois, 'a', 'mercado')).toBeNull()
-    expect(tetoError([line({ id: 'a' }), line({ id: 'c', grupo: 'fixo' })], 'c', 'mercado')).toMatch(/Mercado/)
+  it('soma a meta dos variáveis: o limite total, ou as metas por categoria', () => {
+    expect(spendingPlan([line({ amountCents: 70 })], cats, new Map([['cat:a', 100], ['cat:b', 200], ['investir', 9]])).plannedCents).toBe(370)
+    expect(spendingPlan([], cats, new Map([['cat:a', 100], ['variaveis', 250]])).plannedCents).toBe(250)
   })
 })
 
 describe('pace', () => {
   it('projeta o fim do mês pelo ritmo; sem projeção no começo ou fora do mês corrente', () => {
     expect([pace(1000, 0.25), pace(1000, 0), pace(1000, 1)]).toEqual([4000, null, null])
+  })
+})
+
+describe('goalChanges', () => {
+  it('grava só o que mudou; vazio desliga a meta que existia; zero é recusado', () => {
+    const cur = new Map([['investir', 300000], ['cat:mercado', 150000]])
+    expect(goalChanges({ investir: '3.000,00', 'cat:mercado': '', 'cat:lazer': '600', variaveis: '' }, cur))
+      .toEqual([{ key: 'cat:mercado', amountCents: null }, { key: 'cat:lazer', amountCents: 60000 }])
+    expect(() => goalChanges({ investir: '0' }, cur)).toThrow(/maior que zero/)
   })
 })

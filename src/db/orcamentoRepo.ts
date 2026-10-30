@@ -10,10 +10,12 @@ export interface PjConfig { proLaborePct: number; irpjPct: number; inssPct: numb
 export const DEFAULT_PJ: PjConfig = { proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dasCents: 0 }
 export type SourceKind = 'pj' | 'mei' | 'clt' | 'fixo'
 export interface IncomeSource extends PjConfig { id: string; name: string; kind: SourceKind; grossCents: Cents | null /* pj e clt */; netCents: Cents | null /* fixo */; dependents: number /* clt, para o IRRF */; sourceKey: string | null }
-export interface OrcamentoData { months: Month[]; lines: BudgetLine[]; dismissed: { month: Month; key: string }[]; sources: IncomeSource[] }
+// meta vale do mês dela em diante; amountCents null desliga a meta dali para frente
+export interface Goal { month: Month; key: string /* 'investir', 'variaveis' ou 'cat:<categoria>' */; amountCents: Cents | null }
+export interface OrcamentoData { months: Month[]; lines: BudgetLine[]; dismissed: { month: Month; key: string }[]; sources: IncomeSource[]; goals: Goal[] }
 
 export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
-  const [months, lines, dismissed, sources] = await Promise.all([
+  const [months, lines, dismissed, sources, goals] = await Promise.all([
     db.select<{ month: Month }>('SELECT month FROM budget_months ORDER BY month'),
     db.select<BudgetLine>(`SELECT id, month, kind, name, amount_cents AS amountCents, recurring, position, category_id AS categoryId,
       installment_current AS installmentCurrent, installment_total AS installmentTotal, source_id AS sourceId, source_key AS sourceKey, grupo
@@ -21,8 +23,9 @@ export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
     db.select<{ month: Month; key: string }>('SELECT month, key FROM budget_dismissals ORDER BY month, key'),
     db.select<IncomeSource>(`SELECT id, name, kind, gross_cents AS grossCents, pro_labore_pct AS proLaborePct, irpj_pct AS irpjPct, inss_pct AS inssPct,
       contabilidade_cents AS contabilidadeCents, outros_cents AS outrosCents, das_cents AS dasCents, net_cents AS netCents, source_key AS sourceKey, dependents FROM income_sources ORDER BY name`),
+    db.select<Goal>('SELECT month, key, amount_cents AS amountCents FROM budget_goals ORDER BY month, key'),
   ])
-  return { months: months.map(m => m.month), lines: lines.map(l => ({ ...l, recurring: !!l.recurring })), dismissed, sources }
+  return { months: months.map(m => m.month), lines: lines.map(l => ({ ...l, recurring: !!l.recurring })), dismissed, sources, goals }
 }
 
 const insertLine = (db: Db, id: string, l: Omit<BudgetLine, 'id'>) => db.execute(
@@ -60,6 +63,11 @@ export async function saveLine(db: Db, line: Omit<BudgetLine, 'id'> & { id?: str
 
 export async function deleteLine(db: Db, id: string): Promise<void> {
   await db.execute('DELETE FROM budget_lines WHERE id = ?', [id])
+}
+
+/** Grava as mudanças de meta valendo a partir de `month`; os meses anteriores continuam com o que tinham. */
+export async function saveGoals(db: Db, month: Month, changes: { key: string; amountCents: Cents | null }[]): Promise<void> {
+  for (const c of changes) await db.execute('INSERT OR REPLACE INTO budget_goals (month, key, amount_cents) VALUES (?, ?, ?)', [month, c.key, c.amountCents])
 }
 
 export async function dismissSuggestion(db: Db, month: Month, key: string): Promise<void> {

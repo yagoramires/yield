@@ -73,8 +73,8 @@ describe('tela de categorias', () => {
   it('orçamento por categoria soma só as saídas do mês que têm categoria', () => {
     const l = (month: string, kind: BudgetLine['kind'], categoryId: string | null, amountCents: number): BudgetLine =>
       ({ id: `${month}${kind}${categoryId}${amountCents}`, month, kind, name: 'x', amountCents, recurring: false, position: 0, categoryId, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null })
-    const m = budgetByCategory([l('2026-10', 'saida', 'mercado', 60000), l('2026-10', 'saida', 'mercado', 40000), l('2026-09', 'saida', 'mercado', 1), l('2026-10', 'entrada', 'mercado', 5), l('2026-10', 'saida', null, 7)], '2026-10')
-    expect([...m]).toEqual([['mercado', 100000]])
+    const m = budgetByCategory([l('2026-10', 'saida', 'mercado', 60000), l('2026-10', 'saida', 'mercado', 40000), l('2026-09', 'saida', 'mercado', 1), l('2026-10', 'entrada', 'mercado', 5), l('2026-10', 'saida', null, 7)], new Map([['cat:pet', 500], ['investir', 9]]), '2026-10')
+    expect(Object.fromEntries(m)).toEqual({ mercado: 100000, pet: 500 })
   })
   it('contagem por regra só onde ela vence (escolha à mão ganha, a mais específica ganha)', () => {
     const rules: CategoryRule[] = [{ id: 'r1', pattern: 'padaria', categoryId: 'mercado' }, { id: 'r2', pattern: 'padaria sol', categoryId: 'pet' }]

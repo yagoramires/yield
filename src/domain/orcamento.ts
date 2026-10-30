@@ -1,5 +1,5 @@
 import type { Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
+import type { BudgetLine, Goal, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
 import { monthTotals, normalizeDescription } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
@@ -117,19 +117,68 @@ export function withSources(lines: NewLine[], sources: IncomeSource[], month: Mo
   }))]
 }
 
-export interface Teto { line: BudgetLine; realCents: Cents | null /* sem categoria não há o que medir */ }
+export const GOAL_INVESTIR = 'investir', GOAL_VARIAVEIS = 'variaveis'
+export const catGoal = (categoryId: string) => `cat:${categoryId}`
+
+/** Metas valendo em `month`: para cada chave, a mudança mais recente até ele; null desliga a meta dali em diante. */
+export function goalsAt(goals: Goal[], month: Month): Map<string, Cents> {
+  const last = new Map<string, Goal>()
+  for (const g of goals) if (g.month <= month && (last.get(g.key)?.month ?? '') <= g.month) last.set(g.key, g)
+  return new Map([...last].flatMap(([k, g]) => (g.amountCents === null ? [] : [[k, g.amountCents] as const])))
+}
 
 /**
- * Custos variáveis do mês: cada teto contra o gasto real da categoria dele nos lançamentos.
- * Parcelas e assinaturas já planejadas nos outros blocos ficam fora do real, para não contar duas vezes.
+ * Lançamentos do mês que já estão planejados em outro bloco: parcelas (n/total), assinaturas aceitas
+ * e a conta fixa paga pelo banco (mesma categoria, valor a até 5% da linha; cada linha leva um lançamento).
  */
-export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): { tetos: Teto[]; plannedCents: Cents; realCents: Cents } {
-  const subs = new Set(lines.filter(l => l.month === month && l.sourceKey?.startsWith('sub:')).map(l => l.sourceKey!.slice(4).replace(/@\d{4}-\d{2}$/, '')))
-  const own = txns.filter(t => t.installment === null && !subs.has(`${t.accountId}|${normalizeDescription(t.description)}`))
-  const by = monthTotals(own, [], cat, month).byCategory
-  const real = (id: string) => by.find(b => b.category?.id === id)?.cents ?? 0
-  const tetos = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
-    .map(line => ({ line, realCents: line.categoryId ? real(line.categoryId) : null }))
-  const cats = new Set(tetos.flatMap(t => (t.line.categoryId ? [t.line.categoryId] : [])))
-  return { tetos, plannedCents: tetos.reduce((s, t) => s + t.line.amountCents, 0), realCents: [...cats].reduce((s, c) => s + real(c), 0) }
+function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): Set<string> {
+  const ls = lines.filter(l => l.month === month && l.kind === 'saida')
+  const subs = new Set(ls.filter(l => l.sourceKey?.startsWith('sub:')).map(l => l.sourceKey!.slice(4).replace(/@\d{4}-\d{2}$/, '')))
+  const out = new Set<string>()
+  const ofMonth = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0)
+  for (const t of ofMonth) if (t.installment !== null || subs.has(`${t.accountId}|${normalizeDescription(t.description)}`)) out.add(t.id)
+  for (const l of ls) {
+    if (blocoOf(l) !== 'fixo' || !l.categoryId || l.sourceKey?.startsWith('sub:')) continue
+    const t = ofMonth.find(t => !out.has(t.id) && cat(t)?.id === l.categoryId && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05)
+    if (t) out.add(t.id)
+  }
+  return out
+}
+
+export interface VarRow { categoryId: string | null /* null: sem categoria */; realCents: Cents; goalCents: Cents | null }
+
+/** Custos variáveis do mês, puxados dos lançamentos por categoria (sem o que já está em fixos e parcelas), mais as linhas à mão. */
+export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
+  { rows: VarRow[]; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
+  const skip = planned(lines, txns, cat, month)
+  const by = monthTotals(txns.filter(t => !skip.has(t.id)), [], cat, month).byCategory
+  const rows = new Map<string | null, VarRow>(by.filter(b => b.cents > 0).map(b => [b.category?.id ?? null, { categoryId: b.category?.id ?? null, realCents: b.cents, goalCents: null }]))
+  for (const [k, cents] of goals) {
+    if (!k.startsWith('cat:')) continue
+    const id = k.slice(4)
+    rows.set(id, { categoryId: id, realCents: rows.get(id)?.realCents ?? 0, goalCents: cents })
+  }
+  const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
+  const catGoals = [...goals].filter(([k]) => k.startsWith('cat:')).map(([, v]) => v)
+  return {
+    rows: [...rows.values()].sort((a, b) => b.realCents - a.realCents || (b.goalCents ?? 0) - (a.goalCents ?? 0)),
+    manual,
+    realCents: [...rows.values()].reduce((s, r) => s + r.realCents, 0) + manual.reduce((s, l) => s + l.amountCents, 0),
+    goalCents: goals.get(GOAL_VARIAVEIS) ?? (catGoals.length ? catGoals.reduce((s, v) => s + v, 0) : null),
+  }
+}
+
+/** Investido no mês: o que saiu da conta na categoria Investimento mais as linhas à mão do bloco. */
+export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
+  { fromTxnsCents: Cents; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
+  const fromTxnsCents = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && cat(t)?.id === 'investimento').reduce((s, t) => s - t.amountCents, 0)
+  const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'meta')
+  return { fromTxnsCents, manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
+}
+
+/** Média mensal de gasto por categoria nos `n` meses antes de `month` (para sugerir a meta). */
+export function averageByCategory(txns: Txn[], cat: (t: Txn) => Category | null, month: Month, n = 3): Map<string, Cents> {
+  const sum = new Map<string, Cents>()
+  for (let i = 1; i <= n; i++) for (const b of monthTotals(txns, [], cat, addMonths(month, -i)).byCategory) if (b.category) sum.set(b.category.id, (sum.get(b.category.id) ?? 0) + b.cents)
+  return new Map([...sum].map(([k, v]) => [k, Math.round(v / n)]))
 }

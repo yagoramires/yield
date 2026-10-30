@@ -1,4 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, CircleHelp, PiggyBank, Target } from 'lucide-react'
+import { goalsAt } from '../domain/orcamento'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
@@ -29,8 +30,8 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
   const left = totals.incomeCents - totals.spentCents
 
   const lines = orcamento.data.lines.filter(l => l.month === month)
-  const planned = spendingPlan(lines, data.categories).plannedCents
-  const budget = budgetByCategory(orcamento.data.lines, month)
+  const planned = spendingPlan(lines, data.categories, goalsAt(orcamento.data.goals, month)).plannedCents
+  const budget = budgetByCategory(orcamento.data.lines, goalsAt(orcamento.data.goals, month), month)
   const forecast = monthForecast(totals.spentCents, month, today)
   const progress = monthProgress(month, today)
 
@@ -46,7 +47,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
   const semCount = data.txns.filter(t => monthOf(t.date) === month && t.amountCents < 0 && cat(t) === null).length
   const soon = nextCharges(subscriptions, today).list.slice(0, 3)
   const byId = new Map(data.categories.map(c => [c.id, c]))
-  const plannedFor = (m: string) => spendingPlan(orcamento.data.lines.filter(l => l.month === m), data.categories).plannedCents
+  const plannedFor = (m: string) => spendingPlan(orcamento.data.lines.filter(l => l.month === m), data.categories, goalsAt(orcamento.data.goals, m)).plannedCents
   // No mês atual compara com o anterior até o mesmo dia; senão um mês pela metade pareceria sempre mais barato.
   const prevTxns = isCurrent ? cutToDay(data.txns, prev, cmp.day) : data.txns
   const spendMap = (txns: typeof data.txns, m: string) => new Map(spentByCategory(txns, data.accounts, cat, data.categories, m).flatMap(r => (r.category && r.countsAsSpending ? [[r.category.id, r.cents] as const] : [])))

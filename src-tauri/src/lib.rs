@@ -263,6 +263,12 @@ pub fn run() {
             sql: include_str!("../migrations/014_orcamento_blocos.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 15,
+            description: "metas do orcamento",
+            sql: include_str!("../migrations/015_metas.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).

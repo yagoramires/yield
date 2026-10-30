@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, tmpPath, type Db } from './testDb'
-import { DEFAULT_PJ, applySource, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
+import { DEFAULT_PJ, applySource, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
@@ -135,7 +135,7 @@ describe('migração', () => {
     d.exec("INSERT INTO meta (key, value) VALUES ('orcamento.pj', '{}'); INSERT INTO budget_months VALUES ('2026-01'); INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, pj_gross_cents) VALUES ('l', '2026-01', 'entrada', 'R', 99, 1, 0, 5)")
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('14')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('15')
     expect(await migrado.select("SELECT 1 FROM meta WHERE key = 'orcamento.pj'")).toEqual([])
     expect((await loadOrcamento(migrado)).lines[0]).toMatchObject({ amountCents: 99, sourceId: null })
   })
@@ -145,10 +145,10 @@ describe('migração', () => {
     for (const f of ['001_init.sql', '002_gastos.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('14')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('15')
     expect((await loadOrcamento(migrado)).months).toEqual([])
   })
-  test('014: saída antiga ganha bloco pelo palpite (um teto por categoria; fatura e moradia são fixo); entrada fica sem; grupo novo é gravado e lido', async () => {
+  test('014 e 015: saída antiga ganha bloco pelo palpite (um teto por categoria; fatura e moradia são fixo), teto e meta viram metas; entrada fica sem; grupo novo é gravado e lido', async () => {
     const path = tmpPath('v13.db')
     const d = new DatabaseSync(path)
     for (const f of ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql', '006_categoria_visual.sql', '007_fonte_clt.sql', '008_cadastro_ir.sql', '009_renda_fixa_cripto.sql', '010_aportado_manual.sql', '011_etf_renda_fixa.sql', '012_aportado_cripto.sql', '013_fonte_mei.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
@@ -165,10 +165,22 @@ describe('migração', () => {
       ('f', '2026-01', 'saida', 'Avulso', 1, 1, 8, NULL, NULL, NULL, NULL)`)
     d.close()
     const migrado = createTestDb(path)
-    expect(Object.fromEntries((await loadOrcamento(migrado)).lines.map(l => [l.id, l.grupo]))).toEqual({ e: null, m: 'meta', v: 'variavel', v2: 'fixo', s: 'fixo', p: 'fixo', a: 'fixo', t: 'fixo', f: 'fixo' })
+    // a 015 leva o teto (v) e a meta (m) para budget_goals; o resto fica com o bloco do palpite
+    const o = await loadOrcamento(migrado)
+    expect(Object.fromEntries(o.lines.map(l => [l.id, l.grupo]))).toEqual({ e: null, v2: 'fixo', s: 'fixo', p: 'fixo', a: 'fixo', t: 'fixo', f: 'fixo' })
+    expect(o.goals).toEqual([{ month: '2026-01', key: 'cat:mercado', amountCents: 150 }, { month: '2026-01', key: 'investir', amountCents: 1 }])
     const id = await saveLine(migrado, { month: '2026-01', ...linha('Novo', { grupo: 'variavel' }) })
     await saveLine(migrado, { month: '2026-01', ...linha('Sem grupo') })
     const ls = (await loadOrcamento(migrado)).lines
     expect([ls.find(l => l.id === id)?.grupo, ls.find(l => l.name === 'Sem grupo')?.grupo]).toEqual(['variavel', 'fixo'])
+  })
+  test('saveGoals: grava a partir do mês, regrava a mesma chave e desliga com null', async () => {
+    await saveGoals(db, '2026-03', [{ key: 'investir', amountCents: 500 }, { key: 'cat:mercado', amountCents: 100 }])
+    await saveGoals(db, '2026-03', [{ key: 'investir', amountCents: 700 }])
+    await saveGoals(db, '2026-05', [{ key: 'cat:mercado', amountCents: null }])
+    expect((await loadOrcamento(db)).goals).toEqual([
+      { month: '2026-03', key: 'cat:mercado', amountCents: 100 }, { month: '2026-03', key: 'investir', amountCents: 700 }, { month: '2026-05', key: 'cat:mercado', amountCents: null },
+    ])
+    await expect(saveGoals(db, '2026-05', [{ key: 'qualquer', amountCents: 1 }])).rejects.toThrow()
   })
 })

@@ -3,7 +3,7 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { blocoOf, copyLines, missingSources, monthSummary, nextMonthLines, variaveis, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
+import { averageByCategory, blocoOf, copyLines, goalsAt, investido, missingSources, monthSummary, nextMonthLines, variaveis, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: 'k', ...o })
@@ -156,22 +156,53 @@ describe('fontes de renda no mês', () => {
   })
 })
 
-describe('variaveis', () => {
-  it('teto da categoria x gasto real do mês; sem categoria não tem real; o total real não conta a mesma categoria duas vezes', () => {
-    const lines = [
-      line({ id: 'a', name: 'Mercado', amountCents: 150_000, categoryId: 'mercado', grupo: 'variavel' }),
-      line({ id: 'b', name: 'Feira', amountCents: 20_000, categoryId: 'mercado', grupo: 'variavel' }),
-      line({ id: 'c', name: 'Lazer', amountCents: 30_000, grupo: 'variavel' }),
-      line({ id: 'd', name: 'Aluguel', amountCents: 200_000, categoryId: 'mercado', grupo: 'fixo' }),
-      line({ id: 'e', name: 'Mercado', amountCents: 1, categoryId: 'mercado', grupo: 'variavel', month: '2026-04' }),
+describe('metas', () => {
+  it('vale do mês dela em diante; mudar depois não reescreve o passado; null desliga', () => {
+    const goals = [
+      { month: '2026-01', key: 'cat:mercado', amountCents: 100 },
+      { month: '2026-03', key: 'cat:mercado', amountCents: 150 },
+      { month: '2026-02', key: 'investir', amountCents: 500 },
+      { month: '2026-04', key: 'investir', amountCents: null },
     ]
-    const r = variaveis(lines, [txn({ description: 'mercado', amountCents: -40_000 }), txn({ description: 'mercado', date: '2026-04-01' })], catOf, '2026-03')
-    expect(r.tetos.map(t => [t.line.id, t.realCents])).toEqual([['a', 40_000], ['b', 40_000], ['c', null]])
-    expect([r.plannedCents, r.realCents]).toEqual([200_000, 40_000])
+    expect([...goalsAt(goals, '2026-01')]).toEqual([['cat:mercado', 100]])
+    expect(Object.fromEntries(goalsAt(goals, '2026-02'))).toEqual({ 'cat:mercado': 100, investir: 500 })
+    expect(Object.fromEntries(goalsAt(goals, '2026-09'))).toEqual({ 'cat:mercado': 150 })
   })
-  it('parcela e assinatura aceita no mês não entram no real do teto da mesma categoria', () => {
-    const lines = [line({ id: 'a', categoryId: 'mercado', grupo: 'variavel' }), line({ id: 's', sourceKey: 'sub:c1|mercado@2026-03' })]
-    const txns = [txn({ description: 'mercado', amountCents: -5000 }), txn({ id: 'p', description: 'mercado', amountCents: -300, installment: '4/10' }), txn({ id: 'x', accountId: 'c2', description: 'mercado', amountCents: -700 })]
-    expect(variaveis(lines, txns, catOf, '2026-03').realCents).toBe(700) // c1|mercado é a assinatura; a parcela é do bloco Parcelas
+})
+
+describe('variaveis', () => {
+  it('gasto do mês por categoria, sem parcela, assinatura aceita nem conta fixa paga pelo banco; meta da categoria aparece mesmo sem gasto', () => {
+    const lines = [
+      line({ id: 's', sourceKey: 'sub:c1|mercado@2026-03' }),
+      line({ id: 'f', name: 'Aluguel', amountCents: 100_000, categoryId: 'mercado', grupo: 'fixo' }),
+      line({ id: 'm', name: 'Feira em dinheiro', amountCents: 2000, grupo: 'variavel' }),
+    ]
+    const txns = [
+      txn({ id: '1', description: 'mercado', amountCents: -5000 }), // assinatura c1|mercado
+      txn({ id: '2', accountId: 'c2', description: 'mercado', amountCents: -300, installment: '4/10' }),
+      txn({ id: '3', accountId: 'c2', description: 'mercado', amountCents: -101_000 }), // a conta fixa (1% de diferença)
+      txn({ id: '4', accountId: 'c2', description: 'mercado', amountCents: -700 }),
+      txn({ id: '5', accountId: 'c2', description: 'mercado', amountCents: -900, date: '2026-04-01' }),
+    ]
+    const r = variaveis(lines, txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['cat:lazer', 400]]))
+    expect(r.rows).toEqual([{ categoryId: 'mercado', realCents: 700, goalCents: 1000 }, { categoryId: 'lazer', realCents: 0, goalCents: 400 }])
+    expect([r.manual.map(l => l.id), r.realCents, r.goalCents]).toEqual([['m'], 2700, 1400])
+    expect(variaveis([], txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['variaveis', 5000]])).goalCents).toBe(5000)
+  })
+})
+
+describe('investido', () => {
+  it('o que saiu na categoria Investimento no mês mais as linhas à mão; meta do bloco', () => {
+    const inv: Record<string, Category> = { aporte: cat('investimento', false) }
+    const txns = [txn({ description: 'aporte', amountCents: -30_000 }), txn({ description: 'aporte', amountCents: 5000 }), txn({ description: 'aporte', amountCents: -1, date: '2026-04-02' })]
+    const r = investido([line({ grupo: 'meta', amountCents: 2000 })], txns, t => inv[t.description] ?? null, '2026-03', new Map([['investir', 50_000]]))
+    expect([r.fromTxnsCents, r.realCents, r.goalCents]).toEqual([30_000, 32_000, 50_000])
+  })
+})
+
+describe('averageByCategory', () => {
+  it('média dos 3 meses anteriores, sem o mês atual', () => {
+    const txns = [txn({ description: 'mercado', date: '2026-02-10', amountCents: -900 }), txn({ description: 'mercado', date: '2026-01-10', amountCents: -300 }), txn({ description: 'mercado', date: '2026-03-10', amountCents: -99_999 })]
+    expect([...averageByCategory(txns, catOf, '2026-03')]).toEqual([['mercado', 400]])
   })
 })
