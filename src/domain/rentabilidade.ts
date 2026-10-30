@@ -1,4 +1,5 @@
 import { replay } from './ledger'
+import { addMonths } from './money'
 import type { Cents, CorporateEvent, Dividend, Month, Trade } from './types'
 
 /** Último valor conhecido até `m` (meses em ordem de texto 'AAAA-MM'). */
@@ -50,4 +51,23 @@ export function cdiIndex(monthlyPct: Map<Month, number>, months: Month[]): (numb
     out.push(prev === null || pct === undefined ? null : prev * (1 + pct / 100))
   }
   return out
+}
+
+const lastKnown = (vs: (number | null)[]) => [...vs].reverse().find((v): v is number => v !== null) ?? null
+
+/**
+ * Carteira de bolsa × CDI × Ibovespa nos últimos `n` meses (os mesmos índices da tela de Resumo), em % sobre o começo,
+ * e o CDI do último mês publicado. Quem chama tira os ETFs de renda fixa dos trades, como o Resumo.
+ */
+export function rentOver(trades: Trade[], events: CorporateEvent[], dividends: Dividend[], hist: { closes: Map<string, Map<Month, Cents>>; ibov: Map<Month, Cents>; cdi: Map<Month, number> }, thisMonth: Month, n = 12):
+  { carteiraPct: number | null; cdiPct: number | null; ibovPct: number | null; cdiMonthPct: number | null } {
+  const months = Array.from({ length: n + 1 }, (_, i) => addMonths(thisMonth, i - n))
+  const pct = (vs: (number | null)[]) => { const v = lastKnown(vs); return v === null ? null : v - 100 }
+  const lastCdi = [...hist.cdi.keys()].filter(m => m <= thisMonth).sort().at(-1)
+  return {
+    carteiraPct: pct(portfolioIndex(trades, events, dividends, hist.closes, months)),
+    cdiPct: hist.cdi.size ? pct(cdiIndex(hist.cdi, months)) : null,
+    ibovPct: hist.ibov.size ? pct(closeIndex(hist.ibov, months)) : null,
+    cdiMonthPct: lastCdi ? hist.cdi.get(lastCdi)! : null,
+  }
 }

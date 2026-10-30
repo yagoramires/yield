@@ -9,12 +9,12 @@ import { yahooSymbol } from '../../quotes/yahoo'
 import { LineChart } from '../../ui/charts'
 import { monthName } from '../lancamentos/GastosHeader'
 
-type Hist = { closes: Map<string, Map<Month, Cents>>; ibov: Map<Month, Cents>; cdi: Map<Month, number>; missing: string[] }
+export type Hist = { closes: Map<string, Map<Month, Cents>>; ibov: Map<Month, Cents>; cdi: Map<Month, number>; missing: string[] }
 
 // shortcut: histórico baixado uma vez por sessão e guardado só em memória; guardar no banco se a abertura ficar lenta.
 const cache = new Map<string, Promise<Hist>>()
 
-function loadHist(tickers: string[], from: Month, to: Month): Promise<Hist> {
+export function loadHist(tickers: string[], from: Month, to: Month): Promise<Hist> {
   const key = `${tickers.join(',')}|${from}|${to}`
   if (!cache.has(key)) {
     const f = tauriFetch as typeof fetch
