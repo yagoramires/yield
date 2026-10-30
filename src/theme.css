@@ -383,6 +383,8 @@ tr.hl td { background: #1a1213; }
 .track { position: relative; height: 10px; background: #1f2125; border-radius: 4px; overflow: hidden; }
 .track .fill { position: absolute; left: 0; top: 0; bottom: 0; background: #3987e5; border-radius: 0 4px 4px 0; }
 .track .fill.over { background: var(--negative); }
+.track .fill.soft { background: #5d6068; }
+.track .fill.soft.over { background: #ffcf5c; }
 .track .mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
 .catrow { display: grid; grid-template-columns: 110px 1fr 150px; gap: 8px; align-items: center; font-size: 11px; padding: 4px 0; }
 .catrow > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -397,6 +399,11 @@ tr.hl td { background: #1a1213; }
 .lt.blk .nm { color: #fff; display: flex; gap: 10px; align-items: baseline; }
 .lt.blk .nm > :last-child:not(:first-child) { margin-left: auto; font-size: 11px; white-space: nowrap; }
 .lt.blk .acts { opacity: 0; transition: opacity .12s; }
+.lt.blk .cat-toggle { all: unset; cursor: pointer; color: #fff; }
+.lt.blk .cat-toggle:disabled { cursor: default; }
+.lt.blk .cat-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.lt.blk tr.sub td { padding: 3px 5px 3px 22px; font-size: 11px; color: var(--text-2); }
+.lt.blk tr.sub td.r { padding-left: 5px; }
 .lt.blk tr:hover .acts, .lt.blk tr:focus-within .acts { opacity: 1; }
 .lt tr.edit td { background: #16171a; border-bottom: 1px solid var(--border); }
 .ic { color: var(--faint); font-size: 11px; }

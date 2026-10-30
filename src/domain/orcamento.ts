@@ -145,26 +145,28 @@ function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | n
   return out
 }
 
-export interface VarRow { categoryId: string | null /* null: sem categoria */; realCents: Cents; goalCents: Cents | null }
+export interface VarRow { categoryId: string | null /* null: sem categoria */; realCents: Cents; goalCents: Cents | null; txns: Txn[] /* os gastos do mês que somam o real, mais recentes primeiro */ }
 
 /** Custos variáveis do mês, puxados dos lançamentos por categoria (sem o que já está em fixos e parcelas), mais as linhas à mão. */
 export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
   { rows: VarRow[]; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
   const skip = planned(lines, txns, cat, month)
-  const by = monthTotals(txns.filter(t => !skip.has(t.id)), [], cat, month).byCategory
-  const rows = new Map<string | null, VarRow>(by.filter(b => b.cents > 0).map(b => [b.category?.id ?? null, { categoryId: b.category?.id ?? null, realCents: b.cents, goalCents: null }]))
+  const own = txns.filter(t => !skip.has(t.id))
+  const by = monthTotals(own, [], cat, month).byCategory
+  const spent = own.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0).sort((a, b) => b.date.localeCompare(a.date))
+  const ofCat = (id: string | null) => spent.filter(t => (cat(t)?.id ?? null) === id)
+  const rows = new Map<string | null, VarRow>(by.filter(b => b.cents > 0).map(b => [b.category?.id ?? null, { categoryId: b.category?.id ?? null, realCents: b.cents, goalCents: null, txns: ofCat(b.category?.id ?? null) }]))
   for (const [k, cents] of goals) {
     if (!k.startsWith('cat:')) continue
     const id = k.slice(4)
-    rows.set(id, { categoryId: id, realCents: rows.get(id)?.realCents ?? 0, goalCents: cents })
+    rows.set(id, { categoryId: id, realCents: rows.get(id)?.realCents ?? 0, goalCents: cents, txns: rows.get(id)?.txns ?? [] })
   }
   const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
-  const catGoals = [...goals].filter(([k]) => k.startsWith('cat:')).map(([, v]) => v)
   return {
     rows: [...rows.values()].sort((a, b) => b.realCents - a.realCents || (b.goalCents ?? 0) - (a.goalCents ?? 0)),
     manual,
     realCents: [...rows.values()].reduce((s, r) => s + r.realCents, 0) + manual.reduce((s, l) => s + l.amountCents, 0),
-    goalCents: goals.get(GOAL_VARIAVEIS) ?? (catGoals.length ? catGoals.reduce((s, v) => s + v, 0) : null),
+    goalCents: goals.get(GOAL_VARIAVEIS) ?? null, // só o limite total: a soma das metas de algumas categorias contra o gasto de todas enganaria
   }
 }
 

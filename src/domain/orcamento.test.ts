@@ -185,8 +185,8 @@ describe('variaveis', () => {
       txn({ id: '5', accountId: 'c2', description: 'mercado', amountCents: -900, date: '2026-04-01' }),
     ]
     const r = variaveis(lines, txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['cat:lazer', 400]]))
-    expect(r.rows).toEqual([{ categoryId: 'mercado', realCents: 700, goalCents: 1000 }, { categoryId: 'lazer', realCents: 0, goalCents: 400 }])
-    expect([r.manual.map(l => l.id), r.realCents, r.goalCents]).toEqual([['m'], 2700, 1400])
+    expect(r.rows.map(({ txns, ...x }) => ({ ...x, txns: txns.map(t => t.id) }))).toEqual([{ categoryId: 'mercado', realCents: 700, goalCents: 1000, txns: ['4'] }, { categoryId: 'lazer', realCents: 0, goalCents: 400, txns: [] }])
+    expect([r.manual.map(l => l.id), r.realCents, r.goalCents]).toEqual([['m'], 2700, null])
     expect(variaveis([], txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['variaveis', 5000]])).goalCents).toBe(5000)
   })
 })

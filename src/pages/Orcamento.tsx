@@ -6,7 +6,7 @@ import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
-import { errText, monthName } from './lancamentos/GastosHeader'
+import { brDay, errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
@@ -21,8 +21,9 @@ const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / 
 const lower = (m: Month) => monthName(m).toLowerCase()
 const total = (ls: BudgetLine[]) => ls.reduce((s, l) => s + l.amountCents, 0)
 
-function Track({ real, planned }: { real: number; planned: number }) {
-  return <div className="track" style={{ height: 6, marginTop: 4 }}><div className={real > planned ? 'fill over' : 'fill'} style={{ width: `${pct(real, planned)}%` }} /></div>
+// soft: a referência é a média, não uma meta (passar dela é aviso, não estouro)
+function Track({ real, planned, soft }: { real: number; planned: number; soft?: boolean }) {
+  return <div className="track" style={{ height: 6, marginTop: 4 }}><div className={`fill${soft ? ' soft' : ''}${real > planned ? ' over' : ''}`} style={{ width: `${pct(real, planned)}%` }} /></div>
 }
 
 export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): void; onOpenSettings(): void }) {
@@ -33,6 +34,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [metasOpen, setMetasOpen] = useState(false)
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set()) // categorias abertas no bloco de variáveis
 
   // toda escrita passa por aqui: recarrega e mostra o erro em pt-BR na tela
   const run = async (what: string, fn: () => Promise<void>) => {
@@ -99,6 +101,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const of = (b: Bloco) => saidas.filter(l => blocoOf(l) === b)
   const fixos = of('fixo'), parcelas = of('parcela')
   const goals = goalsAt(data.goals, month)
+  const avgs = averageByCategory(gastos.data.txns, gastos.categorize, month)
   const vars = variaveis(data.lines, gastos.data.txns, gastos.categorize, month, goals)
   const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals)
   const sum = monthSummary(lines)
@@ -272,18 +275,30 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   }
   // categoria puxada dos lançamentos: o gasto do mês e, com meta, a barra
   const catRow = (r: VarRow) => {
-    const over = r.goalCents !== null && r.realCents > r.goalCents
-    return (
-      <tr key={`cat-${r.categoryId}`}>
+    const avg = r.categoryId ? avgs.get(r.categoryId) ?? null : null
+    const ref = r.goalCents ?? avg, soft = r.goalCents === null
+    const over = ref !== null && r.realCents > ref
+    const key = r.categoryId ?? 'sem', opened = openCats.has(key)
+    const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
+    return [
+      <tr key={`cat-${key}`}>
         <td>
-          <div className="nm"><span>{catName(r.categoryId) ?? 'Sem categoria'}</span></div>
-          {r.goalCents !== null && <Track real={r.realCents} planned={r.goalCents} />}
+          <div className="nm"><button className="cat-toggle" aria-expanded={opened} disabled={!r.txns.length} onClick={toggle}>
+            <span aria-hidden className="muted">{opened ? '▾' : '▸'}</span> {catName(r.categoryId) ?? 'Sem categoria'} {r.txns.length > 0 && <span className="muted" style={{ fontSize: 10 }}>{plural(r.txns.length, 'gasto', 'gastos')}</span>}
+          </button></div>
+          {ref !== null && <Track real={r.realCents} planned={ref} soft={soft} />}
         </td>
-        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: 'var(--negative)' } : {}) }}>
-          {formatCents(r.realCents)}{r.goalCents !== null && <span className="muted"> / {formatCents(r.goalCents)}</span>}
+        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: soft ? '#ffcf5c' : 'var(--negative)' } : {}) }}>
+          {formatCents(r.realCents)}{ref !== null && <span className="muted" title={soft ? 'média dos últimos 3 meses' : 'meta'}> / {formatCents(ref)}</span>}
         </td>
-      </tr>
-    )
+      </tr>,
+      ...(opened ? r.txns.map(t => (
+        <tr key={`t-${t.id}`} className="sub">
+          <td><span className="muted">{brDay(t.date)}</span> {displayName(t.description)}{t.pending && <span className="muted"> · pendente</span>}</td>
+          <td className="r t2">{formatCents(-t.amountCents)}</td>
+        </tr>
+      )) : []),
+    ]
   }
   const ofGoal = (real: number, goal: number | null) => (goal === null ? formatCents(real) : `${formatCents(real)} de ${formatCents(goal)}`)
 
@@ -304,7 +319,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">o que entra − o que já saiu</div></div>
       </div>
 
-      {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={averageByCategory(gastos.data.txns, gastos.categorize, month)} busy={busy}
+      {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={avgs} busy={busy}
         onClose={() => setMetasOpen(false)} onSave={changes => void run('Não foi possível salvar as metas', () => saveGoals(db, month, changes)).then(ok => ok && setMetasOpen(false))} />}
 
       {suggestions.length > 0 && (
@@ -340,9 +355,10 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           })}
           {block('variavel', 'Custos variáveis', vars.manual, ofGoal(vars.realCents, vars.goalCents), plainRow, {
             empty: 'Nenhum gasto variável neste mês ainda.',
-            hint: !hasTxns && <>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</>,
+            hint: !hasTxns ? <>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</>
+              : vars.rows.length > 0 && 'clique na categoria para ver os gastos · barra: meta, ou a média dos últimos 3 meses',
             goal: vars.goalCents !== null ? { real: vars.realCents, goal: vars.goalCents } : undefined,
-            extra: vars.rows.length > 0 && vars.rows.map(catRow),
+            extra: vars.rows.length > 0 && vars.rows.flatMap(catRow),
           })}
           {block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
             empty: 'Nada investido neste mês ainda.',
