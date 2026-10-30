@@ -1,11 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
-import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
-import { displayName, fold, shortName } from '../domain/gastos'
+import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
+import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
-import type { Txn } from '../db/gastosRepo'
 import { todayISO, useData } from '../state/DataProvider'
 import { accountLabel, brDay, errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, pace, validateLine } from './orcamento/build'
@@ -109,7 +108,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const goals = goalsFor(data.goals, data.months, month, categories)
   const avgs = averageByCategory(gastos.data.txns, gastos.categorize, month)
   const vars = custos(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.fixedCategories))
-  const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals)
+  const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.reservas))
   const sum = monthSummary(lines)
   const progress = monthProgress(month, today)
   const ritmo = pace(vars.realCents, progress)
@@ -320,22 +319,27 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       ] : []),
     ]
   }
-  // investido agrupado pelo destino (a descrição limpa do lançamento): corretora, caixinha, cripto…
-  const invGroups = [...inv.txns.reduce((m, t) => m.set(fold(shortName(t.description)), [...(m.get(fold(shortName(t.description))) ?? []), t]), new Map<string, Txn[]>())]
-    .map(([, ts]) => ({ name: shortName(ts[0].description), txns: ts, cents: ts.reduce((s, t) => s - t.amountCents, 0) })).sort((a, b) => b.cents - a.cents)
-  const groupRow = (g: { name: string; txns: Txn[]; cents: number }) => {
-    const key = `inv:${g.name}`, opened = openCats.has(key)
+  // destino de investimento ou reserva: o saldo do mês (aplicado − resgatado) e, aberto, cada movimento
+  const toggleReserva = (key: string) => void run('Não foi possível mudar o destino', () =>
+    saveReservas(db, data.reservas.includes(key) ? data.reservas.filter(k => k !== key) : [...data.reservas, key]))
+  const groupRow = (g: InvGroup, reserva: boolean) => {
+    const key = `inv:${g.key}`, opened = openCats.has(key)
     const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
+    const ins = g.txns.filter(t => t.amountCents < 0).length, outs = g.txns.length - ins
     return [
       <tr key={key}>
         <td className="ell-cell"><div className="cat-line">
           <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />
-          <div className="grow"><button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{plural(g.txns.length, 'aporte', 'aportes')} {opened ? '▾' : '▸'}</span></button></div>
+          <div className="grow"><div className="nm">
+            <button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{[ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ')} {opened ? '▾' : '▸'}</span></button>
+            <span className="acts muted"><button className="link" disabled={busy} onClick={() => toggleReserva(g.key)}>{reserva ? 'é investimento' : 'é reserva'}</button></span>
+          </div></div>
         </div></td>
-        <td className="r">{formatCents(g.cents)}</td>
+        <td className="r" style={{ whiteSpace: 'nowrap' }}>{reserva && g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)}{g.outCents > 0 && <div className="d2" style={{ textAlign: 'right' }}>{formatCents(g.inCents)} − {formatCents(g.outCents)}</div>}</td>
       </tr>,
       ...(opened ? [<tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{g.txns.map(t => (
-        <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span className="ell" title={`${t.description} · ${accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}`}>{displayName(t.description)}</span><span>{formatCents(-t.amountCents)}</span></div>
+        <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span className="ell" title={`${t.description} · ${accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}`}>{displayName(t.description)}</span>
+          <span className={t.amountCents > 0 ? 'muted' : undefined}>{t.amountCents > 0 ? `−${formatCents(t.amountCents)}` : formatCents(-t.amountCents)}</span></div>
       ))}</div></td></tr>] : []),
     ]
   }
@@ -362,7 +366,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
         <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
-        <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">o que entra − o que já saiu</div></div>
+        <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">{inv.reservaCents > 0 ? `inclui ${formatBRL(inv.reservaCents)} guardados na reserva` : inv.reservaCents < 0 ? `sem contar ${formatBRL(-inv.reservaCents)} tirados da reserva` : 'o que entra − o que já saiu'}</div></div>
       </div>
 
       {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={avgs} fixed={data.fixedCategories} busy={busy}
@@ -452,9 +456,16 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           {block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
             empty: 'Nada investido neste mês ainda.',
             goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
-            hint: inv.txns.length > 0 && 'pelos lançamentos; clique para ver cada aporte',
-            extra: invGroups.length > 0 && invGroups.flatMap(groupRow),
+            hint: inv.groups.length > 0 && 'aplicado − resgatado no mês · caixinha que entra e sai: passe o mouse na linha e marque como reserva',
+            extra: inv.groups.length > 0 && inv.groups.flatMap(g => groupRow(g, false)),
           })}
+          {inv.reservas.length > 0 && (
+            <div className="card" style={{ marginBottom: 12 }}>
+              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{inv.reservaCents > 0 ? '+' : ''}{formatCents(inv.reservaCents)}</b></div>
+              <div className="muted" style={{ marginTop: 2 }}>dinheiro guardado que entra e sai: não conta como investimento nem como gasto</div>
+              <table className="lt blk" style={{ marginTop: 6 }}><tbody>{inv.reservas.flatMap(g => groupRow(g, true))}</tbody></table>
+            </div>
+          )}
           {block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' })}
         </div>
       </div>
