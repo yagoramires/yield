@@ -6220,9 +6220,11 @@ version = "0.8.0"
 dependencies = [
  "aes-gcm",
  "argon2",
+ "hmac",
  "keyring",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

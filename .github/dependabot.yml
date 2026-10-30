@@ -1,0 +1,7 @@
+# Mantém os SHAs fixados das actions atualizados (o release recebe a chave de assinatura do updater).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

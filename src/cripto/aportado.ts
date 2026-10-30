@@ -2,7 +2,7 @@ import type { Db } from '../db/client'
 import { loadCryptoBalances, saveComputedCryptoCosts } from '../db/rendaFixaRepo'
 import type { Cents, Month } from '../domain/types'
 import { fetchMonthlyCloses } from '../quotes/historico'
-import { fetchBinanceSwaps } from './binance'
+import { fetchBinanceSwaps, type BinanceSend } from './binance'
 
 /** Uma troca do histórico: recebeu `getQty` de `get` pagando `payQty` de `pay` (comprar BTC com real: get BTC, pay BRL). */
 export interface Swap { time: number; get: string; getQty: number; pay: string; payQty: number }
@@ -53,12 +53,12 @@ export function averageCosts(swaps: Swap[], usdBrl: Map<Month, Cents>, balances?
  * Lê o histórico da Binance e grava o aportado calculado de cada moeda com saldo (o informado à mão fica).
  * Devolve as fontes que não foram lidas; com alguma faltando, todo calculado sai como parcial.
  */
-export async function syncCryptoCosts(db: Db, creds: { apiKey: string; secret: string }, fetchFn: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>, onProgress?: (text: string) => void) {
+export async function syncCryptoCosts(db: Db, send: BinanceSend, fetchFn: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>, onProgress?: (text: string) => void) {
   const held = (await loadCryptoBalances(db)).filter(c => c.qty > 0)
   const assets = held.map(c => c.asset)
   const failed: { source: string; error: unknown }[] = []
   // dólar sem o mês só deixa parciais as moedas pagas em dólar digital (averageCosts cuida disso)
-  const [hist, usdBrl] = await Promise.all([fetchBinanceSwaps(creds, assets, fetchFn, now, sleep, onProgress),
+  const [hist, usdBrl] = await Promise.all([fetchBinanceSwaps(send, assets, now, sleep, onProgress),
     fetchMonthlyCloses('BRL=X', fetchFn, 'max').catch(error => { failed.push({ source: 'dólar do mês', error }); return new Map<Month, Cents>() })])
   const costs = averageCosts(hist.swaps, usdBrl, new Map(held.map(c => [c.asset, c.qty])))
   await saveComputedCryptoCosts(db, assets.flatMap(a => { const c = costs.get(a); return c ? [{ asset: a, costCents: c.costCents, partial: c.partial || hist.failed.length > 0 }] : [] }))

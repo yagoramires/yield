@@ -4,11 +4,14 @@ import { loadGastos, savePluggyItem, setLastSync, setOverride } from '../db/gast
 import { loadAll, saveNote } from '../db/repo'
 import { createTestDb } from '../db/testDb'
 import type { PluggyInvestment } from './pluggy'
+import type { Db } from '../db/client'
+import type { ISODate } from '../domain/types'
 import { syncPluggy } from './sync'
 
 const fx = (n: string) => JSON.parse(readFileSync(new URL(`../../tests/fixtures/pluggy/${n}.json`, import.meta.url), 'utf8'))
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
-const creds = { clientId: 'cid', clientSecret: 'sec' }
+// o /auth (no app, feito pelo Rust) passa pelo mesmo fetch falso
+const sync = (db: Db, fn: typeof fetch, today: ISODate, now?: () => Date) => syncPluggy(db, () => fn('https://api.pluggy.ai/auth', { method: 'POST' }), fn, today, now)
 const ITEM = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const BANK = '11111111-1111-4111-8111-111111111111'
 const CARD = '22222222-2222-4222-8222-222222222222'
@@ -37,7 +40,7 @@ const today = '2026-10-26'
 describe('syncPluggy', () => {
   it('grava contas e transações; só POST /auth e GETs; 1ª janela = 365 dias', async () => {
     const db = await setup(); const f = fake()
-    const r = await syncPluggy(db, creds, f.fn, today)
+    const r = await sync(db, f.fn, today)
     expect(r).toMatchObject({ accounts: 2, inserted: 3, errors: [] })
     expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || (c.method === 'GET' && /\/accounts\?itemId=|\/v2\/transactions\?|\/investments\?itemId=/.test(c.url)))).toBe(true)
     expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2025-10-26&dateTo=2026-11-26')
@@ -49,7 +52,7 @@ describe('syncPluggy', () => {
     expect(g.accounts.map(a => [a.kind, a.balanceCents]).sort()).toEqual([['cartao', null], ['conta', 123456]])
     expect(g.txns.find(t => t.description === 'Salario Ficticio')).toMatchObject({ date: '2026-10-05', pending: true, amountCents: 500000 })
     expect(g.txns.find(t => t.description === 'Loja Inventada')).toMatchObject({ amountCents: -7500, installment: '2/3' })
-    expect(await syncPluggy(db, creds, fake().fn, today)).toMatchObject({ accounts: 2, inserted: 0, removed: 0, errors: [] })
+    expect(await sync(db, fake().fn, today)).toMatchObject({ accounts: 2, inserted: 0, removed: 0, errors: [] })
   })
 
   it('investimento com saldo que não é ação/ETF fica guardado com o saldo; a próxima leitura troca os do item', async () => {
@@ -58,34 +61,34 @@ describe('syncPluggy', () => {
       { id: 'inv-rdb', name: 'RDB Banco Exemplo', type: 'FIXED_INCOME', subtype: 'RDB', balance: rdb, amountOriginal: 1000 },
       { id: 'inv-fundo', name: 'Fundo Exemplo DI', type: 'MUTUAL_FUND', subtype: null, balance: 250.5, amountOriginal: 0 },
     ] }) : url.pathname.startsWith('/investments/') ? json({ page: 1, total: 0, totalPages: 0, results: [] }) : null)
-    await syncPluggy(db, creds, invs(1234.56).fn, today)
+    await sync(db, invs(1234.56).fn, today)
     expect((await loadAll(db)).bankInvestments.map(b => [b.name, b.type, b.balanceCents, b.costCents])).toEqual([['Fundo Exemplo DI', 'MUTUAL_FUND', 25050, null], ['RDB Banco Exemplo', 'FIXED_INCOME', 123456, 100000]])
-    await syncPluggy(db, creds, invs(null).fn, today) // RDB resgatado: sem saldo, sai
+    await sync(db, invs(null).fn, today) // RDB resgatado: sem saldo, sai
     expect((await loadAll(db)).bankInvestments.map(b => b.id)).toEqual(['inv-fundo'])
   })
   it('2ª sincronização não duplica e usa lastSyncAt − 35 dias, nunca além de hoje − 365', async () => {
     const db = await setup()
-    await syncPluggy(db, creds, fake().fn, today, () => new Date('2026-09-01T12:00:00.000Z'))
+    await sync(db, fake().fn, today, () => new Date('2026-09-01T12:00:00.000Z'))
     const before = (await loadGastos(db)).txns.length
     const f = fake()
-    await syncPluggy(db, creds, f.fn, today)
+    await sync(db, f.fn, today)
     expect((await loadGastos(db)).txns).toHaveLength(before)
     expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2026-07-28')
     for (const a of (await loadGastos(db)).accounts) await setLastSync(db, a.id, '2024-01-01T00:00:00.000Z')
     const g = fake()
-    await syncPluggy(db, creds, g.fn, today)
+    await sync(db, g.fn, today)
     expect(g.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2025-10-26')
   })
 
   it('compra de cartão reemitida com outro id continua uma linha e mantém o ajuste', async () => {
     const db = await setup()
-    await syncPluggy(db, creds, fake().fn, today)
+    await sync(db, fake().fn, today)
     const g = await loadGastos(db)
     const cat = g.categories[0].id
     const t = g.txns.find(x => x.description === 'Loja Inventada')!
     await setOverride(db, t.fingerprint, cat)
     const re = fx('transactions-cartao'); re.results[0].id = 'c-NOVO'
-    await syncPluggy(db, creds, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json(re) : null).fn, today)
+    await sync(db, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json(re) : null).fn, today)
     const g2 = await loadGastos(db)
     const rows = g2.txns.filter(x => x.description === 'Loja Inventada')
     expect(rows).toHaveLength(1)
@@ -95,9 +98,9 @@ describe('syncPluggy', () => {
 
   it('401 vira erro de credenciais e os dados salvos ficam', async () => {
     const db = await setup()
-    await syncPluggy(db, creds, fake().fn, today)
+    await sync(db, fake().fn, today)
     const before = (await loadGastos(db)).txns.length
-    const r = await syncPluggy(db, creds, fake(u => u.pathname === '/auth' ? json({}, 401) : null).fn, today)
+    const r = await sync(db, fake(u => u.pathname === '/auth' ? json({}, 401) : null).fn, today)
     expect(r.errors[0]).toMatchObject({ itemId: ITEM, label: 'Banco Exemplo', message: 'Client ID ou Client Secret inválidos' })
     expect((await loadGastos(db)).txns).toHaveLength(before)
   })
@@ -105,24 +108,24 @@ describe('syncPluggy', () => {
   it('item 404 aparece em errors e o outro sincroniza; erro no meio do item não grava nada dele', async () => {
     const db = await setup()
     await savePluggyItem(db, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Item Ruim')
-    const r = await syncPluggy(db, creds, fake(u => u.pathname === '/accounts' && u.searchParams.get('itemId')!.startsWith('bbbb') ? json({}, 404) : null).fn, today)
+    const r = await sync(db, fake(u => u.pathname === '/accounts' && u.searchParams.get('itemId')!.startsWith('bbbb') ? json({}, 404) : null).fn, today)
     expect(r.accounts).toBe(2)
     expect(r.errors).toEqual([{ itemId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', label: 'Item Ruim', message: 'Item bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb não encontrado: confira o itemId' }])
     const db2 = await setup()
-    const r2 = await syncPluggy(db2, creds, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json({}, 500) : null).fn, today)
+    const r2 = await sync(db2, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json({}, 500) : null).fn, today)
     expect(r2.errors).toHaveLength(1)
     expect((await loadGastos(db2)).txns).toHaveLength(0)
   })
 
   it('resposta fora do formato e `next` repetido viram erro resposta sem tocar nos dados', async () => {
     const db = await setup()
-    await syncPluggy(db, creds, fake().fn, today)
+    await sync(db, fake().fn, today)
     const before = (await loadGastos(db)).txns
     const bad = fx('transactions-cartao'); delete bad.results[0].description
-    const r = await syncPluggy(db, creds, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json(bad) : null).fn, today)
+    const r = await sync(db, fake(u => u.pathname === '/v2/transactions' && u.searchParams.get('accountId') === CARD ? json(bad) : null).fn, today)
     expect(r.errors[0].message).toBe('A Pluggy devolveu dados fora do formato esperado')
     const loop = fx('transactions-banco'); loop.next = '?accountId=x&after=1'
-    const r2 = await syncPluggy(db, creds, fake(u => u.pathname === '/v2/transactions' ? json(loop) : null).fn, today)
+    const r2 = await sync(db, fake(u => u.pathname === '/v2/transactions' ? json(loop) : null).fn, today)
     expect(r2.errors[0].message).toBe('A Pluggy devolveu dados fora do formato esperado')
     expect((await loadGastos(db)).txns).toEqual(before)
   })
@@ -168,7 +171,7 @@ const tradesOf = async (db: ReturnType<typeof createTestDb>) => {
 describe('syncPluggy — renda variável', () => {
   it('compras e vendas viram notas da Pluggy por dia; opção e renda fixa ficam de fora; 2ª vez não muda nada', async () => {
     const db = await broker(); const f = invFake()
-    const r = await syncPluggy(db, creds, f.fn, today)
+    const r = await sync(db, f.fn, today)
     expect(r.errors).toEqual([])
     expect(r.investments).toEqual([{ itemId: ITEM, label: 'Corretora Azul', found: 2, inserted: 3, updated: 0, existing: 0 }])
     expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || c.method === 'GET')).toBe(true)
@@ -183,7 +186,7 @@ describe('syncPluggy — renda variável', () => {
       ['2026-03-10', 2, 'C', 'FII', 'FIIA11', 10, 10000, 30, 0],
       ['2026-04-07', 1, 'V', 'Ação', 'AAAA3', 50, 1300, 490, 3],
     ])
-    const again = await syncPluggy(db, creds, invFake().fn, today)
+    const again = await sync(db, invFake().fn, today)
     expect(again.investments).toEqual([{ itemId: ITEM, label: 'Corretora Azul', found: 2, inserted: 0, updated: 0, existing: 3 }])
     expect(await loadAll(db)).toEqual(d)
   })
@@ -196,7 +199,7 @@ describe('syncPluggy — renda variável', () => {
     await saveNote(db, { number: 'Pluggy 2026-04-07', broker: 'AZUL', tradeDate: '2026-04-07', settleDate: '2026-04-09', source: 'sem_nota', sourceKey: 'pluggy:2026-04-07:AZUL', label: 'Pluggy (sem nota)' }, [t('ETFX11', 3, 'C', 0, 'ETF')])
     const investments = [...INVESTMENTS, { id: INV.semTipo, code: 'ETFX11', name: 'ETFX11', type: 'EQUITY', subtype: null }]
     const ops = { ...OPS, [INV.semTipo]: [op('t5', 'BUY', '2026-04-07', 3, 50), op('t6', 'SELL', '2026-04-07', 1, 52)] }
-    const r = await syncPluggy(db, creds, invFake(() => null, investments, ops).fn, today)
+    const r = await sync(db, invFake(() => null, investments, ops).fn, today)
     expect(r.investments).toEqual([{ itemId: ITEM, label: 'Corretora Azul', found: 3, inserted: 2, updated: 1, existing: 2 }])
     const all = await tradesOf(db)
     const row = (ticker: string, side = 'C') => all.find(x => x.ticker === ticker && x.side === side)!
@@ -208,13 +211,13 @@ describe('syncPluggy — renda variável', () => {
     expect(row('ETFX11', 'V')).toMatchObject({ seq: 3, assetType: 'ETF', note: { sourceKey: 'pluggy:2026-04-07:AZUL' } })
     expect((await loadAll(db)).notes).toHaveLength(3)
     const before = await loadAll(db)
-    expect((await syncPluggy(db, creds, invFake(() => null, investments, ops).fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 5 })
+    expect((await sync(db, invFake(() => null, investments, ops).fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 5 })
     expect(await loadAll(db)).toEqual(before)
   })
 
   it('nota em PDF salva depois tira a operação da Pluggy, e a próxima sincronização não a traz de volta', async () => {
     const db = await broker()
-    await syncPluggy(db, creds, invFake().fn, today)
+    await sync(db, invFake().fn, today)
     await saveNote(db, { number: '56', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:56', label: null }, [
       { seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 100, priceCents: 1234, feesCents: 600, irrfCents: 0 },
       { seq: 2, side: 'C', assetType: 'FII', ticker: 'FIIA11', qty: 10, priceCents: 10000, feesCents: 40, irrfCents: 0 },
@@ -222,7 +225,7 @@ describe('syncPluggy — renda variável', () => {
     const d = await loadAll(db)
     expect(d.notes.map(n => n.sourceKey)).toEqual(['pdf:AZUL:56', 'pluggy:2026-04-07:AZUL'])
     expect(d.trades).toHaveLength(3)
-    expect((await syncPluggy(db, creds, invFake().fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 3 })
+    expect((await sync(db, invFake().fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 3 })
     expect(await loadAll(db)).toEqual(d)
   })
 
@@ -231,7 +234,7 @@ describe('syncPluggy — renda variável', () => {
     await saveNote(db, { number: '57', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:57', label: null },
       [{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 300, priceCents: 1234, feesCents: 900, irrfCents: 0 }])
     const ops = { [INV.acao]: [op('t1', 'BUY', '2026-03-10', 100, 12.3), op('t2', 'BUY', '2026-03-10', 100, 12.34), op('t3', 'BUY', '2026-03-10', 100, 12.38)] }
-    const r = await syncPluggy(db, creds, invFake(() => null, INVESTMENTS, ops).fn, today)
+    const r = await sync(db, invFake(() => null, INVESTMENTS, ops).fn, today)
     expect(r.investments[0]).toMatchObject({ inserted: 0, updated: 0, existing: 3 })
     expect((await loadAll(db)).trades.map(t => t.qty)).toEqual([300])
   })
@@ -241,12 +244,12 @@ describe('syncPluggy — renda variável', () => {
     await saveNote(db, { number: '58', broker: 'AZUL', tradeDate: '2026-03-10', settleDate: '2026-03-12', source: 'pdf', sourceKey: 'pdf:AZUL:58', label: null },
       [{ seq: 1, side: 'C', assetType: 'Ação', ticker: 'AAAA3', qty: 100, priceCents: 1200, feesCents: 300, irrfCents: 0 }])
     const ops = { [INV.acao]: [op('t1', 'BUY', '2026-03-10', 100, 12, { brokerageFee: 3 }), op('t2', 'BUY', '2026-03-10', 50, 15, { brokerageFee: 1.5 })] }
-    const r = await syncPluggy(db, creds, invFake(() => null, INVESTMENTS, ops).fn, today)
+    const r = await sync(db, invFake(() => null, INVESTMENTS, ops).fn, today)
     expect(r.investments[0]).toMatchObject({ inserted: 1, updated: 0 })
     const all = await tradesOf(db)
     expect(all.map(t => [t.note.source, t.qty, t.priceCents, t.feesCents])).toEqual([['pdf', 100, 1200, 300], ['sem_nota', 50, 1300, 150]])
     const before = await loadAll(db)
-    expect((await syncPluggy(db, creds, invFake(() => null, INVESTMENTS, ops).fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0 })
+    expect((await sync(db, invFake(() => null, INVESTMENTS, ops).fn, today)).investments[0]).toMatchObject({ inserted: 0, updated: 0 })
     expect(await loadAll(db)).toEqual(before)
   })
 
@@ -254,27 +257,27 @@ describe('syncPluggy — renda variável', () => {
     const db = await broker()
     let reads = 0
     const counted = { ...db, select: <T>(sql: string, p?: unknown[]) => { if (/FROM trades/.test(sql)) reads++; return db.select<T>(sql, p) } }
-    await syncPluggy(counted, creds, invFake().fn, today)
+    await sync(counted, invFake().fn, today)
     expect(reads).toBe(1)
   })
 
   it('403 nos investimentos não marca a credencial como ruim nem trava o próximo item', async () => {
     const db = await setup()
     await savePluggyItem(db, 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Outro Banco')
-    const r = await syncPluggy(db, creds, fake(u => u.pathname === '/investments' ? json({}, 403) : null).fn, today)
+    const r = await sync(db, fake(u => u.pathname === '/investments' ? json({}, 403) : null).fn, today)
     expect(r.errors.map(e => e.label)).toEqual(['Banco Exemplo', 'Outro Banco'])
     expect(r.errors.every(e => e.message.startsWith('investimentos não lidos'))).toBe(true)
   })
 
   it('erro nos investimentos não atrapalha contas e lançamentos; item sem renda variável é contado', async () => {
     const db = await setup()
-    const r = await syncPluggy(db, creds, invFake(u => u.pathname === '/investments' ? json({}, 500) : null).fn, today)
+    const r = await sync(db, invFake(u => u.pathname === '/investments' ? json({}, 500) : null).fn, today)
     expect(r).toMatchObject({ accounts: 2, inserted: 3, investments: [] })
     expect(r.errors).toEqual([{ itemId: ITEM, label: 'Banco Exemplo', message: 'investimentos não lidos (A Pluggy respondeu com erro (HTTP 500))' }])
     expect((await loadGastos(db)).txns).toHaveLength(3)
-    const r2 = await syncPluggy(db, creds, invFake(u => u.pathname.endsWith('/transactions') && u.pathname.includes(INV.fii) ? json({}, 500) : null).fn, today)
+    const r2 = await sync(db, invFake(u => u.pathname.endsWith('/transactions') && u.pathname.includes(INV.fii) ? json({}, 500) : null).fn, today)
     expect(r2.errors).toHaveLength(1)
     expect((await loadAll(db)).trades).toHaveLength(0) // erro no meio não grava parte do item
-    expect((await syncPluggy(db, creds, fake().fn, today)).investments).toEqual([{ itemId: ITEM, label: 'Banco Exemplo', found: 0, inserted: 0, updated: 0, existing: 0 }])
+    expect((await sync(db, fake().fn, today)).investments).toEqual([{ itemId: ITEM, label: 'Banco Exemplo', found: 0, inserted: 0, updated: 0, existing: 0 }])
   })
 })

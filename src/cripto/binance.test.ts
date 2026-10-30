@@ -1,9 +1,5 @@
-import { BINANCE_BASE, BinanceError, binanceRequest, fetchBinanceBalances, fetchBinanceSwaps, sign } from './binance'
-
-test('assinatura HMAC-SHA256 igual ao exemplo da documentação da Binance', async () => {
-  expect(await sign('NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j', 'symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559'))
-    .toBe('c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71')
-})
+// assinatura e X-MBX-APIKEY ficam no Rust (binance_get, testado em src-tauri/src/lib.rs): aqui o envio recebe a URL sem assinatura
+import { BINANCE_BASE, BinanceError, binanceRequest, fetchBinanceBalances, fetchBinanceSwaps } from './binance'
 
 test('só as leituras da lista saem do computador', () => {
   expect(() => binanceRequest('POST', `${BINANCE_BASE}/api/v3/order`)).toThrow(BinanceError)
@@ -19,36 +15,32 @@ test('só as leituras da lista saem do computador', () => {
 })
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
-const creds = { apiKey: 'chave-teste', secret: 'segredo-teste' }
 
 test('soma spot e Earn, ignora o espelho LD* e o que está zerado', async () => {
-  const calls: { url: string; key: string | null }[] = []
-  const fetchFn = (async (url: string, init?: RequestInit) => {
-    calls.push({ url, key: new Headers(init?.headers).get('X-MBX-APIKEY') })
+  const calls: string[] = []
+  const fetchFn = (async (url: string) => {
+    calls.push(url)
     const path = new URL(url).pathname
     if (path === '/api/v3/account') return json({ balances: [{ asset: 'BTC', free: '0.4', locked: '0.1' }, { asset: 'LDBTC', free: '9', locked: '0' }, { asset: 'ETH', free: '0', locked: '0' }] })
     if (path.endsWith('/flexible/position')) return json({ rows: [{ asset: 'BTC', totalAmount: '0.2' }], total: 1 })
     return json({ code: -2015, msg: 'Invalid API-key, IP, or permissions for action.' }, 403)
   }) as typeof fetch
-  const r = await fetchBinanceBalances(creds, fetchFn, () => 1_700_000_000_000)
+  const r = await fetchBinanceBalances(fetchFn, () => 1_700_000_000_000)
   expect(r.balances).toHaveLength(1)
   expect(r.balances[0].asset).toBe('BTC')
   expect(r.balances[0].qty).toBeCloseTo(0.7)
   expect(r.earnSkipped).toBe(true)
   expect(calls).toHaveLength(3)
-  for (const c of calls) {
-    expect(c.key).toBe('chave-teste')
-    expect(c.url).toMatch(/timestamp=1700000000000&recvWindow=10000&signature=[0-9a-f]{64}$/)
-  }
+  for (const c of calls) expect(c).toMatch(/timestamp=1700000000000&recvWindow=10000$/)
 })
 
 test('chave recusada vira erro de chave; rede fora vira erro de rede', async () => {
-  await expect(fetchBinanceBalances(creds, (async () => json({ code: -2015, msg: 'x' }, 401)) as typeof fetch)).rejects.toMatchObject({ kind: 'chave' })
-  await expect(fetchBinanceBalances(creds, (async () => { throw new TypeError('offline') }) as typeof fetch)).rejects.toMatchObject({ kind: 'rede' })
+  await expect(fetchBinanceBalances((async () => json({ code: -2015, msg: 'x' }, 401)) as typeof fetch)).rejects.toMatchObject({ kind: 'chave' })
+  await expect(fetchBinanceBalances((async () => { throw new TypeError('offline') }) as typeof fetch)).rejects.toMatchObject({ kind: 'rede' })
 })
 
 test('LDO é moeda; LD<x> só sai quando o Earn flexível de <x> foi lido', async () => {
-  const run = (flexOk: boolean) => fetchBinanceBalances(creds, (async (url: string) => {
+  const run = (flexOk: boolean) => fetchBinanceBalances((async (url: string) => {
     const path = new URL(url).pathname
     if (path === '/api/v3/account') return json({ balances: [{ asset: 'LDO', free: '5', locked: '0' }, { asset: 'LDBTC', free: '0.2', locked: '0' }] })
     if (flexOk && path.endsWith('/flexible/position')) return json({ rows: [{ asset: 'BTC', totalAmount: '0.2' }], total: 1 })
@@ -65,15 +57,15 @@ describe('histórico para o aportado', () => {
   const DAY = 86_400_000
   type Route = (q: URLSearchParams) => Response
   const run = (routes: Record<string, Route>, assets = ['BTC']) => {
-    const calls: { path: string; q: URLSearchParams; key: string | null }[] = []
+    const calls: { path: string; q: URLSearchParams }[] = []
     const sleeps: { ms: number; after: string }[] = []
-    const fetchFn = (async (url: string, init?: RequestInit) => {
+    const fetchFn = (async (url: string) => {
       const u = new URL(url)
-      calls.push({ path: u.pathname, q: u.searchParams, key: new Headers(init?.headers).get('X-MBX-APIKEY') })
+      calls.push({ path: u.pathname, q: u.searchParams })
       return (routes[u.pathname] ?? (() => json({ code: -1121, msg: 'Invalid symbol.' }, 400)))(u.searchParams)
     }) as typeof fetch
     const sleep = async (ms: number) => { sleeps.push({ ms, after: calls.at(-1)?.q.get('symbol') ?? '' }) }
-    return fetchBinanceSwaps(creds, assets, fetchFn, () => NOW, sleep).then(r => ({ ...r, calls, sleeps }))
+    return fetchBinanceSwaps(fetchFn, assets, () => NOW, sleep).then(r => ({ ...r, calls, sleeps }))
   }
   const covers = (ws: [number, number][], from: number, maxDays: number) => {
     const sorted = [...ws].sort((a, b) => a[0] - b[0])
@@ -104,12 +96,12 @@ describe('histórico para o aportado', () => {
     const fiat = r.calls.filter(c => c.path === '/sapi/v1/fiat/payments')
     for (const t of ['0', '1']) covers(fiat.filter(c => c.q.get('transactionType') === t && c.q.get('page') === '1').map(c => [Number(c.q.get('beginTime')), Number(c.q.get('endTime'))]), Date.parse('2017-07-01T00:00:00Z'), 91)
     expect(fiat.filter(c => c.q.get('page') === '2')).toHaveLength(1)
-    expect(fiat.every(c => c.q.get('rows') === '500' && c.key === 'chave-teste' && /^[0-9a-f]{64}$/.test(c.q.get('signature') ?? ''))).toBe(true)
+    expect(fiat.every(c => c.q.get('rows') === '500' && !c.q.has('signature'))).toBe(true)
   })
 
   test('avisa o progresso de cada fonte enquanto lê e "ok" no fim', async () => {
     const seen: string[] = []
-    await fetchBinanceSwaps(creds, ['BTC'], (async () => json({ data: [], list: [] })) as typeof fetch, () => NOW, async () => {}, t => seen.push(t))
+    await fetchBinanceSwaps((async () => json({ data: [], list: [] })) as typeof fetch, ['BTC'], () => NOW, async () => {}, t => seen.push(t))
     expect(seen.some(t => /PIX\/cartão \d{2}\/\d{4}/.test(t))).toBe(true)
     expect(seen.some(t => /Convert \d{2}\/\d{4}/.test(t))).toBe(true)
     expect(seen.some(t => /à vista BTC(BRL|USDT)/.test(t))).toBe(true)

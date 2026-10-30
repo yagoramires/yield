@@ -1,43 +1,16 @@
 import { invoke } from '@tauri-apps/api/core'
 
 /**
- * Todas as credenciais num item só do Keychain. Sem Team ID da Apple, o macOS reconhece o app pela impressão digital
- * de cada build: cada versão nova pede o Keychain de novo, uma vez por item. Um item só = um pedido por versão.
- * Os nomes têm de estar na lista SECRET_KEYS de src-tauri/src/lib.rs.
+ * As credenciais ficam no Rust (cofre do sistema, um item só, lido uma vez por sessão) e nunca chegam ao JavaScript:
+ * aqui só se sabe se existem, e as chamadas que precisam delas (/auth da Pluggy, GET assinado da Binance) rodam no Rust.
  */
-export interface Vault { pluggy?: { clientId: string; clientSecret: string }; binance?: { apiKey: string; secret: string } }
+export interface VaultStatus { pluggy: boolean; binance: boolean }
+export const vaultStatus = () => invoke<VaultStatus>('vault_status')
 
-const KEY = 'yield.credentials'
-const OLD = { pluggyId: 'pluggy.clientId', pluggySecret: 'pluggy.clientSecret' }
-const get = (key: string) => invoke<string | null>('secret_get', { key })
+export interface HttpReply { status: number; body: string; retryAfter: string | null }
 
-// Cada leitura do Keychain pode abrir o pedido de senha do macOS: lê uma vez por sessão.
-let cached: Promise<Vault> | null = null
-
-async function load(): Promise<Vault> {
-  const raw = await get(KEY)
-  if (raw) return JSON.parse(raw) as Vault
-  // versões até a 0.3: um item por credencial da Pluggy. Passa para o item único e apaga os antigos.
-  const [pluggyId, pluggySecret] = await Promise.all(Object.values(OLD).map(get))
-  const v: Vault = pluggyId && pluggySecret ? { pluggy: { clientId: pluggyId, clientSecret: pluggySecret } } : {}
-  if (v.pluggy) {
-    await invoke('secret_set', { key: KEY, value: JSON.stringify(v) })
-    for (const k of Object.values(OLD)) await invoke('secret_delete', { key: k })
-  }
-  return v
-}
-
-export function readVault(): Promise<Vault> {
-  cached ??= load().catch(e => { cached = null; throw e }) // negou no pedido: tenta de novo na próxima
-  return cached
-}
-
-/** `undefined` numa parte apaga só ela; sem nenhuma parte, o item sai do Keychain. */
-export async function updateVault(patch: Partial<Vault>): Promise<void> {
-  const next: Vault = { ...(await readVault()), ...patch }
-  for (const k of Object.keys(next) as (keyof Vault)[]) if (!next[k]) delete next[k]
-  cached = null
-  if (next.pluggy || next.binance) await invoke('secret_set', { key: KEY, value: JSON.stringify(next) })
-  else await invoke('secret_delete', { key: KEY })
-  cached = Promise.resolve(next)
+/** Resposta que o Rust trouxe, no formato do fetch, para os clientes tratarem igual. */
+export function toResponse(r: HttpReply): Response {
+  const noBody = r.status === 204 || r.status === 205 || r.status === 304
+  return new Response(noBody ? null : r.body, { status: r.status, headers: r.retryAfter ? { 'Retry-After': r.retryAfter } : {} })
 }
