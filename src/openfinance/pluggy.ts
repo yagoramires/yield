@@ -19,7 +19,7 @@ const str = (v: unknown) => typeof v === 'string' && v !== ''
 const num = (v: unknown): v is number => typeof v === 'number' && isFinite(v)
 const isDate = (v: unknown) => str(v) && !isNaN(Date.parse(v as string))
 
-const ALLOWED = new Set(['POST /auth', 'GET /accounts', 'GET /v2/transactions', 'GET /investments'])
+const ALLOWED = new Set(['GET /accounts', 'GET /v2/transactions', 'GET /investments'])
 const INVESTMENT_TXNS = /^\/investments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/transactions$/i
 const PAGE_SIZE = 500
 const MAX_PAGES = 200
@@ -33,22 +33,26 @@ export function pluggyRequest(method: string, url: string): URL {
   return u
 }
 
-export function createPluggyClient(creds: { clientId: string; clientSecret: string }, fetchFn: typeof fetch) {
+/** POST /auth com o Client ID e o Client Secret, feito fora do JavaScript (comando `pluggy_auth` do Rust, com limite próprio de 30 s). */
+export type PluggyAuth = () => Promise<Response>
+
+export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
   let key: { value: string; at: number } | null = null
 
-  async function send(method: 'GET' | 'POST', url: string, init: RequestInit = {}): Promise<Response> {
-    const u = pluggyRequest(method, url)
+  async function net(call: (signal: AbortSignal) => Promise<Response>): Promise<Response> {
     const signal = AbortSignal.timeout(30_000)
-    try { return await fetchFn(u.toString(), { ...init, method, signal }) } catch (e) {
+    try { return await call(signal) } catch (e) {
+      if (e instanceof PluggyError) throw e
       // o fetch da plugin-http rejeita com Error('Request cancelled') ou string do Rust: o sinal é a prova
       const timedOut = signal.aborted || (e instanceof Error && (e.name === 'TimeoutError' || e.name === 'AbortError'))
       throw new PluggyError(timedOut ? 'A Pluggy não respondeu a tempo; tente de novo' : 'Sem conexão com a Pluggy', 'rede')
     }
   }
+  const send = (url: string, init: RequestInit) => { const u = pluggyRequest('GET', url); return net(signal => fetchFn(u.toString(), { ...init, method: 'GET', signal })) }
   const BAD_CREDS = () => new PluggyError('Client ID ou Client Secret inválidos', 'credenciais')
 
   async function auth(): Promise<string> {
-    const res = await send('POST', '/auth', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(creds) })
+    const res = await net(() => authFn())
     if (res.status === 401 || res.status === 403) throw BAD_CREDS()
     if (res.status === 429) throw new PluggyError('A Pluggy pediu para esperar; tente mais tarde', 'limite')
     const apiKey = res.ok ? (await res.json().catch(() => null))?.apiKey : null
@@ -59,7 +63,7 @@ export function createPluggyClient(creds: { clientId: string; clientSecret: stri
 
   async function get(path: string, notFound?: (status: number) => PluggyError): Promise<{ results: unknown[]; next?: unknown; totalPages?: unknown }> {
     const cached = !!key && Date.now() - key.at < KEY_TTL_MS
-    const call = async (k: string) => send('GET', path, { headers: { 'X-API-KEY': k } })
+    const call = async (k: string) => send(path, { headers: { 'X-API-KEY': k } })
     let res = await call(cached ? key!.value : await auth())
     if (res.status === 401 && cached) res = await call(await auth())
     if (res.status === 401 || res.status === 403) throw BAD_CREDS()

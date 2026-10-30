@@ -6,7 +6,7 @@ import { withFingerprints } from '../domain/gastos'
 import type { AssetType, ISODate } from '../domain/types'
 import { assetTypeOf, settleDate } from '../import/b3'
 import { normalizeBroker } from '../import/parse'
-import { createPluggyClient, PluggyError, rendaVariavel, toTradeRow, toTxnRow } from './pluggy'
+import { createPluggyClient, PluggyError, rendaVariavel, toTradeRow, toTxnRow, type PluggyAuth } from './pluggy'
 
 export const SYNC_EVERY_MS = 6 * 60 * 60 * 1000
 /** `found`: investimentos de renda variável do item; `existing`: operações que já estavam no Yield e ficaram como estavam. */
@@ -16,8 +16,8 @@ type PluggyTrade = NonNullable<ReturnType<typeof toTradeRow>> & { ticker: string
 
 const addDays = (d: ISODate, n: number): ISODate => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10)
 
-export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret: string }, fetchFn: typeof fetch, today: ISODate, now: () => Date = () => new Date()): Promise<SyncResult> {
-  const client = createPluggyClient(creds, fetchFn)
+export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch, today: ISODate, now: () => Date = () => new Date()): Promise<SyncResult> {
+  const client = createPluggyClient(auth, fetchFn)
   const result: SyncResult = { accounts: 0, inserted: 0, removed: 0, errors: [], investments: [] }
   const items = (await loadGastos(db)).pluggyItems
   const dateTo = addDays(today, 31)
