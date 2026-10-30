@@ -1,5 +1,6 @@
 import type { Db } from '../db/client'
 import { loadGastos, replaceWindow, setLastSync, upsertAccount } from '../db/gastosRepo'
+import { replaceBankInvestments, type BankInvestmentRow } from '../db/repo'
 import { addTrades, saveNote } from '../db/repo'
 import { withFingerprints } from '../domain/gastos'
 import type { AssetType, ISODate } from '../domain/types'
@@ -53,10 +54,17 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
     }
     try {
       const trades: PluggyTrade[] = []
+      const held: BankInvestmentRow[] = [] // o que não é ação/ETF e tem saldo: RDB, caixinha, fundo, CDB…
       let found = 0
       for (const inv of await client.listInvestments(item.itemId)) {
         const rv = rendaVariavel(inv)
-        if (!rv) continue
+        if (!rv) {
+          const cents = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) : null)
+          const balanceCents = cents(inv.balance)
+          if (inv.type !== 'EQUITY' && inv.type !== 'ETF' && balanceCents !== null && balanceCents > 0)
+            held.push({ id: inv.id, itemId: item.itemId, name: inv.name, type: inv.type, subtype: inv.subtype ?? null, balanceCents, costCents: cents(inv.amountOriginal), fetchedAt: now().toISOString() })
+          continue
+        }
         found++
         for (const t of await client.listInvestmentTransactions(inv.id)) {
           const row = toTradeRow(t)
@@ -64,6 +72,7 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
         }
       }
       result.investments.push({ itemId: item.itemId, label: item.label, found, ...await mergeTrades(db, normalizeBroker(item.label), trades) })
+      await replaceBankInvestments(db, item.itemId, held)
     } catch (e) {
       // as contas deste item acabaram de passar com a mesma chave: 403 aqui é falta do produto, não credencial ruim
       const message = e instanceof Error ? e.message : 'Erro ao sincronizar'

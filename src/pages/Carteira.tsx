@@ -106,20 +106,20 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
     const gain = usdGain === null && m?.valueCents != null && m.costCents !== null ? m.valueCents - m.costCents : null
     return (
       <PosRow key={a.id} cls={a.assetClass} avatar={a.quoteSymbol && a.assetClass === 'exterior' ? a.quoteSymbol : a.name} name={a.name}
-        detail={a.quantity !== null && quote ? `${qtyText(a.quantity)} × ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(quote.priceCents)} · ${quote.source === 'manual' ? 'à mão' : `Yahoo, ${when(quote.fetchedAt)}`}` : `valor informado em ${br(a.updatedAt)}`}
+        detail={a.quantity !== null && quote ? `${qtyText(a.quantity)} × ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(quote.priceCents)} · ${quote.source === 'manual' ? 'à mão' : `Yahoo, ${when(quote.fetchedAt)}`}` : (a.sourceKey?.startsWith('pluggy:') ? `saldo no banco em ${br(a.updatedAt)}` : `valor informado em ${br(a.updatedAt)}`)}
         value={m?.valueCents == null ? <span className="t2">{a.currency === 'USD' && m?.usdCents != null ? 'sem dólar do dia' : 'sem cotação'}</span> : formatCents(m.valueCents)}
         valueSub={m?.usdCents != null && `US$ ${formatCents(m.usdCents)}`}
         gain={usdGain !== null ? sign(usdGain, `US$ ${formatCents(usdGain)}`) : gain !== null ? signedCents(gain) : '—'}
         gainSub={usdGain !== null ? pct(usdGain / m!.usdCostCents!) : gain !== null && m?.costCents ? pct(gain / m.costCents) : null} gainTone={tone(usdGain ?? gain)}
         cost={a.costCents !== null ? `aportado ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(a.costCents)}` : 'sem aportado'}
-        actions={confirm === `asset:${a.id}` ? (
+        actions={a.sourceKey?.startsWith('pluggy:') ? <span className="muted">do banco, pela Pluggy</span> : confirm === `asset:${a.id}` ? (
           <span>Excluir {a.name}? <button className="link dn" onClick={() => run(async () => { await deleteManualAsset(db, a.id); setConfirm(null) })}>Excluir</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
         ) : <><button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : editCents(a.valueCents), cost: a.costCents === null ? '' : editCents(a.costCents), sourceKey: a.sourceKey }); setFormError(null) }} aria-label={`Editar ${a.name}`}>editar</button>
           {' · '}<button className="link" aria-label={`Excluir ${a.name}`} onClick={() => setConfirm(`asset:${a.id}`)}>excluir</button></>} />
     )
   }
 
-  const manualOf = (k: ClassKey) => data.manualAssets.filter(a => a.assetClass === k).map(manualRow)
+  const manualOf = (k: ClassKey) => [...data.manualAssets, ...derived.bank].filter(a => a.assetClass === k).map(manualRow)
   const panel = (k: ClassKey) => {
     if (BOLSA.includes(k) || (k === 'outro' && p.rows.some(r => !r.assetType)))
       return <>{[...p.rows].filter(r => (r.assetType ?? 'outro') === k).sort((a, b) => (b.valueCents ?? -1) - (a.valueCents ?? -1)).map(stockRow)}{k === 'outro' && manualOf(k)}</>

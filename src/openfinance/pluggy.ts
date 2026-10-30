@@ -10,7 +10,7 @@ export class PluggyError extends Error {
 }
 export interface PluggyAccount { id: string; type: 'BANK' | 'CREDIT'; subtype: string; name: string; marketingName?: string | null; number?: string | null; itemId: string; balance?: number | null /* em reais: saldo da conta ou fatura do cartão */ }
 export interface PluggyTxn { id: string; date: string; description: string; amount: number; type: 'DEBIT' | 'CREDIT'; status: 'PENDING' | 'POSTED'; operationType?: string | null; category?: string | null; creditCardMetadata?: { installmentNumber?: number; totalInstallments?: number } | null }
-export interface PluggyInvestment { id: string; code?: string | null; name: string; type: string; subtype?: string | null }
+export interface PluggyInvestment { id: string; code?: string | null; name: string; type: string; subtype?: string | null; balance?: number | null /* saldo hoje, em reais */; amountOriginal?: number | null /* aplicado */ }
 export interface PluggyInvestmentTxn { id: string; type: string; quantity?: number | null; value?: number | null; amount?: number | null; tradeDate?: string | null; date: string; expenses?: Record<string, number | null> | null }
 
 const FORMAT = () => new PluggyError('A Pluggy devolveu dados fora do formato esperado', 'resposta')

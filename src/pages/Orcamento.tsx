@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronRight, Plus } from 'lucide-react'
-import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
+import { reservaInvestments } from '../domain/bancoInvest'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
@@ -32,7 +33,7 @@ function Track({ real, planned, soft }: { real: number; planned: number; soft?: 
 }
 
 export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): void; onOpenSettings(): void }) {
-  const { db, gastos, orcamento } = useData()
+  const { db, gastos, orcamento, data: carteira } = useData()
   const { data, month, setMonth, reload } = orcamento
   const [form, setForm] = useState<Form | null>(null)
   const [del, setDel] = useState<BudgetLine | null>(null)
@@ -323,21 +324,43 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   // destino de investimento ou reserva: o saldo do mês (aplicado − resgatado) e, aberto, cada movimento
   const toggleReserva = (key: string) => void run('Não foi possível mudar o destino', () =>
     saveReservas(db, data.reservas.includes(key) ? data.reservas.filter(k => k !== key) : [...data.reservas, key]))
+  // reserva ligada a um investimento do banco mostra o saldo dele hoje; o movimento do mês fica embaixo
+  const liveInv = carteira.bankInvestments.filter(b => gastos.data.pluggyItems.some(i => i.itemId === b.itemId))
+  const linked = reservaInvestments(data.reservas, liveInv, data.reservaLinks)
+  const saldoOf = (k: string) => { const l = linked.get(k) ?? []; return l.length ? l.reduce((s, b) => s + b.balanceCents, 0) : null }
+  // reserva sem movimento no mês continua aparecendo pelo saldo do banco
+  const reservaGroups: InvGroup[] = [...inv.reservas, ...data.reservas.filter(k => !inv.reservas.some(g => g.key === k) && saldoOf(k) !== null)
+    .map(k => ({ key: k, name: linked.get(k)![0].name, inCents: 0, outCents: 0, netCents: 0, txns: [] }))]
+  const reservaSaldo = reservaGroups.map(g => saldoOf(g.key)).filter((c): c is number => c !== null)
+  const linkReserva = (k: string, id: string) => void run('Não foi possível ligar a reserva', () => {
+    const links = { ...data.reservaLinks }
+    if (id) links[k] = id; else delete links[k]
+    return saveReservaLinks(db, links)
+  })
   const groupRow = (g: InvGroup, reserva: boolean) => {
     const key = `inv:${g.key}`, opened = openCats.has(key)
+    const saldo = reserva ? saldoOf(g.key) : null
     const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
     const ins = g.txns.filter(t => t.amountCents < 0).length, outs = g.txns.length - ins
     return [
-      <tr key={key} className={`acc${opened ? ' open' : ''}`} onClick={e => { if (!(e.target as HTMLElement).closest('button')) toggle() }}>
+      <tr key={key} className={g.txns.length ? `acc${opened ? ' open' : ''}` : undefined} onClick={e => { if (g.txns.length && !(e.target as HTMLElement).closest('button')) toggle() }}>
         <td className="ell-cell"><div className="cat-line">
-          <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />
+          {reserva ? <IconGlyph name="piggy-bank" color="#4fd1a5" size={28} /> : <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />}
           <div className="grow"><div className="nm">
-            <button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{[ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ')}<ChevronRight size={12} className="chev" aria-hidden /></span></button>
+            <button className="cat-toggle" aria-expanded={opened} disabled={!g.txns.length} onClick={toggle}>{g.name} <span className="muted">{g.txns.length ? [ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ') : 'sem movimento no mês'}{g.txns.length > 0 && <ChevronRight size={12} className="chev" aria-hidden />}</span></button>
             <span className="acts muted"><button className="link" disabled={busy} onClick={() => toggleReserva(g.key)}>{reserva ? 'é investimento' : 'é reserva'}</button></span>
           </div></div>
         </div></td>
-        <td className="r" style={{ whiteSpace: 'nowrap' }}>{reserva && g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)}{g.outCents > 0 && <div className="d2" style={{ textAlign: 'right' }}>{formatCents(g.inCents)} − {formatCents(g.outCents)}</div>}</td>
+        <td className="r" style={{ whiteSpace: 'nowrap' }}>{saldo !== null ? <>{formatCents(saldo)}<div className="d2" style={{ textAlign: 'right' }}>{g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)} este mês</div></>
+          : <>{reserva && g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)}{g.outCents > 0 && <div className="d2" style={{ textAlign: 'right' }}>{formatCents(g.inCents)} − {formatCents(g.outCents)}</div>}</>}</td>
       </tr>,
+      ...(reserva && liveInv.length > 0 && (saldo === null || data.reservaLinks[g.key]) ? [
+        <tr key={`link-${key}`} className="sub"><td colSpan={2}><div className="row" style={{ alignItems: 'center', gap: 8 }}>
+          <span className="muted">{saldo === null ? 'Qual investimento do banco é esta reserva?' : 'Ligada a'}</span>
+          <Select small ariaLabel={`Investimento da reserva ${g.name}`} value={data.reservaLinks[g.key] ?? ''} onChange={v => linkReserva(g.key, v)}
+            options={[{ value: '', label: saldo === null ? 'escolha' : 'pelo nome' }, ...liveInv.map(b => ({ value: b.id, label: `${b.name} · ${formatCents(b.balanceCents)}` }))]} />
+        </div></td></tr>,
+      ] : []),
       ...(opened ? [<tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{g.txns.map(t => (
         <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span className="ell" title={`${t.description} · ${accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}`}>{displayName(t.description)}</span>
           <span className={t.amountCents > 0 ? 'muted' : undefined}>{t.amountCents > 0 ? `−${formatCents(t.amountCents)}` : formatCents(-t.amountCents)}</span></div>
@@ -460,11 +483,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             hint: inv.groups.length > 0 && 'aplicado − resgatado no mês · caixinha que entra e sai: passe o mouse na linha e marque como reserva',
             extra: inv.groups.length > 0 && inv.groups.flatMap(g => groupRow(g, false)),
           })}
-          {inv.reservas.length > 0 && (
+          {reservaGroups.length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
-              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{inv.reservaCents > 0 ? '+' : ''}{formatCents(inv.reservaCents)}</b></div>
-              <div className="muted" style={{ marginTop: 2 }}>dinheiro guardado que entra e sai: não conta como investimento nem como gasto</div>
-              <table className="lt blk" style={{ marginTop: 6 }}><tbody>{inv.reservas.flatMap(g => groupRow(g, true))}</tbody></table>
+              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
+              <div className="muted" style={{ marginTop: 2 }}>{reservaSaldo.length ? `saldo hoje no banco · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
+              <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
             </div>
           )}
           {block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' })}
