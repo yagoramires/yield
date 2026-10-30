@@ -12,7 +12,8 @@ import { Lancamentos } from './pages/Lancamentos'
 import { Assinaturas } from './pages/Assinaturas'
 import { Categorias } from './pages/Categorias'
 import { Orcamento } from './pages/Orcamento'
-import { ROUTES, type Route } from './ui/routes'
+import { moduleOf, ROUTES, type Route } from './ui/routes'
+import { useModules } from './ui/prefs'
 import { EyeToggle, useHideValues } from './ui/HideValues'
 import { UpdateBanner } from './ui/Atualizacao'
 
@@ -29,6 +30,11 @@ export default function App() {
     } catch { return 'carteira' }
   })
   useEffect(() => { try { localStorage.setItem('yield.route', route) } catch { /* sem storage, só não lembra */ } }, [route])
+  // módulo desligado em Configurações: a tela dele sai do menu e o app vai para a primeira tela de um módulo ligado
+  const { enabled } = useModules()
+  useEffect(() => {
+    if (!enabled(moduleOf(route))) setRoute(ROUTES.find(g => g.module && enabled(g.module))?.items[0].route ?? 'configuracoes')
+  }, [route, enabled])
   const [provMonth, setProvMonth] = useState('') // mês clicado no Resumo, para Proventos abrir filtrado
   const [carteiraClass, setCarteiraClass] = useState<string | null>(null) // classe clicada no Resumo, para a Carteira abrir nela
   const [menuOpen, setMenuOpen] = useState(false)

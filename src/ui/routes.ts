@@ -1,29 +1,42 @@
+import { BriefcaseBusiness, CalendarRange, ChartLine, Coins, FileCheck2, FileText, Landmark, LayoutDashboard, ReceiptText, Repeat, Settings, Tags, type LucideIcon } from 'lucide-react'
+
 export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'orcamento' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'declaracao' | 'configuracoes'
+// módulo que a pessoa pode desligar em Configurações; Sistema fica sempre
+export type Module = 'gastos' | 'orcamento' | 'investimentos'
 
 export const ROUTES: {
   page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Sistema'
-  items: { route: Route | null; label: string; disabled: boolean }[]
+  module: Module | null
+  items: { route: Route | null; label: string; disabled: boolean; icon: LucideIcon }[]
 }[] = [
   {
-    page: 'Últimos gastos',
+    page: 'Últimos gastos', module: 'gastos',
     items: [
-      { route: 'gastos-resumo', label: 'Resumo', disabled: false },
-      { route: 'lancamentos', label: 'Lançamentos', disabled: false },
-      { route: 'assinaturas', label: 'Assinaturas', disabled: false },
-      { route: 'categorias', label: 'Categorias', disabled: false },
+      { route: 'gastos-resumo', label: 'Resumo', disabled: false, icon: LayoutDashboard },
+      { route: 'lancamentos', label: 'Lançamentos', disabled: false, icon: ReceiptText },
+      { route: 'assinaturas', label: 'Assinaturas', disabled: false, icon: Repeat },
+      { route: 'categorias', label: 'Categorias', disabled: false, icon: Tags },
     ],
   },
-  { page: 'Orçamento mensal', items: [{ route: 'orcamento', label: 'Mês atual', disabled: false }] },
+  { page: 'Orçamento mensal', module: 'orcamento', items: [{ route: 'orcamento', label: 'Mês atual', disabled: false, icon: CalendarRange }] },
   {
-    page: 'Investimentos',
+    page: 'Investimentos', module: 'investimentos',
     items: [
-      { route: 'investimentos-resumo', label: 'Resumo', disabled: false },
-      { route: 'carteira', label: 'Carteira', disabled: false },
-      { route: 'notas', label: 'Notas', disabled: false },
-      { route: 'proventos', label: 'Proventos', disabled: false },
-      { route: 'imposto', label: 'Imposto', disabled: false },
-      { route: 'declaracao', label: 'Declaração IR', disabled: false },
+      { route: 'investimentos-resumo', label: 'Resumo', disabled: false, icon: ChartLine },
+      { route: 'carteira', label: 'Carteira', disabled: false, icon: BriefcaseBusiness },
+      { route: 'notas', label: 'Notas', disabled: false, icon: FileText },
+      { route: 'proventos', label: 'Proventos', disabled: false, icon: Coins },
+      { route: 'imposto', label: 'Imposto', disabled: false, icon: Landmark },
+      { route: 'declaracao', label: 'Declaração IR', disabled: false, icon: FileCheck2 },
     ],
   },
-  { page: 'Sistema', items: [{ route: 'configuracoes', label: 'Configurações', disabled: false }] },
+  { page: 'Sistema', module: null, items: [{ route: 'configuracoes', label: 'Configurações', disabled: false, icon: Settings }] },
 ]
+
+export const MODULES: { key: Module; label: string; hint: string }[] = [
+  { key: 'gastos', label: 'Últimos gastos', hint: 'resumo, lançamentos, assinaturas e categorias' },
+  { key: 'orcamento', label: 'Orçamento mensal', hint: 'ganhos, custos, metas e reserva' },
+  { key: 'investimentos', label: 'Investimentos', hint: 'carteira, notas, proventos, imposto e declaração' },
+]
+
+export const moduleOf = (r: Route): Module | null => ROUTES.find(g => g.items.some(i => i.route === r))?.module ?? null

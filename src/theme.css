@@ -47,9 +47,23 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .group { margin-top: 8px; padding: 4px 8px; color: var(--text); font-weight: 600; }
 .group.on { color: var(--accent); }
 .item {
-  display: block; width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
-  padding: 6px 8px 6px 22px; border-radius: 6px; color: var(--faint); font-size: 12px;
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
+  padding: 6px 8px 6px 10px; border-radius: 6px; color: var(--faint); font-size: 12px;
 }
+.item svg { flex-shrink: 0; }
+.sidebar { transition: width .15s; }
+.menu-collapse { align-self: flex-start; margin: 8px 0 0 4px; }
+/* menu recolhido: só os ícones, um traço no lugar do nome de cada grupo */
+.sidebar.mini { width: 58px; padding: 16px 8px; }
+.sidebar.mini .logo-row { flex-direction: column; gap: 10px; margin: 0 0 10px; }
+.sidebar.mini .group { height: 1px; padding: 0; margin: 8px 6px; background: var(--border); font-size: 0; }
+.sidebar.mini .item { justify-content: center; padding: 8px 0; }
+.sidebar.mini .item .lbl, .sidebar.mini .item small { display: none; }
+.sidebar.mini .sync-status { align-items: center; padding: 10px 0 2px; }
+.sidebar.mini .menu-collapse { align-self: center; margin: 8px 0 0; }
+.sync-mini { position: relative; }
+.sync-mini .dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; }
+.sync-mini .dot.bad { background: var(--negative); }
 .item:hover:not(:disabled) { color: var(--text); }
 .item.on { color: var(--text); background: var(--surface); }
 .item:disabled { cursor: default; }
@@ -542,6 +556,11 @@ tr.hl td { background: #1a1213; }
   .mobile-header .logo { margin: 0; }
   .sidebar { display: none; width: 100%; max-height: 60dvh; border-right: 0; border-bottom: 1px solid var(--border); padding: 8px 12px; }
   .sidebar.is-open { display: flex; }
+  .sidebar.mini { width: auto; padding: 16px 10px; }
+  .sidebar.mini .group { height: auto; padding: 4px 8px; margin: 8px 0 0; background: none; font-size: inherit; }
+  .sidebar.mini .item { justify-content: flex-start; padding: 6px 8px 6px 10px; }
+  .sidebar.mini .item .lbl { display: inline; }
+  .menu-collapse { display: none; }
   .sidebar .logo { display: none; }
   .sidebar .item { min-height: 40px; }
   .main { padding: 18px 14px; }
@@ -584,3 +603,11 @@ tr.hl td { background: #1a1213; }
 .bal-row .grow { flex: 1; min-width: 0; }
 .bal-row b { display: block; color: #fff; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bal-row small { display: block; color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* interruptor (checkbox com role=switch) */
+.switch { appearance: none; -webkit-appearance: none; flex-shrink: 0; width: 34px; height: 20px; border-radius: 20px; background: var(--border); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+.switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch:checked { background: var(--accent); }
+.switch:checked::after { transform: translateX(14px); background: var(--bg); }
+.switch:focus-visible { outline: none; box-shadow: 0 0 0 3px rgb(198 255 61 / .18); }
+.switch:disabled { opacity: .5; cursor: default; }

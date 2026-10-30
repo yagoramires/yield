@@ -21,7 +21,7 @@ export function localStamp(iso: string): string {
 const latest = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort().at(-1) ?? null
 
 /** Quando cada fonte foi lida pela última vez, o erro se houver, e um botão que sincroniza tudo. Fica no menu, em todas as telas. */
-export function SyncStatus() {
+export function SyncStatus({ mini = false }: { mini?: boolean }) {
   const { data, gastos, binance, lastRefresh, refreshing, refreshQuotesNow } = useData()
   const g = gastos.data
   const hasPluggy = g.pluggyItems.length > 0
@@ -38,6 +38,16 @@ export function SyncStatus() {
     if (hasPluggy) void gastos.syncNow()
     void (hasBinance ? binance.syncNow().then(refreshQuotesNow) : refreshQuotesNow())
   }
+  const err = rows.find(r => r.error)
+  // menu recolhido: só o botão, com o resumo no título e uma bolinha vermelha se alguma fonte falhou
+  if (mini) return (
+    <div className="sync-status">
+      <button className="icon-btn sq sync-mini" aria-label={busy ? 'Sincronizando' : 'Sincronizar tudo'} disabled={busy} onClick={syncAll}
+        title={rows.map(r => `${r.label}: ${r.error ? `erro (${r.error})` : r.text}`).join('\n')}>
+        <RefreshCw size={14} aria-hidden className={busy ? 'spin' : undefined} />{err && <span className="dot bad" aria-hidden />}
+      </button>
+    </div>
+  )
   return (
     <div className="sync-status">
       {rows.map(r => (

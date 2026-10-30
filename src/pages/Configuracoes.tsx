@@ -13,6 +13,7 @@ import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { Binance } from './configuracoes/Binance'
 import { Proventos } from './configuracoes/Proventos'
+import { Modulos } from './configuracoes/Modulos'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -172,6 +173,7 @@ export function Configuracoes() {
         <AtualizacaoCard />
       </div>
       <div style={{ marginTop: 12 }}><FontesRenda /></div>
+      <Modulos />
       <Proventos />
       <OpenFinance />
       <Binance />
