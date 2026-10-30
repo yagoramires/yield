@@ -135,7 +135,7 @@ describe('migração', () => {
     d.exec("INSERT INTO meta (key, value) VALUES ('orcamento.pj', '{}'); INSERT INTO budget_months VALUES ('2026-01'); INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, pj_gross_cents) VALUES ('l', '2026-01', 'entrada', 'R', 99, 1, 0, 5)")
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('16')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('17')
     expect(await migrado.select("SELECT 1 FROM meta WHERE key = 'orcamento.pj'")).toEqual([])
     expect((await loadOrcamento(migrado)).lines[0]).toMatchObject({ amountCents: 99, sourceId: null })
   })
@@ -145,7 +145,7 @@ describe('migração', () => {
     for (const f of ['001_init.sql', '002_gastos.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('16')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('17')
     expect((await loadOrcamento(migrado)).months).toEqual([])
   })
   test('014 e 015: saída antiga ganha bloco pelo palpite (um teto por categoria; fatura e moradia são fixo), teto e meta viram metas; entrada fica sem; grupo novo é gravado e lido', async () => {

@@ -277,6 +277,12 @@ pub fn run() {
             sql: include_str!("../migrations/016_saldo_contas.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 17,
+            description: "insights da ia",
+            sql: include_str!("../migrations/017_ai_insights.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).
