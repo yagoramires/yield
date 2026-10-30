@@ -2,6 +2,25 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## 0.8.0
+
+Orçamento novo, no jeito de uma planilha de controle: o que você ganha, custos fixos e custos variáveis.
+
+### Novidades
+- **Orçamento em blocos**: O que eu ganho, Custos, Investimentos e Parcelas, com os números do mês no topo (o que entra, fixos + parcelas, variáveis, investido e a sobra do que já saiu).
+- **Custos com abas Fixos e Variáveis**: o total do mês, a proporção entre os dois e, em cada aba, as categorias com ícone, barra e a lista de gastos. Nos fixos, o que está no plano (com "pago ✓" quando o lançamento aparece) e o que saiu fora dele. Em Metas você escolhe se cada categoria é fixa ou variável.
+- **Salário entra sozinho**: as fontes de renda cadastradas entram em todo mês novo pelo líquido; num mês que já existia, a fonte que falta aparece com o botão "incluir".
+- **Gastos puxados dos lançamentos**, por categoria, sem precisar digitar. Clique na categoria para ver os gastos dela. Parcelas e assinaturas aceitas e contas fixas pagas pelo banco não contam duas vezes.
+- **Investido puxado dos lançamentos**: o que saiu para a categoria Investimento (ou uma categoria sua que não conta como gasto, como uma reserva).
+- **Metas**: botão no topo do orçamento para definir quanto investir, um limite total dos variáveis e uma meta por categoria, com a média dos últimos 3 meses ao lado. Valem do mês em diante, sem mudar os meses anteriores; sem meta, a barra compara com a média.
+- **Parcelas** mostram quantas faltam e quando acabam, e somem depois da última.
+- Nomes que vêm do extrato aparecem legíveis ("MP*LOJA" vira "Loja").
+
+### Melhorias
+- O Resumo de gastos e Categorias usam as metas por categoria como orçamento, só nos meses com plano.
+- O CSV do orçamento transforma as linhas `variavel` e `meta` no limite dos variáveis e na meta de investir do mês.
+- Apagar uma categoria leva a meta dela junto para a categoria de destino.
+
 ## 0.7.0
 
 ### Novidades
