@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { deletePayment, saveOpeningLoss, savePayment } from '../db/repo'
 import { DARF_CODE, type DarfStatus } from '../domain/darf'
-import { formatBRL, formatCents } from '../domain/money'
+import { formatBRL, formatCents, editCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { buildOpeningLoss, buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type OpeningLossForm, type PaymentForm } from './imposto/build'
 import { DateField } from '../ui/DateField'
@@ -42,7 +42,7 @@ export function Imposto() {
 
   const startPay = (r: ImpostoRow) => {
     // Complementar substitui o pagamento do mês: o principal sugerido é o DARF inteiro.
-    setForm({ paidAt: '', principal: formatCents(r.darf.darfCents), total: formatCents(r.darf.darfCents) }); setFormError(null); setOpen(r.darf.month)
+    setForm({ paidAt: '', principal: editCents(r.darf.darfCents), total: editCents(r.darf.darfCents) }); setFormError(null); setOpen(r.darf.month)
   }
   const pay = async (month: string) => {
     try {
@@ -55,7 +55,7 @@ export function Imposto() {
   }
   const startOpening = () => {
     const o = data.openingLoss
-    setOpening(o ? { month: `${o.month.slice(5)}/${o.month.slice(0, 4)}`, comum: o.comumCents === null ? '' : formatCents(o.comumCents), fii: o.fiiCents === null ? '' : formatCents(o.fiiCents) } : { month: '', comum: '', fii: '' }); setOpeningError(null)
+    setOpening(o ? { month: `${o.month.slice(5)}/${o.month.slice(0, 4)}`, comum: o.comumCents === null ? '' : editCents(o.comumCents), fii: o.fiiCents === null ? '' : editCents(o.fiiCents) } : { month: '', comum: '', fii: '' }); setOpeningError(null)
   }
   const saveOpening = async (v: OpeningLossForm | null) => {
     try { await saveOpeningLoss(db, v && buildOpeningLoss(v)); await reload(); setOpening(null); setConfirm(null) }

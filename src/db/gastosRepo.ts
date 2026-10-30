@@ -2,7 +2,7 @@ import type { Cents, ISODate } from '../domain/types'
 import type { Db } from './client'
 
 export type AccountKind = 'conta' | 'cartao'
-export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId: string; institution: string; name: string; kind: AccountKind; number: string | null; itemId: string | null; lastSyncAt: string | null }
+export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId: string; institution: string; name: string; kind: AccountKind; number: string | null; itemId: string | null; lastSyncAt: string | null; balanceCents?: Cents | null /* da Pluggy: saldo da conta ou fatura do cartão */; balanceAt?: string | null }
 export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
 export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean; icon: string | null /* nome Lucide */; color: string | null }
 export interface CategoryRule { id: string; pattern: string; categoryId: string }
@@ -17,7 +17,7 @@ const SUGGESTIONS_KEY = 'categorias.sugestoesRecusadas'
 
 export async function loadGastos(db: Db): Promise<GastosData> {
   const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner, company, refused] = await Promise.all([
-    db.select<Account>('SELECT id, source, external_id AS externalId, institution, name, kind, number, item_id AS itemId, last_sync_at AS lastSyncAt FROM accounts ORDER BY institution, name'),
+    db.select<Account>('SELECT id, source, external_id AS externalId, institution, name, kind, number, item_id AS itemId, last_sync_at AS lastSyncAt, balance_cents AS balanceCents, balance_at AS balanceAt FROM accounts ORDER BY institution, name'),
     db.select<Txn>(`SELECT ${TXN_COLS} FROM transactions ORDER BY date, id`),
     db.select<Category>('SELECT id, name, counts_as_spending AS countsAsSpending, builtin, icon, color FROM categories ORDER BY builtin DESC, rowid'),
     db.select<CategoryRule>('SELECT id, pattern, category_id AS categoryId FROM category_rules ORDER BY pattern'),
@@ -53,9 +53,10 @@ export async function saveCompanyNames(db: Db, names: string[]): Promise<void> {
 export async function upsertAccount(db: Db, a: Omit<Account, 'id'>): Promise<string> {
   // last_sync_at fica de fora do UPDATE: só setLastSync grava.
   await db.execute(
-    `INSERT INTO accounts (id, source, external_id, institution, name, kind, number, item_id, last_sync_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (external_id) DO UPDATE SET institution = excluded.institution, name = excluded.name, kind = excluded.kind, number = excluded.number, item_id = excluded.item_id`,
-    [crypto.randomUUID(), a.source, a.externalId, a.institution, a.name, a.kind, a.number, a.itemId, a.lastSyncAt],
+    `INSERT INTO accounts (id, source, external_id, institution, name, kind, number, item_id, last_sync_at, balance_cents, balance_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (external_id) DO UPDATE SET institution = excluded.institution, name = excluded.name, kind = excluded.kind, number = excluded.number, item_id = excluded.item_id,
+       balance_cents = COALESCE(excluded.balance_cents, accounts.balance_cents), balance_at = COALESCE(excluded.balance_at, accounts.balance_at)`,
+    [crypto.randomUUID(), a.source, a.externalId, a.institution, a.name, a.kind, a.number, a.itemId, a.lastSyncAt, a.balanceCents ?? null, a.balanceAt ?? null],
   )
   return (await db.select<{ id: string }>('SELECT id FROM accounts WHERE external_id = ?', [a.externalId]))[0].id
 }

@@ -13,6 +13,7 @@ import { Assinaturas } from './pages/Assinaturas'
 import { Categorias } from './pages/Categorias'
 import { Orcamento } from './pages/Orcamento'
 import { ROUTES, type Route } from './ui/routes'
+import { EyeToggle, useHideValues } from './ui/HideValues'
 import { UpdateBanner } from './ui/Atualizacao'
 
 const TITLES = Object.fromEntries(
@@ -31,12 +32,14 @@ export default function App() {
   const [provMonth, setProvMonth] = useState('') // mês clicado no Resumo, para Proventos abrir filtrado
   const [carteiraClass, setCarteiraClass] = useState<string | null>(null) // classe clicada no Resumo, para a Carteira abrir nela
   const [menuOpen, setMenuOpen] = useState(false)
+  useHideValues() // o olhinho vale para o app todo: ligar ou desligar redesenha as telas com os valores ocultos ou não
   const navigate = (next: Route) => { setProvMonth(''); setCarteiraClass(null); setRoute(next); setMenuOpen(false) }
   return (
     <div className="app">
       <header className="mobile-header">
         <div className="logo">yield<b>.</b></div>
         <span className="t2">{TITLES[route]}</span>
+        <EyeToggle />
         <button className="b ghost" aria-controls="app-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? 'Fechar menu' : 'Menu'}</button>
       </header>
       <Sidebar route={route} onNavigate={navigate} open={menuOpen} />

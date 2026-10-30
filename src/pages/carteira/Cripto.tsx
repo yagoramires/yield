@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { setCryptoCost } from '../../db/rendaFixaRepo'
-import { formatCents } from '../../domain/money'
+import { formatCents, editCents } from '../../domain/money'
 import type { CryptoRow } from '../../domain/portfolio'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
@@ -51,7 +51,7 @@ export function Cripto({ rows, onOpenSettings }: { rows: CryptoRow[]; onOpenSett
               <span><input className="in" style={{ width: 90 }} autoFocus inputMode="decimal" placeholder="0,00" aria-label={`Aportado em ${c.asset}`} value={editing.text}
                 onChange={e => setEditing({ ...editing, text: e.target.value })} onKeyDown={e => { if (e.key === 'Enter') void saveCost(); if (e.key === 'Escape') setEditing(null) }} />
                 {' '}<button className="link" onClick={() => void saveCost()}>salvar</button></span>
-            ) : <span><button className="link" onClick={() => setEditing({ asset: c.asset, text: c.costCents === null ? '' : formatCents(c.costCents) })}>
+            ) : <span><button className="link" onClick={() => setEditing({ asset: c.asset, text: c.costCents === null ? '' : editCents(c.costCents) })}>
                 {c.costCents === null ? 'informar aportado' : `aportado (${bal.get(c.asset)?.costManual ? 'à mão' : 'Binance'}) ${formatCents(c.costCents)}`}</button>
                 {c.costCents !== null && bal.get(c.asset)?.costPartial ? <> <span className="tag" title={PARTIAL} aria-label={`parcial: ${PARTIAL}`}>parcial</span></> : null}</span>} />
         )

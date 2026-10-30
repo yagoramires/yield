@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronRight, Plus } from 'lucide-react'
 import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
-import { addMonths, formatBRL, formatCents } from '../domain/money'
+import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
@@ -126,16 +126,16 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: manual ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: !manual, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
-    id: l.id, grupo: l.grupo ?? 'fixo', name: shown(l), amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
+    id: l.id, grupo: l.grupo ?? 'fixo', name: shown(l), amount: editCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
     installment: l.installmentCurrent !== null && l.installmentTotal !== null ? `${l.installmentCurrent}/${l.installmentTotal}` : '',
   })
   // só o nome que veio do extrato (sugestão aceita) é limpo; o que a pessoa digitou fica como está
   const shown = (l: BudgetLine) => (/^(sub|parc):/.test(l.sourceKey ?? '') ? displayName(l.name) : l.name)
-  const fromSource = (s: IncomeSource) => ({ sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s, month)) })
+  const fromSource = (s: IncomeSource) => ({ sourceId: s.id, name: s.name, amount: editCents(sourceNet(s, month)) })
   // fonte com líquido ≤ 0 trazida para o formulário: o parseMoney daria um erro genérico
   const zeroSource = (f: Form) => {
     const s = f.kind === 'entrada' ? data.sources.find(x => x.id === f.sourceId) : undefined
-    return !!s && sourceNet(s, month) <= 0 && f.amount === formatCents(sourceNet(s, month))
+    return !!s && sourceNet(s, month) <= 0 && f.amount === editCents(sourceNet(s, month))
   }
   const save = (f: Form) => void run('Não foi possível salvar a linha', async () => {
     if (zeroSource(f)) throw new Error(NET_ZERO)
@@ -386,7 +386,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               <span className="r">{formatCents(s.amountCents)}</span>
               <button className="b" disabled={busy} onClick={() => accept(s)}>Aceitar</button>
               <button className="b ghost" disabled={busy} onClick={() => open(s.reason === 'parcela' ? 'parcela' : 'fixo', {
-                name: s.name, amount: formatCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.recurring, sourceKey: s.key,
+                name: s.name, amount: editCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.recurring, sourceKey: s.key,
                 installment: s.installmentCurrent !== null ? `${s.installmentCurrent}/${s.installmentTotal}` : '',
               })}>Ajustar</button>
               <button className="b ghost" disabled={busy} onClick={() => void run('Não foi possível descartar a sugestão', () => dismissSuggestion(db, month, s.key))}>Descartar</button>

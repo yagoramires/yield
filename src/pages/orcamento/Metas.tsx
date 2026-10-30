@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Category } from '../../db/gastosRepo'
-import { formatCents } from '../../domain/money'
+import { editCents, formatCents } from '../../domain/money'
 import { catGoal, GOAL_INVESTIR, GOAL_VARIAVEIS } from '../../domain/orcamento'
 import type { Cents, Month } from '../../domain/types'
 import { monthName } from '../lancamentos/GastosHeader'
@@ -14,7 +14,7 @@ export function Metas({ month, categories, goals, averages, fixed, busy, onSave,
 }) {
   const spending = categories.filter(c => c.countsAsSpending)
   const keys = [GOAL_INVESTIR, GOAL_VARIAVEIS, ...spending.map(c => catGoal(c.id))]
-  const [inputs, setInputs] = useState<Record<string, string>>(() => Object.fromEntries(keys.map(k => [k, goals.has(k) ? formatCents(goals.get(k)!) : ''])))
+  const [inputs, setInputs] = useState<Record<string, string>>(() => Object.fromEntries(keys.map(k => [k, goals.has(k) ? editCents(goals.get(k)!) : ''])))
   const [error, setError] = useState<string | null>(null)
   const [fixas, setFixas] = useState(() => new Set(fixed))
   const field = (key: string, label: string, hint?: string, kind?: string) => (

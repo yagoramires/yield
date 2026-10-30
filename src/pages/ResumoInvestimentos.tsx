@@ -4,7 +4,7 @@ import { portfolioResult } from '../domain/portfolio'
 import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, LineChart } from '../ui/charts'
-import { EyeToggle, useHideValues } from '../ui/HideValues'
+import { useHideValues } from '../ui/HideValues'
 import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
@@ -22,7 +22,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 }) {
   const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
-  const { hidden, toggle, brl, cents, short } = useHideValues()
+  const { hidden, brl, cents, short } = useHideValues()
   const today = todayISO()
   const thisMonth = monthOf(today)
   const lastQuote = data.quotes.filter(q => q.source === 'yahoo').map(q => q.fetchedAt).sort().at(-1)
@@ -33,7 +33,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
         <h1>Resumo</h1>
         <div className="muted">{lastQuote ? `Cotações do Yahoo de ${when(lastQuote)} (atraso de ~15 min)` : 'Sem cotações do Yahoo ainda'}</div>
       </div>
-      <div className="btns"><EyeToggle hidden={hidden} toggle={toggle} /><button className="b ghost with-ico" disabled={refreshing} onClick={() => void refreshQuotesNow()}><RefreshCw size={13} aria-hidden />{refreshing ? 'Atualizando…' : 'Atualizar cotações'}</button></div>
+      <div className="btns"><button className="b ghost with-ico" disabled={refreshing} onClick={() => void refreshQuotesNow()}><RefreshCw size={13} aria-hidden />{refreshing ? 'Atualizando…' : 'Atualizar cotações'}</button></div>
     </div>
   )
   if (!data.trades.length && !data.manualAssets.length && !data.dividends.length && !data.rfMoves.length && !data.rfPositions.length && !data.cryptoBalances.length) {

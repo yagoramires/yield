@@ -3,9 +3,9 @@ import { goalsFor } from '../domain/orcamento'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
-import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
+import { categoryLook, CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 import { BarChart, LineChart } from '../ui/charts'
-import { EyeToggle, useHideValues } from '../ui/HideValues'
+import { useHideValues } from '../ui/HideValues'
 import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
 import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
@@ -15,8 +15,7 @@ import { monthProgress, spendingPlan } from './orcamento/build'
 export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
   const { gastos, orcamento } = useData()
   const { data, categorize: cat, month, setMonth, setFilter, subscriptions } = gastos
-  const { hidden, toggle, brl, cents, short } = useHideValues()
-  const eye = <EyeToggle hidden={hidden} toggle={toggle} />
+  const { brl, cents, short } = useHideValues()
   if (!data.txns.length) return <><GastosHeader title="Resumo" /><GastosVazio onOpenSettings={onOpenSettings} /></>
 
   const today = todayISO()
@@ -56,7 +55,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
 
   return (
     <>
-      <GastosHeader title="Resumo" actions={eye} />
+      <GastosHeader title="Resumo" />
       {sem && sem.cents > 0 && (
         <div className="sem-alert" style={{ marginTop: 12 }}><CircleHelp size={15} aria-hidden />
           <span>{brl(sem.cents)} em {semCount === 1 ? '1 compra' : `${semCount} compras`} sem categoria — os números ficam mais certos depois de categorizar</span>
@@ -80,6 +79,28 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
           </>}
         </div>
       </div>
+
+      {(() => {
+        // saldo como a Pluggy informou na última sincronização; conta importada por arquivo não tem saldo
+        const contas = data.accounts.filter(a => a.kind === 'conta'), cartoes = data.accounts.filter(a => a.kind === 'cartao' && a.balanceCents != null)
+        const withBal = contas.filter(a => a.balanceCents != null)
+        if (!withBal.length && !cartoes.length) return null
+        const at = withBal.map(a => a.balanceAt).filter(Boolean).sort().at(-1)
+        const row = (a: typeof data.accounts[number], cartao: boolean) => (
+          <div key={a.id} className="bal-row">
+            <IconGlyph name={cartao ? 'credit-card' : 'landmark'} color={cartao ? '#9a9da6' : '#5fb3ff'} size={26} />
+            <span className="grow"><b>{a.institution}</b><small>{a.name}{cartao ? ' · fatura em aberto' : ''}</small></span>
+            <span className={`r${cartao ? ' t2' : (a.balanceCents ?? 0) < 0 ? ' dn' : ''}`}>{a.balanceCents == null ? <span className="muted">sem saldo</span> : brl(cartao ? -Math.abs(a.balanceCents) : a.balanceCents)}</span>
+          </div>
+        )
+        return (
+          <div className="card" style={{ marginTop: 12 }}>
+            <div className="bar"><h5 style={{ margin: 0 }}>Saldo nas contas</h5><span className="muted">{at ? `atualizado ${brDay(at.slice(0, 10))} às ${at.slice(11, 16)}` : ''}</span></div>
+            <div className="bal-total">{brl(withBal.reduce((s, a) => s + (a.balanceCents ?? 0), 0))}<span className="muted"> em {withBal.length === 1 ? '1 conta' : `${withBal.length} contas`}</span></div>
+            <div className="bal-list">{contas.map(a => row(a, false))}{cartoes.map(a => row(a, true))}</div>
+          </div>
+        )
+      })()}
 
       {changes.length > 0 && (
         <div className="card changes">

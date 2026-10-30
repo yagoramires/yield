@@ -31,6 +31,17 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   width: 190px; flex-shrink: 0; background: var(--sidebar); border-right: 1px solid var(--border);
   padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; overflow: auto;
 }
+.sync-status { margin-top: auto; padding: 12px 6px 2px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
+.sync-row { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.sync-row .t { margin-left: auto; color: var(--faint); }
+.sync-row .dot { width: 6px; height: 6px; border-radius: 50%; background: #4fd1a5; }
+.sync-row .dot.bad { background: var(--negative); }
+.sync-status .b { margin-top: 4px; width: 100%; }
+.sync-err { color: var(--negative); font-size: 10.5px; line-height: 1.4; overflow-wrap: anywhere; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 1s linear infinite; }
+.logo-row { display: flex; align-items: center; justify-content: space-between; margin: 0 2px 14px 6px; }
+.logo-row .logo { margin: 0; }
 .logo { font-weight: 700; font-size: 16px; color: #fff; margin: 0 6px 14px; }
 .logo b { color: var(--accent); }
 .group { margin-top: 8px; padding: 4px 8px; color: var(--text); font-weight: 600; }
@@ -564,3 +575,12 @@ tr.hl td { background: #1a1213; }
 /* Proventos: "Por ano" estreito ao lado da lista */
 .prov-grid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2.4fr); gap: 12px; margin-top: 12px; align-items: start; }
 @media (max-width: 900px) { .prov-grid { grid-template-columns: 1fr; } }
+
+/* saldo nas contas (Resumo de gastos) */
+.bal-total { font-size: 20px; font-weight: 650; color: #fff; font-variant-numeric: tabular-nums; margin: 6px 0 8px; }
+.bal-total .muted { font-size: 11px; font-weight: 400; }
+.bal-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 16px; }
+.bal-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.bal-row .grow { flex: 1; min-width: 0; }
+.bal-row b { display: block; color: #fff; font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bal-row small { display: block; color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

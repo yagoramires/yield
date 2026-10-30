@@ -37,7 +37,9 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
         fetched.push({ pa, kind, externalId, dateFrom, rows: txns.map(t => toTxnRow(t, kind)) })
       }
       for (const f of fetched) {
-        const id = await upsertAccount(db, { source: 'pluggy', externalId: f.externalId, institution: item.label, name: f.pa.marketingName || f.pa.name, kind: f.kind, number: f.pa.number ?? null, itemId: item.itemId, lastSyncAt: null })
+        const balance = typeof f.pa.balance === 'number' && Number.isFinite(f.pa.balance) ? Math.round(f.pa.balance * 100) : null
+        const id = await upsertAccount(db, { source: 'pluggy', externalId: f.externalId, institution: item.label, name: f.pa.marketingName || f.pa.name, kind: f.kind, number: f.pa.number ?? null, itemId: item.itemId, lastSyncAt: null,
+          balanceCents: balance, balanceAt: balance === null ? null : now().toISOString() })
         const rows = withFingerprints(id, f.rows).map(r => ({ ...r, sourceKey: `pluggy:${r.fingerprint}` }))
         const { inserted, removed } = await replaceWindow(db, id, f.dateFrom, rows)
         await setLastSync(db, id, now().toISOString())

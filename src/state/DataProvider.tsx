@@ -188,7 +188,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
             e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
           )
         }
-        timer = setInterval(() => void refreshQuotesNow(), REFRESH_MS)
+        // com o app aberto: cotações (e a Binance, de quem usa) a cada 15 min; o Open Finance quando passar do intervalo dele
+        timer = setInterval(async () => {
+          const cur = await loadAll(d).catch(() => null)
+          void (cur?.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
+          const gNow = await loadGastos(d).catch(() => null)
+          if (gNow && needsSync(gNow, Date.now())) getPluggyCredentials().then(c => { if (c && !cancelled) void syncNow(c) }, () => {})
+        }, REFRESH_MS)
       } catch (e) {
         setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
       }

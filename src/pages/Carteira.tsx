@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type ManualAsset } from '../db/repo'
-import { formatBRL, formatCents, monthOf } from '../domain/money'
+import { editCents, formatBRL, formatCents, monthOf } from '../domain/money'
 import type { Cents } from '../domain/types'
 import { portfolioResult, type ManualRow, type PortfolioRow } from '../domain/portfolio'
 import { rfJurosByMonth } from '../domain/rendaFixa'
@@ -114,7 +114,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         cost={a.costCents !== null ? `aportado ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(a.costCents)}` : 'sem aportado'}
         actions={confirm === `asset:${a.id}` ? (
           <span>Excluir {a.name}? <button className="link dn" onClick={() => run(async () => { await deleteManualAsset(db, a.id); setConfirm(null) })}>Excluir</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
-        ) : <><button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : formatCents(a.valueCents), cost: a.costCents === null ? '' : formatCents(a.costCents), sourceKey: a.sourceKey }); setFormError(null) }} aria-label={`Editar ${a.name}`}>editar</button>
+        ) : <><button className="link" onClick={() => { setForm({ id: a.id, name: a.name, assetClass: a.assetClass, quoteSymbol: a.quoteSymbol ?? '', quantity: a.quantity === null ? '' : String(a.quantity).replace('.', ','), value: a.valueCents === null ? '' : editCents(a.valueCents), cost: a.costCents === null ? '' : editCents(a.costCents), sourceKey: a.sourceKey }); setFormError(null) }} aria-label={`Editar ${a.name}`}>editar</button>
           {' · '}<button className="link" aria-label={`Excluir ${a.name}`} onClick={() => setConfirm(`asset:${a.id}`)}>excluir</button></>} />
     )
   }
