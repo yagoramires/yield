@@ -135,20 +135,24 @@ export function goalsAt(goals: Goal[], month: Month): Map<string, Cents> {
 function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): { paid: Map<string, Txn>; used: Set<string> } {
   const ls = lines.filter(l => l.month === month && l.kind === 'saida')
   const key = (l: BudgetLine) => l.sourceKey!.replace(/@\d{4}-\d{2}$/, '')
-  const byKey = new Map(ls.filter(l => /^(sub|parc):/.test(l.sourceKey ?? '')).map(l => [key(l), l.id]))
+  const byKey = new Map(ls.filter(l => /^(sub|parc):/.test(l.sourceKey ?? '')).map(l => [key(l), l]))
   const paid = new Map<string, Txn>() // linha → lançamento
   const used = new Set<string>()
   const ofMonth = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0).sort((a, b) => a.date.localeCompare(b.date))
   for (const t of ofMonth) {
     const norm = `${t.accountId}|${normalizeDescription(t.description)}`, total = t.installment?.match(/^\d+\/(\d+)$/)?.[1]
-    const line = byKey.get(`sub:${norm}`) ?? (total ? byKey.get(`parc:${norm}|${total}|${-t.amountCents}`) : undefined)
-    if (line) { used.add(t.id); if (!paid.has(line)) paid.set(line, t) }
+    // assinatura só leva a cobrança de valor parecido (15%, como na detecção): outras compras no mesmo lugar continuam gasto
+    const sub = byKey.get(`sub:${norm}`), line = sub && Math.abs(-t.amountCents - sub.amountCents) <= sub.amountCents * 0.15 ? sub
+      : total ? byKey.get(`parc:${norm}|${total}|${-t.amountCents}`) : undefined
+    if (line) { used.add(t.id); if (!paid.has(line.id)) paid.set(line.id, t) }
   }
   for (const l of ls) {
     if (blocoOf(l) === 'variavel' || blocoOf(l) === 'meta' || /^(sub|parc):/.test(l.sourceKey ?? '')) continue
     const t = ofMonth.find(t => {
       const c = cat(t)
-      return !used.has(t.id) && (c === null || c.id === l.categoryId) && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05
+      // sem categoria vale (Pix para outra pessoa), menos para a fatura: um Pix qualquer não paga o cartão
+      const sameCat = c === null ? l.categoryId !== 'pagamento-de-fatura' : c.id === l.categoryId
+      return !used.has(t.id) && sameCat && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05
     })
     if (t) { used.add(t.id); paid.set(l.id, t) }
   }
@@ -177,7 +181,10 @@ export function custos(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Catego
   }
   const sorted = [...rows.values()].sort((a, b) => b.realCents - a.realCents || (b.goalCents ?? 0) - (a.goalCents ?? 0))
   const isFixed = (r: VarRow) => r.categoryId !== null && fixed.has(r.categoryId)
-  const variaveis = sorted.filter(r => !isFixed(r)), fixas = sorted.filter(isFixed)
+  // conta fixa que mudou de valor (luz, aluguel em dois Pix) não casa com a linha: o que saiu na categoria abate o que a linha ainda espera
+  const waiting = (id: string) => lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'fixo' && l.categoryId === id && !paid.has(l.id)).reduce((s, l) => s + l.amountCents, 0)
+  const fixas = sorted.filter(isFixed).map(r => ({ ...r, realCents: Math.max(0, r.realCents - waiting(r.categoryId!)) })).filter(r => r.realCents > 0 || r.goalCents !== null)
+  const variaveis = sorted.filter(r => !isFixed(r))
   const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
   const sum = (rs: VarRow[]) => rs.reduce((s, r) => s + r.realCents, 0)
   return {

@@ -21,26 +21,39 @@ const SMALL = new Set(['de', 'da', 'do', 'das', 'dos', 'e'])
 
 /** Descrição do extrato para mostrar: sem o prefixo da maquininha (MP*, PG *…), sem a parcela do fim e sem o caixa alta. */
 export function displayName(s: string): string {
-  let n = s.trim().replace(/^Transfer[eê]ncia enviada pelo Pix\s*\|\s*/i, 'Pix para ')
+  const pix = /^Transfer[eê]ncia enviada pelo Pix\s*[|-]\s*/i
+  let n = s.trim().replace(pix, '')
     .replace(/^\s*(pg|pag|paypal|mp|ifd|asaas|ebn|pagseguro|picpay)\s*\*\s*/i, '').replace(/\s+\d{1,2}\/\d{1,2}$/, '')
   const parts = n.split('*').map(p => p.trim()).filter(Boolean)
   n = [...new Set(parts.map(p => p.toLowerCase()))].length === 1 ? parts[0] : parts.join(' · ')
   if (!n) return s.trim()
-  if (/\p{Ll}/u.test(n)) return n // já tem minúscula: alguém escreveu assim
-  return n.toLowerCase().split(' ').map((w, i) => (i && SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
+  // mais maiúsculas que minúsculas é o extrato; o resto alguém escreveu assim
+  const count = (re: RegExp) => (n.match(re) ?? []).length
+  if (count(/\p{Lu}/gu) > count(/\p{Ll}/gu)) n = n.toLowerCase().split(' ').map((w, i) => (i && SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
+  return pix.test(s.trim()) ? `Pix para ${n}` : n
 }
 
-/** Nome curto para agrupar lançamentos parecidos: sem datas, número de nota, prazo de liquidação e números soltos; com " - ", fica a última parte. */
+/**
+ * Nome curto para agrupar lançamentos parecidos. Das partes separadas por " - " ou "|", fica a com cara de nome (com letras,
+ * sem CPF/CNPJ/agência/conta e com menos dígitos); dela saem datas, número de nota, prazo de liquidação, valores com vírgula e
+ * números longos. Ano e percentual colados ao nome ficam ("Tesouro IPCA+ 2035", "CDB 110% CDI").
+ */
 export function shortName(s: string): string {
-  const parts = displayName(s).split(' - ')
-  const n = parts[parts.length - 1]
+  const shown = displayName(s)
+  const digits = (p: string) => (p.match(/\d/g) ?? []).length
+  const parts = shown.split(/\s+-\s+|\s*\|\s*/).map(p => p.trim())
+    .filter(p => /\p{L}{3,}/u.test(p) && !/ag[eê]ncia|conta:|cnpj|cpf|•|\*{2,}/i.test(p) && !/\d{3}\.\d{3}|\d{2}\.\d{3}\.\d{3}/.test(p))
+  if (!parts.length) return shown
+  const best = parts.reduce((a, b) => (digits(b) < digits(a) ? b : a))
+  const n = best
     .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ')
     .replace(/\bNota\s*N?[ºo°.]*\s*\d+/gi, ' ')
     .replace(/\bLiq\.?\s*D\+\d+/gi, ' ')
     .replace(/\bPr\b/g, ' ')
-    .replace(/\b\d+\b/g, ' ')
-    .replace(/\s+/g, ' ').trim()
-  return n || displayName(s)
+    .replace(/(^|\s)\d+[.,]\d+(?=\s|$)/g, ' ')
+    .replace(/\b\d{5,}\b/g, ' ')
+    .replace(/\s+/g, ' ').replace(/^[\s.,;:/-]+|[\s.,;:/-]+$/g, '').trim()
+  return /\p{L}/u.test(n) ? n : shown
 }
 
 export function fingerprint(accountId: string, date: ISODate, amountCents: Cents, description: string, occurrence: number): string {

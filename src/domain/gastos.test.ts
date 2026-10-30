@@ -29,8 +29,15 @@ describe('displayName', () => {
 
 describe('shortName', () => {
   it('agrupa operações do mesmo tipo: sem data, nota, liquidação e números', () => {
-    expect(['OPERACOES EM BOLSA PR 05/10/2026 NOTA Nº 123456', 'OPERACOES EM BOLSA LIQ. D+1 PR 05/10/2026 NOTA Nº 123457', 'TED TER BCO 33 AGE 1111 CTA 2222 2 - TED APLICACAO FUNDO', 'Aplicação RDB', '12345'].map(shortName))
+    expect(['OPERACOES EM BOLSA PR 05/10/2026 NOTA Nº 123456', 'OPERACOES EM BOLSA LIQ. D+1 PR 05/10/2026 NOTA Nº 123457', 'TED TER BCO 33 AGE 1111 CTA 2222222 2 - TED APLICACAO FUNDO', 'Aplicação RDB', '12345'].map(shortName))
       .toEqual(['Operacoes Em Bolsa', 'Operacoes Em Bolsa', 'Ted Aplicacao Fundo', 'Aplicação RDB', '12345'])
+  })
+  it('não junta destinos diferentes nem deixa só pontuação', () => {
+    expect([
+      'Transferência enviada pelo Pix | CORRETORA AZUL - 11.222.333/0001-81',
+      'Transferência enviada pelo Pix - ANA TESTE - •••.123.456-•• - BANCO LARANJA (0260) Agência: 1 Conta: 123-4',
+      'BANCO LARANJA - APLICACAO', 'BANCO AZUL - APLICACAO', 'TESOURO IPCA+ 2035', 'TESOURO IPCA+ 2045', 'CDB 110% CDI', 'COMPRA BTC 0,00123',
+    ].map(shortName)).toEqual(['Pix para Corretora Azul', 'Pix para Ana Teste', 'Banco Laranja', 'Banco Azul', 'Tesouro Ipca+ 2035', 'Tesouro Ipca+ 2045', 'Cdb 110% Cdi', 'Compra Btc'])
   })
 })
 

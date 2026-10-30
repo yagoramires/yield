@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
-import { displayName, shortName } from '../domain/gastos'
+import { displayName, fold, shortName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import type { Txn } from '../db/gastosRepo'
@@ -287,8 +287,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     )
   }
   // categoria puxada dos lançamentos: o gasto do mês, a barra contra a meta (ou a média) e, aberta, a lista dos gastos
-  const catRow = (r: VarRow) => {
-    const avg = r.categoryId ? avgs.get(r.categoryId) ?? null : null
+  // nos fixos não há média: ela somaria o que já foi pago pelo plano
+  const catRow = (r: VarRow, fixed = false) => {
+    const avg = r.categoryId && !fixed ? avgs.get(r.categoryId) ?? null : null
     const ref = r.goalCents ?? avg, soft = r.goalCents === null
     const over = ref !== null && r.realCents > ref
     const key = r.categoryId ?? 'sem', opened = openCats.has(key)
@@ -320,8 +321,8 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     ]
   }
   // investido agrupado pelo destino (a descrição limpa do lançamento): corretora, caixinha, cripto…
-  const invGroups = [...inv.txns.reduce((m, t) => m.set(shortName(t.description), [...(m.get(shortName(t.description)) ?? []), t]), new Map<string, Txn[]>())]
-    .map(([name, ts]) => ({ name, txns: ts, cents: ts.reduce((s, t) => s - t.amountCents, 0) })).sort((a, b) => b.cents - a.cents)
+  const invGroups = [...inv.txns.reduce((m, t) => m.set(fold(shortName(t.description)), [...(m.get(fold(shortName(t.description))) ?? []), t]), new Map<string, Txn[]>())]
+    .map(([, ts]) => ({ name: shortName(ts[0].description), txns: ts, cents: ts.reduce((s, t) => s - t.amountCents, 0) })).sort((a, b) => b.cents - a.cents)
   const groupRow = (g: { name: string; txns: Txn[]; cents: number }) => {
     const key = `inv:${g.name}`, opened = openCats.has(key)
     const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
@@ -411,9 +412,14 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             </div>
             <div className="costs-big">{formatBRL(custosCents)}</div>
             <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: '#8a8d96' }} /><i style={{ flexGrow: vars.realCents, background: '#3987e5' }} /></div>
-            <div className="seg" role="tablist">
+            <div className="seg" role="group" aria-label="Mostrar custos">
               {(['fixos', 'variaveis'] as const).map(t => (
-                <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setForm(null); setDel(null); setTab(t) }}>
+                <button key={t} aria-pressed={tab === t} className={tab === t ? 'on' : ''} onClick={() => {
+                  // só o formulário e a confirmação deste cartão: os dos outros cartões continuam abertos
+                  if (form?.at === 'fixo' || form?.at === 'variavel') setForm(null)
+                  if (del?.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel')) setDel(null)
+                  setTab(t)
+                }}>
                   <b><span className="dot" style={{ background: t === 'fixos' ? '#8a8d96' : '#3987e5' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
                   <span>{formatBRL(t === 'fixos' ? fixosCents : vars.realCents)} · {share(t === 'fixos' ? fixosCents : vars.realCents)}%</span>
                 </button>
@@ -426,20 +432,20 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             <table className="lt blk">
               <tbody>
                 {tab === 'fixos' ? <>
-                  {section('No plano', total(fixos))}
+                  {section('No plano', total(fixos.filter(l => !fatura(l))))}
                   {fixos.length === 0 && !formHere('fixo') && <tr><td colSpan={2} className="muted">Assinaturas e contas que se repetem; as detectadas aparecem nas sugestões acima.</td></tr>}
                   {lineRows(fixos)}
                   {formHere('fixo')}
-                  {vars.fixas.length > 0 && <>{section('Fora do plano', vars.fixasCents)}{vars.fixas.flatMap(catRow)}</>}
+                  {vars.fixas.length > 0 && <>{section('Fora do plano', vars.fixasCents)}{vars.fixas.flatMap(r => catRow(r, true))}</>}
                 </> : <>
                   {vars.variaveis.length === 0 && vars.manual.length === 0 && !formHere('variavel') && <tr><td colSpan={2} className="muted">Nenhum gasto variável neste mês ainda.</td></tr>}
-                  {vars.variaveis.flatMap(catRow)}
+                  {vars.variaveis.flatMap(r => catRow(r))}
                   {lineRows(vars.manual)}
                   {formHere('variavel')}
                 </>}
               </tbody>
             </table>
-            {del && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel') && confirmDel(del)}
+            {del && del.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel') && confirmDel(del)}
           </div>
         </div>
         <div>

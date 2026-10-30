@@ -173,7 +173,7 @@ describe('metas', () => {
 describe('custos', () => {
   it('gasto do mês por categoria, sem parcela, assinatura aceita nem conta fixa paga pelo banco; meta da categoria aparece mesmo sem gasto', () => {
     const lines = [
-      line({ id: 's', sourceKey: 'sub:c1|mercado@2026-03' }),
+      line({ id: 's', amountCents: 5000, sourceKey: 'sub:c1|mercado@2026-03' }),
       line({ id: 'f', name: 'Aluguel', amountCents: 100_000, categoryId: 'mercado', grupo: 'fixo' }),
       line({ id: 'm', name: 'Feira em dinheiro', amountCents: 2000, grupo: 'variavel' }),
       line({ id: 'p', sourceKey: 'parc:c2|mercado|10|300@2026-03', installmentCurrent: 4, installmentTotal: 10, amountCents: 300 }),
@@ -196,6 +196,14 @@ describe('custos', () => {
     expect(custos([], txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['variaveis', 5000]]), new Set()).goalCents).toBe(5000)
     // quem pagou cada linha: a assinatura pelo comerciante, a parcela pela chave, a conta fixa pelo valor (a diarista, por Pix)
     expect(Object.fromEntries([...r.paid].map(([l, t]) => [l, t.id]))).toEqual({ s: '1', p: '2', f: '3', d: '6' })
+  })
+  it('conta fixa de valor diferente abate o fora do plano; fatura não se paga com Pix sem categoria; assinatura não leva outras compras', () => {
+    const lines = [line({ id: 'luz', amountCents: 20_000, categoryId: 'mercado', grupo: 'fixo' }), line({ id: 'fat', amountCents: 3000, categoryId: 'pagamento-de-fatura', grupo: 'fixo' }), line({ id: 's', amountCents: 3000, sourceKey: 'sub:c1|loja@2026-03' })]
+    const txns = [txn({ id: '1', description: 'mercado', amountCents: -26_000 }), txn({ id: '2', description: 'PIX', amountCents: -3000 }), txn({ id: '3', description: 'LOJA', amountCents: -3000 }), txn({ id: '4', description: 'LOJA', amountCents: -40_000 })]
+    const r = custos(lines, txns, catOf, '2026-03', new Map(), new Set(['mercado']))
+    expect(r.fixas.map(x => [x.categoryId, x.realCents])).toEqual([['mercado', 6000]]) // 260 pagos − 200 que a linha esperava
+    expect(Object.fromEntries([...r.paid].map(([l, t]) => [l, t.id]))).toEqual({ s: '3' })
+    expect(r.realCents).toBe(43_000) // o Pix de 30 e a compra de 400 na loja da assinatura contam
   })
   it('categoria fixa sai dos variáveis e vai para os fixos (o que saiu fora do plano)', () => {
     const txns = [txn({ id: 'a', description: 'mercado', amountCents: -700 }), txn({ id: 'b', description: 'PIX', amountCents: -30 })]
