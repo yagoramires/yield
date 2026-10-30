@@ -37,7 +37,7 @@ test('reimportar pula o que já existe e não duplica o que foi digitado no app'
   const db = createTestDb()
   expect(await importOrcamentoCsv(db, parseOrcamentoCsv(csv))).toEqual({ months: 2, lines: 5, skipped: 0 })
   expect(await importOrcamentoCsv(db, parseOrcamentoCsv(csv))).toEqual({ months: 0, lines: 0, skipped: 5 })
-  await saveLine(db, { month: '2026-03', kind: 'saida', name: 'Aluguel', amountCents: 180000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null })
+  await saveLine(db, { month: '2026-03', kind: 'saida', name: 'Aluguel', amountCents: 180000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null })
   expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-03;fixa;aluguel;1800\n2026-03;variavel;Mercado;50'))).toEqual({ months: 0, lines: 1, skipped: 1 })
   const o = await loadOrcamento(db)
   expect(o.lines.filter(l => l.month === '2026-03').map(l => l.name)).toEqual(['Aluguel', 'Mercado'])
@@ -52,4 +52,9 @@ test('números no nome contam: cartões e parcelas diferentes não se misturam',
   const db = createTestDb()
   await importOrcamentoCsv(db, m)
   expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-02;fixa;Cartão 5678;200'))).toEqual({ months: 0, lines: 1, skipped: 0 })
+})
+
+test('o tipo da saída escolhe o bloco: fixa, variável, meta; despesa genérica vira custo fixo', () => {
+  const m = parseOrcamentoCsv('mes;tipo;nome;valor\n2026-01;receita;S;1\n2026-01;fixa;A;1\n2026-01;variável;M;1\n2026-01;investimento;I;1\n2026-01;despesa;D;1')
+  expect(m[0].lines.map(l => l.grupo)).toEqual([null, 'fixo', 'variavel', 'meta', 'fixo'])
 })

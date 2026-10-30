@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '../../db/gastosRepo'
 import type { BudgetLine } from '../../db/orcamentoRepo'
-import { defaultMonth, monthProgress, spendingPlan, validateLine } from './build'
+import { defaultMonth, monthProgress, pace, spendingPlan, tetoError, validateLine } from './build'
 
 describe('validateLine', () => {
   it('exige nome', () => {
@@ -46,7 +46,7 @@ describe('spendingPlan', () => {
     { id: 'moradia', name: 'Moradia', countsAsSpending: true, builtin: true, icon: null, color: null },
     { id: 'investimento', name: 'Investimento', countsAsSpending: false, builtin: true, icon: null, color: null },
   ]
-  const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'x', amountCents: 0, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, ...o })
+  const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'x', amountCents: 0, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null, ...o })
   it('tira do planejado as saídas em categorias que não contam como gasto', () => {
     const lines = [
       line({ amountCents: 280000, categoryId: 'moradia' }),
@@ -55,5 +55,24 @@ describe('spendingPlan', () => {
       line({ kind: 'entrada', amountCents: 999900 }),
     ]
     expect(spendingPlan(lines, cats)).toEqual({ plannedCents: 360000, reservedCents: 300000 })
+  })
+  it('saída no bloco de investimento e metas também fica fora do gasto', () => {
+    expect(spendingPlan([line({ amountCents: 500, grupo: 'meta' }), line({ amountCents: 70, categoryId: 'moradia', grupo: 'fixo' })], cats)).toEqual({ plannedCents: 70, reservedCents: 500 })
+  })
+})
+
+describe('tetoError', () => {
+  const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'Mercado', amountCents: 0, recurring: true, position: 0, categoryId: 'mercado', installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: 'variavel', sourceKey: null, ...o })
+  it('variável precisa de categoria e só um teto por categoria no mês', () => {
+    expect(tetoError([], undefined, '')).toMatch(/categoria/)
+    expect(tetoError([line({})], undefined, 'mercado')).toMatch(/Mercado/)
+    expect(tetoError([line({})], 'x', 'mercado')).toBeNull() // editando o próprio
+    expect(tetoError([line({ grupo: 'fixo' }), line({ installmentCurrent: 1, installmentTotal: 2 })], undefined, 'mercado')).toBeNull()
+  })
+})
+
+describe('pace', () => {
+  it('projeta o fim do mês pelo ritmo; sem projeção no começo ou fora do mês corrente', () => {
+    expect([pace(1000, 0.25), pace(1000, 0), pace(1000, 1)]).toEqual([4000, null, null])
   })
 })

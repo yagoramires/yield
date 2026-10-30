@@ -1,5 +1,5 @@
 import type { Db } from '../db/client'
-import { createMonth, saveLine, type BudgetLine, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, saveLine, type BudgetLine, type Grupo, type LineKind } from '../db/orcamentoRepo'
 import { fold, normalizeDescription } from '../domain/gastos'
 import type { Month } from '../domain/types'
 import { splitRow } from './extratoCsv'
@@ -20,6 +20,7 @@ const KINDS: Record<string, LineKind> = {
   entrada: 'entrada', receita: 'entrada', renda: 'entrada', salario: 'entrada',
   saida: 'saida', despesa: 'saida', gasto: 'saida', fixa: 'saida', fixo: 'saida', variavel: 'saida', meta: 'saida', investimento: 'saida',
 }
+const GRUPOS: Record<string, Grupo> = { fixa: 'fixo', fixo: 'fixo', variavel: 'variavel', meta: 'meta', investimento: 'meta' }
 const COLS = ['mes', 'tipo', 'nome', 'valor']
 
 /** Colunas mes;tipo;nome;valor (qualquer ordem; ; , ou tabulação). Mesmo nome e tipo em 2+ meses vira linha recorrente. */
@@ -46,7 +47,7 @@ export function parseOrcamentoCsv(text: string): { month: Month; lines: CsvLine[
     // chave pelo nome: reimportar o mesmo arquivo pula as linhas já gravadas
     const key = `csv:${mes}:${kind}:${nameKey(name)}`, dup = seen.get(key) ?? 0
     seen.set(key, dup + 1)
-    byMonth.set(mes, [...(byMonth.get(mes) ?? []), { kind, name, amountCents, recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: dup ? `${key}#${dup}` : key }])
+    byMonth.set(mes, [...(byMonth.get(mes) ?? []), { kind, name, amountCents, recurring: false, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: kind === 'saida' ? GRUPOS[normalizeDescription(tipo)] ?? 'fixo' : null, sourceKey: dup ? `${key}#${dup}` : key }])
   })
   const id = (l: CsvLine) => `${l.kind}:${nameKey(l.name)}`
   const monthsOf = new Map<string, number>()

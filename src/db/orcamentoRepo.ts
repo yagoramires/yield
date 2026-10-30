@@ -2,7 +2,9 @@ import type { Cents, Month } from '../domain/types'
 import type { Db } from './client'
 
 export type LineKind = 'entrada' | 'saida'
-export interface BudgetLine { id: string; month: Month; kind: LineKind; name: string; amountCents: Cents; recurring: boolean; position: number; categoryId: string | null; installmentCurrent: number | null; installmentTotal: number | null; sourceId: string | null; sourceKey: string | null }
+// bloco da saída; parcela é a saída com n/total, qualquer que seja o grupo
+export type Grupo = 'fixo' | 'variavel' | 'meta'
+export interface BudgetLine { id: string; month: Month; kind: LineKind; name: string; amountCents: Cents; recurring: boolean; position: number; categoryId: string | null; installmentCurrent: number | null; installmentTotal: number | null; sourceId: string | null; sourceKey: string | null; grupo: Grupo | null /* só saída */ }
 // irpjPct: imposto sobre o faturamento (DAS do Simples ou IRPJ); dasCents: DAS fixo do MEI
 export interface PjConfig { proLaborePct: number; irpjPct: number; inssPct: number /* sobre o pró-labore */; contabilidadeCents: Cents; outrosCents: Cents; dasCents: Cents }
 export const DEFAULT_PJ: PjConfig = { proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dasCents: 0 }
@@ -14,7 +16,7 @@ export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
   const [months, lines, dismissed, sources] = await Promise.all([
     db.select<{ month: Month }>('SELECT month FROM budget_months ORDER BY month'),
     db.select<BudgetLine>(`SELECT id, month, kind, name, amount_cents AS amountCents, recurring, position, category_id AS categoryId,
-      installment_current AS installmentCurrent, installment_total AS installmentTotal, source_id AS sourceId, source_key AS sourceKey
+      installment_current AS installmentCurrent, installment_total AS installmentTotal, source_id AS sourceId, source_key AS sourceKey, grupo
       FROM budget_lines ORDER BY month, position`),
     db.select<{ month: Month; key: string }>('SELECT month, key FROM budget_dismissals ORDER BY month, key'),
     db.select<IncomeSource>(`SELECT id, name, kind, gross_cents AS grossCents, pro_labore_pct AS proLaborePct, irpj_pct AS irpjPct, inss_pct AS inssPct,
@@ -24,9 +26,9 @@ export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
 }
 
 const insertLine = (db: Db, id: string, l: Omit<BudgetLine, 'id'>) => db.execute(
-  `INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, category_id, installment_current, installment_total, source_id, source_key)
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  [id, l.month, l.kind, l.name, l.amountCents, l.recurring ? 1 : 0, l.position, l.categoryId, l.installmentCurrent, l.installmentTotal, l.sourceId, l.sourceKey],
+  `INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, category_id, installment_current, installment_total, source_id, source_key, grupo)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  [id, l.month, l.kind, l.name, l.amountCents, l.recurring ? 1 : 0, l.position, l.categoryId, l.installmentCurrent, l.installmentTotal, l.sourceId, l.sourceKey, l.kind === 'saida' ? l.grupo ?? 'fixo' : null],
 )
 
 export async function createMonth(db: Db, month: Month, lines: Omit<BudgetLine, 'id' | 'month'>[]): Promise<'criado' | 'ja-existe'> {
@@ -44,8 +46,8 @@ export async function createMonth(db: Db, month: Month, lines: Omit<BudgetLine, 
 export async function saveLine(db: Db, line: Omit<BudgetLine, 'id'> & { id?: string }): Promise<string> {
   if (line.id) {
     await db.execute(
-      `UPDATE budget_lines SET kind = ?, name = ?, amount_cents = ?, recurring = ?, position = ?, category_id = ?, installment_current = ?, installment_total = ?, source_id = ?, source_key = ? WHERE id = ?`,
-      [line.kind, line.name, line.amountCents, line.recurring ? 1 : 0, line.position, line.categoryId, line.installmentCurrent, line.installmentTotal, line.sourceId, line.sourceKey, line.id],
+      `UPDATE budget_lines SET kind = ?, name = ?, amount_cents = ?, recurring = ?, position = ?, category_id = ?, installment_current = ?, installment_total = ?, source_id = ?, source_key = ?, grupo = ? WHERE id = ?`,
+      [line.kind, line.name, line.amountCents, line.recurring ? 1 : 0, line.position, line.categoryId, line.installmentCurrent, line.installmentTotal, line.sourceId, line.sourceKey, line.kind === 'saida' ? line.grupo ?? 'fixo' : null, line.id],
     )
     return line.id
   }

@@ -106,7 +106,7 @@ describe('categorias, regras e demais tabelas', () => {
     expect(categories.find(c => c.id === id)).toMatchObject({ name: 'Animais', icon: 'paw-print', color: '#6fdc8c', countsAsSpending: false })
     expect(categories.find(c => c.id === 'mercado')).toMatchObject({ icon: null, color: null })
   })
-  const linhaPets = (categoryId: string) => saveLine(db, { month: '2026-10', kind: 'saida', name: 'Ração', amountCents: 9000, recurring: false, position: 0, categoryId, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null })
+  const linhaPets = (categoryId: string) => saveLine(db, { month: '2026-10', kind: 'saida', name: 'Ração', amountCents: 9000, recurring: false, position: 0, categoryId, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null })
   test('deleteCategory move compras, regras e orçamento para outra categoria', async () => {
     const pets = await saveCategory(db, 'Pets', true)
     await saveRule(db, 'petz', pets); await saveRule(db, 'racao', 'outros')
@@ -160,7 +160,7 @@ describe('migração', () => {
     d.exec(readFileSync(new URL('../../src-tauri/migrations/001_init.sql', import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('13')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('14')
     expect((await loadGastos(migrado)).categories).toHaveLength(17)
   })
 })

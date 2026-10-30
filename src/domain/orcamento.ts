@@ -1,5 +1,5 @@
 import type { Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine, IncomeSource, PjConfig } from '../db/orcamentoRepo'
+import type { BudgetLine, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
 import { monthTotals } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
@@ -98,15 +98,33 @@ export function copyLines(lines: BudgetLine[], sources: IncomeSource[], target: 
 
 export const nextMonthLines = (lines: BudgetLine[], sources: IncomeSource[]) => (lines.length ? copyLines(lines, sources, addMonths(lines[0].month, 1)) : [])
 
-export interface PlanVsReal { plannedSaidasCents: Cents; realSpentCents: Cents; byCategory: { categoryId: string; plannedCents: Cents; realCents: Cents }[] }
+export type Bloco = 'parcela' | Grupo
+/** Bloco da saída na tela: n/total é parcela; sem grupo (linha de antes dos blocos) é custo fixo. */
+export const blocoOf = (l: Pick<BudgetLine, 'installmentTotal' | 'grupo'>): Bloco => (l.installmentTotal !== null ? 'parcela' : l.grupo ?? 'fixo')
 
-export function planVsReal(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): PlanVsReal {
-  const saidas = lines.filter(l => l.month === month && l.kind === 'saida')
-  const totals = monthTotals(txns, [], cat, month) // contas não entram no cálculo
-  const planned = new Map<string, Cents>()
-  for (const l of saidas) if (l.categoryId) planned.set(l.categoryId, (planned.get(l.categoryId) ?? 0) + l.amountCents)
-  const byCategory = [...planned].map(([categoryId, plannedCents]) => ({
-    categoryId, plannedCents, realCents: totals.byCategory.find(b => b.category?.id === categoryId)?.cents ?? 0,
-  })).sort((a, b) => b.plannedCents - a.plannedCents)
-  return { plannedSaidasCents: sum(saidas, 'saida'), realSpentCents: totals.spentCents, byCategory }
+type NewLine = Omit<BudgetLine, 'id' | 'month'>
+
+/** Fontes de renda sem uma entrada ligada nas linhas do mês. */
+export const missingSources = (lines: Pick<BudgetLine, 'kind' | 'sourceId'>[], sources: IncomeSource[]) =>
+  sources.filter(s => !lines.some(l => l.kind === 'entrada' && l.sourceId === s.id))
+
+/** Mês novo nasce com toda fonte de renda que as linhas copiadas não trouxeram; fonte com líquido zerado fica de fora (está mal configurada). */
+export function withSources(lines: NewLine[], sources: IncomeSource[], month: Month): NewLine[] {
+  const add = missingSources(lines, sources).filter(s => sourceNet(s, month) > 0)
+  return [...lines, ...add.map((s, i) => ({
+    kind: 'entrada' as const, name: s.name, amountCents: sourceNet(s, month), recurring: true, position: lines.length + i,
+    categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: s.id, sourceKey: null, grupo: null,
+  }))]
+}
+
+export interface Teto { line: BudgetLine; realCents: Cents | null /* sem categoria não há o que medir */ }
+
+/** Custos variáveis do mês: cada teto contra o gasto real da categoria dele nos lançamentos. */
+export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): { tetos: Teto[]; plannedCents: Cents; realCents: Cents } {
+  const by = monthTotals(txns, [], cat, month).byCategory
+  const real = (id: string) => by.find(b => b.category?.id === id)?.cents ?? 0
+  const tetos = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
+    .map(line => ({ line, realCents: line.categoryId ? real(line.categoryId) : null }))
+  const cats = new Set(tetos.flatMap(t => (t.line.categoryId ? [t.line.categoryId] : [])))
+  return { tetos, plannedCents: tetos.reduce((s, t) => s + t.line.amountCents, 0), realCents: [...cats].reduce((s, c) => s + real(c), 0) }
 }

@@ -392,6 +392,8 @@ tr.hl td { background: #1a1213; }
 .lt td { padding: 7px 5px; }
 .lt .d2, .lt .pj { color: var(--faint); font-size: 10px; margin-top: 2px; }
 .lt .pj { color: var(--text-2); }
+.lt.blk { width: 100%; }
+.lt.blk td:first-child { width: 100%; }
 .lt tr.edit td { background: #16171a; border-bottom: 1px solid var(--border); }
 .ic { color: var(--faint); font-size: 11px; }
 .ic.on { color: var(--accent); }

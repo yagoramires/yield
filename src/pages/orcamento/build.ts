@@ -29,13 +29,23 @@ export function defaultMonth(months: Month[], today: ISODate): Month {
   return months.includes(cur) ? cur : months.at(-1) ?? cur
 }
 
-// planejado = saídas que contam como gasto; reservado = saídas em categorias como investimento, que o Resumo não soma
+/** Onde o gasto fecha no ritmo atual; null no primeiro instante do mês e fora do mês corrente. */
+export const pace = (realCents: Cents, progress: number): Cents | null => (progress > 0 && progress < 1 ? Math.round(realCents / progress) : null)
+
+/** Um teto por categoria no mês: o gasto real da categoria é um só, dois tetos o mostrariam duas vezes. */
+export function tetoError(lines: BudgetLine[], id: string | undefined, categoryId: string): string | null {
+  if (!categoryId) return 'Escolha a categoria: o gasto real do teto vem dos lançamentos dela.'
+  const other = lines.find(l => l.id !== id && l.kind === 'saida' && l.grupo === 'variavel' && l.installmentTotal === null && l.categoryId === categoryId)
+  return other ? `Já existe um teto nesta categoria (${other.name}): edite o valor dele.` : null
+}
+
+// planejado = saídas que contam como gasto; reservado = investimentos e metas (bloco ou categoria fora do gasto), que o Resumo não soma
 export function spendingPlan(lines: BudgetLine[], categories: Category[]): { plannedCents: Cents; reservedCents: Cents } {
   const off = new Set(categories.filter(c => !c.countsAsSpending).map(c => c.id))
   let plannedCents = 0, reservedCents = 0
   for (const l of lines) {
     if (l.kind !== 'saida') continue
-    if (l.categoryId && off.has(l.categoryId)) reservedCents += l.amountCents
+    if (l.grupo === 'meta' || (l.categoryId && off.has(l.categoryId))) reservedCents += l.amountCents
     else plannedCents += l.amountCents
   }
   return { plannedCents, reservedCents }

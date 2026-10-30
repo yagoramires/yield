@@ -72,7 +72,7 @@ describe('tela de categorias', () => {
   })
   it('orçamento por categoria soma só as saídas do mês que têm categoria', () => {
     const l = (month: string, kind: BudgetLine['kind'], categoryId: string | null, amountCents: number): BudgetLine =>
-      ({ id: `${month}${kind}${categoryId}${amountCents}`, month, kind, name: 'x', amountCents, recurring: false, position: 0, categoryId, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null })
+      ({ id: `${month}${kind}${categoryId}${amountCents}`, month, kind, name: 'x', amountCents, recurring: false, position: 0, categoryId, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null })
     const m = budgetByCategory([l('2026-10', 'saida', 'mercado', 60000), l('2026-10', 'saida', 'mercado', 40000), l('2026-09', 'saida', 'mercado', 1), l('2026-10', 'entrada', 'mercado', 5), l('2026-10', 'saida', null, 7)], '2026-10')
     expect([...m]).toEqual([['mercado', 100000]])
   })
