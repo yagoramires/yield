@@ -5,7 +5,6 @@ import { CATALOG, lighter, type Hardware } from '../ai/catalog'
 import { getHardware } from '../ai/server'
 import { setAiSettings, useAiSettings } from '../ai/settings'
 import { useData } from '../state/DataProvider'
-import { EyeToggle } from '../ui/HideValues'
 import type { Route } from '../ui/routes'
 import { Ativar } from './assistente/Ativar'
 import { Chat } from './assistente/Chat'
@@ -31,7 +30,7 @@ export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
 
   return (
     <>
-      <GastosHeader title="Assistente" actions={<EyeToggle />} />
+      <GastosHeader title="Assistente" />
       {settings.off !== false ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
         : !hw || !installed ? <div className="muted" style={{ marginTop: 12 }}>Verificando este computador…</div>
