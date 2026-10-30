@@ -6,7 +6,8 @@ import { ROUTES, type Route } from './routes'
 
 export function Sidebar({ route, onNavigate, open = false }: { route: Route; onNavigate: (r: Route) => void; open?: boolean }) {
   const { enabled } = useModules()
-  const { mini, toggle } = useSidebarMini()
+  const { mini: saved, toggle } = useSidebarMini()
+  const mini = saved && !open // o menu aberto no celular é sempre o completo
   return (
     <nav id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}${mini ? ' mini' : ''}`}>
       <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div><EyeToggle /></div>

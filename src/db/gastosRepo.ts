@@ -166,6 +166,8 @@ export async function savePluggyItem(db: Db, itemId: string, label: string): Pro
   await db.execute('INSERT OR REPLACE INTO pluggy_items (item_id, label) VALUES (?, ?)', [itemId, label])
 }
 
+// os investimentos lidos do item saem junto (as contas e lançamentos ficam, como antes)
 export async function deletePluggyItem(db: Db, itemId: string): Promise<void> {
   await db.execute('DELETE FROM pluggy_items WHERE item_id = ?', [itemId])
+  await db.execute('DELETE FROM pluggy_investments WHERE item_id = ?', [itemId])
 }

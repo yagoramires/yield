@@ -5,6 +5,7 @@ import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { reservaInvestments } from '../domain/bancoInvest'
+import { ago } from '../ui/SyncStatus'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
@@ -354,7 +355,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <td className="r" style={{ whiteSpace: 'nowrap' }}>{saldo !== null ? <>{formatCents(saldo)}<div className="d2" style={{ textAlign: 'right' }}>{g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)} este mês</div></>
           : <>{reserva && g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)}{g.outCents > 0 && <div className="d2" style={{ textAlign: 'right' }}>{formatCents(g.inCents)} − {formatCents(g.outCents)}</div>}</>}</td>
       </tr>,
-      ...(reserva && liveInv.length > 0 && (saldo === null || data.reservaLinks[g.key]) ? [
+      ...(reserva && liveInv.length > 0 ? [
         <tr key={`link-${key}`} className="sub"><td colSpan={2}><div className="row" style={{ alignItems: 'center', gap: 8 }}>
           <span className="muted">{saldo === null ? 'Qual investimento do banco é esta reserva?' : 'Ligada a'}</span>
           <Select small ariaLabel={`Investimento da reserva ${g.name}`} value={data.reservaLinks[g.key] ?? ''} onChange={v => linkReserva(g.key, v)}
@@ -486,7 +487,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           {reservaGroups.length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
-              <div className="muted" style={{ marginTop: 2 }}>{reservaSaldo.length ? `saldo hoje no banco · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
+              <div className="muted" style={{ marginTop: 2 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
               <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
             </div>
           )}

@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test } from 'vitest'
+import { loadAll, replaceBankInvestments } from './repo'
 import { createTestDb, tmpPath, type Db } from './testDb'
 import {
   deleteAccount, deleteCategory, deletePluggyItem, deleteRule, dismissRuleSuggestion, dismissSubscription, insertTxns, loadGastos,
@@ -190,4 +191,12 @@ test('migração 005: categoria da Pluggy é gravada e lida', async () => {
   const id = await upsertAccount(db, { source: 'pluggy', externalId: 'pluggy:a', institution: 'Banco', name: 'Conta', kind: 'conta', number: null, itemId: 'it', lastSyncAt: null })
   await replaceWindow(db, id, '2026-01-01', [{ date: '2026-10-01', description: 'Mercado', amountCents: -100, pending: false, installment: null, operationType: null, fingerprint: 'f', sourceKey: 's', pluggyCategory: 'Groceries' }])
   expect((await loadGastos(db)).txns[0].pluggyCategory).toBe('Groceries')
+})
+
+test('remover o banco leva os investimentos lidos dele junto', async () => {
+  const db = createTestDb()
+  await savePluggyItem(db, 'it1', 'Banco Exemplo')
+  await replaceBankInvestments(db, 'it1', [{ id: 'i1', itemId: 'it1', name: 'RDB Exemplo', type: 'FIXED_INCOME', subtype: 'RDB', balanceCents: 100, costCents: null, fetchedAt: '2026-10-30T12:00:00Z' }])
+  await deletePluggyItem(db, 'it1')
+  expect((await loadAll(db)).bankInvestments).toEqual([])
 })

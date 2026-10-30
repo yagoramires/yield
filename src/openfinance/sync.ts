@@ -62,7 +62,12 @@ export async function syncPluggy(db: Db, creds: { clientId: string; clientSecret
           const cents = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) : null)
           const balanceCents = cents(inv.balance)
           if (inv.type !== 'EQUITY' && inv.type !== 'ETF' && balanceCents !== null && balanceCents > 0)
-            held.push({ id: inv.id, itemId: item.itemId, name: inv.name, type: inv.type, subtype: inv.subtype ?? null, balanceCents, costCents: cents(inv.amountOriginal), fetchedAt: now().toISOString() })
+          {
+            // aplicado só quando faz sentido: zero, ou bem acima do saldo (caixinha com resgates), vira "sem aportado"
+            const cost = cents(inv.amountOriginal)
+            held.push({ id: inv.id, itemId: item.itemId, name: inv.name, type: inv.type, subtype: inv.subtype ?? null, balanceCents,
+              costCents: cost !== null && cost > 0 && cost <= balanceCents * 2 ? cost : null, fetchedAt: now().toISOString() })
+          }
           continue
         }
         found++

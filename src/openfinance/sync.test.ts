@@ -56,7 +56,7 @@ describe('syncPluggy', () => {
     const db = await setup()
     const invs = (rdb: number | null) => fake(url => url.pathname === '/investments' ? json({ page: 1, total: 2, totalPages: 1, results: [
       { id: 'inv-rdb', name: 'RDB Banco Exemplo', type: 'FIXED_INCOME', subtype: 'RDB', balance: rdb, amountOriginal: 1000 },
-      { id: 'inv-fundo', name: 'Fundo Exemplo DI', type: 'MUTUAL_FUND', subtype: null, balance: 250.5 },
+      { id: 'inv-fundo', name: 'Fundo Exemplo DI', type: 'MUTUAL_FUND', subtype: null, balance: 250.5, amountOriginal: 0 },
     ] }) : url.pathname.startsWith('/investments/') ? json({ page: 1, total: 0, totalPages: 0, results: [] }) : null)
     await syncPluggy(db, creds, invs(1234.56).fn, today)
     expect((await loadAll(db)).bankInvestments.map(b => [b.name, b.type, b.balanceCents, b.costCents])).toEqual([['Fundo Exemplo DI', 'MUTUAL_FUND', 25050, null], ['RDB Banco Exemplo', 'FIXED_INCOME', 123456, 100000]])

@@ -13,6 +13,9 @@ function store<T>(key: string, fallback: T) {
 }
 
 const off = store<Module[]>('yield.modulosDesligados', [])
+// valor estranho no storage (editado à mão, versão antiga) não pode derrubar o app: fica só o que é módulo conhecido
+const known: Module[] = ['gastos', 'orcamento', 'investimentos']
+if (!Array.isArray(off.get()) || off.get().some(m => !known.includes(m))) off.set(Array.isArray(off.get()) ? off.get().filter(m => known.includes(m)).slice(0, 2) : [])
 const mini = store<boolean>('yield.menuRecolhido', false)
 
 export function useModules() {

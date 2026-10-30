@@ -46,8 +46,10 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
   // mesma janela da renda passiva do Resumo: 12 meses de calendário até o atual
   const juros12 = rfJurosByMonth(data.rfMoves, monthOf(today), 12).reduce((s, m) => s + m.cents, 0)
   const income12 = p.dividends12mCents + juros12
-  // o mesmo dinheiro pode estar num ativo manual antigo e agora vir da B3 / Binance
-  const dup = sel === 'renda_fixa' && p.rf.some(h => !h.closed) ? { list: data.manualAssets.filter(a => a.assetClass === 'renda_fixa'), what: 'renda fixa', from: 'da B3' }
+  // o mesmo dinheiro pode estar num ativo manual antigo e agora vir da B3 / do banco / da Binance
+  const bankOf = (k: string) => derived.bank.some(b => b.assetClass === k)
+  const dup = sel === 'renda_fixa' && (p.rf.some(h => !h.closed) || bankOf('renda_fixa')) ? { list: data.manualAssets.filter(a => a.assetClass === 'renda_fixa'), what: 'renda fixa', from: p.rf.some(h => !h.closed) ? 'da B3 ou do banco' : 'do banco' }
+    : sel === 'outro' && bankOf('outro') ? { list: data.manualAssets.filter(a => a.assetClass === 'outro'), what: 'outros investimentos', from: 'do banco' }
     : sel === 'cripto' && p.crypto.length ? { list: data.manualAssets.filter(a => a.assetClass === 'cripto'), what: 'cripto', from: 'da Binance' } : null
 
   const saveForm = async () => {

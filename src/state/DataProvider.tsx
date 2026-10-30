@@ -212,20 +212,27 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; if (timer) clearInterval(timer) }
   }, [refreshQuotesNow, syncNow, syncBinance])
 
-  const derived = useMemo(() => {
+  // replay, imposto e DARF só dependem da carteira: editar o orçamento não refaz essas contas
+  const core = useMemo(() => {
     if (!data) return null
     const rp = replay(data.trades, data.events)
     const today = todayISO()
     const firstSale = rp.sales.reduce((m, s) => (monthOf(s.tradeDate) < m ? monthOf(s.tradeDate) : m), '2020-01')
     const from = data.openingLoss && data.openingLoss.month < firstSale ? data.openingLoss.month : firstSale
     const tax = computeTax(rp.sales, rp.warnings, from, monthOf(today), data.openingLoss)
-    // investimentos do banco (Pluggy) entram como itens só de leitura: só de bancos ainda conectados e fora os ligados a uma reserva
+    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), today }
+  }, [data])
+  const derived = useMemo(() => {
+    if (!data || !core) return null
+    // investimentos do banco (Pluggy) entram como itens só de leitura: só de bancos ainda conectados e fora os ligados a uma reserva;
+    // com títulos abertos da B3, o que a Posição já mostra (CDB, LCI, Tesouro…) não entra de novo
     const live = data.bankInvestments.filter(b => gastosData?.pluggyItems.some(i => i.itemId === b.itemId) ?? true)
     const reserved = new Set([...reservaInvestments(orcData?.reservas ?? [], live, orcData?.reservaLinks ?? {}).values()].flat().map(b => b.id))
-    const bank = bankAssets(live, reserved, data.rfPositions.length > 0 || data.rfMoves.length > 0)
-    return { replay: rp, tax, darfs: computeDarfs(tax, data.payments, today), bank,
-      portfolio: buildPortfolio(rp.positions, data.quotes, [...data.manualAssets, ...bank], data.dividends, today, { rf: rfHoldings(data.rfMoves, data.rfPositions), crypto: data.cryptoBalances }) }
-  }, [data, gastosData?.pluggyItems, orcData?.reservas, orcData?.reservaLinks])
+    const rf = rfHoldings(data.rfMoves, data.rfPositions)
+    const bank = bankAssets(live, reserved, rf.some(h => !h.closed))
+    return { replay: core.replay, tax: core.tax, darfs: core.darfs, bank,
+      portfolio: buildPortfolio(core.replay.positions, data.quotes, [...data.manualAssets, ...bank], data.dividends, core.today, { rf, crypto: data.cryptoBalances }) }
+  }, [data, core, gastosData?.pluggyItems, orcData?.reservas, orcData?.reservaLinks])
 
   // Separado do derived de investimentos: trocar mês ou filtro não refaz o replay.
   const gastosDerived = useMemo(() => {
