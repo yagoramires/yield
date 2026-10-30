@@ -12,6 +12,7 @@ import { AtualizacaoCard } from '../ui/Atualizacao'
 import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { Binance } from './configuracoes/Binance'
+import { IaLocal } from './configuracoes/IaLocal'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -173,6 +174,7 @@ export function Configuracoes() {
       <div style={{ marginTop: 12 }}><FontesRenda /></div>
       <OpenFinance />
       <Binance />
+      <IaLocal />
       <Contas />
     </>
   )

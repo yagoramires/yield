@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { Gauge } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { CATALOG, lighter, type Hardware } from '../ai/catalog'
+import { getHardware } from '../ai/server'
 import { setAiSettings, useAiSettings } from '../ai/settings'
 import { useData } from '../state/DataProvider'
 import { EyeToggle } from '../ui/HideValues'
@@ -11,10 +12,6 @@ import { Chat } from './assistente/Chat'
 import { Insights } from './assistente/Insights'
 import { useAiInput } from './assistente/useAiInput'
 import { errText, GastosHeader } from './lancamentos/GastosHeader'
-
-// a máquina não muda com o app aberto: detecta uma vez por sessão
-let hwOnce: Promise<Hardware> | null = null
-export const getHardware = () => (hwOnce ??= invoke<Hardware>('ai_hardware'))
 
 export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
   const settings = useAiSettings()

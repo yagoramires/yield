@@ -1,5 +1,5 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
-import type { CatalogModel } from './catalog'
+import type { CatalogModel, Hardware } from './catalog'
 import type { Post } from './llm'
 import { getAiSettings } from './settings'
 
@@ -28,3 +28,7 @@ export const tauriPost: Post = (path, body, onChunk) => new Promise((resolve, re
 
 export const abort = () => invoke('ai_abort')
 export const stopServer = () => invoke('ai_stop')
+
+// a máquina não muda com o app aberto: detecta uma vez por sessão
+let hwOnce: Promise<Hardware> | null = null
+export const getHardware = () => (hwOnce ??= invoke<Hardware>('ai_hardware'))
