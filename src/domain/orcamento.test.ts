@@ -209,7 +209,7 @@ describe('investido', () => {
     const inv: Record<string, Category> = { aporte: cat('investimento', false) }
     const txns = [txn({ description: 'aporte', amountCents: -30_000 }), txn({ description: 'aporte', amountCents: 5000 }), txn({ description: 'aporte', amountCents: -1, date: '2026-04-02' })]
     const r = investido([line({ grupo: 'meta', amountCents: 2000 })], txns, t => inv[t.description] ?? null, '2026-03', new Map([['investir', 50_000]]))
-    expect([r.fromTxnsCents, r.realCents, r.goalCents]).toEqual([30_000, 32_000, 50_000])
+    expect([r.fromTxnsCents, r.realCents, r.goalCents, r.txns.length]).toEqual([30_000, 32_000, 50_000, 1])
   })
   it('categoria criada que não conta como gasto (uma reserva) também é investimento; fatura e transferência não', () => {
     const cs: Record<string, Category> = { reserva: { ...cat('reserva', false), builtin: false }, fatura: cat('pagamento-de-fatura', false) }

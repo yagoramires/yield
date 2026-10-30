@@ -5,8 +5,9 @@ import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, 
 import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
+import type { Txn } from '../db/gastosRepo'
 import { todayISO, useData } from '../state/DataProvider'
-import { brDay, errText, monthName } from './lancamentos/GastosHeader'
+import { accountLabel, brDay, errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
@@ -312,6 +313,25 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       ] : []),
     ]
   }
+  // investido agrupado pelo destino (a descrição limpa do lançamento): corretora, caixinha, cripto…
+  const invGroups = [...inv.txns.reduce((m, t) => m.set(displayName(t.description), [...(m.get(displayName(t.description)) ?? []), t]), new Map<string, Txn[]>())]
+    .map(([name, ts]) => ({ name, txns: ts, cents: ts.reduce((s, t) => s - t.amountCents, 0) })).sort((a, b) => b.cents - a.cents)
+  const groupRow = (g: { name: string; txns: Txn[]; cents: number }) => {
+    const key = `inv:${g.name}`, opened = openCats.has(key)
+    const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
+    return [
+      <tr key={key}>
+        <td><div className="cat-line">
+          <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />
+          <div className="grow"><button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{plural(g.txns.length, 'aporte', 'aportes')} {opened ? '▾' : '▸'}</span></button></div>
+        </div></td>
+        <td className="r">{formatCents(g.cents)}</td>
+      </tr>,
+      ...(opened ? [<tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{g.txns.map(t => (
+        <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span>{accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}</span><span>{formatCents(-t.amountCents)}</span></div>
+      ))}</div></td></tr>] : []),
+    ]
+  }
   const ofGoal = (real: number, goal: number | null) => (goal === null ? formatCents(real) : `${formatCents(real)} de ${formatCents(goal)}`)
 
   const varNote = !hasTxns ? 'sem lançamentos para comparar'
@@ -417,9 +437,8 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           {block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
             empty: 'Nada investido neste mês ainda.',
             goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
-            extra: inv.fromTxnsCents > 0 && (
-              <tr key="inv-txns"><td><div className="nm"><span>Saiu para investir</span></div><div className="d2">lançamentos na categoria Investimento</div></td><td className="r">{formatCents(inv.fromTxnsCents)}</td></tr>
-            ),
+            hint: inv.txns.length > 0 && 'pelos lançamentos; clique para ver cada aporte',
+            extra: invGroups.length > 0 && invGroups.flatMap(groupRow),
           })}
           {block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' })}
         </div>

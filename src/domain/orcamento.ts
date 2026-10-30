@@ -190,12 +190,13 @@ export function custos(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Catego
 
 /** Investido no mês: o que saiu da conta para investir mais as linhas à mão do bloco. */
 export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
-  { fromTxnsCents: Cents; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
+  { fromTxnsCents: Cents; txns: Txn[] /* mais recentes primeiro */; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
   // Investimento e as categorias criadas que não contam como gasto (reserva, caixinha…), a mesma regra da migração 014
   const invest = (c: Category | null) => !!c && (c.id === 'investimento' || (!c.countsAsSpending && !c.builtin))
-  const fromTxnsCents = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && invest(cat(t))).reduce((s, t) => s - t.amountCents, 0)
+  const out = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && invest(cat(t))).sort((a, b) => b.date.localeCompare(a.date))
+  const fromTxnsCents = out.reduce((s, t) => s - t.amountCents, 0)
   const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'meta')
-  return { fromTxnsCents, manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
+  return { fromTxnsCents, txns: out, manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
 }
 
 /**
