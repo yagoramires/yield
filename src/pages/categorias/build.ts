@@ -50,8 +50,10 @@ export const deleteImpact = (categoryId: string, rules: CategoryRule[], override
 export const monthDelta = (cur: Cents, prev: Cents): number | null => (prev === 0 ? null : Math.round(((cur - prev) / prev) * 100))
 
 /** Orçamento do mês por categoria: soma das saídas planejadas com categoria. Mês sem linha = sem orçamento. */
-export function budgetByCategory(lines: BudgetLine[], month: Month): Map<string, Cents> {
+/** Orçamento de cada categoria no mês: as saídas planejadas nela mais a meta dela. */
+export function budgetByCategory(lines: BudgetLine[], goals: Map<string, Cents>, month: Month): Map<string, Cents> {
   const out = new Map<string, Cents>()
+  for (const [k, v] of goals) if (k.startsWith('cat:')) out.set(k.slice(4), v)
   for (const l of lines) if (l.month === month && l.kind === 'saida' && l.categoryId) out.set(l.categoryId, (out.get(l.categoryId) ?? 0) + l.amountCents)
   return out
 }

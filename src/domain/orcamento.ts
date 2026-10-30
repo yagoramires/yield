@@ -1,6 +1,6 @@
 import type { Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine, IncomeSource, PjConfig } from '../db/orcamentoRepo'
-import { monthTotals } from './gastos'
+import type { BudgetLine, Goal, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
+import { monthTotals, normalizeDescription } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
 
@@ -98,15 +98,127 @@ export function copyLines(lines: BudgetLine[], sources: IncomeSource[], target: 
 
 export const nextMonthLines = (lines: BudgetLine[], sources: IncomeSource[]) => (lines.length ? copyLines(lines, sources, addMonths(lines[0].month, 1)) : [])
 
-export interface PlanVsReal { plannedSaidasCents: Cents; realSpentCents: Cents; byCategory: { categoryId: string; plannedCents: Cents; realCents: Cents }[] }
+export type Bloco = 'parcela' | Grupo
+/** Bloco da saída na tela: n/total é parcela; sem grupo (linha de antes dos blocos) é custo fixo. */
+export const blocoOf = (l: Pick<BudgetLine, 'installmentTotal' | 'grupo'>): Bloco => (l.installmentTotal !== null ? 'parcela' : l.grupo ?? 'fixo')
 
-export function planVsReal(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): PlanVsReal {
-  const saidas = lines.filter(l => l.month === month && l.kind === 'saida')
-  const totals = monthTotals(txns, [], cat, month) // contas não entram no cálculo
-  const planned = new Map<string, Cents>()
-  for (const l of saidas) if (l.categoryId) planned.set(l.categoryId, (planned.get(l.categoryId) ?? 0) + l.amountCents)
-  const byCategory = [...planned].map(([categoryId, plannedCents]) => ({
-    categoryId, plannedCents, realCents: totals.byCategory.find(b => b.category?.id === categoryId)?.cents ?? 0,
-  })).sort((a, b) => b.plannedCents - a.plannedCents)
-  return { plannedSaidasCents: sum(saidas, 'saida'), realSpentCents: totals.spentCents, byCategory }
+type NewLine = Omit<BudgetLine, 'id' | 'month'>
+
+/** Fontes de renda sem uma entrada ligada nas linhas do mês. */
+export const missingSources = (lines: Pick<BudgetLine, 'kind' | 'sourceId'>[], sources: IncomeSource[]) =>
+  sources.filter(s => !lines.some(l => l.kind === 'entrada' && l.sourceId === s.id))
+
+/** Mês novo nasce com toda fonte de renda que as linhas copiadas não trouxeram; fonte com líquido zerado fica de fora (está mal configurada). */
+export function withSources(lines: NewLine[], sources: IncomeSource[], month: Month): NewLine[] {
+  const add = missingSources(lines, sources).filter(s => sourceNet(s, month) > 0)
+  return [...lines, ...add.map((s, i) => ({
+    kind: 'entrada' as const, name: s.name, amountCents: sourceNet(s, month), recurring: true, position: lines.length + i,
+    categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: s.id, sourceKey: null, grupo: null,
+  }))]
+}
+
+export const GOAL_INVESTIR = 'investir', GOAL_VARIAVEIS = 'variaveis'
+export const catGoal = (categoryId: string) => `cat:${categoryId}`
+
+/** Metas valendo em `month`: para cada chave, a mudança mais recente até ele; null desliga a meta dali em diante. */
+export function goalsAt(goals: Goal[], month: Month): Map<string, Cents> {
+  const last = new Map<string, Goal>()
+  for (const g of goals) if (g.month <= month && (last.get(g.key)?.month ?? '') <= g.month) last.set(g.key, g)
+  return new Map([...last].flatMap(([k, g]) => (g.amountCents === null ? [] : [[k, g.amountCents] as const])))
+}
+
+/**
+ * Lançamentos do mês que já estão planejados em outro bloco, e qual linha cada um pagou: assinaturas aceitas, parcelas aceitas
+ * (pela chave da sugestão) e, para as outras linhas de custo fixo e parcela, um lançamento de valor a até 5% da linha na mesma
+ * categoria ou sem categoria (Pix para outra pessoa fica sem). Parcela que não está no plano conta como gasto.
+ */
+function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): { paid: Map<string, Txn>; used: Set<string> } {
+  const ls = lines.filter(l => l.month === month && l.kind === 'saida')
+  const key = (l: BudgetLine) => l.sourceKey!.replace(/@\d{4}-\d{2}$/, '')
+  const byKey = new Map(ls.filter(l => /^(sub|parc):/.test(l.sourceKey ?? '')).map(l => [key(l), l]))
+  const paid = new Map<string, Txn>() // linha → lançamento
+  const used = new Set<string>()
+  const ofMonth = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0).sort((a, b) => a.date.localeCompare(b.date))
+  for (const t of ofMonth) {
+    const norm = `${t.accountId}|${normalizeDescription(t.description)}`, total = t.installment?.match(/^\d+\/(\d+)$/)?.[1]
+    // assinatura só leva a cobrança de valor parecido (15%, como na detecção): outras compras no mesmo lugar continuam gasto
+    const sub = byKey.get(`sub:${norm}`), line = sub && Math.abs(-t.amountCents - sub.amountCents) <= sub.amountCents * 0.15 ? sub
+      : total ? byKey.get(`parc:${norm}|${total}|${-t.amountCents}`) : undefined
+    if (line) { used.add(t.id); if (!paid.has(line.id)) paid.set(line.id, t) }
+  }
+  for (const l of ls) {
+    if (blocoOf(l) === 'variavel' || blocoOf(l) === 'meta' || /^(sub|parc):/.test(l.sourceKey ?? '')) continue
+    const t = ofMonth.find(t => {
+      const c = cat(t)
+      // sem categoria vale (Pix para outra pessoa), menos para a fatura: um Pix qualquer não paga o cartão
+      const sameCat = c === null ? l.categoryId !== 'pagamento-de-fatura' : c.id === l.categoryId
+      return !used.has(t.id) && sameCat && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05
+    })
+    if (t) { used.add(t.id); paid.set(l.id, t) }
+  }
+  return { paid, used }
+}
+
+export interface VarRow { categoryId: string | null /* null: sem categoria */; realCents: Cents; goalCents: Cents | null; txns: Txn[] /* os gastos do mês que somam o real, mais recentes primeiro */ }
+
+/**
+ * Custos do mês puxados dos lançamentos, por categoria, sem o que já está planejado em fixos e parcelas. As categorias em `fixed`
+ * vão para os fixos (o que saiu fora do plano); as outras e o sem categoria, para os variáveis, junto com as linhas à mão.
+ */
+export function custos(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>, fixed: Set<string>): {
+  variaveis: VarRow[]; fixas: VarRow[]; manual: BudgetLine[]; realCents: Cents /* variáveis + à mão */; fixasCents: Cents; goalCents: Cents | null; paid: Map<string, Txn>
+} {
+  const { paid, used } = planned(lines, txns, cat, month)
+  const own = txns.filter(t => !used.has(t.id))
+  const by = monthTotals(own, [], cat, month).byCategory
+  const spent = own.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0).sort((a, b) => b.date.localeCompare(a.date))
+  const ofCat = (id: string | null) => spent.filter(t => (cat(t)?.id ?? null) === id)
+  const rows = new Map<string | null, VarRow>(by.filter(b => b.cents > 0).map(b => [b.category?.id ?? null, { categoryId: b.category?.id ?? null, realCents: b.cents, goalCents: null, txns: ofCat(b.category?.id ?? null) }]))
+  for (const [k, cents] of goals) {
+    if (!k.startsWith('cat:')) continue
+    const id = k.slice(4)
+    rows.set(id, { categoryId: id, realCents: rows.get(id)?.realCents ?? 0, goalCents: cents, txns: rows.get(id)?.txns ?? [] })
+  }
+  const sorted = [...rows.values()].sort((a, b) => b.realCents - a.realCents || (b.goalCents ?? 0) - (a.goalCents ?? 0))
+  const isFixed = (r: VarRow) => r.categoryId !== null && fixed.has(r.categoryId)
+  // conta fixa que mudou de valor (luz, aluguel em dois Pix) não casa com a linha: o que saiu na categoria abate o que a linha ainda espera
+  const waiting = (id: string) => lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'fixo' && l.categoryId === id && !paid.has(l.id)).reduce((s, l) => s + l.amountCents, 0)
+  const fixas = sorted.filter(isFixed).map(r => ({ ...r, realCents: Math.max(0, r.realCents - waiting(r.categoryId!)) })).filter(r => r.realCents > 0 || r.goalCents !== null)
+  const variaveis = sorted.filter(r => !isFixed(r))
+  const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
+  const sum = (rs: VarRow[]) => rs.reduce((s, r) => s + r.realCents, 0)
+  return {
+    variaveis, fixas, manual, paid,
+    realCents: sum(variaveis) + manual.reduce((s, l) => s + l.amountCents, 0),
+    fixasCents: sum(fixas),
+    goalCents: goals.get(GOAL_VARIAVEIS) ?? null, // só o limite total: a soma das metas de algumas categorias contra o gasto de todas enganaria
+  }
+}
+
+/** Investido no mês: o que saiu da conta para investir mais as linhas à mão do bloco. */
+export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
+  { fromTxnsCents: Cents; txns: Txn[] /* mais recentes primeiro */; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
+  // Investimento e as categorias criadas que não contam como gasto (reserva, caixinha…), a mesma regra da migração 014
+  const invest = (c: Category | null) => !!c && (c.id === 'investimento' || (!c.countsAsSpending && !c.builtin))
+  const out = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && invest(cat(t))).sort((a, b) => b.date.localeCompare(a.date))
+  const fromTxnsCents = out.reduce((s, t) => s - t.amountCents, 0)
+  const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'meta')
+  return { fromTxnsCents, txns: out, manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
+}
+
+/**
+ * Metas que valem para as telas do mês: só em mês com plano (sem plano não há orçamento) e só de categorias que
+ * existem e contam como gasto (categoria apagada ou que deixou de ser gasto não pode ter meta que ninguém consegue tirar).
+ */
+export function goalsFor(goals: Goal[], months: Month[], month: Month, categories: Category[]): Map<string, Cents> {
+  if (!months.includes(month)) return new Map()
+  const spending = new Set(categories.filter(c => c.countsAsSpending).map(c => catGoal(c.id)))
+  return new Map([...goalsAt(goals, month)].filter(([k]) => !k.startsWith('cat:') || spending.has(k)))
+}
+
+/** Média mensal de gasto por categoria nos `n` meses antes de `month` (para sugerir a meta). */
+export function averageByCategory(txns: Txn[], cat: (t: Txn) => Category | null, month: Month, n = 3): Map<string, Cents> {
+  const sum = new Map<string, Cents>()
+  for (let i = 1; i <= n; i++) for (const b of monthTotals(txns, [], cat, addMonths(month, -i)).byCategory) if (b.category) sum.set(b.category.id, (sum.get(b.category.id) ?? 0) + b.cents)
+  return new Map([...sum].map(([k, v]) => [k, Math.round(v / n)]))
 }

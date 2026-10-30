@@ -102,6 +102,6 @@ describe('migração 012', () => {
     d.close()
     const migrado = createTestDb(path)
     expect((await loadAll(migrado)).cryptoBalances.map(c => [c.asset, c.costManual, c.costPartial])).toEqual([['BTC', 1, 0], ['ETH', 0, 0]])
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('13')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('15')
   })
 })

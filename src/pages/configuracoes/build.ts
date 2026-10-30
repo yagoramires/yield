@@ -125,8 +125,8 @@ export const investmentLine = (c: InvestmentCounts) => c.found
   : `${c.label}: nenhum investimento de renda variável na Pluggy`
 
 /** Avisos aparecem em lista própria na tela; aqui só as contagens. */
-export function orcamentoImportSummary(r: { months: number; lines: number; skipped: number }): string {
-  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), `${r.skipped} já existiam`].join(' · ')
+export function orcamentoImportSummary(r: { months: number; lines: number; goals?: number; skipped: number }): string {
+  return [n(r.months, 'mês', 'meses'), n(r.lines, 'linha', 'linhas'), r.goals ? n(r.goals, 'meta', 'metas') : null, `${r.skipped} já existiam`].filter(Boolean).join(' · ')
 }
 
 export interface SourceForm { name: string; kind: SourceKind; gross: string; proLabore: string; irpj: string; inss: string; contabilidade: string; outros: string; net: string; dependents: string; das: string }

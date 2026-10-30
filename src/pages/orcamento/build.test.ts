@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Category } from '../../db/gastosRepo'
 import type { BudgetLine } from '../../db/orcamentoRepo'
-import { defaultMonth, monthProgress, spendingPlan, validateLine } from './build'
+import { defaultMonth, goalChanges, monthProgress, pace, spendingPlan, validateLine } from './build'
 
 describe('validateLine', () => {
   it('exige nome', () => {
@@ -46,7 +46,7 @@ describe('spendingPlan', () => {
     { id: 'moradia', name: 'Moradia', countsAsSpending: true, builtin: true, icon: null, color: null },
     { id: 'investimento', name: 'Investimento', countsAsSpending: false, builtin: true, icon: null, color: null },
   ]
-  const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'x', amountCents: 0, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, ...o })
+  const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'x', month: '2026-10', kind: 'saida', name: 'x', amountCents: 0, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null, ...o })
   it('tira do planejado as saídas em categorias que não contam como gasto', () => {
     const lines = [
       line({ amountCents: 280000, categoryId: 'moradia' }),
@@ -55,5 +55,28 @@ describe('spendingPlan', () => {
       line({ kind: 'entrada', amountCents: 999900 }),
     ]
     expect(spendingPlan(lines, cats)).toEqual({ plannedCents: 360000, reservedCents: 300000 })
+  })
+  it('saída no bloco de investimento e metas também fica fora do gasto', () => {
+    expect(spendingPlan([line({ amountCents: 500, grupo: 'meta' }), line({ amountCents: 70, categoryId: 'moradia', grupo: 'fixo' })], cats)).toEqual({ plannedCents: 70, reservedCents: 500 })
+  })
+  it('soma a meta dos variáveis: o limite total, ou as metas por categoria', () => {
+    expect(spendingPlan([line({ amountCents: 70 })], cats, new Map([['cat:a', 100], ['cat:b', 200], ['investir', 9]])).plannedCents).toBe(370)
+    expect(spendingPlan([], cats, new Map([['cat:a', 100], ['variaveis', 250]])).plannedCents).toBe(250)
+    expect(spendingPlan([line({ amountCents: 40, grupo: 'variavel' })], cats, new Map([['variaveis', 250]])).plannedCents).toBe(250)
+  })
+})
+
+describe('pace', () => {
+  it('projeta o fim do mês pelo ritmo; sem projeção no começo ou fora do mês corrente', () => {
+    expect([pace(1000, 0.25), pace(1000, 0), pace(1000, 1)]).toEqual([4000, null, null])
+  })
+})
+
+describe('goalChanges', () => {
+  it('grava só o que mudou; vazio desliga a meta que existia; zero é recusado', () => {
+    const cur = new Map([['investir', 300000], ['cat:mercado', 150000]])
+    expect(goalChanges({ investir: '3.000,00', 'cat:mercado': '', 'cat:lazer': '600', variaveis: '' }, cur))
+      .toEqual([{ key: 'cat:mercado', amountCents: null }, { key: 'cat:lazer', amountCents: 60000 }])
+    expect(() => goalChanges({ investir: '0' }, cur)).toThrow(/maior que zero/)
   })
 })
