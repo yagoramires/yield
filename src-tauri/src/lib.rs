@@ -311,7 +311,7 @@ pub fn run() {
         .manage(ai::State::default())
         .invoke_handler(tauri::generate_handler![
             swap_database, move_file, encrypt_backup, is_encrypted_backup, decrypt_backup, secret_get, secret_set, secret_delete,
-            ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
+            ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

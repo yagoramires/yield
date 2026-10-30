@@ -59,6 +59,7 @@ pub struct State {
     hardware: Mutex<Option<Hardware>>,
     cancel_download: AtomicBool,
     downloading: AtomicBool,
+    progress: Mutex<Option<Progress>>, // a tela lê daqui: sair e voltar (ou recarregar) não perde o download
     starting: tokio::sync::Mutex<()>, // um ai_start por vez: o segundo espera o primeiro ficar pronto
     abort_gen: AtomicU64,             // "Parar" vale para a requisição em andamento, não para a próxima
     last_use: AtomicU64,
@@ -66,6 +67,7 @@ pub struct State {
 }
 
 /// Linha `Vulkan<n>: <nome> (<total> MiB, <livre> MiB free)` do `--list-devices`; fica a de mais memória.
+#[cfg_attr(not(windows), allow(dead_code))] // só o Windows detecta GPU por aqui
 pub(crate) fn parse_devices(out: &str) -> Option<Gpu> {
     out.lines()
         .filter_map(|l| {
@@ -123,9 +125,13 @@ fn io_err(e: std::io::Error) -> String {
 }
 
 /// Baixa para `<dest>.part` continuando de onde parou; confere o SHA-256 antes de virar `dest`.
-pub(crate) async fn download_to(client: &reqwest::Client, url: &str, sha256: &str, dest: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {
+pub(crate) async fn download_to(client: &reqwest::Client, url: &str, sha256: &str, size: u64, dest: &Path, cancel: &AtomicBool, mut progress: impl FnMut(u64, u64)) -> Result<(), String> {
     let part = dest.with_extension("gguf.part");
     let have = std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
+    if have == size && size > 0 {
+        progress(have, have); // já veio inteiro (o app fechou na conferência): só falta conferir
+        return verify(&part, sha256, dest);
+    }
     let mut req = client.get(url);
     if have > 0 {
         req = req.header(reqwest::header::RANGE, format!("bytes={have}-"));
@@ -151,13 +157,18 @@ pub(crate) async fn download_to(client: &reqwest::Client, url: &str, sha256: &st
             progress(received, total);
         }
     }
+    verify(&part, sha256, dest)
+}
+
+/// Confere o SHA-256 do `.part` e só então vira o arquivo final; errado, apaga.
+fn verify(part: &Path, sha256: &str, dest: &Path) -> Result<(), String> {
     let mut hasher = Sha256::new();
-    std::io::copy(&mut std::fs::File::open(&part).map_err(io_err)?, &mut hasher).map_err(io_err)?;
+    std::io::copy(&mut std::fs::File::open(part).map_err(io_err)?, &mut hasher).map_err(io_err)?;
     if format!("{:x}", hasher.finalize()) != sha256.to_lowercase() {
-        let _ = std::fs::remove_file(&part);
+        let _ = std::fs::remove_file(part);
         return Err("O arquivo baixado veio corrompido. Tente baixar de novo.".into());
     }
-    std::fs::rename(&part, dest).map_err(io_err)
+    std::fs::rename(part, dest).map_err(io_err)
 }
 
 fn models_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -329,25 +340,32 @@ pub fn ai_installed(app: AppHandle) -> Result<Vec<Installed>, String> {
 }
 
 #[tauri::command]
-pub async fn ai_download(app: AppHandle, url: String, sha256: String, file: String, on_progress: Channel<Progress>) -> Result<(), String> {
+pub async fn ai_download(app: AppHandle, url: String, sha256: String, file: String, bytes: u64) -> Result<(), String> {
     if !allowed_url(&url) || !valid_model_file(&file) {
         return Err("Endereço do modelo inválido.".into());
     }
     let st = app.state::<State>();
     // dois downloads no mesmo .part embaralham o arquivo (e os dois terminam com SHA errado)
     let _busy = Busy::begin(&st.downloading).ok_or("Já há um download do modelo em andamento.")?;
-    st.cancel_download.store(false, Ordering::Relaxed);
     let dest = models_dir(&app)?.join(&file);
+    if dest.exists() {
+        return Ok(()); // só vira .gguf depois de conferido: baixar de novo seria 5 GB à toa
+    }
+    st.cancel_download.store(false, Ordering::Relaxed);
+    *st.progress.lock().unwrap() = Some(Progress { received: 0, total: 0 });
     let client = reqwest::Client::new();
-    let mut last = 0u64;
-    download_to(&client, &url, &sha256, &dest, &st.cancel_download, |received, total| {
-        // um aviso a cada 4 MB: por pedaço seriam centenas de milhares de mensagens
-        if received - last >= 4 << 20 || received == total {
-            last = received;
-            let _ = on_progress.send(Progress { received, total });
-        }
+    let r = download_to(&client, &url, &sha256, bytes, &dest, &st.cancel_download, |received, total| {
+        *st.progress.lock().unwrap() = Some(Progress { received, total });
     })
-    .await
+    .await;
+    *st.progress.lock().unwrap() = None;
+    r
+}
+
+/// Download em andamento (com `received == total` é a conferência do SHA-256), ou nada.
+#[tauri::command]
+pub fn ai_download_status(app: AppHandle) -> Option<Progress> {
+    app.state::<State>().progress.lock().unwrap().clone()
 }
 
 #[tauri::command]
@@ -576,7 +594,15 @@ mod tests {
 
     fn run(url: &str, sha256: &str, dest: &Path) -> Result<(), String> {
         let client = reqwest::Client::builder().no_proxy().build().unwrap();
-        tauri::async_runtime::block_on(download_to(&client, url, sha256, dest, &AtomicBool::new(false), |_, _| {}))
+        tauri::async_runtime::block_on(download_to(&client, url, sha256, BODY.len() as u64, dest, &AtomicBool::new(false), |_, _| {}))
+    }
+
+    #[test]
+    fn part_completo_so_confere_sem_ir_a_rede() {
+        let dest = tmp("completo");
+        std::fs::write(dest.with_extension("gguf.part"), BODY).unwrap();
+        run("http://127.0.0.1:9/nada", &sha(BODY), &dest).unwrap(); // porta fechada: se tentasse baixar, falharia
+        assert_eq!(std::fs::read(&dest).unwrap(), BODY);
     }
 
     #[test]

@@ -38,6 +38,10 @@ windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_Securit
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# o SHA-256 do modelo (5 GB) leva minutos sem otimização: no modo dev também compila otimizado
+[profile.dev.package.sha2]
+opt-level = 3
+
 [profile.release]
 codegen-units = 1
 lto = true

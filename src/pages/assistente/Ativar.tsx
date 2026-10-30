@@ -1,15 +1,16 @@
-import { Channel, invoke } from '@tauri-apps/api/core'
+import { invoke } from '@tauri-apps/api/core'
 import { Download, Sparkles } from 'lucide-react'
-import { useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { gb, machineLabel, pickModel, type CatalogModel, type Hardware } from '../../ai/catalog'
 import { calibrate } from '../../ai/llm'
 import { ensureServer, tauriPost } from '../../ai/server'
 import { setAiSettings } from '../../ai/settings'
 import { errText } from '../lancamentos/GastosHeader'
 
-type Dl = { busy: 'baixando' | 'ligando' | null; prog: { received: number; total: number } | null; error: string | null }
-// fora do componente: sair da tela no meio do download e voltar mostra o mesmo download, não um botão para começar outro
-let dl: Dl = { busy: null, prog: null, error: null }
+type Progress = { received: number; total: number }
+// o andamento do download vem do Rust (sobrevive a sair da tela); aqui fica só o que acontece depois dele e o erro
+type Dl = { ligando: boolean; error: string | null }
+let dl: Dl = { ligando: false, error: null }
 const listeners = new Set<() => void>()
 const set = (patch: Partial<Dl>) => { dl = { ...dl, ...patch }; listeners.forEach(l => l()) }
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } }
@@ -18,20 +19,31 @@ const subscribe = (l: () => void) => { listeners.add(l); return () => { listener
 export function Ativar({ hw, target, onReady }: { hw: Hardware; target: CatalogModel | null; onReady(): void }) {
   const pick = pickModel(hw)
   const model = target ?? ('model' in pick ? pick.model : null)
-  const { busy, prog, error } = useSyncExternalStore(subscribe, () => dl)
+  const { ligando, error } = useSyncExternalStore(subscribe, () => dl)
+  const [prog, setProg] = useState<Progress | null>(null)
+  const ready = useRef(onReady)
+  ready.current = onReady
+  // pergunta ao Rust a cada segundo: quando o download some (terminou ou falhou), a tela confere o que está instalado
+  useEffect(() => {
+    let was = false
+    const tick = () => invoke<Progress | null>('ai_download_status').then(p => { setProg(p); if (was && !p) ready.current(); was = !!p }, () => {})
+    void tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
+  const busy = prog ? 'baixando' : ligando ? 'ligando' : null
 
   const baixar = async (m: CatalogModel) => {
-    set({ error: null, busy: 'baixando', prog: null })
+    set({ error: null })
+    setProg({ received: 0, total: 0 })
     try {
-      const ch = new Channel<{ received: number; total: number }>()
-      ch.onmessage = prog => set({ prog })
-      await invoke('ai_download', { url: m.url, sha256: m.sha256, file: m.file, onProgress: ch })
+      await invoke('ai_download', { url: m.url, sha256: m.sha256, file: m.file, bytes: m.bytes })
       setAiSettings({ modelId: m.id, tokS: null })
-      set({ busy: 'ligando' })
+      set({ ligando: true })
       try { await ensureServer(m); setAiSettings({ tokS: await calibrate(tauriPost) }) } catch { /* a velocidade fica sem medir; o resto funciona */ }
-      onReady()
+      ready.current()
     } catch (e) { set({ error: errText(e) }) }
-    set({ busy: null })
+    set({ ligando: false })
   }
 
   return (
