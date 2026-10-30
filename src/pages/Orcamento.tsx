@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import { createMonth, deleteLine, dismissSuggestion, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
-import { averageByCategory, blocoOf, cltTabelaAno, copyLines, goalsFor, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, variaveis, withSources, type Bloco, type VarRow } from '../domain/orcamento'
+import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
@@ -10,6 +10,7 @@ import { brDay, errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
+import { CategoryIcon } from '../ui/CategoryIcon'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
@@ -34,7 +35,8 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [metasOpen, setMetasOpen] = useState(false)
-  const [openCats, setOpenCats] = useState<Set<string>>(new Set()) // categorias abertas no bloco de variáveis
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set()) // categorias abertas no cartão de custos
+  const [tab, setTab] = useState<'fixos' | 'variaveis'>('variaveis')
 
   // toda escrita passa por aqui: recarrega e mostra o erro em pt-BR na tela
   const run = async (what: string, fn: () => Promise<void>) => {
@@ -102,7 +104,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const fixos = of('fixo'), parcelas = of('parcela')
   const goals = goalsFor(data.goals, data.months, month, categories)
   const avgs = averageByCategory(gastos.data.txns, gastos.categorize, month)
-  const vars = variaveis(data.lines, gastos.data.txns, gastos.categorize, month, goals)
+  const vars = custos(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.fixedCategories))
   const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals)
   const sum = monthSummary(lines)
   const progress = monthProgress(month, today)
@@ -116,6 +118,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setDel(null); setError(null)
     // gasto ou aporte à mão é do mês: repetido no mês seguinte já nasceria como gasto feito
     const manual = at === 'variavel' || at === 'meta'
+    if (at === 'fixo' || at === 'variavel') setTab(at === 'fixo' ? 'fixos' : 'variaveis')
     setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: manual ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: !manual, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
@@ -262,7 +265,8 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   }
   const plainRow = (l: BudgetLine) => (
     <>
-      {nameCell(l, [l.sourceKey?.startsWith('sub:') && !/^assinatura/i.test(catName(l.categoryId) ?? '') && 'assinatura', catName(l.categoryId), !l.recurring && 'só este mês', fatura(l) && 'fora da sobra: as compras do cartão já entram nos variáveis'])}
+      {nameCell(l, [l.sourceKey?.startsWith('sub:') && !/^assinatura/i.test(catName(l.categoryId) ?? '') && 'assinatura', catName(l.categoryId), !l.recurring && 'só este mês',
+        vars.paid.has(l.id) && `pago ${brDay(vars.paid.get(l.id)!.date)} ✓`, fatura(l) && 'fora da sobra: as compras do cartão já entram nos variáveis'])}
       <td className="r">{formatCents(l.amountCents)}</td>
     </>
   )
@@ -275,31 +279,37 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       </>
     )
   }
-  // categoria puxada dos lançamentos: o gasto do mês e, com meta, a barra
+  // categoria puxada dos lançamentos: o gasto do mês, a barra contra a meta (ou a média) e, aberta, a lista dos gastos
   const catRow = (r: VarRow) => {
     const avg = r.categoryId ? avgs.get(r.categoryId) ?? null : null
     const ref = r.goalCents ?? avg, soft = r.goalCents === null
     const over = ref !== null && r.realCents > ref
     const key = r.categoryId ?? 'sem', opened = openCats.has(key)
     const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
+    const note = r.goalCents !== null ? (over ? `passou ${formatCents(r.realCents - r.goalCents)}` : `de ${formatCents(r.goalCents)}`)
+      : avg ? `média ${formatCents(avg)}${over ? ` · +${Math.round((r.realCents / avg - 1) * 100)}%` : ''}` : null
     return [
       <tr key={`cat-${key}`}>
         <td>
-          <div className="nm"><button className="cat-toggle" aria-expanded={opened} disabled={!r.txns.length} onClick={toggle}>
-            <span aria-hidden className="muted">{opened ? '▾' : '▸'}</span> {catName(r.categoryId) ?? 'Sem categoria'} {r.txns.length > 0 && <span className="muted" style={{ fontSize: 10 }}>{plural(r.txns.length, 'gasto', 'gastos')}</span>}
-          </button></div>
-          {ref !== null && <Track real={r.realCents} planned={ref} soft={soft} />}
+          <div className="cat-line">
+            <CategoryIcon category={categories.find(c => c.id === r.categoryId) ?? null} size={28} />
+            <div className="grow">
+              <button className="cat-toggle" aria-expanded={opened} disabled={!r.txns.length} onClick={toggle}>
+                {catName(r.categoryId) ?? 'Sem categoria'} {r.txns.length > 0 && <span className="muted">{plural(r.txns.length, 'gasto', 'gastos')} {opened ? '▾' : '▸'}</span>}
+              </button>
+              {ref !== null && <Track real={r.realCents} planned={ref} soft={soft} />}
+            </div>
+          </div>
         </td>
         <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: soft ? '#ffcf5c' : 'var(--negative)' } : {}) }}>
-          {formatCents(r.realCents)}{ref !== null && <span className="muted" title={soft ? 'média dos últimos 3 meses' : 'meta'}> / {formatCents(ref)}</span>}
+          {formatCents(r.realCents)}{note && <div className="d2" style={{ textAlign: 'right' }}>{note}</div>}
         </td>
       </tr>,
-      ...(opened ? r.txns.map(t => (
-        <tr key={`t-${t.id}`} className="sub">
-          <td><span className="muted">{brDay(t.date)}</span> {displayName(t.description)}{t.pending && <span className="muted"> · pendente</span>}</td>
-          <td className="r t2">{formatCents(-t.amountCents)}</td>
-        </tr>
-      )) : []),
+      ...(opened ? [
+        <tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{r.txns.map(t => (
+          <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span>{displayName(t.description)}{t.pending && <span className="muted"> · pendente</span>}</span><span>{formatCents(-t.amountCents)}</span></div>
+        ))}</div></td></tr>,
+      ] : []),
     ]
   }
   const ofGoal = (real: number, goal: number | null) => (goal === null ? formatCents(real) : `${formatCents(real)} de ${formatCents(goal)}`)
@@ -309,7 +319,12 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     : ritmo !== null ? `no ritmo fecha em ${formatBRL(ritmo)}` : `${Math.round(progress * 100)}% do mês`
   // com lançamentos, a fatura do cartão já entra compra por compra nos variáveis: a linha dela não sai de novo da sobra
   const fatura = (l: BudgetLine) => hasTxns && l.categoryId === 'pagamento-de-fatura'
-  const sobra = sum.entradasCents - total(fixos.filter(l => !fatura(l))) - total(parcelas) - vars.realCents - inv.realCents
+  const fixosCents = total(fixos.filter(l => !fatura(l))) + vars.fixasCents, custosCents = fixosCents + vars.realCents
+  const share = (part: number) => (custosCents > 0 ? Math.round((part / custosCents) * 100) : 0)
+  const sobra = sum.entradasCents - fixosCents - total(parcelas) - vars.realCents - inv.realCents
+  const section = (label: string, cents: number) => <tr className="secl"><td>{label}</td><td className="r">{formatCents(cents)}</td></tr>
+  const formHere = (at: At) => form?.at === at && !form.id && saidaForm(form)
+  const lineRows = (ls: BudgetLine[]) => ls.map(l => (form?.id === l.id ? saidaForm(form) : <tr key={l.id}>{plainRow(l)}</tr>))
 
   return (
     <>
@@ -317,14 +332,17 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       {errorBox}
       <div className="kpis">
         <div className="k"><div className="muted">O que entra</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada', 'entradas')} · líquido</div></div>
-        <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(total(fixos) + total(parcelas))}</div><div className="s muted">{plural(fixos.length, 'custo fixo', 'custos fixos')} · {plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
+        <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
         <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
         <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">o que entra − o que já saiu</div></div>
       </div>
 
-      {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={avgs} busy={busy}
-        onClose={() => setMetasOpen(false)} onSave={changes => void run('Não foi possível salvar as metas', () => saveGoals(db, month, changes)).then(ok => ok && setMetasOpen(false))} />}
+      {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={avgs} fixed={data.fixedCategories} busy={busy}
+        onClose={() => setMetasOpen(false)} onSave={(changes, fixed) => void run('Não foi possível salvar as metas', async () => {
+          await saveGoals(db, month, changes)
+          if (fixed) await saveFixedCategories(db, fixed)
+        }).then(ok => ok && setMetasOpen(false))} />}
 
       {suggestions.length > 0 && (
         <div className="card" style={{ marginBottom: 12, borderColor: '#2c3a14' }}>
@@ -357,13 +375,45 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               </tr>
             )),
           })}
-          {block('variavel', 'Custos variáveis', vars.manual, ofGoal(vars.realCents, vars.goalCents), plainRow, {
-            empty: 'Nenhum gasto variável neste mês ainda.',
-            hint: !hasTxns ? <>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</>
-              : vars.rows.length > 0 && 'clique na categoria para ver os gastos · barra: meta, ou a média dos últimos 3 meses',
-            goal: vars.goalCents !== null ? { real: vars.realCents, goal: vars.goalCents } : undefined,
-            extra: vars.rows.length > 0 && vars.rows.flatMap(catRow),
-          })}
+          <div className="card" style={{ marginBottom: 12 }}>
+            <div className="bar">
+              <h5 style={{ margin: 0 }}>Custos <span className="muted" style={{ fontWeight: 400 }}>{lower(month)}</span></h5>
+              <button className="b ghost" disabled={busy} aria-label={tab === 'fixos' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(tab === 'fixos' ? 'fixo' : 'variavel')}>+</button>
+            </div>
+            <div className="costs-big">{formatBRL(custosCents)}</div>
+            <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: '#8a8d96' }} /><i style={{ flexGrow: vars.realCents, background: '#3987e5' }} /></div>
+            <div className="seg" role="tablist">
+              {(['fixos', 'variaveis'] as const).map(t => (
+                <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => { setForm(null); setDel(null); setTab(t) }}>
+                  <b><span className="dot" style={{ background: t === 'fixos' ? '#8a8d96' : '#3987e5' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
+                  <span>{formatBRL(t === 'fixos' ? fixosCents : vars.realCents)} · {share(t === 'fixos' ? fixosCents : vars.realCents)}%</span>
+                </button>
+              ))}
+            </div>
+            {!hasTxns && <div className="muted" style={{ marginBottom: 6 }}>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</div>}
+            {tab === 'variaveis' && vars.goalCents !== null && (
+              <div style={{ marginBottom: 6 }}><div className="muted">limite dos variáveis: {formatCents(vars.realCents)} de {formatCents(vars.goalCents)}</div><Track real={vars.realCents} planned={vars.goalCents} /></div>
+            )}
+            <table className="lt blk">
+              <tbody>
+                {tab === 'fixos' ? <>
+                  {section('No plano', total(fixos))}
+                  {fixos.length === 0 && !formHere('fixo') && <tr><td colSpan={2} className="muted">Assinaturas e contas que se repetem; as detectadas aparecem nas sugestões acima.</td></tr>}
+                  {lineRows(fixos)}
+                  {formHere('fixo')}
+                  {vars.fixas.length > 0 && <>{section('Fora do plano', vars.fixasCents)}{vars.fixas.flatMap(catRow)}</>}
+                </> : <>
+                  {vars.variaveis.length === 0 && vars.manual.length === 0 && !formHere('variavel') && <tr><td colSpan={2} className="muted">Nenhum gasto variável neste mês ainda.</td></tr>}
+                  {vars.variaveis.flatMap(catRow)}
+                  {lineRows(vars.manual)}
+                  {formHere('variavel')}
+                </>}
+              </tbody>
+            </table>
+            {del && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel') && confirmDel(del)}
+          </div>
+        </div>
+        <div>
           {block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
             empty: 'Nada investido neste mês ainda.',
             goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
@@ -371,9 +421,6 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               <tr key="inv-txns"><td><div className="nm"><span>Saiu para investir</span></div><div className="d2">lançamentos na categoria Investimento</div></td><td className="r">{formatCents(inv.fromTxnsCents)}</td></tr>
             ),
           })}
-        </div>
-        <div>
-          {block('fixo', 'Custos fixos', fixos, formatCents(total(fixos)), plainRow, { empty: 'Assinaturas e contas que se repetem. As assinaturas detectadas aparecem nas sugestões acima.' })}
           {block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' })}
         </div>
       </div>

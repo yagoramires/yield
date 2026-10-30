@@ -3,7 +3,7 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { averageByCategory, blocoOf, copyLines, goalsAt, goalsFor, investido, missingSources, monthSummary, nextMonthLines, variaveis, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
+import { averageByCategory, blocoOf, copyLines, custos, goalsAt, goalsFor, investido, missingSources, monthSummary, nextMonthLines, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: 'k', ...o })
@@ -170,7 +170,7 @@ describe('metas', () => {
   })
 })
 
-describe('variaveis', () => {
+describe('custos', () => {
   it('gasto do mês por categoria, sem parcela, assinatura aceita nem conta fixa paga pelo banco; meta da categoria aparece mesmo sem gasto', () => {
     const lines = [
       line({ id: 's', sourceKey: 'sub:c1|mercado@2026-03' }),
@@ -188,12 +188,19 @@ describe('variaveis', () => {
       txn({ id: '7', accountId: 'c2', description: 'sem categoria', amountCents: -50, installment: '1/2' }), // parcela fora do plano conta
       txn({ id: '5', accountId: 'c2', description: 'mercado', amountCents: -900, date: '2026-04-01' }),
     ]
-    const r = variaveis(lines, txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['cat:lazer', 400]]))
-    expect(r.rows.map(({ txns, ...x }) => ({ ...x, txns: txns.map(t => t.id) }))).toEqual([
+    const r = custos(lines, txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['cat:lazer', 400]]), new Set())
+    expect(r.variaveis.map(({ txns, ...x }) => ({ ...x, txns: txns.map(t => t.id) }))).toEqual([
       { categoryId: 'mercado', realCents: 700, goalCents: 1000, txns: ['4'] }, { categoryId: null, realCents: 50, goalCents: null, txns: ['7'] }, { categoryId: 'lazer', realCents: 0, goalCents: 400, txns: [] },
     ])
     expect([r.manual.map(l => l.id), r.realCents, r.goalCents]).toEqual([['m'], 2750, null])
-    expect(variaveis([], txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['variaveis', 5000]])).goalCents).toBe(5000)
+    expect(custos([], txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['variaveis', 5000]]), new Set()).goalCents).toBe(5000)
+    // quem pagou cada linha: a assinatura pelo comerciante, a parcela pela chave, a conta fixa pelo valor (a diarista, por Pix)
+    expect(Object.fromEntries([...r.paid].map(([l, t]) => [l, t.id]))).toEqual({ s: '1', p: '2', f: '3', d: '6' })
+  })
+  it('categoria fixa sai dos variáveis e vai para os fixos (o que saiu fora do plano)', () => {
+    const txns = [txn({ id: 'a', description: 'mercado', amountCents: -700 }), txn({ id: 'b', description: 'PIX', amountCents: -30 })]
+    const r = custos([], txns, catOf, '2026-03', new Map(), new Set(['mercado']))
+    expect([r.fixas.map(x => x.categoryId), r.fixasCents, r.variaveis.map(x => x.categoryId), r.realCents]).toEqual([['mercado'], 700, [null], 30])
   })
 })
 

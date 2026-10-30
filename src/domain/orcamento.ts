@@ -128,40 +128,44 @@ export function goalsAt(goals: Goal[], month: Month): Map<string, Cents> {
 }
 
 /**
- * Lançamentos do mês que já estão planejados em outro bloco: assinaturas aceitas, parcelas aceitas (pela chave da sugestão)
- * e, para as outras linhas de custo fixo e parcela, um lançamento de valor a até 5% da linha na mesma categoria ou sem
- * categoria (Pix para outra pessoa fica sem). Parcela que não está no plano conta como gasto variável.
+ * Lançamentos do mês que já estão planejados em outro bloco, e qual linha cada um pagou: assinaturas aceitas, parcelas aceitas
+ * (pela chave da sugestão) e, para as outras linhas de custo fixo e parcela, um lançamento de valor a até 5% da linha na mesma
+ * categoria ou sem categoria (Pix para outra pessoa fica sem). Parcela que não está no plano conta como gasto.
  */
-function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): Set<string> {
+function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): { paid: Map<string, Txn>; used: Set<string> } {
   const ls = lines.filter(l => l.month === month && l.kind === 'saida')
   const key = (l: BudgetLine) => l.sourceKey!.replace(/@\d{4}-\d{2}$/, '')
-  const subs = new Set(ls.filter(l => l.sourceKey?.startsWith('sub:')).map(l => key(l).slice(4)))
-  const parcs = new Set(ls.filter(l => l.sourceKey?.startsWith('parc:')).map(key))
-  const out = new Set<string>()
-  const ofMonth = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0)
+  const byKey = new Map(ls.filter(l => /^(sub|parc):/.test(l.sourceKey ?? '')).map(l => [key(l), l.id]))
+  const paid = new Map<string, Txn>() // linha → lançamento
+  const used = new Set<string>()
+  const ofMonth = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0).sort((a, b) => a.date.localeCompare(b.date))
   for (const t of ofMonth) {
-    const total = t.installment?.match(/^\d+\/(\d+)$/)?.[1]
-    if (subs.has(`${t.accountId}|${normalizeDescription(t.description)}`)
-      || (total && parcs.has(`parc:${t.accountId}|${normalizeDescription(t.description)}|${total}|${-t.amountCents}`))) out.add(t.id)
+    const norm = `${t.accountId}|${normalizeDescription(t.description)}`, total = t.installment?.match(/^\d+\/(\d+)$/)?.[1]
+    const line = byKey.get(`sub:${norm}`) ?? (total ? byKey.get(`parc:${norm}|${total}|${-t.amountCents}`) : undefined)
+    if (line) { used.add(t.id); if (!paid.has(line)) paid.set(line, t) }
   }
   for (const l of ls) {
     if (blocoOf(l) === 'variavel' || blocoOf(l) === 'meta' || /^(sub|parc):/.test(l.sourceKey ?? '')) continue
     const t = ofMonth.find(t => {
       const c = cat(t)
-      return !out.has(t.id) && (c === null || c.id === l.categoryId) && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05
+      return !used.has(t.id) && (c === null || c.id === l.categoryId) && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05
     })
-    if (t) out.add(t.id)
+    if (t) { used.add(t.id); paid.set(l.id, t) }
   }
-  return out
+  return { paid, used }
 }
 
 export interface VarRow { categoryId: string | null /* null: sem categoria */; realCents: Cents; goalCents: Cents | null; txns: Txn[] /* os gastos do mês que somam o real, mais recentes primeiro */ }
 
-/** Custos variáveis do mês, puxados dos lançamentos por categoria (sem o que já está em fixos e parcelas), mais as linhas à mão. */
-export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
-  { rows: VarRow[]; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
-  const skip = planned(lines, txns, cat, month)
-  const own = txns.filter(t => !skip.has(t.id))
+/**
+ * Custos do mês puxados dos lançamentos, por categoria, sem o que já está planejado em fixos e parcelas. As categorias em `fixed`
+ * vão para os fixos (o que saiu fora do plano); as outras e o sem categoria, para os variáveis, junto com as linhas à mão.
+ */
+export function custos(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>, fixed: Set<string>): {
+  variaveis: VarRow[]; fixas: VarRow[]; manual: BudgetLine[]; realCents: Cents /* variáveis + à mão */; fixasCents: Cents; goalCents: Cents | null; paid: Map<string, Txn>
+} {
+  const { paid, used } = planned(lines, txns, cat, month)
+  const own = txns.filter(t => !used.has(t.id))
   const by = monthTotals(own, [], cat, month).byCategory
   const spent = own.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0).sort((a, b) => b.date.localeCompare(a.date))
   const ofCat = (id: string | null) => spent.filter(t => (cat(t)?.id ?? null) === id)
@@ -171,11 +175,15 @@ export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Cat
     const id = k.slice(4)
     rows.set(id, { categoryId: id, realCents: rows.get(id)?.realCents ?? 0, goalCents: cents, txns: rows.get(id)?.txns ?? [] })
   }
+  const sorted = [...rows.values()].sort((a, b) => b.realCents - a.realCents || (b.goalCents ?? 0) - (a.goalCents ?? 0))
+  const isFixed = (r: VarRow) => r.categoryId !== null && fixed.has(r.categoryId)
+  const variaveis = sorted.filter(r => !isFixed(r)), fixas = sorted.filter(isFixed)
   const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
+  const sum = (rs: VarRow[]) => rs.reduce((s, r) => s + r.realCents, 0)
   return {
-    rows: [...rows.values()].sort((a, b) => b.realCents - a.realCents || (b.goalCents ?? 0) - (a.goalCents ?? 0)),
-    manual,
-    realCents: [...rows.values()].reduce((s, r) => s + r.realCents, 0) + manual.reduce((s, l) => s + l.amountCents, 0),
+    variaveis, fixas, manual, paid,
+    realCents: sum(variaveis) + manual.reduce((s, l) => s + l.amountCents, 0),
+    fixasCents: sum(fixas),
     goalCents: goals.get(GOAL_VARIAVEIS) ?? null, // só o limite total: a soma das metas de algumas categorias contra o gasto de todas enganaria
   }
 }
