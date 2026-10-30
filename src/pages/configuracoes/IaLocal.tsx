@@ -11,7 +11,7 @@ export function IaLocal() {
   const s = useAiSettings()
   const [hw, setHw] = useState<Hardware | null>(null)
   const [installed, setInstalled] = useState<{ file: string; bytes: number }[]>([])
-  const [confirm, setConfirm] = useState(false)
+  const [confirm, setConfirm] = useState<string | null>(null) // arquivo esperando a confirmação de remover
   const [error, setError] = useState<string | null>(null)
   const refresh = () => invoke<{ file: string; bytes: number }[]>('ai_installed').then(setInstalled, e => setError(errText(e)))
 
@@ -19,11 +19,16 @@ export function IaLocal() {
   const size = installed.find(i => i.file === current?.file)?.bytes
   const options = hw ? CATALOG.filter(m => fits(m, hw)) : []
 
-  const remove = async () => {
-    if (!current) return
-    try { await invoke('ai_delete_model', { file: current.file }); setAiSettings({ modelId: null, tokS: null }); setError(null) } catch (e) { setError(`Não foi possível remover: ${errText(e)}`) }
-    setConfirm(false); void refresh()
+  // qualquer modelo baixado pode sair (o de antes de trocar ficaria 5 GB no disco); remover o em uso zera a escolha
+  const remove = async (file: string) => {
+    try {
+      await invoke('ai_delete_model', { file })
+      if (file === current?.file) setAiSettings({ modelId: null, tokS: null })
+      setError(null)
+    } catch (e) { setError(`Não foi possível remover: ${errText(e)}`) }
+    setConfirm(null); void refresh()
   }
+  const label = (file: string) => CATALOG.find(m => m.file === file)?.name ?? file
   const on = s.off === false
   // quem não usa IA não detecta hardware nem cria a pasta de modelos
   useEffect(() => { if (on) { getHardware().then(setHw, e => setError(errText(e))); void refresh() } }, [on]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -43,10 +48,15 @@ export function IaLocal() {
       {s.tokS !== null && row('Velocidade medida', `${s.tokS.toFixed(1).replace('.', ',')} tokens/s`)}
       <div className="row" style={{ gap: 8, marginTop: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         {options.length > 1 && <Select ariaLabel="Trocar modelo" value={current?.id ?? ''} options={options.map(m => ({ value: m.id, label: `${m.name} · ${gb(m.bytes)}` }))} onChange={v => setAiSettings({ modelId: v, tokS: null })} />}
-        {current && size !== undefined && (confirm
-          ? <><span>Remover {current.name} ({gb(size)})?</span><button className="b ghost" onClick={() => void remove()}>Remover</button><button className="link" onClick={() => setConfirm(false)}>Cancelar</button></>
-          : <button className="b ghost" onClick={() => setConfirm(true)}>Remover modelo</button>)}
       </div>
+      {installed.map(i => (
+        <div key={i.file} className="sum-row" style={{ cursor: 'default' }}>
+          <span className="grow">{label(i.file)} · {gb(i.bytes)} no disco{i.file === current?.file && <span className="muted"> · em uso</span>}</span>
+          {confirm === i.file
+            ? <><span>Remover?</span><button className="b ghost" onClick={() => void remove(i.file)}>Remover</button><button className="link" onClick={() => setConfirm(null)}>Cancelar</button></>
+            : <button className="b ghost" onClick={() => setConfirm(i.file)}>Remover</button>}
+        </div>
+      ))}
       {current && size === undefined && on && <div className="muted" style={{ marginTop: 8 }}>Abra o Assistente para baixar o {current.name}.</div>}
       </>}
       {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span></div>}
