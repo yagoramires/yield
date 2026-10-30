@@ -109,9 +109,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: at === 'variavel' || at === 'meta' ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: true, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
-    id: l.id, grupo: l.grupo ?? 'fixo', name: l.kind === 'saida' ? displayName(l.name) : l.name, amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
+    id: l.id, grupo: l.grupo ?? 'fixo', name: shown(l), amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
     installment: l.installmentCurrent !== null && l.installmentTotal !== null ? `${l.installmentCurrent}/${l.installmentTotal}` : '',
   })
+  // só o nome que veio do extrato (sugestão aceita) é limpo; o que a pessoa digitou fica como está
+  const shown = (l: BudgetLine) => (/^(sub|parc):/.test(l.sourceKey ?? '') ? displayName(l.name) : l.name)
   const fromSource = (s: IncomeSource) => ({ sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s, month)) })
   // fonte com líquido ≤ 0 trazida para o formulário: o parseMoney daria um erro genérico
   const zeroSource = (f: Form) => {
@@ -120,6 +122,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   }
   const save = (f: Form) => void run('Não foi possível salvar a linha', async () => {
     if (zeroSource(f)) throw new Error(NET_ZERO)
+    if (f.kind === 'entrada' && f.sourceId && entradas.some(l => l.id !== f.id && l.sourceId === f.sourceId)) throw new Error('Esta fonte já está no mês: edite a entrada dela ou escolha Valor avulso.')
     if (f.at === 'parcela' && !f.installment.trim()) throw new Error('Parcela: use n/total, por exemplo 3/10.')
     const v = validateLine(f.at === 'parcela' ? f : { ...f, installment: '' })
     const teto = f.kind === 'saida' && f.at !== 'parcela' && f.grupo === 'variavel' ? tetoError(lines, f.id, f.categoryId) : null
@@ -205,7 +208,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   // nome em cima, o resto numa linha só embaixo
   const nameCell = (l: BudgetLine, sub: (string | null | false | undefined)[]) => {
     const info = sub.filter(Boolean).join(' · ')
-    return <td><div className="nm" title={l.name}><span>{displayName(l.name)}</span>{actions(l)}</div>{info && <div className="d2">{info}</div>}</td>
+    return <td><div className="nm" title={l.name}><span>{shown(l)}</span>{actions(l)}</div>{info && <div className="d2">{info}</div>}</td>
   }
 
   // um bloco da tela: linhas do bloco, formulário no lugar da linha editada e o de linha nova no fim
@@ -268,7 +271,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     return (
       <>
         <td>
-          <div className="nm" title={l.name}><span>{displayName(l.name)} {l.categoryId && catName(l.categoryId) !== l.name && <span className="muted">· {catName(l.categoryId)}</span>}</span>{actions(l)}</div>
+          <div className="nm" title={l.name}><span>{shown(l)} {l.categoryId && catName(l.categoryId) !== l.name && <span className="muted">· {catName(l.categoryId)}</span>}</span>{actions(l)}</div>
           {real === null ? <div className="d2">escolha uma categoria para acompanhar o gasto</div> : hasTxns && <Track real={real} planned={l.amountCents} />}
         </td>
         <td className="r" style={{ whiteSpace: 'nowrap', ...(real !== null && real > l.amountCents ? { color: 'var(--negative)' } : {}) }}>
@@ -317,7 +320,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div>
           {block('entrada', 'O que eu ganho', entradas, formatCents(sum.entradasCents), entradaRow, {
             empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Fontes de renda e eles entram sozinhos todo mês.',
-            add: () => { const s = missing[0] ?? data.sources[0]; open('entrada', s ? fromSource(s) : {}) },
+            add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
             extra: missing.length > 0 && missing.map(s => (
               <tr key={`fonte-${s.id}`}>
                 <td className="muted"><div className="nm"><span className="muted">{s.name}</span><button className="link" disabled={busy} onClick={() => include(s)}>incluir</button></div><div className="d2">fonte de renda · não está neste mês</div></td>

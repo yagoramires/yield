@@ -1,6 +1,6 @@
 import type { Category, Txn } from '../db/gastosRepo'
 import type { BudgetLine, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
-import { monthTotals } from './gastos'
+import { monthTotals, normalizeDescription } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
 
@@ -119,9 +119,14 @@ export function withSources(lines: NewLine[], sources: IncomeSource[], month: Mo
 
 export interface Teto { line: BudgetLine; realCents: Cents | null /* sem categoria não há o que medir */ }
 
-/** Custos variáveis do mês: cada teto contra o gasto real da categoria dele nos lançamentos. */
+/**
+ * Custos variáveis do mês: cada teto contra o gasto real da categoria dele nos lançamentos.
+ * Parcelas e assinaturas já planejadas nos outros blocos ficam fora do real, para não contar duas vezes.
+ */
 export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): { tetos: Teto[]; plannedCents: Cents; realCents: Cents } {
-  const by = monthTotals(txns, [], cat, month).byCategory
+  const subs = new Set(lines.filter(l => l.month === month && l.sourceKey?.startsWith('sub:')).map(l => l.sourceKey!.slice(4).replace(/@\d{4}-\d{2}$/, '')))
+  const own = txns.filter(t => t.installment === null && !subs.has(`${t.accountId}|${normalizeDescription(t.description)}`))
+  const by = monthTotals(own, [], cat, month).byCategory
   const real = (id: string) => by.find(b => b.category?.id === id)?.cents ?? 0
   const tetos = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'variavel')
     .map(line => ({ line, realCents: line.categoryId ? real(line.categoryId) : null }))

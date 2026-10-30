@@ -68,6 +68,10 @@ describe('tetoError', () => {
     expect(tetoError([line({})], undefined, 'mercado')).toMatch(/Mercado/)
     expect(tetoError([line({})], 'x', 'mercado')).toBeNull() // editando o próprio
     expect(tetoError([line({ grupo: 'fixo' }), line({ installmentCurrent: 1, installmentTotal: 2 })], undefined, 'mercado')).toBeNull()
+    // dois tetos que já existiam (dado antigo): editar o valor de um deles não trava; virar teto de novo trava
+    const dois = [line({ id: 'a' }), line({ id: 'b', name: 'Feira' })]
+    expect(tetoError(dois, 'a', 'mercado')).toBeNull()
+    expect(tetoError([line({ id: 'a' }), line({ id: 'c', grupo: 'fixo' })], 'c', 'mercado')).toMatch(/Mercado/)
   })
 })
 

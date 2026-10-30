@@ -148,23 +148,24 @@ describe('migração', () => {
     expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('14')
     expect((await loadOrcamento(migrado)).months).toEqual([])
   })
-  test('014: saída antiga ganha bloco pelo palpite; entrada fica sem; grupo novo é gravado e lido', async () => {
+  test('014: saída antiga ganha bloco pelo palpite (um teto por categoria; fatura e moradia são fixo); entrada fica sem; grupo novo é gravado e lido', async () => {
     const path = tmpPath('v13.db')
     const d = new DatabaseSync(path)
     for (const f of ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql', '006_categoria_visual.sql', '007_fonte_clt.sql', '008_cadastro_ir.sql', '009_renda_fixa_cripto.sql', '010_aportado_manual.sql', '011_etf_renda_fixa.sql', '012_aportado_cripto.sql', '013_fonte_mei.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
-    const [off] = d.prepare('SELECT id FROM categories WHERE counts_as_spending = 0 LIMIT 1').all() as { id: string }[]
-    const [on] = d.prepare('SELECT id FROM categories WHERE counts_as_spending = 1 LIMIT 1').all() as { id: string }[]
     d.exec(`INSERT INTO budget_months VALUES ('2026-01');
       INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, category_id, installment_current, installment_total, source_key) VALUES
       ('e', '2026-01', 'entrada', 'Salário', 1, 1, 0, NULL, NULL, NULL, NULL),
-      ('m', '2026-01', 'saida', 'Aporte', 1, 1, 1, '${off.id}', NULL, NULL, NULL),
-      ('v', '2026-01', 'saida', 'Teto', 1, 1, 2, '${on.id}', NULL, NULL, NULL),
-      ('s', '2026-01', 'saida', 'Streaming', 1, 1, 3, '${on.id}', NULL, NULL, 'sub:c1|x@2026-01'),
-      ('p', '2026-01', 'saida', 'Loja', 1, 1, 4, '${on.id}', 2, 5, NULL),
-      ('f', '2026-01', 'saida', 'Avulso', 1, 1, 5, NULL, NULL, NULL, NULL)`)
+      ('m', '2026-01', 'saida', 'Aporte', 1, 1, 1, 'investimento', NULL, NULL, NULL),
+      ('v', '2026-01', 'saida', 'Mercado', 150, 1, 2, 'mercado', NULL, NULL, NULL),
+      ('v2', '2026-01', 'saida', 'Feira', 20, 1, 3, 'mercado', NULL, NULL, NULL),
+      ('s', '2026-01', 'saida', 'Streaming', 999, 1, 4, 'mercado', NULL, NULL, 'sub:c1|x@2026-01'),
+      ('p', '2026-01', 'saida', 'Loja', 999, 1, 5, 'mercado', 2, 5, NULL),
+      ('a', '2026-01', 'saida', 'Aluguel', 1, 1, 6, 'moradia', NULL, NULL, NULL),
+      ('t', '2026-01', 'saida', 'Fatura', 1, 1, 7, 'pagamento-de-fatura', NULL, NULL, NULL),
+      ('f', '2026-01', 'saida', 'Avulso', 1, 1, 8, NULL, NULL, NULL, NULL)`)
     d.close()
     const migrado = createTestDb(path)
-    expect(Object.fromEntries((await loadOrcamento(migrado)).lines.map(l => [l.id, l.grupo]))).toEqual({ e: null, m: 'meta', v: 'variavel', s: 'fixo', p: 'fixo', f: 'fixo' })
+    expect(Object.fromEntries((await loadOrcamento(migrado)).lines.map(l => [l.id, l.grupo]))).toEqual({ e: null, m: 'meta', v: 'variavel', v2: 'fixo', s: 'fixo', p: 'fixo', a: 'fixo', t: 'fixo', f: 'fixo' })
     const id = await saveLine(migrado, { month: '2026-01', ...linha('Novo', { grupo: 'variavel' }) })
     await saveLine(migrado, { month: '2026-01', ...linha('Sem grupo') })
     const ls = (await loadOrcamento(migrado)).lines

@@ -169,4 +169,9 @@ describe('variaveis', () => {
     expect(r.tetos.map(t => [t.line.id, t.realCents])).toEqual([['a', 40_000], ['b', 40_000], ['c', null]])
     expect([r.plannedCents, r.realCents]).toEqual([200_000, 40_000])
   })
+  it('parcela e assinatura aceita no mês não entram no real do teto da mesma categoria', () => {
+    const lines = [line({ id: 'a', categoryId: 'mercado', grupo: 'variavel' }), line({ id: 's', sourceKey: 'sub:c1|mercado@2026-03' })]
+    const txns = [txn({ description: 'mercado', amountCents: -5000 }), txn({ id: 'p', description: 'mercado', amountCents: -300, installment: '4/10' }), txn({ id: 'x', accountId: 'c2', description: 'mercado', amountCents: -700 })]
+    expect(variaveis(lines, txns, catOf, '2026-03').realCents).toBe(700) // c1|mercado é a assinatura; a parcela é do bloco Parcelas
+  })
 })

@@ -35,6 +35,8 @@ export const pace = (realCents: Cents, progress: number): Cents | null => (progr
 /** Um teto por categoria no mês: o gasto real da categoria é um só, dois tetos o mostrariam duas vezes. */
 export function tetoError(lines: BudgetLine[], id: string | undefined, categoryId: string): string | null {
   if (!categoryId) return 'Escolha a categoria: o gasto real do teto vem dos lançamentos dela.'
+  const self = lines.find(l => l.id === id)
+  if (self?.grupo === 'variavel' && self.categoryId === categoryId) return null // já era teto desta categoria: mudar o valor não cria outro
   const other = lines.find(l => l.id !== id && l.kind === 'saida' && l.grupo === 'variavel' && l.installmentTotal === null && l.categoryId === categoryId)
   return other ? `Já existe um teto nesta categoria (${other.name}): edite o valor dele.` : null
 }
