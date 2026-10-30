@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Sidebar } from './ui/Sidebar'
 import { Carteira } from './pages/Carteira'
 import { Notas } from './pages/Notas'
@@ -20,7 +20,14 @@ const TITLES = Object.fromEntries(
 ) as Record<Route, string>
 
 export default function App() {
-  const [route, setRoute] = useState<Route>('carteira')
+  // abre na última tela usada; storage pode falhar (modo privado, dados limpos) e aí cai na Carteira
+  const [route, setRoute] = useState<Route>(() => {
+    try {
+      const saved = localStorage.getItem('yield.route')
+      return ROUTES.some(g => g.items.some(i => i.route === saved && !i.disabled)) ? (saved as Route) : 'carteira'
+    } catch { return 'carteira' }
+  })
+  useEffect(() => { try { localStorage.setItem('yield.route', route) } catch { /* sem storage, só não lembra */ } }, [route])
   const [provMonth, setProvMonth] = useState('') // mês clicado no Resumo, para Proventos abrir filtrado
   const [carteiraClass, setCarteiraClass] = useState<string | null>(null) // classe clicada no Resumo, para a Carteira abrir nela
   const [menuOpen, setMenuOpen] = useState(false)
