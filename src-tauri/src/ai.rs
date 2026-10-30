@@ -147,7 +147,8 @@ pub(crate) async fn download_to(client: &reqwest::Client, url: &str, sha256: &st
         let resumed = status == reqwest::StatusCode::PARTIAL_CONTENT;
         let mut file = if resumed { std::fs::OpenOptions::new().append(true).open(&part) } else { std::fs::File::create(&part) }.map_err(io_err)?;
         let mut received = if resumed { have } else { 0 };
-        let total = received + resp.content_length().unwrap_or(0);
+        // sem Content-Length, o tamanho do catálogo: senão a tela acharia que acabou e mostraria "conferindo" o download todo
+        let total = resp.content_length().filter(|l| *l > 0).map_or(size, |l| received + l);
         while let Some(chunk) = resp.chunk().await.map_err(net)? {
             if cancel.load(Ordering::Relaxed) {
                 return Err("Download cancelado.".into());
@@ -401,6 +402,8 @@ pub async fn ai_start(app: AppHandle, file: String, ctx: u32) -> Result<(), Stri
     let st = app.state::<State>();
     touch(&st);
     let _one = st.starting.lock().await;
+    // antes do lock: no Windows detectar a GPU roda um processo, e o lock seguraria ai_post/ai_stop esse tempo todo
+    let cpu_only = cfg!(windows) && hardware(&st).gpu.is_none();
     let (port, key) = {
         let mut srv = st.server.lock().unwrap();
         if let Some(s) = srv.as_mut() {
@@ -417,7 +420,7 @@ pub async fn ai_start(app: AppHandle, file: String, ctx: u32) -> Result<(), Stri
         }
         let port = std::net::TcpListener::bind("127.0.0.1:0").and_then(|l| l.local_addr()).map_err(|e| e.to_string())?.port();
         let key = random_key();
-        let bin = sidecar(if cfg!(windows) && hardware(&st).gpu.is_none() { "llama-server-cpu" } else { "llama-server" })?;
+        let bin = sidecar(if cpu_only { "llama-server-cpu" } else { "llama-server" })?;
         let mut cmd = Command::new(bin);
         hidden(&mut cmd).args(server_args(&model, port, ctx)).env("LLAMA_API_KEY", &key);
         // shortcut: no Mac, se o app morrer sem RunEvent::Exit (panic=abort, crash) o servidor fica órfão; vigiar o pai se aparecer.

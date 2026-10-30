@@ -1,5 +1,5 @@
 import { ArrowUp, SquarePen, Sparkles, Square, TriangleAlert } from 'lucide-react'
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import type { CatalogModel } from '../../ai/catalog'
 import { runChat } from '../../ai/chat'
 import { maskMoney } from '../../ai/check'
@@ -18,7 +18,7 @@ const SUGGESTIONS = ['Quanto gastei com mercado este ano?', 'Como está meu orç
 interface Turn { q: string; a: string; unverified: string[]; error?: string }
 
 /** Perguntas livres, no formato de chat; a conversa vive só aqui (não é salva) e "Nova conversa" zera. */
-export function Chat({ model, input, loadRent }: { model: CatalogModel; input: AiInput | null; loadRent(meses: number): Promise<AiInput['rent']> }) {
+export function Chat({ model, input, loadRent, notice }: { model: CatalogModel; input: AiInput | null; loadRent(meses: number): Promise<AiInput['rent']>; notice?: ReactNode }) {
   useHideValues() // redesenha quando o olhinho muda
   const [history, setHistory] = useState<ChatMsg[]>([])
   const [turns, setTurns] = useState<Turn[]>([])
@@ -28,8 +28,14 @@ export function Chat({ model, input, loadRent }: { model: CatalogModel; input: A
   const scroll = useRef<HTMLDivElement>(null)
   const box = useRef<HTMLTextAreaElement>(null)
 
-  // acompanha a resposta chegando, como num chat
-  useEffect(() => { scroll.current?.scrollTo({ top: scroll.current.scrollHeight }) }, [turns, live])
+  // acompanha a resposta chegando, a não ser que a pessoa tenha subido para ler
+  const stick = useRef(true)
+  useEffect(() => { if (stick.current) scroll.current?.scrollTo({ top: scroll.current.scrollHeight }) }, [turns, live])
+  const onScroll = () => { const el = scroll.current; if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 }
+  // saiu da tela no meio da resposta: para o modelo, senão a próxima pergunta esperaria ela terminar
+  const answering = useRef(false)
+  answering.current = !!live
+  useEffect(() => () => { if (answering.current) { stop.current?.abort(); void abort() } }, [])
   // a caixa cresce com o texto até umas 6 linhas
   useEffect(() => { const t = box.current; if (t) { t.style.height = 'auto'; t.style.height = `${Math.min(t.scrollHeight, 140)}px` } }, [q])
 
@@ -37,6 +43,7 @@ export function Chat({ model, input, loadRent }: { model: CatalogModel; input: A
     const question = text.trim()
     if (!question || live || !input) return
     setQ('')
+    stick.current = true
     setLive({ q: question, text: '', tool: null })
     const ctrl = (stop.current = new AbortController())
     try {
@@ -55,15 +62,20 @@ export function Chat({ model, input, loadRent }: { model: CatalogModel; input: A
     box.current?.focus()
   }
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() }
+    // 229: o WebKit às vezes manda o Enter que fecha um acento (IME) sem isComposing
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); void send() }
   }
   const reset = () => { setHistory([]); setTurns([]); box.current?.focus() }
   const empty = !turns.length && !live
 
   return (
     <div className="chat">
-      {!empty && !live && <button className="b ghost with-ico chat-new" onClick={reset}><SquarePen size={13} aria-hidden />Nova conversa</button>}
-      <div className="chat-scroll" ref={scroll} aria-live="polite">
+      <div className="bar">
+        <h1 style={{ margin: 0 }}>Assistente</h1>
+        {!empty && !live && <button className="b ghost with-ico" onClick={reset}><SquarePen size={13} aria-hidden />Nova conversa</button>}
+      </div>
+      {notice}
+      <div className="chat-scroll" ref={scroll} onScroll={onScroll} aria-live="polite">
         <div className="chat-col">
           {empty ? (
             <div className="chat-empty">

@@ -36,11 +36,11 @@ const monthLabel = (m: Month) => `${new Date(Date.UTC(Number(m.slice(0, 4)), Num
 const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
 export type Area = 'gastos' | 'investimentos' | 'orcamento'
-// o fato do orçamento do mês aparece no Resumo de gastos (o card de Orçamento dele) e na tela do Orçamento
 const AREAS: Record<Area, FactKind[]> = {
   gastos: ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas', 'saldo_parado'],
   investimentos: ['carteira', 'rentabilidade', 'renda_passiva'],
-  orcamento: ['orcamento', 'plano_mes', 'metas'],
+  // sem o 'orcamento' (planejado do spendingPlan × gasto bruto): não é o número da tela do Orçamento e confundia com o plano
+  orcamento: ['plano_mes', 'metas'],
 }
 
 /** Fatos de cada tela: Resumo de gastos, Resumo de investimentos (sempre o retrato de hoje) e Orçamento. */

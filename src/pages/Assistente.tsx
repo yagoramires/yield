@@ -15,7 +15,7 @@ import { errText } from './lancamentos/GastosHeader'
 export function Assistente() {
   const settings = useAiSettings()
   const on = settings.off === false
-  const { input, loadRent } = useAiInput(monthOf(todayISO()))
+  const { input, loadRent } = useAiInput(monthOf(todayISO()), false)
   const [hw, setHw] = useState<Hardware | null>(null)
   const [installed, setInstalled] = useState<{ file: string; bytes: number }[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -29,20 +29,19 @@ export function Assistente() {
 
   return (
     <div className="chat-page">
-      <h1 style={{ margin: 0 }}>Assistente</h1>
+      {!(on && !error && hw && model) && <h1 style={{ margin: 0 }}>Assistente</h1> /* no chat, o título vem com o "Nova conversa" */}
       {!on ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
         : !hw || !installed ? <div className="muted" style={{ marginTop: 12 }}>Verificando este computador…</div>
         : !model ? <Ativar hw={hw} target={chosen} onReady={() => void refresh()} />
         : <>
-          {light && (
+          <Chat model={model} input={input} loadRent={loadRent} notice={light && (
             <div className="note row" style={{ marginTop: 12, alignItems: 'center', gap: 8 }}>
               <Gauge size={14} aria-hidden />
               <span className="grow">Neste computador o {model.name} gerou {settings.tokS!.toFixed(1).replace('.', ',')} tokens/s; o {light.name} responde mais rápido.</span>
               <button className="link" onClick={() => setAiSettings({ modelId: light.id, tokS: null })}>Usar o {light.name}</button>
             </div>
-          )}
-          <Chat model={model} input={input} loadRent={loadRent} />
+          )} />
         </>}
     </div>
   )

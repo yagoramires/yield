@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 # Compila o llama-server (llama.cpp) estático e copia para src-tauri/binaries com os nomes que o Tauri espera no externalBin.
 set -euo pipefail
-LLAMA_TAG=b12017 # release do llama.cpp de 30/10/2026; para atualizar, troque aqui (o cache do CI usa o hash deste arquivo)
+LLAMA_TAG=b12017 # release do llama.cpp de 30/10/2026; para atualizar, troque o tag e o commit (o cache do CI usa o hash deste arquivo)
+LLAMA_SHA=5047748f114564fcf271e6a648f60e2d2eae6264 # commit do tag: tag pode ser movido, commit não (como as actions)
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/src-tauri/binaries"
 if [ "$(cat "$OUT/.tag" 2>/dev/null)" = "$LLAMA_TAG" ]; then echo "llama-server $LLAMA_TAG já compilado"; exit 0; fi
 SRC="${TMPDIR:-/tmp}/llama.cpp-$LLAMA_TAG"
-[ -d "$SRC" ] || git clone --depth 1 --branch "$LLAMA_TAG" https://github.com/ggml-org/llama.cpp "$SRC"
+if [ ! -d "$SRC" ]; then
+  git init -q "$SRC" && git -C "$SRC" fetch -q --depth 1 https://github.com/ggml-org/llama.cpp "$LLAMA_SHA" && git -C "$SRC" checkout -q FETCH_HEAD
+fi
+[ "$(git -C "$SRC" rev-parse HEAD)" = "$LLAMA_SHA" ] || { echo "llama.cpp em $SRC não é o commit $LLAMA_SHA" >&2; exit 1; }
 mkdir -p "$OUT"
 # sem OpenSSL (o servidor só fala HTTP em 127.0.0.1 e no Mac de quem instala não há Homebrew) e sem a interface web (baixada da rede no build)
 COMMON=(-DBUILD_SHARED_LIBS=OFF -DLLAMA_OPENSSL=OFF -DGGML_NATIVE=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_UI=OFF -DLLAMA_USE_PREBUILT_UI=OFF -DCMAKE_BUILD_TYPE=Release)

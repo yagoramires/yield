@@ -9,7 +9,8 @@ import { ensureServer, tauriPost } from '../../ai/server'
 import { useAiSettings } from '../../ai/settings'
 import { getInsights, saveInsights, type SavedInsights } from '../../db/aiRepo'
 import type { Month } from '../../domain/types'
-import { useData } from '../../state/DataProvider'
+import { todayISO, useData } from '../../state/DataProvider'
+import { monthOf } from '../../domain/money'
 import { useHideValues } from '../../ui/HideValues'
 import type { Route } from '../../ui/routes'
 import { NO_FILTER } from '../lancamentos/build'
@@ -24,10 +25,13 @@ const when = (iso: string) => {
 }
 // fatos já tentados nesta sessão: se a geração falhar, não tenta de novo a cada visita (o botão continua lá)
 const tried = new Set<string>()
+// gerações em andamento por Resumo e mês: voltar à tela no meio dos 10–30 s mostra "analisando" e recebe o resultado
+const inflight = new Map<string, Promise<SavedInsights>>()
 
 /**
- * Insights da IA dentro dos Resumos. Só para quem ligou a IA e tem o modelo baixado: mostra o que está salvo e,
- * quando os números mudaram, gera de novo sozinho (o modelo leva de 10 a 30 s).
+ * Insights da IA dentro dos Resumos e do Orçamento. Só para quem ligou a IA e tem o modelo baixado: mostra o que está salvo e,
+ * no mês atual, gera de novo sozinho quando os números mudaram (o modelo leva de 10 a 30 s). Mês passado: só pelo botão,
+ * senão folhear os meses enfileiraria uma geração por mês no modelo.
  */
 export function Insights({ area, month, onNavigate }: { area: Area; month: Month; onNavigate(r: Route): void }) {
   const ai = useAiSettings()
@@ -42,7 +46,7 @@ export function Insights({ area, month, onNavigate }: { area: Area; month: Month
 function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; model: CatalogModel; onNavigate(r: Route): void }) {
   const { db, gastos } = useData()
   useHideValues() // redesenha quando o olhinho muda
-  const { input } = useAiInput(month)
+  const { input } = useAiInput(month, area !== 'orcamento') // o Orçamento não usa o histórico de cotações
   const key = `${area}:${month}` // guardado na coluna month da ai_insights: um por Resumo e mês
   const facts = useMemo(() => (input ? buildFacts(month, area, input) : null), [month, area, input])
   const [hash, setHash] = useState<string | null>(null)
@@ -53,26 +57,38 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
   useEffect(() => { let alive = true; getInsights(db, key).then(s => alive && setSaved(s), () => alive && setSaved(null)); return () => { alive = false } }, [db, key])
   useEffect(() => { let alive = true; if (facts && input) void factsHash(facts, input.today).then(h => alive && setHash(h)); return () => { alive = false } }, [facts, input])
 
-  const gerar = async () => {
-    if (!facts || !hash) return
+  const follow = (p: Promise<SavedInsights>) => {
+    let alive = true
     setBusy(true); setError(null)
-    try {
+    p.then(s => alive && setSaved(s), e => alive && setError(errText(e))).finally(() => alive && setBusy(false))
+    return () => { alive = false }
+  }
+  // voltou à tela com uma geração deste Resumo e mês ainda rodando
+  useEffect(() => { const p = inflight.get(key); return p ? follow(p) : undefined }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const gerar = () => {
+    if (!facts || !hash || inflight.has(key)) return
+    const p = (async () => {
       await ensureServer(model)
       const insights = await generateInsights(tauriPost, facts)
       if (!insights.length) throw new Error('O modelo não trouxe observações que deem para conferir com os seus números. Tente gerar de novo.')
       const s = { month: key, factsHash: hash, model: model.id, insights, createdAt: new Date().toISOString() }
       await saveInsights(db, s)
-      setSaved(s)
-    } catch (e) { setError(errText(e)) }
-    setBusy(false)
+      return s
+    })()
+    inflight.set(key, p)
+    p.catch(() => {}).finally(() => inflight.delete(key))
+    follow(p)
   }
 
+  const auto = area === 'investimentos' || month === monthOf(todayISO())
   const stale = !saved || (!!hash && saved.factsHash !== hash)
   useEffect(() => {
-    if (!facts?.length || !hash || saved === undefined || busy || !stale || tried.has(`${key}|${hash}`)) return
-    tried.add(`${key}|${hash}`)
-    void gerar()
-  }, [facts, hash, saved, busy, stale, key]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!auto || !facts?.length || !hash || saved === undefined || busy || !stale || inflight.has(key) || tried.has(`${key}|${hash}`)) return
+    // espera a pessoa ficar na tela: passar rápido por ela não liga o modelo
+    const t = setTimeout(() => { tried.add(`${key}|${hash}`); gerar() }, 1500)
+    return () => clearTimeout(t)
+  }, [auto, facts, hash, saved, busy, stale, key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!facts?.length || saved === undefined) return null
   const mes = `${monthName(month).toLowerCase()} de ${month.slice(0, 4)}`
@@ -91,13 +107,17 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
         <h5>{title}</h5>
         <span className="ai-status">
           {busy ? <><RefreshCw size={12} className="spin" aria-hidden />analisando…</>
-            : saved && <>gerado {when(saved.createdAt)}<button className="icon-btn" aria-label="Gerar de novo" title="Gerar de novo" disabled={!hash} onClick={() => void gerar()}><RefreshCw size={12} aria-hidden /></button></>}
+            : saved && <>gerado {when(saved.createdAt)}<button className="icon-btn" aria-label="Gerar de novo" title="Gerar de novo" disabled={!hash} onClick={gerar}><RefreshCw size={12} aria-hidden /></button></>}
         </span>
       </div>
-      {!saved ? (busy ? <>
+      {/* esqueleto enquanto gera ou vai gerar sozinho; se já falhou nesta sessão, fica o botão */}
+      {!saved ? (busy || (auto && !error && !tried.has(`${key}|${hash}`)) ? <>
         <div className="ai-grid" aria-hidden>{[0, 1, 2].map(n => <div key={n} className="ai-skel"><i style={{ width: '45%' }} /><i /><i style={{ width: '80%' }} /></div>)}</div>
         <div className="ai-note">A IA está lendo os números do mês. Leva de 10 a 30 segundos.</div>
-      </> : <div className="muted">Não deu para gerar agora.</div>) : <>
+      </> : !error && <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+        <span className="muted">A IA ainda não olhou {mes}.</span>
+        <button className="b ghost with-ico" onClick={gerar}><Sparkles size={13} aria-hidden />Gerar insights</button>
+      </div>) : <>
         <div className={`ai-grid${busy ? ' dim' : ''}`}>
           {saved.insights.map((i, n) => (
             <div key={n} className="ai-card">
@@ -110,7 +130,7 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
         </div>
         <div className="ai-note">Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>
       </>}
-      {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span>{!busy && !saved && <button className="link" onClick={() => void gerar()}>Tentar de novo</button>}</div>}
+      {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span>{!busy && !saved && <button className="link" onClick={gerar}>Tentar de novo</button>}</div>}
     </div>
   )
 }

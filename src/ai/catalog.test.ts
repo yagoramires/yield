@@ -39,3 +39,7 @@ test('modelo em uso: o escolhido se está no disco; sem escolha, qualquer um do 
   expect(installedModel(null, [m4.file])?.id).toBe('qwen3-4b')
   expect(installedModel(null, ['outro.gguf'])).toBeNull()
 })
+
+test('download fixado num commit do Hugging Face: o SHA-256 do catálogo não pode ficar velho', () => {
+  for (const m of catalog) expect(m.url).toMatch(new RegExp(`^https://huggingface\\.co/Qwen/[\\w-]+/resolve/[0-9a-f]{40}/${m.file}$`))
+})
