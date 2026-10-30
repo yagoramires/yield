@@ -1,4 +1,6 @@
 import { useState, type ReactNode } from 'react'
+import { Insights } from './assistente/Insights'
+import type { Route } from '../ui/routes'
 import { ChevronRight, Plus } from 'lucide-react'
 import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
@@ -33,7 +35,7 @@ function Track({ real, planned, soft }: { real: number; planned: number; soft?: 
   return <div className="track" style={{ height: 6, marginTop: 4 }}><div className={`fill${soft ? ' soft' : ''}${real > planned ? ' over' : ''}`} style={{ width: `${pct(real, planned)}%` }} /></div>
 }
 
-export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): void; onOpenSettings(): void }) {
+export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavigate(r: Route): void; onOpenGastos(): void; onOpenSettings(): void }) {
   const { db, gastos, orcamento, data: carteira } = useData()
   const { data, month, setMonth, reload } = orcamento
   const [form, setForm] = useState<Form | null>(null)
@@ -386,6 +388,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     <>
       {header}
       {errorBox}
+      <Insights area="orcamento" month={month} onNavigate={onNavigate} />
       <div className="kpis">
         <div className="k"><div className="muted">O que entra</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada', 'entradas')} · líquido</div></div>
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>

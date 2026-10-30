@@ -20,7 +20,7 @@ const MONTHS = monthsBetween('2026-01', '2026-10')
 async function sources(perfil: string): Promise<string[]> {
   const input = PERFIS[perfil]
   const loadRent = async () => input.rent
-  const out = MONTHS.flatMap(m => (['gastos', 'investimentos'] as const).flatMap(a => buildFacts(m, a, input).map(f => f.text)))
+  const out = MONTHS.flatMap(m => (['gastos', 'investimentos', 'orcamento'] as const).flatMap(a => buildFacts(m, a, input).map(f => f.text)))
   for (const [i, de] of MONTHS.entries()) for (const ate of MONTHS.slice(i)) {
     for (const name of ['gastos', 'proventos', 'lancamentos']) out.push(JSON.stringify(await runTool(name, { de, ate }, input, loadRent)))
   }

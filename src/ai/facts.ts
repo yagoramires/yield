@@ -5,7 +5,7 @@ import type { RfMove } from '../db/rendaFixaRepo'
 import type { Subscription } from '../domain/assinaturas'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, monthOf, plainBRL } from '../domain/money'
-import { goalsFor } from '../domain/orcamento'
+import { custos, goalsFor, monthSummary } from '../domain/orcamento'
 import { portfolioResult, type Portfolio } from '../domain/portfolio'
 import { rfJurosByMonth } from '../domain/rendaFixa'
 import type { rentOver } from '../domain/rentabilidade'
@@ -28,19 +28,24 @@ export interface AiInput {
 }
 
 /** Os do mês escolhido entram no hash do cache; os de agora (cotação, CDI, saldo) mudam toda hora e não. */
-export const MONTH_KINDS = ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas'] as const
+export const MONTH_KINDS = ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'plano_mes', 'metas', 'maiores_gastos', 'cobrancas'] as const
 export type FactKind = (typeof MONTH_KINDS)[number] | 'carteira' | 'rentabilidade' | 'renda_passiva' | 'saldo_parado'
 export interface Fact { id: string; kind: FactKind; text: string; route: Route; categoryId?: string }
 
 const monthLabel = (m: Month) => `${new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 15)).toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' })} de ${m.slice(0, 4)}`
 const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
-export type Area = 'gastos' | 'investimentos'
-const INVEST: FactKind[] = ['carteira', 'rentabilidade', 'renda_passiva']
+export type Area = 'gastos' | 'investimentos' | 'orcamento'
+// o fato do orçamento do mês aparece no Resumo de gastos (o card de Orçamento dele) e na tela do Orçamento
+const AREAS: Record<Area, FactKind[]> = {
+  gastos: ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas', 'saldo_parado'],
+  investimentos: ['carteira', 'rentabilidade', 'renda_passiva'],
+  orcamento: ['orcamento', 'plano_mes', 'metas'],
+}
 
-/** Fatos do Resumo de gastos ou do de investimentos (este é sempre o retrato de hoje). */
+/** Fatos de cada tela: Resumo de gastos, Resumo de investimentos (sempre o retrato de hoje) e Orçamento. */
 export const buildFacts = (month: Month, area: Area, input: AiInput): Fact[] =>
-  allFacts(month, input).filter(f => INVEST.includes(f.kind) === (area === 'investimentos'))
+  allFacts(month, input).filter(f => AREAS[area].includes(f.kind))
 
 function allFacts(month: Month, input: AiInput): Fact[] {
   const { data, categorize: cat, subscriptions } = input.gastos
@@ -80,7 +85,8 @@ function allFacts(month: Month, input: AiInput): Fact[] {
   }
 
   const lines = input.orcamento.lines.filter(l => l.month === month)
-  const planned = spendingPlan(lines, data.categories, goalsFor(input.orcamento.goals, input.orcamento.months, month, data.categories)).plannedCents
+  const goals = goalsFor(input.orcamento.goals, input.orcamento.months, month, data.categories)
+  const planned = spendingPlan(lines, data.categories, goals).plannedCents
   if (planned > 0) {
     const spent = totals.spentCents
     const forecast = monthForecast(spent, month, input.today)
@@ -90,6 +96,20 @@ function allFacts(month: Month, input: AiInput): Fact[] {
     out.push({ id: 'orcamento', kind: 'orcamento', route: 'orcamento',
       text: `Orçamento de ${mes}: planejado ${plainBRL(planned)}, gasto ${plainBRL(spent)} (${pctU((spent / planned) * 100)} do planejado). ${fim}` })
   }
+
+  if (lines.length) {
+    const p = monthSummary(lines)
+    out.push({ id: 'plano_mes', kind: 'plano_mes', route: 'orcamento',
+      text: `Plano de ${mes}: entradas previstas de ${plainBRL(p.entradasCents)}, saídas planejadas de ${plainBRL(p.saidasCents)}, saldo previsto de ${brlS(p.saldoCents)}.` })
+  }
+
+  // metas por categoria e limite dos variáveis, com o mesmo cálculo da tela do Orçamento
+  const c = custos(input.orcamento.lines, data.txns, cat, month, goals, new Set(input.orcamento.fixedCategories))
+  const meta = (name: string, real: number, goal: number) =>
+    `${name} ${plainBRL(real)} de ${plainBRL(goal)} (${pctU((real / goal) * 100)}, ${real > goal ? `passou ${plainBRL(real - goal)}` : `faltam ${plainBRL(goal - real)}`})`
+  const withGoal = c.variaveis.filter(v => v.goalCents).sort((a, b) => b.realCents / b.goalCents! - a.realCents / a.goalCents!).slice(0, 5)
+  const parts = [...(c.goalCents ? [meta('Limite dos gastos variáveis', c.realCents, c.goalCents)] : []), ...withGoal.map(v => meta(names.get(v.categoryId ?? '') ?? 'Sem categoria', v.realCents, v.goalCents!))]
+  if (parts.length) out.push({ id: 'metas', kind: 'metas', route: 'orcamento', text: `Metas de ${mes}: ${parts.join('; ')}.` })
 
   const top = topSpending(data.txns, cat, month, 3)
   if (top.length) {

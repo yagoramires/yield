@@ -88,3 +88,17 @@ test('investimentos mudam a cada cotação: o hash muda só com o dia', async ()
   expect(await factsHash(facts(1_234_500), TODAY)).toBe(base)
   expect(await factsHash(facts(1_000_000), '2026-10-31')).not.toBe(base)
 })
+
+test('Orçamento: plano do mês e metas por categoria contra o gasto, com o quanto passou', () => {
+  const base = input()
+  const line = (id: string, kind: 'entrada' | 'saida', amountCents: number, grupo: 'fixo' | null) => ({ id, month: '2026-10', kind, name: id, amountCents, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, grupo })
+  const inp = { ...base, orcamento: { ...base.orcamento, months: ['2026-10'], lines: [line('Salário', 'entrada', 500000, null), line('Aluguel', 'saida', 150000, 'fixo')], goals: [{ month: '2026-10', key: 'cat:delivery', amountCents: 30000 }] } }
+  const f = buildFacts('2026-10', 'orcamento', inp)
+  expect(f.map(x => x.kind)).toEqual(['orcamento', 'plano_mes', 'metas'])
+  expect(text(f, 'plano_mes')).toContain(plainBRL(500000))
+  expect(text(f, 'plano_mes')).toContain(plainBRL(350000))
+  expect(text(f, 'metas')).toContain(`Delivery ${plainBRL(39000)} de ${plainBRL(30000)} (130,0%, passou ${plainBRL(9000)})`)
+  const gastos = buildFacts('2026-10', 'gastos', inp).map(x => x.kind)
+  expect(gastos).toContain('orcamento')
+  expect(gastos).not.toContain('metas')
+})

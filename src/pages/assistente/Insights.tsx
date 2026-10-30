@@ -75,7 +75,8 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
   }, [facts, hash, saved, busy, stale, key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!facts?.length || saved === undefined) return null
-  const title = area === 'gastos' ? `Insights de ${monthName(month).toLowerCase()} de ${month.slice(0, 4)}` : 'Insights da carteira'
+  const mes = `${monthName(month).toLowerCase()} de ${month.slice(0, 4)}`
+  const title = area === 'investimentos' ? 'Insights da carteira' : area === 'orcamento' ? `Insights do orçamento de ${mes}` : `Insights de ${mes}`
   const open = (factId: string) => {
     const f = facts.find(x => x.id === factId)
     if (!f) return
