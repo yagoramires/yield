@@ -14,6 +14,7 @@ import { biggestChanges, nextCharges, spentByCategory } from '../pages/categoria
 import { cleanDescription, comparePreviousMonth, cutToDay, monthForecast, spentByMonth, topSpending } from '../pages/lancamentos/build'
 import { spendingPlan } from '../pages/orcamento/build'
 import { passiveCoverage } from '../pages/resumoInvestimentos/build'
+import { byTicker, summary, yieldOnCost } from '../pages/proventos/build'
 import type { Route } from '../ui/routes'
 import { brlS, pctS, pctU } from './fmt'
 
@@ -28,19 +29,21 @@ export interface AiInput {
 }
 
 /** Os do mês escolhido entram no hash do cache; os de agora (cotação, CDI, saldo) mudam toda hora e não. */
-export const MONTH_KINDS = ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'plano_mes', 'metas', 'maiores_gastos', 'cobrancas'] as const
+// proventos também: só mudam quando cai um provento novo, então vale comparar os valores
+export const MONTH_KINDS = ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'plano_mes', 'metas', 'maiores_gastos', 'cobrancas', 'proventos_ano', 'proventos_12m', 'proventos_custo', 'proventos_mes'] as const
 export type FactKind = (typeof MONTH_KINDS)[number] | 'carteira' | 'rentabilidade' | 'renda_passiva' | 'saldo_parado'
 export interface Fact { id: string; kind: FactKind; text: string; route: Route; categoryId?: string }
 
 const monthLabel = (m: Month) => `${new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 15)).toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' })} de ${m.slice(0, 4)}`
 const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
-export type Area = 'gastos' | 'investimentos' | 'orcamento'
+export type Area = 'gastos' | 'investimentos' | 'orcamento' | 'proventos'
 const AREAS: Record<Area, FactKind[]> = {
   gastos: ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas', 'saldo_parado'],
   investimentos: ['carteira', 'rentabilidade', 'renda_passiva'],
   // sem o 'orcamento' (planejado do spendingPlan × gasto bruto): não é o número da tela do Orçamento e confundia com o plano
   orcamento: ['plano_mes', 'metas'],
+  proventos: ['proventos_ano', 'proventos_12m', 'proventos_custo', 'proventos_mes'],
 }
 
 /** Fatos de cada tela: Resumo de gastos, Resumo de investimentos (sempre o retrato de hoje) e Orçamento. */
@@ -146,6 +149,33 @@ function allFacts(month: Month, input: AiInput): Fact[] {
   if (cov && cov.avgDividendsCents > 0) {
     out.push({ id: 'renda_passiva', kind: 'renda_passiva', route: 'investimentos-resumo',
       text: `Renda passiva: proventos e juros dos últimos 12 meses dão em média ${plainBRL(cov.avgDividendsCents)} por mês, ${pctU(cov.pct * 100)} do gasto médio de ${plainBRL(cov.avgSpentCents)} por mês${cov.gapCents > 0 ? `; faltam ${plainBRL(cov.gapCents)} por mês para cobrir o gasto` : ''}.` })
+  }
+
+  // mesmas contas da tela de Proventos
+  const sm = summary(input.dividends, input.today)
+  if (sm.ytdCents > 0 || sm.ytdPrevCents > 0) {
+    const prevYear = String(Number(sm.year) - 1)
+    const diff = sm.ytdCents - sm.ytdPrevCents
+    out.push({ id: 'proventos_ano', kind: 'proventos_ano', route: 'proventos',
+      text: `Proventos: ${plainBRL(sm.ytdCents)} em ${sm.year} até ${day(input.today)}, contra ${plainBRL(sm.ytdPrevCents)} no mesmo período de ${prevYear} (diferença de ${brlS(diff)}${sm.ytdPrevCents > 0 ? `, ${pctS((diff / sm.ytdPrevCents) * 100)}` : ''}).` })
+  }
+  if (sm.last12Cents > 0) {
+    const top = byTicker(sm.last12).slice(0, 3).map(t => `${t.ticker} ${plainBRL(t.totalCents)} (${pctU((t.totalCents / sm.last12Cents) * 100)})`)
+    out.push({ id: 'proventos_12m', kind: 'proventos_12m', route: 'proventos',
+      text: `Proventos nos últimos 12 meses: ${plainBRL(sm.last12Cents)}, média de ${plainBRL(sm.avg12Cents)} por mês. Maiores pagadores: ${top.join('; ')}.` })
+    const yoc = yieldOnCost(sm.last12, p.rows)
+    if (yoc.total !== null) {
+      const best = [...yoc.byTicker].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, v]) => `${t} ${pctU(v * 100)}`)
+      out.push({ id: 'proventos_custo', kind: 'proventos_custo', route: 'proventos',
+        text: `Rendimento sobre o custo nos últimos 12 meses (proventos ÷ quanto custaram as posições de hoje): ${pctU(yoc.total * 100)}${best.length ? `; os que mais rendem: ${best.join(', ')}` : ''}.` })
+    }
+  }
+  const lastYearMonth = addMonths(thisMonth, -12)
+  const inMonth = (m: Month) => input.dividends.filter(d => monthOf(d.payDate) === m && d.payDate <= input.today).reduce((s, d) => s + d.amountCents, 0)
+  const [nowCents, beforeCents] = [inMonth(thisMonth), inMonth(lastYearMonth)]
+  if (nowCents > 0 || beforeCents > 0) {
+    out.push({ id: 'proventos_mes', kind: 'proventos_mes', route: 'proventos',
+      text: `Proventos no mês: ${plainBRL(nowCents)} em ${mes} até ${day(input.today)} (o mês ainda não acabou), contra ${plainBRL(beforeCents)} em ${monthLabel(lastYearMonth)} inteiro.` })
   }
 
   // saldo como a Pluggy informou, só de banco ainda conectado (como no Resumo); conta por arquivo não tem saldo

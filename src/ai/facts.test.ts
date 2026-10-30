@@ -102,3 +102,17 @@ test('Orçamento: plano do mês e metas por categoria contra o gasto, com o quan
   expect(gastos).toContain('orcamento')
   expect(gastos).not.toContain('metas')
 })
+
+test('Proventos: ano contra o ano passado, 12 meses com os maiores pagadores e rendimento sobre o custo', () => {
+  const d = (ticker: string, payDate: string, amountCents: number) => ({ id: `${ticker}${payDate}`, ticker, kind: 'Rendimento' as const, payDate, amountCents, broker: null, source: 'b3' as const, sourceKey: null })
+  const dividends = [d('FIIA11', '2025-10-15', 3000), d('FIIA11', '2026-09-15', 4000), d('FIIA11', '2026-10-15', 4000), d('AAAA3', '2026-08-20', 12000)]
+  const p = buildPortfolio([], [], [], [], TODAY)
+  const portfolio = { ...p, rows: [{ ticker: 'FIIA11', costCents: 100000 } as (typeof p.rows)[number], { ticker: 'AAAA3', costCents: 200000 } as (typeof p.rows)[number]] }
+  const f = buildFacts('2026-10', 'proventos', input({ dividends, portfolio }))
+  expect(f.map(x => x.kind)).toEqual(['proventos_ano', 'proventos_12m', 'proventos_custo', 'proventos_mes'])
+  expect(text(f, 'proventos_ano')).toContain(`${plainBRL(20000)} em 2026 até 30/10, contra ${plainBRL(3000)} no mesmo período de 2025`)
+  expect(text(f, 'proventos_12m')).toContain(`AAAA3 ${plainBRL(12000)} (60,0%)`)
+  expect(text(f, 'proventos_custo')).toContain('6,7%') // 20.000 ÷ 300.000
+  expect(text(f, 'proventos_mes')).toContain(`${plainBRL(4000)} em outubro de 2026 até 30/10 (o mês ainda não acabou), contra ${plainBRL(3000)} em outubro de 2025 inteiro`)
+  expect(buildFacts('2026-09', 'proventos', input({ dividends, portfolio }))).toEqual([]) // retrato de hoje
+})

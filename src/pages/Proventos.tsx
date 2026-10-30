@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Insights } from './assistente/Insights'
+import type { Route } from '../ui/routes'
 import { deleteDividend, upsertDividends } from '../db/repo'
 import { formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
@@ -17,7 +19,7 @@ const shortBroker = (b: string | null) => (b ? b.split(/\s+/).slice(0, 2).join('
 type Period = string // '12m', 'tudo' ou um ano ('2025')
 const emptyForm = (): DividendForm => ({ ticker: '', kind: 'Dividendo', payDate: '', broker: '', amount: '' })
 
-export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
+export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: string; onNavigate(r: Route): void }) {
   const { data, db, derived, reload } = useData()
   const [filter, setFilter] = useState<Filter>({ ticker: '', kind: '', month: initialMonth })
   const [period, setPeriod] = useState<Period>('12m')
@@ -89,6 +91,7 @@ export function Proventos({ initialMonth = '' }: { initialMonth?: string }) {
       )}
 
       {all.length === 0 ? <div className="info" style={{ marginTop: 14 }}>Nenhum provento ainda. Lance um provento ou importe os Proventos Recebidos da B3.</div> : (<>
+        <Insights area="proventos" month={thisMonth} onNavigate={onNavigate} />
         <div className="kpis">
           <div className="k"><div className="muted">Últimos 12 meses</div><div className="v">{formatBRL(sm.last12Cents)}</div><div className="s muted">média {formatBRL(sm.avg12Cents)}/mês</div></div>
           <div className="k"><div className="muted">{sm.year} até hoje</div><div className="v">{formatBRL(sm.ytdCents)}</div>

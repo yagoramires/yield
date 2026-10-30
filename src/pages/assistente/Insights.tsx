@@ -46,7 +46,7 @@ export function Insights({ area, month, onNavigate }: { area: Area; month: Month
 function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; model: CatalogModel; onNavigate(r: Route): void }) {
   const { db, gastos } = useData()
   useHideValues() // redesenha quando o olhinho muda
-  const { input } = useAiInput(month, area !== 'orcamento') // o Orçamento não usa o histórico de cotações
+  const { input } = useAiInput(month, area === 'gastos' || area === 'investimentos') // Orçamento e Proventos não usam o histórico de cotações
   const key = `${area}:${month}` // guardado na coluna month da ai_insights: um por Resumo e mês
   const facts = useMemo(() => (input ? buildFacts(month, area, input) : null), [month, area, input])
   const [hash, setHash] = useState<string | null>(null)
@@ -92,7 +92,7 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
 
   if (!facts?.length || saved === undefined) return null
   const mes = `${monthName(month).toLowerCase()} de ${month.slice(0, 4)}`
-  const title = area === 'investimentos' ? 'Insights da carteira' : area === 'orcamento' ? `Insights do orçamento de ${mes}` : `Insights de ${mes}`
+  const title = area === 'investimentos' ? 'Insights da carteira' : area === 'proventos' ? 'Insights dos proventos' : area === 'orcamento' ? `Insights do orçamento de ${mes}` : `Insights de ${mes}`
   const open = (factId: string) => {
     const f = facts.find(x => x.id === factId)
     if (!f) return
