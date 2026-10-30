@@ -1,4 +1,6 @@
 import { ArrowDownRight, ArrowUpRight, CircleHelp, PiggyBank, Target } from 'lucide-react'
+import { Insights } from './assistente/Insights'
+import type { Route } from '../ui/routes'
 import { goalsFor } from '../domain/orcamento'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, monthOf } from '../domain/money'
@@ -13,7 +15,7 @@ import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
 
-export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
+export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
   const { gastos, orcamento } = useData()
   const { data, categorize: cat, month, setMonth, setFilter, subscriptions } = gastos
   const { brl, cents, short } = useHideValues()
@@ -63,6 +65,7 @@ export function ResumoGastos({ onOpenLancamentos, onOpenAssinaturas, onOpenSetti
           <button className="link" onClick={() => open({ categoryId: 'sem' })}>Categorizar</button>
         </div>
       )}
+      <Insights area="gastos" month={month} onNavigate={onNavigate} />
       <div className="kpis">
         <div className="k"><div className="muted k-l"><ArrowDownRight size={12} aria-hidden />Gasto no mês</div><div className="v">{brl(totals.spentCents)}</div>
           <div className="s muted">{diff === 0 ? `igual a ${prevName}` : <><span className={diff > 0 ? 'dn' : 'up'}>{diff > 0 ? '▲' : '▼'} {brl(Math.abs(diff))}</span> a {diff > 0 ? 'mais' : 'menos'} que {prevName}</>} até o dia {cmp.day}</div></div>

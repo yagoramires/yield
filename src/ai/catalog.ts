@@ -31,3 +31,10 @@ export function machineLabel(hw: Hardware): string {
   if (hw.os === 'macos') return `${hw.arch === 'aarch64' ? 'Mac com chip Apple' : 'Mac com processador Intel'} · ${ram}`
   return [`PC com ${hw.os === 'windows' ? 'Windows' : hw.os}`, ram, ...(hw.gpu ? [`${hw.gpu.name} ${Math.round(hw.gpu.vramMib / 1024)} GB`] : [])].join(' · ')
 }
+
+/** Modelo em uso: o escolhido, se já está no disco; sem escolha, o primeiro do catálogo que já foi baixado. */
+export function installedModel(modelId: string | null, files: string[], catalog = CATALOG): CatalogModel | null {
+  const chosen = catalog.find(m => m.id === modelId)
+  if (chosen) return files.includes(chosen.file) ? chosen : null
+  return catalog.find(m => files.includes(m.file)) ?? null
+}

@@ -1,4 +1,6 @@
 import { Coins, Landmark, RefreshCw, Sprout, TrendingUp, Wallet } from 'lucide-react'
+import { Insights } from './assistente/Insights'
+import type { Route } from '../ui/routes'
 import { DARF_CODE } from '../domain/darf'
 import { portfolioResult } from '../domain/portfolio'
 import { addMonths, monthOf } from '../domain/money'
@@ -18,8 +20,8 @@ import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
 
-export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
-  onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
+export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
+  onNavigate(r: Route): void; onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
 }) {
   const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
@@ -101,6 +103,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       ))}
       {incomplete.length > 0 && <div className="note" style={{ marginTop: 10 }}>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas. Compras de antes do relatório da B3 entram em <button className="link" onClick={onOpenNotas}>Notas › Operação sem nota</button>. <button className="link" onClick={onOpenImposto}>Abrir Imposto</button></div>}
 
+      <Insights area="investimentos" month={thisMonth} onNavigate={onNavigate} />
       <div className="kpis">
         <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{brl(p.totalValueCents)}</div>
           <div className="s muted">{reinvest > 0 ? `do seu bolso ${brl(fromPocket)} · ${brl(reinvest)} de proventos reinvestidos` : `aportado ${brl(p.totalCostCents)}`}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}{p.noCostCount > 0 && ` · ${p.noCostCount} ${p.noCostCount === 1 ? 'item sem aportado' : 'itens sem aportado'}`}</div></div>

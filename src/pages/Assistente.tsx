@@ -1,48 +1,36 @@
 import { invoke } from '@tauri-apps/api/core'
-import { ChevronLeft, ChevronRight, Gauge } from 'lucide-react'
+import { Gauge } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
-import { CATALOG, lighter, type Hardware } from '../ai/catalog'
+import { CATALOG, installedModel, lighter, type Hardware } from '../ai/catalog'
 import { getHardware } from '../ai/server'
 import { setAiSettings, useAiSettings } from '../ai/settings'
-import { useData } from '../state/DataProvider'
-import type { Route } from '../ui/routes'
+import { monthOf } from '../domain/money'
+import { todayISO } from '../state/DataProvider'
 import { Ativar } from './assistente/Ativar'
 import { Chat } from './assistente/Chat'
-import { Insights } from './assistente/Insights'
 import { useAiInput } from './assistente/useAiInput'
-import { addMonths } from '../domain/money'
-import { errText, monthName } from './lancamentos/GastosHeader'
+import { errText } from './lancamentos/GastosHeader'
 
-export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
+/** Ativação do modelo e o chat. Os insights do mês ficam nos Resumos de gastos e de investimentos. */
+export function Assistente() {
   const settings = useAiSettings()
-  const { gastos: { month, setMonth } } = useData()
-  const { input, loadRent } = useAiInput(month)
+  const on = settings.off === false
+  const { input, loadRent } = useAiInput(monthOf(todayISO()))
   const [hw, setHw] = useState<Hardware | null>(null)
   const [installed, setInstalled] = useState<{ file: string; bytes: number }[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const refresh = useCallback(() => invoke<{ file: string; bytes: number }[]>('ai_installed').then(setInstalled, e => setError(errText(e))), [])
-  useEffect(() => { getHardware().then(setHw, e => setError(errText(e))); void refresh() }, [refresh])
+  // desligada, nada de detectar hardware nem criar a pasta de modelos
+  useEffect(() => { if (on) { getHardware().then(setHw, e => setError(errText(e))); void refresh() } }, [on, refresh])
 
-  const has = (file: string) => !!installed?.some(i => i.file === file)
+  const model = installed ? installedModel(settings.modelId, installed.map(i => i.file)) : null
   const chosen = CATALOG.find(m => m.id === settings.modelId) ?? null
-  // o escolhido se já está no disco; sem escolha, qualquer um do catálogo que já foi baixado
-  const model = chosen ? (has(chosen.file) ? chosen : null) : CATALOG.find(m => has(m.file)) ?? null
   const light = model && settings.tokS !== null && settings.tokS < 8 ? lighter(model) : null
 
   return (
     <>
-      {/* só título e mês: sincronizar e importar extrato ficam nas telas de gastos */}
-      <div className="bar">
-        <div className="row" style={{ alignItems: 'center', gap: 10 }}>
-          <h1 style={{ margin: 0 }}>Assistente</h1>
-          {model && settings.off === false && <>
-            <button className="icon-btn" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
-            <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
-            <button className="icon-btn" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight size={14} aria-hidden /></button>
-          </>}
-        </div>
-      </div>
-      {settings.off !== false ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
+      <h1 style={{ margin: 0 }}>Assistente</h1>
+      {!on ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
         : !hw || !installed ? <div className="muted" style={{ marginTop: 12 }}>Verificando este computador…</div>
         : !model ? <Ativar hw={hw} target={chosen} onReady={() => void refresh()} />
@@ -54,7 +42,7 @@ export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
               <button className="link" onClick={() => setAiSettings({ modelId: light.id, tokS: null })}>Usar o {light.name}</button>
             </div>
           )}
-          <Insights key={month} model={model} month={month} input={input} onNavigate={onNavigate} />
+          <div className="muted" style={{ marginTop: 8 }}>Os insights do mês aparecem sozinhos no Resumo de gastos e no Resumo de investimentos.</div>
           <Chat model={model} input={input} loadRent={loadRent} />
         </>}
       <div className="muted ai-foot">Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>

@@ -12,7 +12,7 @@ import { runTool } from '../tools'
 import perguntas from './perguntas.json'
 import { PERFIS } from './perfis'
 
-interface Pergunta { tipo: 'chat' | 'insights'; perfil: string; pergunta?: string; mes?: string; valores: string[]; ferramenta?: string | string[] /* qualquer uma serve */ }
+interface Pergunta { tipo: 'chat' | 'insights'; perfil: string; pergunta?: string; mes?: string; area?: 'gastos' | 'investimentos' /* insights: qual Resumo */; valores: string[]; ferramenta?: string | string[] /* qualquer uma serve */ }
 const QS = perguntas as Pergunta[]
 const MONTHS = monthsBetween('2026-01', '2026-10')
 
@@ -20,7 +20,7 @@ const MONTHS = monthsBetween('2026-01', '2026-10')
 async function sources(perfil: string): Promise<string[]> {
   const input = PERFIS[perfil]
   const loadRent = async () => input.rent
-  const out = MONTHS.flatMap(m => buildFacts(m, input).map(f => f.text))
+  const out = MONTHS.flatMap(m => (['gastos', 'investimentos'] as const).flatMap(a => buildFacts(m, a, input).map(f => f.text)))
   for (const [i, de] of MONTHS.entries()) for (const ate of MONTHS.slice(i)) {
     for (const name of ['gastos', 'proventos', 'lancamentos']) out.push(JSON.stringify(await runTool(name, { de, ate }, input, loadRent)))
   }
@@ -66,7 +66,7 @@ describe.skipIf(!URL_)('avaliação contra o llama-server', () => {
       try {
         if (q.tipo === 'insights') {
           let raw = ''
-          const facts = buildFacts(q.mes!, input)
+          const facts = buildFacts(q.mes!, q.area ?? 'gastos', input)
           const ok = await generateInsights(nodePost(b => { raw = b }), facts)
           const all = (JSON.parse(JSON.parse(raw).choices[0].message.content).insights ?? []) as unknown[]
           text = ok.map(i => `${i.titulo}: ${i.texto} ${i.recomendacao ?? ''}`).join(' | ')

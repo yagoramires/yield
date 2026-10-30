@@ -35,7 +35,14 @@ export interface Fact { id: string; kind: FactKind; text: string; route: Route; 
 const monthLabel = (m: Month) => `${new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 15)).toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' })} de ${m.slice(0, 4)}`
 const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
-export function buildFacts(month: Month, input: AiInput): Fact[] {
+export type Area = 'gastos' | 'investimentos'
+const INVEST: FactKind[] = ['carteira', 'rentabilidade', 'renda_passiva']
+
+/** Fatos do Resumo de gastos ou do de investimentos (este é sempre o retrato de hoje). */
+export const buildFacts = (month: Month, area: Area, input: AiInput): Fact[] =>
+  allFacts(month, input).filter(f => INVEST.includes(f.kind) === (area === 'investimentos'))
+
+function allFacts(month: Month, input: AiInput): Fact[] {
   const { data, categorize: cat, subscriptions } = input.gastos
   const thisMonth = monthOf(input.today)
   const isCurrent = month === thisMonth
@@ -133,9 +140,14 @@ export function buildFacts(month: Month, input: AiInput): Fact[] {
   return out
 }
 
-/** SHA-256 só dos fatos do mês: cotação e CDI mudam a toda hora e marcariam os insights como desatualizados sem motivo. */
-export async function factsHash(facts: Fact[]): Promise<string> {
-  const own = facts.filter(f => (MONTH_KINDS as readonly string[]).includes(f.kind))
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(own)))
+/**
+ * SHA-256 dos fatos do mês. Os de agora (cotação, CDI, saldo) mudam a cada 15 min e regerariam a cada visita:
+ * no lugar dos valores, entram só o tipo e o dia, então mudam no máximo uma vez por dia.
+ */
+export async function factsHash(facts: Fact[], today: ISODate): Promise<string> {
+  const isMonth = (f: Fact) => (MONTH_KINDS as readonly string[]).includes(f.kind)
+  const now = facts.filter(f => !isMonth(f)).map(f => f.kind)
+  const key = { own: facts.filter(isMonth), ...(now.length ? { now, today } : {}) }
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(key)))
   return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
