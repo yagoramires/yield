@@ -1,20 +1,19 @@
 :root {
   color-scheme: dark;
-  /* neutros com o matiz do verde (125°) e quase sem cor: o cinza não briga com o destaque */
-  --bg: #0b0c0a;
-  --sidebar: #121311;
-  --surface: #1a1c17;
-  --well: #171914;        /* rodapé de painel, linha em edição */
-  --hover: #20221d;       /* fundo de linha e botão fantasma ao passar o mouse */
-  --hover-2: #2a2e25;     /* item ativo em lista suspensa e calendário */
-  --raised: #20231c;      /* popovers e listas suspensas */
-  --raised-line: #33372e;
-  --line: #232520;        /* divisória entre linhas dentro de um card */
-  --border: #272922;
-  --border-strong: #3b3f36; /* borda ao passar o mouse */
-  --text: #d7d9d4;
-  --text-2: #8b8f87;
-  --faint: #5e6258;
+  --bg: #0b0c0d;
+  --sidebar: #121315;
+  --surface: #1a1b1f;
+  --well: #17181c;        /* rodapé de painel, linha em edição */
+  --hover: #1f2125;       /* fundo de linha e botão fantasma ao passar o mouse */
+  --hover-2: #2a2c33;     /* item ativo em lista suspensa e calendário */
+  --raised: #202127;      /* popovers e listas suspensas */
+  --raised-line: #33353d;
+  --line: #222428;        /* divisória entre linhas dentro de um card */
+  --border: #26282e;
+  --border-strong: #3a3d45; /* borda ao passar o mouse */
+  --text: #d6d8dd;
+  --text-2: #8a8d96;
+  --faint: #5d6068;
   --accent: #c6ff3d;
   --accent-bg: #1a2309;
   --accent-line: #34440d;
