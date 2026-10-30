@@ -1,6 +1,7 @@
 planilhas/
 /notas/
 .superpowers/
+src-tauri/binaries/
 .DS_Store
 
 # Logs

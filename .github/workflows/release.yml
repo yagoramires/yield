@@ -37,6 +37,18 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
+      - name: Vulkan SDK (llama-server com GPU no Windows)
+        if: runner.os == 'Windows'
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          cache: true
+      - uses: actions/cache@v4
+        with:
+          path: src-tauri/binaries
+          key: llama-${{ runner.os }}-${{ hashFiles('scripts/build-llama.sh') }}
+      - name: llama-server do Assistente
+        shell: bash
+        run: bash scripts/build-llama.sh
       - name: Certificado de assinatura no keychain temporário
         if: matrix.sign
         env:
