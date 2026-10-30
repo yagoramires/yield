@@ -53,3 +53,11 @@ test('conversa longa perde as mensagens mais antigas, mas não o sistema nem a �
   expect(out.at(-1)).toEqual(msgs.at(-1))
   expect(JSON.stringify(out).length).toBeLessThanOrEqual(1500)
 })
+
+test('chamada de ferramenta escrita como texto também roda', async () => {
+  const { post } = fake([say('<tool_call>\n{"name": "carteira", "arguments": {}}\n</tool_call>'), say('Você tem R$ 0,00 investidos.')])
+  const tools: string[] = []
+  const r = await runChat(post, [{ role: 'user', content: 'quanto tenho investido?' }], input(), noRent, { ...on, tool: n => tools.push(n) })
+  expect(tools).toEqual(['carteira'])
+  expect(r.answer).toBe('Você tem R$ 0,00 investidos.')
+})

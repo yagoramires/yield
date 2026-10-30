@@ -47,11 +47,14 @@ export function buildFacts(month: Month, input: AiInput): Fact[] {
   if (totals.spentCents > 0 || totals.incomeCents > 0) {
     const left = totals.incomeCents - totals.spentCents
     out.push({ id: 'gasto_mes', kind: 'gasto_mes', route: 'gastos-resumo',
-      text: `Em ${mes}: gasto ${plainBRL(totals.spentCents)}, entradas ${plainBRL(totals.incomeCents)}, sobrou ${plainBRL(left)}${totals.incomeCents > 0 ? ` (${pctU((left / totals.incomeCents) * 100)} do que entrou)` : ''}.` })
+      text: totals.incomeCents > 0
+        ? `Em ${mes}: entradas de ${plainBRL(totals.incomeCents)}; gasto de ${plainBRL(totals.spentCents)} (${pctU((totals.spentCents / totals.incomeCents) * 100)} das entradas); sobrou ${plainBRL(left)} (${pctU((left / totals.incomeCents) * 100)} das entradas).`
+        : `Em ${mes}: gasto de ${plainBRL(totals.spentCents)}, sem entradas registradas.` })
   }
 
   const cmp = comparePreviousMonth(data.txns, cat, month, input.today)
-  if (cmp.currentCents > 0 || cmp.previousSameDayCents > 0) {
+  // mês anterior sem gasto (começo do histórico): comparar daria "+100%" sem sentido
+  if (cmp.previousSameDayCents > 0) {
     const diff = cmp.currentCents - cmp.previousSameDayCents
     out.push({ id: 'vs_anterior', kind: 'vs_anterior', route: 'gastos-resumo',
       text: `Gasto até o dia ${cmp.day}: ${plainBRL(cmp.currentCents)} em ${mes} contra ${plainBRL(cmp.previousSameDayCents)} em ${mesAnt} até o mesmo dia (diferença de ${brlS(diff)}${cmp.previousSameDayCents > 0 ? `, ${pctS((diff / cmp.previousSameDayCents) * 100)}` : ''}).` })
@@ -62,7 +65,7 @@ export function buildFacts(month: Month, input: AiInput): Fact[] {
   const spendMap = (txns: Txn[], m: Month) => new Map(spentByCategory(txns, data.accounts, cat, data.categories, m).flatMap(r => (r.category && r.countsAsSpending ? [[r.category.id, r.cents] as const] : [])))
   const [curMap, prevMap] = [spendMap(data.txns, month), spendMap(prevTxns, prev)]
   const names = new Map(data.categories.map(c => [c.id, c.name]))
-  for (const ch of biggestChanges(curMap, prevMap, 3)) {
+  for (const ch of [...prevMap.values()].some(v => v > 0) ? biggestChanges(curMap, prevMap, 3) : []) {
     const [c, p] = [curMap.get(ch.id) ?? 0, prevMap.get(ch.id) ?? 0]
     out.push({ id: `variacao_categoria:${ch.id}`, kind: 'variacao_categoria', route: 'lancamentos', categoryId: ch.id,
       text: `${names.get(ch.id) ?? ch.id}: ${plainBRL(c)} em ${mes} contra ${plainBRL(p)} em ${mesAnt}${isCurrent ? ` até o dia ${cmp.day}` : ''} (diferença de ${brlS(ch.deltaCents)}${ch.pct !== null ? `, ${pctS(ch.pct * 100)}` : ''}).` })

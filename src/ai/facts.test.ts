@@ -28,6 +28,18 @@ test('banco desconectado não entra no dinheiro parado', () => {
   expect(buildFacts('2026-10', semBanco).map(f => f.kind)).not.toContain('saldo_parado')
 })
 
+test('sem gasto no mês anterior não compara (setembro contra um agosto vazio)', () => {
+  const kinds = buildFacts('2026-09', input()).map(f => f.kind)
+  expect(kinds).not.toContain('vs_anterior')
+  expect(kinds).not.toContain('variacao_categoria')
+})
+
+test('o que sobrou e o que foi gasto vêm com o % de cada um, sem ambiguidade', () => {
+  const t = text(buildFacts('2026-10', input()), 'gasto_mes')
+  expect(t).toContain('7,8% das entradas') // 390 de 5.000
+  expect(t).toContain('92,2% das entradas')
+})
+
 test('mês passado não leva os fatos de agora (carteira, rentabilidade, saldo)', () => {
   const kinds = buildFacts('2026-09', input()).map(f => f.kind)
   expect(kinds).toContain('gasto_mes')

@@ -23,7 +23,7 @@ const fn = (name: string, description: string, properties: Record<string, object
 
 export const TOOLS = [
   fn('gastos', 'Total gasto num período e quanto foi em cada categoria.', { de: mes, ate: mes, categoria: { type: 'string', description: 'nome da categoria (opcional)' } }, ['de', 'ate']),
-  fn('lancamentos', 'Lista os gastos de um período (até 30, os mais recentes), com o total e a quantidade de todos.', { de: mes, ate: mes, busca: { type: 'string', description: 'parte da descrição, ex.: "padaria" (opcional)' }, categoria: { type: 'string', description: 'nome da categoria (opcional)' } }, ['de', 'ate']),
+  fn('lancamentos', 'Lista os gastos de um período (até 30, os mais recentes), com o total, a quantidade e a maior compra.', { de: mes, ate: mes, busca: { type: 'string', description: 'parte da descrição, ex.: "padaria" (opcional)' }, categoria: { type: 'string', description: 'nome da categoria (opcional)' } }, ['de', 'ate']),
   fn('orcamento', 'Planejado × realizado do orçamento de um mês, por bloco, e as metas por categoria.', { mes }, ['mes']),
   fn('carteira', 'Patrimônio investido, valorização sobre o aportado (sem proventos) e quanto há em cada classe de investimento.', {}, []),
   fn('rentabilidade', 'Rentabilidade da carteira de bolsa comparada ao CDI e ao Ibovespa nos últimos meses.', { meses: { type: 'integer', description: 'de 1 a 24; padrão 12' } }, []),
@@ -31,7 +31,9 @@ export const TOOLS = [
 ]
 
 const isMonth = (v: unknown): v is Month => typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v)
-const opt = (v: unknown) => (typeof v === 'string' && v.trim() ? fold(v) : null)
+// o modelo às vezes preenche o opcional com "null" ou "não especificada": vale como não preenchido
+const EMPTY = new Set(['null', 'undefined', 'nenhuma', 'nenhum', 'todas', 'todos', 'qualquer', 'nao especificada', 'nao especificado'])
+const opt = (v: unknown) => { const f = typeof v === 'string' ? fold(v) : ''; return f && !EMPTY.has(f) ? f : null }
 
 function period(a: Args): Month[] | string {
   if (!isMonth(a.de) || !isMonth(a.ate)) return 'Use meses no formato AAAA-MM em "de" e "ate".'
@@ -44,32 +46,44 @@ export async function runTool(name: string, args: unknown, input: AiInput, loadR
   const a = (args && typeof args === 'object' ? args : {}) as Args
   const { data, categorize: cat } = input.gastos
   const catName = (t: Txn) => cat(t)?.name ?? 'Sem categoria'
+  const want = opt(a.categoria)
+  if (want && (name === 'gastos' || name === 'lancamentos')) {
+    // categoria que não existe: erro com a lista, para o modelo tentar de novo (ignorar o filtro responderia o total de tudo)
+    const names = data.categories.filter(c => c.countsAsSpending).map(c => c.name)
+    if (![...names, 'Sem categoria'].some(n => fold(n).includes(want))) return { erro: `Não há categoria "${a.categoria}". As categorias são: ${names.join(', ')}.` }
+  }
   switch (name) {
     case 'gastos': {
       const ms = period(a)
       if (typeof ms === 'string') return { erro: ms }
-      const want = opt(a.categoria)
       const by = new Map<string, Cents>()
       for (const m of ms) for (const r of spentByCategory(data.txns, data.accounts, cat, data.categories, m)) {
         const n = r.category?.name ?? 'Sem categoria'
         if (r.countsAsSpending && r.cents > 0 && (!want || fold(n).includes(want))) by.set(n, (by.get(n) ?? 0) + r.cents)
       }
       const rows = [...by].sort((x, y) => y[1] - x[1])
-      return { periodo: `${a.de} a ${a.ate}`, total: plainBRL(rows.reduce((s, r) => s + r[1], 0)), porCategoria: rows.slice(0, 15).map(([categoria, c]) => ({ categoria, valor: plainBRL(c) })) }
+      const total = rows.reduce((s, r) => s + r[1], 0)
+      // modelo pequeno às vezes erra o ano ("setembro" vira 2025): o aviso mostra onde há dado para ele corrigir
+      const spentMonths = data.txns.filter(t => t.amountCents < 0).map(t => monthOf(t.date)).sort()
+      const aviso = !total && spentMonths.length ? { aviso: `Nenhum gasto nesse período. Há gastos de ${spentMonths[0]} a ${spentMonths.at(-1)}.` } : {}
+      return { periodo: `${a.de} a ${a.ate}`, total: plainBRL(total), ...aviso, porCategoria: rows.slice(0, 15).map(([categoria, c]) => ({ categoria, valor: plainBRL(c) })) }
     }
     case 'lancamentos': {
       const ms = period(a)
       if (typeof ms === 'string') return { erro: ms }
-      const [busca, want, inRange] = [opt(a.busca), opt(a.categoria), new Set(ms)]
+      const [busca, inRange] = [opt(a.busca), new Set(ms)]
       const list = data.txns.filter(t => {
         const c = cat(t)
         if (t.amountCents >= 0 || !inRange.has(monthOf(t.date)) || (c && !c.countsAsSpending)) return false
         if (want && !fold(catName(t)).includes(want)) return false
-        return !busca || fold(t.description).includes(busca) || fold(cleanDescription(t.description).name).includes(busca)
+        // a pessoa pergunta por "delivery", e a descrição é "IFOOD": a busca olha também a categoria
+        return !busca || fold(t.description).includes(busca) || fold(cleanDescription(t.description).name).includes(busca) || fold(catName(t)).includes(busca)
       }).sort((x, y) => y.date.localeCompare(x.date))
+      const row = (t: Txn) => ({ data: `${t.date.slice(8, 10)}/${t.date.slice(5, 7)}/${t.date.slice(0, 4)}`, descricao: cleanDescription(t.description).name, categoria: catName(t), valor: plainBRL(-t.amountCents) })
+      const biggest = list.reduce<Txn | null>((m, t) => (!m || t.amountCents < m.amountCents ? t : m), null)
       return {
         periodo: `${a.de} a ${a.ate}`, total: plainBRL(-list.reduce((s, t) => s + t.amountCents, 0)), quantidade: list.length,
-        linhas: list.slice(0, 30).map(t => ({ data: `${t.date.slice(8, 10)}/${t.date.slice(5, 7)}/${t.date.slice(0, 4)}`, descricao: cleanDescription(t.description).name, categoria: catName(t), valor: plainBRL(-t.amountCents) })),
+        ...(biggest ? { maior: row(biggest) } : {}), linhas: list.slice(0, 30).map(row),
       }
     }
     case 'orcamento': {
@@ -100,7 +114,8 @@ export async function runTool(name: string, args: unknown, input: AiInput, loadR
       const { gainCents, baseCents } = portfolioResult(p)
       return {
         patrimonio: plainBRL(p.totalValueCents), valorizacao: brlS(gainCents), ...(baseCents > 0 ? { valorizacaoPct: pctS((gainCents / baseCents) * 100), aportado: plainBRL(baseCents) } : {}),
-        porClasse: carteiraClasses(p).filter(x => x.valueCents > 0).map(x => ({ classe: x.label, valor: plainBRL(x.valueCents), pct: pctU(x.pct * 100) })),
+        // rótulo e valor no mesmo texto: separados, o modelo pequeno trocava o valor da classe pelo patrimônio
+        porClasse: carteiraClasses(p).filter(x => x.valueCents > 0).map(x => `${x.label}: ${plainBRL(x.valueCents)} (${pctU(x.pct * 100)} do patrimônio)`),
       }
     }
     case 'rentabilidade': {
@@ -108,7 +123,8 @@ export async function runTool(name: string, args: unknown, input: AiInput, loadR
       const r = await loadRent(meses)
       if (!r) return { erro: 'Não consegui o histórico de cotações agora (sem internet?).' }
       const f = (v: number | null) => (v === null ? 'sem dado' : pctS(v))
-      return { periodo: `últimos ${meses} meses`, carteira: f(r.carteiraPct), cdi: f(r.cdiPct), ibovespa: f(r.ibovPct) }
+      const comparacao = r.carteiraPct !== null && r.cdiPct !== null ? { comparacao: `a carteira rendeu ${r.carteiraPct >= r.cdiPct ? 'mais' : 'menos'} que o CDI` } : {}
+      return { periodo: `últimos ${meses} meses`, carteira: f(r.carteiraPct), cdi: f(r.cdiPct), ibovespa: f(r.ibovPct), ...comparacao }
     }
     case 'proventos': {
       const ms = period(a)

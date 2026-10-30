@@ -27,6 +27,10 @@ test('busca ignora acento e caixa', async () => {
   expect(r.linhas.map(l => l.descricao)).toEqual(['Padaria Pão Quente'])
 })
 
+test('busca também acha pelo nome da categoria (IFOOD em Delivery)', async () => {
+  expect(await runTool('lancamentos', { de: '2026-10', ate: '2026-10', busca: 'delivery' }, input(), noRent)).toMatchObject({ quantidade: 1, total: plainBRL(39000) })
+})
+
 test('argumento inválido vira erro em português, sem exceção', async () => {
   expect(await runTool('gastos', { de: '2026-13', ate: '2026-10' }, input(), noRent)).toHaveProperty('erro')
   expect(await runTool('gastos', null, input(), noRent)).toHaveProperty('erro')
@@ -53,4 +57,25 @@ test('orcamento traz planejado e realizado por bloco', async () => {
 
 test('todas as ferramentas descritas para o modelo', () => {
   expect(TOOLS.map(t => t.function.name).sort()).toEqual(['carteira', 'gastos', 'lancamentos', 'orcamento', 'proventos', 'rentabilidade'])
+})
+
+test('período sem gasto avisa de quando a quando há gastos', async () => {
+  expect(await runTool('gastos', { de: '2025-10', ate: '2025-10' }, input(), noRent)).toMatchObject({ total: plainBRL(0), aviso: 'Nenhum gasto nesse período. Há gastos de 2026-09 a 2026-10.' })
+})
+
+test('lancamentos traz a maior compra pronta', async () => {
+  expect(await runTool('lancamentos', { de: '2026-09', ate: '2026-10' }, input(), noRent)).toMatchObject({ maior: { descricao: 'Ifood Pedido', valor: plainBRL(39000) } })
+})
+
+test('rentabilidade já diz se ficou acima ou abaixo do CDI', async () => {
+  const rent = async () => ({ carteiraPct: 4.2, cdiPct: 11.8, ibovPct: null, cdiMonthPct: 0.9 })
+  expect(await runTool('rentabilidade', {}, input(), rent)).toMatchObject({ carteira: '+4,2%', cdi: '+11,8%', comparacao: 'a carteira rendeu menos que o CDI' })
+})
+
+test('categoria "null" ou vazia vale como sem filtro; categoria que não existe vira erro com a lista', async () => {
+  for (const categoria of ['null', 'não especificada', '']) {
+    expect(await runTool('gastos', { de: '2026-10', ate: '2026-10', categoria }, input(), noRent)).toMatchObject({ total: plainBRL(39000) })
+  }
+  expect(await runTool('gastos', { de: '2026-10', ate: '2026-10', categoria: 'academia' }, input(), noRent)).toEqual({ erro: 'Não há categoria "academia". As categorias são: Delivery.' })
+  expect(await runTool('lancamentos', { de: '2026-10', ate: '2026-10', categoria: 'academia' }, input(), noRent)).toHaveProperty('erro')
 })
