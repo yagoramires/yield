@@ -30,6 +30,19 @@ export function displayName(s: string): string {
   return n.toLowerCase().split(' ').map((w, i) => (i && SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
 }
 
+/** Nome curto para agrupar lançamentos parecidos: sem datas, número de nota, prazo de liquidação e números soltos; com " - ", fica a última parte. */
+export function shortName(s: string): string {
+  const parts = displayName(s).split(' - ')
+  const n = parts[parts.length - 1]
+    .replace(/\b\d{1,2}\/\d{1,2}(\/\d{2,4})?\b/g, ' ')
+    .replace(/\bNota\s*N?[ºo°.]*\s*\d+/gi, ' ')
+    .replace(/\bLiq\.?\s*D\+\d+/gi, ' ')
+    .replace(/\bPr\b/g, ' ')
+    .replace(/\b\d+\b/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+  return n || displayName(s)
+}
+
 export function fingerprint(accountId: string, date: ISODate, amountCents: Cents, description: string, occurrence: number): string {
   return `${accountId}|${date}|${amountCents}|${normalizeDescription(description)}|#${occurrence}`
 }

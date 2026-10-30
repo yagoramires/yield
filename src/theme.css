@@ -408,6 +408,9 @@ tr.hl td { background: #1a1213; }
 .lt.blk .txn-list .it + .it { border-top: 1px solid #202226; }
 .lt.blk .cat-line { display: flex; gap: 10px; align-items: center; }
 .lt.blk .cat-line .grow { flex: 1; min-width: 0; }
+.lt.blk td.ell-cell { max-width: 0; } /* deixa o nome encolher com reticências em vez de empurrar o valor para fora */
+.lt.blk .cat-toggle { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt.blk .ell-cell .nm > span:first-child, .lt.blk .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lt.blk .cat-line .muted { font-size: 10px; margin-left: 4px; }
 .lt.blk tr.secl td { color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 5px 2px; }
 .lt.blk tr.secl td.r { text-transform: none; letter-spacing: 0; }

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
-import { displayName } from '../domain/gastos'
+import { displayName, shortName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import type { Txn } from '../db/gastosRepo'
@@ -11,7 +11,7 @@ import { accountLabel, brDay, errText, monthName } from './lancamentos/GastosHea
 import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
-import { CategoryIcon } from '../ui/CategoryIcon'
+import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
@@ -21,6 +21,9 @@ const GRUPOS: { value: Grupo; label: string }[] = [{ value: 'fixo', label: 'Cust
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
+// ícone de cada tipo de fonte de renda (avulso = sem fonte)
+const SOURCE_LOOK: Record<string, [string, string]> = { clt: ['briefcase-business', '#c6ff3d'], pj: ['landmark', '#5fb3ff'], mei: ['store', '#9aa8ff'], fixo: ['piggy-bank', '#4fd1a5'], avulso: ['gift', '#f5d76e'] }
+const SourceIcon = ({ kind, dim }: { kind: string; dim?: boolean }) => <span style={dim ? { opacity: 0.45 } : undefined}><IconGlyph name={SOURCE_LOOK[kind][0]} color={SOURCE_LOOK[kind][1]} size={28} /></span>
 const total = (ls: BudgetLine[]) => ls.reduce((s, l) => s + l.amountCents, 0)
 
 // soft: a referência é a média, não uma meta (passar dela é aviso, não estouro)
@@ -259,7 +262,10 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     const full = pj && source?.kind !== 'mei' ? `imposto ${formatCents(pj.irpjCents)} · INSS ${formatCents(pj.inssCents)} · contabilidade ${formatCents(pj.contabilidadeCents)} · outros ${formatCents(pj.outrosCents)} · pró-labore ${formatCents(pj.proLaboreCents)}` : undefined
     return (
       <>
-        <td title={full}><div className="nm"><span>{l.name}</span>{actions(l)}</div><div className="d2">{[kind, detail, !l.recurring && 'só este mês'].filter(Boolean).join(' · ')}</div></td>
+        <td className="ell-cell" title={full}><div className="cat-line">
+          <SourceIcon kind={source?.kind ?? 'avulso'} />
+          <div className="grow"><div className="nm"><span>{l.name}</span>{actions(l)}</div><div className="d2">{[kind, detail, !l.recurring && 'só este mês'].filter(Boolean).join(' · ')}</div></div>
+        </div></td>
         <td className="r">{formatCents(l.amountCents)}</td>
       </>
     )
@@ -291,7 +297,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       : avg ? `média ${formatCents(avg)}${over ? ` · +${Math.round((r.realCents / avg - 1) * 100)}%` : ''}` : null
     return [
       <tr key={`cat-${key}`}>
-        <td>
+        <td className="ell-cell">
           <div className="cat-line">
             <CategoryIcon category={categories.find(c => c.id === r.categoryId) ?? null} size={28} />
             <div className="grow">
@@ -308,27 +314,27 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       </tr>,
       ...(opened ? [
         <tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{r.txns.map(t => (
-          <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span>{displayName(t.description)}{t.pending && <span className="muted"> · pendente</span>}</span><span>{formatCents(-t.amountCents)}</span></div>
+          <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span className="ell" title={t.description}>{displayName(t.description)}{t.pending && <span className="muted"> · pendente</span>}</span><span>{formatCents(-t.amountCents)}</span></div>
         ))}</div></td></tr>,
       ] : []),
     ]
   }
   // investido agrupado pelo destino (a descrição limpa do lançamento): corretora, caixinha, cripto…
-  const invGroups = [...inv.txns.reduce((m, t) => m.set(displayName(t.description), [...(m.get(displayName(t.description)) ?? []), t]), new Map<string, Txn[]>())]
+  const invGroups = [...inv.txns.reduce((m, t) => m.set(shortName(t.description), [...(m.get(shortName(t.description)) ?? []), t]), new Map<string, Txn[]>())]
     .map(([name, ts]) => ({ name, txns: ts, cents: ts.reduce((s, t) => s - t.amountCents, 0) })).sort((a, b) => b.cents - a.cents)
   const groupRow = (g: { name: string; txns: Txn[]; cents: number }) => {
     const key = `inv:${g.name}`, opened = openCats.has(key)
     const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
     return [
       <tr key={key}>
-        <td><div className="cat-line">
+        <td className="ell-cell"><div className="cat-line">
           <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />
           <div className="grow"><button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{plural(g.txns.length, 'aporte', 'aportes')} {opened ? '▾' : '▸'}</span></button></div>
         </div></td>
         <td className="r">{formatCents(g.cents)}</td>
       </tr>,
       ...(opened ? [<tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{g.txns.map(t => (
-        <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span>{accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}</span><span>{formatCents(-t.amountCents)}</span></div>
+        <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span className="ell" title={`${t.description} · ${accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}`}>{displayName(t.description)}</span><span>{formatCents(-t.amountCents)}</span></div>
       ))}</div></td></tr>] : []),
     ]
   }
@@ -390,8 +396,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
             extra: missing.length > 0 && missing.map(s => (
               <tr key={`fonte-${s.id}`}>
-                <td className="muted"><div className="nm"><span className="muted">{s.name}</span><button className="link" disabled={busy} onClick={() => include(s)}>incluir</button></div><div className="d2">fonte de renda · não está neste mês</div></td>
-                <td className="r muted">{formatCents(sourceNet(s, month))}</td>
+                <td className="ell-cell"><div className="cat-line">
+                  <SourceIcon kind={s.kind} dim />
+                  <div className="grow"><div className="nm"><span style={{ color: "var(--text-2)" }}>{s.name}</span></div><div className="d2">não está neste mês · {formatCents(sourceNet(s, month))}</div></div>
+                </div></td>
+                <td className="r"><button className="b" disabled={busy} onClick={() => include(s)}>Incluir</button></td>
               </tr>
             )),
           })}

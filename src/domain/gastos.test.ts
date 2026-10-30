@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
-import { categorize, displayName, fingerprint, monthTotals, normalizeDescription, withFingerprints } from './gastos'
+import { categorize, displayName, fingerprint, shortName, monthTotals, normalizeDescription, withFingerprints } from './gastos'
 
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const categories = [
@@ -24,6 +24,13 @@ describe('displayName', () => {
   it('tira o prefixo da maquininha, a parcela do fim e o caixa alta do extrato; nome digitado fica como está', () => {
     expect(['MP*LOJAEXEMPLO', 'Pg *Barbearia', 'IFD*IFOOD', 'MERCADOLIVRE*MERCADOLIVRE', 'LOJAMKTPLC*CASA', 'Pag*Jogos 1/3', 'BANDA LARGA - INTERNET', 'PLANO DE SAUDE', 'Transferência enviada pelo Pix|Ana Teste', 'Aluguel do apê', 'MP3 Player', 'MP*'].map(displayName))
       .toEqual(['Lojaexemplo', 'Barbearia', 'Ifood', 'Mercadolivre', 'Lojamktplc · Casa', 'Jogos', 'Banda Larga - Internet', 'Plano de Saude', 'Pix para Ana Teste', 'Aluguel do apê', 'MP3 Player', 'MP*'])
+  })
+})
+
+describe('shortName', () => {
+  it('agrupa operações do mesmo tipo: sem data, nota, liquidação e números', () => {
+    expect(['OPERACOES EM BOLSA PR 05/10/2026 NOTA Nº 123456', 'OPERACOES EM BOLSA LIQ. D+1 PR 05/10/2026 NOTA Nº 123457', 'TED TER BCO 33 AGE 1111 CTA 2222 2 - TED APLICACAO FUNDO', 'Aplicação RDB', '12345'].map(shortName))
+      .toEqual(['Operacoes Em Bolsa', 'Operacoes Em Bolsa', 'Ted Aplicacao Fundo', 'Aplicação RDB', '12345'])
   })
 })
 
