@@ -88,7 +88,7 @@ export function SyncStatus({ mini = false }: { mini?: boolean }) {
         <button className="sync-sum" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>
           <span className={`dot${err ? ' bad' : ''}`} aria-hidden /><span className="lbl">{syncSummary(rows, busy)}</span>
         </button>
-        <button className="icon-btn" aria-label="Sincronizar tudo" title="Sincronizar tudo" disabled={busy} onClick={syncAll}><RefreshCw size={13} aria-hidden className={busy ? 'spin' : undefined} /></button>
+        <button className="icon-btn sq" aria-label="Sincronizar tudo" title="Sincronizar tudo" disabled={busy} onClick={syncAll}><RefreshCw size={13} aria-hidden className={busy ? 'spin' : undefined} /></button>
       </div>
     </div>
   )
