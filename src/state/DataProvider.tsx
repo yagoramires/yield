@@ -20,7 +20,7 @@ import { getBinanceCredentials } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
 import { syncCryptoCosts } from '../cripto/aportado'
 import { binanceErrorText, costSummaryText } from '../pages/configuracoes/build'
-import { syncPluggy, type SyncResult } from '../openfinance/sync'
+import { SYNC_EVERY_MS, syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
 import { defaultMonth } from '../pages/orcamento/build'
@@ -122,18 +122,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Saldos da Binance: só leitura; erro fica no aviso do card Cripto e os últimos saldos continuam guardados.
+  const binanceFailed = useRef(false) // falhou (sem chave, Keychain recusado, erro): o ciclo automático para até a pessoa sincronizar à mão
+  const pluggyAuto = useRef({ last: 0, off: false }) // última tentativa automática do Open Finance e se o Keychain foi recusado
   const syncBinance = useCallback(async () => {
     const d = dbRef.current
     if (!d) return
     setBinance(b => ({ ...b, syncing: true }))
     try {
       const creds = await getBinanceCredentials()
-      if (!creds) return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false })
+      if (!creds) { binanceFailed.current = true; return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false }) }
       const r = await fetchBinanceBalances(creds, tauriFetch as typeof fetch)
       await saveCryptoBalances(d, r.balances, new Date().toISOString())
       setData(await loadAll(d))
+      binanceFailed.current = false
       setBinance({ syncing: false, error: null, earnSkipped: r.earnSkipped })
-    } catch (e) { setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
+    } catch (e) { binanceFailed.current = true; setBinance({ syncing: false, error: binanceErrorText(e), earnSkipped: false }) }
   }, [])
 
   // Histórico inteiro da Binance (centenas de chamadas): fonte que falha vira aviso e o resto é gravado.
@@ -183,17 +186,23 @@ export function DataProvider({ children }: { children: ReactNode }) {
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
         void (ds.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
         if (needsSync(g, Date.now())) {
+          pluggyAuto.current.last = Date.now()
           getPluggyCredentials().then(
             c => { if (c && !cancelled) void syncNow(c) },
             e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
           )
         }
         // com o app aberto: cotações (e a Binance, de quem usa) a cada 15 min; o Open Finance quando passar do intervalo dele
+        // (item com erro na Pluggy segue pedindo sync: no máximo uma tentativa a cada SYNC_EVERY_MS; Keychain recusado para o automático)
         timer = setInterval(async () => {
           const cur = await loadAll(d).catch(() => null)
-          void (cur?.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
+          void (!binanceFailed.current && cur?.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
           const gNow = await loadGastos(d).catch(() => null)
-          if (gNow && needsSync(gNow, Date.now())) getPluggyCredentials().then(c => { if (c && !cancelled) void syncNow(c) }, () => {})
+          const auto = pluggyAuto.current
+          if (gNow && !auto.off && Date.now() - auto.last > SYNC_EVERY_MS && needsSync(gNow, Date.now())) {
+            auto.last = Date.now()
+            getPluggyCredentials().then(c => { if (c && !cancelled) void syncNow(c) }, () => { auto.off = true })
+          }
         }, REFRESH_MS)
       } catch (e) {
         setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)

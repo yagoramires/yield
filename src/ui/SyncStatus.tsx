@@ -9,7 +9,14 @@ export function ago(iso: string | null | undefined, nowMs = Date.now()): string 
   if (min < 60) return `há ${min} min`
   if (min < 24 * 60) return `há ${Math.floor(min / 60)} h`
   if (min < 48 * 60) return 'ontem'
-  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+  const d = new Date(iso) // gravado em UTC; a data mostrada é a local
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+/** "30/10 às 14:05" no horário local a partir de um ISO em UTC. */
+export function localStamp(iso: string): string {
+  const d = new Date(iso), p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)} às ${p(d.getHours())}:${p(d.getMinutes())}`
 }
 const latest = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x).sort().at(-1) ?? null
 
@@ -24,7 +31,8 @@ export function SyncStatus() {
   const rows: { label: string; text: string; error?: string }[] = [
     ...(hasPluggy ? [{ label: 'Open Finance', text: gastos.syncing ? 'sincronizando…' : ago(latest(g.accounts.filter(a => a.source === 'pluggy').map(a => a.lastSyncAt))), error: pluggyErr && `${pluggyErr.label}: ${pluggyErr.message}` }] : []),
     ...(hasBinance ? [{ label: 'Binance', text: binance.syncing ? 'lendo…' : ago(latest(data.cryptoBalances.map(c => c.fetchedAt))), error: binance.error ?? undefined }] : []),
-    { label: 'Cotações', text: refreshing ? 'atualizando…' : ago(lastRefresh?.at) },
+    // a última cotação gravada vale também logo depois de abrir o app, antes da primeira atualização
+    { label: 'Cotações', text: refreshing ? 'atualizando…' : ago(lastRefresh?.at ?? latest(data.quotes.filter(q => q.source !== 'manual').map(q => q.fetchedAt))) },
   ]
   const syncAll = () => {
     if (hasPluggy) void gastos.syncNow()

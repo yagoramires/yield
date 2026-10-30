@@ -5,7 +5,7 @@ import { addTrades, loadAll, saveEvent, saveNote, upsertDividends, type Dataset 
 import { upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from '../db/rendaFixaRepo'
 import { isBusinessDay } from '../domain/calendar'
 import { normalizeTicker, replay } from '../domain/ledger'
-import { formatCents } from '../domain/money'
+import { editCents } from '../domain/money'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
 import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
 import { isPosicao, isRendaFixa, parsePosicao, parsePosicaoIssuers, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
@@ -88,7 +88,7 @@ function parseMovimentacao(rows: Cell[][], out: B3Import) {
       out.checks.push({ date, ticker, qty, produto })
     } else if (mov === 'Resgate') {
       // liquidação do fundo (venda) ou parte em dinheiro de uma incorporação (não é venda): só o usuário sabe
-      out.toReview.push({ date, movimentacao: mov, produto, nota: `R$ ${formatCents(parseBRL(str(valueCell)))}: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento` })
+      out.toReview.push({ date, movimentacao: mov, produto, nota: `R$ ${editCents(parseBRL(str(valueCell)))}: se o fundo foi liquidado, lance a venda; se foi incorporado por outro, lance a troca em Notas › Evento` })
     } else if (mov === 'Leilão de Fração') {
       const valueCents = parseBRL(str(valueCell))
       if (qty > 0 && valueCents > 0) out.sales.push({ kind: mov, date, ticker, qty, valueCents, broker: normalizeBroker(inst), produto })
