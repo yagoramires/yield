@@ -9,6 +9,8 @@ export const isMasked = () => masked
 
 // A saída do Intl traz espaço sem quebra (U+00A0) após "R$".
 export const formatBRL = (c: Cents): string => (masked ? 'R$ •••••' : brl.format(c / 100))
+/** Sem a máscara do olhinho: é o que a IA recebe (a máscara entra só na tela). */
+export const plainBRL = (c: Cents): string => brl.format(c / 100)
 
 export const monthOf = (d: ISODate): Month => d.slice(0, 7)
 

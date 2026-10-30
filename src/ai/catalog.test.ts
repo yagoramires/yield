@@ -1,0 +1,27 @@
+import catalog from './catalog.json'
+import { lighter, pickModel, type Hardware } from './catalog'
+
+const GiB = 2 ** 30
+const mac = (gib: number, arch = 'aarch64'): Hardware => ({ ramBytes: gib * GiB, arch, os: 'macos', gpu: null })
+const pc = (gib: number, vramMib?: number): Hardware => ({ ramBytes: gib * GiB, arch: 'x86_64', os: 'windows', gpu: vramMib ? { name: 'GPU Teste', vramMib } : null })
+const id = (hw: Hardware) => { const r = pickModel(hw, catalog); return 'model' in r ? r.model.id : r.unavailable }
+
+test('escolhe o modelo pela memória, com folga para o que o sistema reserva', () => {
+  expect(id(mac(16))).toBe('qwen3-8b')
+  expect(id(mac(15.8))).toBe('qwen3-8b')
+  expect(id(mac(8))).toBe('qwen3-4b')
+  expect(id(mac(7.8))).toBe('qwen3-4b')
+  expect(id(pc(7.8))).toBe('qwen3-4b')
+  expect(id(pc(8, 8192))).toBe('qwen3-8b')
+})
+
+test('Mac Intel e pouca memória ficam sem Assistente, com o motivo', () => {
+  expect(id(mac(32, 'x86_64'))).toBe('O Assistente precisa de um Mac com chip Apple (M1 ou mais novo).')
+  expect(id(pc(6))).toBe('O Assistente precisa de pelo menos 8 GB de memória.')
+  expect(id(pc(6, 8192))).toBe('O Assistente precisa de pelo menos 8 GB de memória.')
+})
+
+test('o modelo mais leve é o próximo do catálogo', () => {
+  expect(lighter(catalog[0], catalog)?.id).toBe('qwen3-4b')
+  expect(lighter(catalog[1], catalog)).toBeNull()
+})

@@ -420,7 +420,7 @@ pub fn ai_abort(app: AppHandle) {
     app.state::<State>().abort.store(true, Ordering::Relaxed);
 }
 
-/// POST no servidor local. Com `"stream": true` repassa o texto por `on_chunk` e devolve "".
+/// POST no servidor local. Com `"stream": true` repassa o texto por `on_chunk`, manda "" no fim e devolve "".
 #[tauri::command]
 pub async fn ai_post(app: AppHandle, path: String, body: String, on_chunk: Channel<String>) -> Result<String, String> {
     if !path.starts_with('/') {
@@ -459,6 +459,7 @@ pub async fn ai_post(app: AppHandle, path: String, body: String, on_chunk: Chann
         }
         touch(&st);
     }
+    on_chunk.send(String::new()).map_err(|e| e.to_string())?; // fim do stream: o front espera esta marca, que vem na ordem dos pedaços
     Ok(String::new())
 }
 
