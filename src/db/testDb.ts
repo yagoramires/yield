@@ -7,7 +7,7 @@ import type { Db } from './client'
 
 export type { Db }
 
-const MIGRATIONS = ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql', '006_categoria_visual.sql', '007_fonte_clt.sql', '008_cadastro_ir.sql', '009_renda_fixa_cripto.sql', '010_aportado_manual.sql', '011_etf_renda_fixa.sql', '012_aportado_cripto.sql', '013_fonte_mei.sql', '014_orcamento_blocos.sql', '015_metas.sql'].map(f => readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
+const MIGRATIONS = ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql', '006_categoria_visual.sql', '007_fonte_clt.sql', '008_cadastro_ir.sql', '009_renda_fixa_cripto.sql', '010_aportado_manual.sql', '011_etf_renda_fixa.sql', '012_aportado_cripto.sql', '013_fonte_mei.sql', '014_orcamento_blocos.sql', '015_metas.sql', '016_saldo_contas.sql'].map(f => readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
 
 function wrap(d: DatabaseSync): Db {
   d.exec('PRAGMA foreign_keys = ON')

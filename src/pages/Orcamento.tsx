@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
+import { ChevronRight, Plus } from 'lucide-react'
 import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
-import { addMonths, formatBRL, formatCents } from '../domain/money'
+import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
@@ -125,16 +126,16 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: manual ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: !manual, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
-    id: l.id, grupo: l.grupo ?? 'fixo', name: shown(l), amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
+    id: l.id, grupo: l.grupo ?? 'fixo', name: shown(l), amount: editCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
     installment: l.installmentCurrent !== null && l.installmentTotal !== null ? `${l.installmentCurrent}/${l.installmentTotal}` : '',
   })
   // só o nome que veio do extrato (sugestão aceita) é limpo; o que a pessoa digitou fica como está
   const shown = (l: BudgetLine) => (/^(sub|parc):/.test(l.sourceKey ?? '') ? displayName(l.name) : l.name)
-  const fromSource = (s: IncomeSource) => ({ sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s, month)) })
+  const fromSource = (s: IncomeSource) => ({ sourceId: s.id, name: s.name, amount: editCents(sourceNet(s, month)) })
   // fonte com líquido ≤ 0 trazida para o formulário: o parseMoney daria um erro genérico
   const zeroSource = (f: Form) => {
     const s = f.kind === 'entrada' ? data.sources.find(x => x.id === f.sourceId) : undefined
-    return !!s && sourceNet(s, month) <= 0 && f.amount === formatCents(sourceNet(s, month))
+    return !!s && sourceNet(s, month) <= 0 && f.amount === editCents(sourceNet(s, month))
   }
   const save = (f: Form) => void run('Não foi possível salvar a linha', async () => {
     if (zeroSource(f)) throw new Error(NET_ZERO)
@@ -199,7 +200,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         </div>
         <div className="muted" style={{ marginTop: 4 }}>
           {parcela ? (last ? `Parcela ${f.installment.trim()}: o mês seguinte já nasce com a próxima, e a linha some depois da ${last}/${last}.` : 'Informe a parcela atual e o total, por exemplo 3/10.')
-            : f.grupo === 'variavel' ? 'O teto é para a categoria: o gasto real vem dos lançamentos dela no mês.'
+            : f.grupo === 'variavel' ? 'Gasto que não aparece nos lançamentos (em dinheiro, por exemplo); vale só para este mês.'
             : 'Só linhas recorrentes passam para o mês seguinte.'}
         </div>
       </td></tr>
@@ -234,7 +235,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div className="bar">
           <h5 style={{ margin: 0 }}>{title}</h5>
           <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.goal) && <b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
-            <button className="b ghost" disabled={busy} onClick={opts.add ?? (() => open(at))}>+</button></span>
+            <button className="b ghost sq" aria-label={`Adicionar em ${title}`} disabled={busy} onClick={opts.add ?? (() => open(at))}><Plus size={14} aria-hidden /></button></span>
         </div>
         {opts.goal && <Track real={opts.goal.real} planned={opts.goal.goal} />}
         {opts.hint && <div className="muted" style={{ marginTop: 2 }}>{opts.hint}</div>}
@@ -296,13 +297,13 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     const note = r.goalCents !== null ? (over ? `passou ${formatCents(r.realCents - r.goalCents)}` : `de ${formatCents(r.goalCents)}`)
       : avg ? `média ${formatCents(avg)}${over ? ` · +${Math.round((r.realCents / avg - 1) * 100)}%` : ''}` : null
     return [
-      <tr key={`cat-${key}`}>
+      <tr key={`cat-${key}`} className={`acc${opened ? ' open' : ''}`} onClick={e => { if (r.txns.length && !(e.target as HTMLElement).closest('button')) toggle() }}>
         <td className="ell-cell">
           <div className="cat-line">
             <CategoryIcon category={categories.find(c => c.id === r.categoryId) ?? null} size={28} />
             <div className="grow">
               <button className="cat-toggle" aria-expanded={opened} disabled={!r.txns.length} onClick={toggle}>
-                {catName(r.categoryId) ?? 'Sem categoria'} {r.txns.length > 0 && <span className="muted">{plural(r.txns.length, 'gasto', 'gastos')} {opened ? '▾' : '▸'}</span>}
+                {catName(r.categoryId) ?? 'Sem categoria'} {r.txns.length > 0 && <span className="muted">{plural(r.txns.length, 'gasto', 'gastos')}<ChevronRight size={12} className="chev" aria-hidden /></span>}
               </button>
               {ref !== null && <Track real={r.realCents} planned={ref} soft={soft} />}
             </div>
@@ -327,11 +328,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     const toggle = () => { const n = new Set(openCats); if (opened) n.delete(key); else n.add(key); setOpenCats(n) }
     const ins = g.txns.filter(t => t.amountCents < 0).length, outs = g.txns.length - ins
     return [
-      <tr key={key}>
+      <tr key={key} className={`acc${opened ? ' open' : ''}`} onClick={e => { if (!(e.target as HTMLElement).closest('button')) toggle() }}>
         <td className="ell-cell"><div className="cat-line">
           <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />
           <div className="grow"><div className="nm">
-            <button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{[ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ')} {opened ? '▾' : '▸'}</span></button>
+            <button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{[ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ')}<ChevronRight size={12} className="chev" aria-hidden /></span></button>
             <span className="acts muted"><button className="link" disabled={busy} onClick={() => toggleReserva(g.key)}>{reserva ? 'é investimento' : 'é reserva'}</button></span>
           </div></div>
         </div></td>
@@ -385,7 +386,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               <span className="r">{formatCents(s.amountCents)}</span>
               <button className="b" disabled={busy} onClick={() => accept(s)}>Aceitar</button>
               <button className="b ghost" disabled={busy} onClick={() => open(s.reason === 'parcela' ? 'parcela' : 'fixo', {
-                name: s.name, amount: formatCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.recurring, sourceKey: s.key,
+                name: s.name, amount: editCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.recurring, sourceKey: s.key,
                 installment: s.installmentCurrent !== null ? `${s.installmentCurrent}/${s.installmentTotal}` : '',
               })}>Ajustar</button>
               <button className="b ghost" disabled={busy} onClick={() => void run('Não foi possível descartar a sugestão', () => dismissSuggestion(db, month, s.key))}>Descartar</button>
@@ -412,11 +413,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           <div className="card" style={{ marginBottom: 12 }}>
             <div className="bar">
               <h5 style={{ margin: 0 }}>Custos <span className="muted" style={{ fontWeight: 400 }}>{lower(month)}</span></h5>
-              <button className="b ghost" disabled={busy} aria-label={tab === 'fixos' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(tab === 'fixos' ? 'fixo' : 'variavel')}>+</button>
+              <button className="b ghost sq" disabled={busy} aria-label={tab === 'fixos' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(tab === 'fixos' ? 'fixo' : 'variavel')}><Plus size={14} aria-hidden /></button>
             </div>
             <div className="costs-big">{formatBRL(custosCents)}</div>
             <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: '#8a8d96' }} /><i style={{ flexGrow: vars.realCents, background: '#3987e5' }} /></div>
-            <div className="seg" role="group" aria-label="Mostrar custos">
+            <div className="cost-seg" role="group" aria-label="Mostrar custos">
               {(['fixos', 'variaveis'] as const).map(t => (
                 <button key={t} aria-pressed={tab === t} className={tab === t ? 'on' : ''} onClick={() => {
                   // só o formulário e a confirmação deste cartão: os dos outros cartões continuam abertos

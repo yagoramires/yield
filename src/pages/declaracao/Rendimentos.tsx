@@ -1,6 +1,6 @@
 import { Building2, Sprout } from 'lucide-react'
 import { RENDIMENTO_LABEL, type LinhaRendimento, type LinhaRV, type Rendimento } from '../../domain/declaracao'
-import { formatCents } from '../../domain/money'
+import { editCents, formatCents } from '../../domain/money'
 import { monthName } from '../lancamentos/GastosHeader'
 import { CopyButton } from './Copy'
 
@@ -20,7 +20,7 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: Rendimento[] }) {
           </div>
           <div className="lval">{money(r.cents)}</div>
           {r.cnpj && <CopyButton text={r.cnpj} label="CNPJ" what={`CNPJ de ${r.name}`} small />}
-          <CopyButton text={money(r.cents)} label="Valor" what={`valor de ${r.name ?? r.payerKey}`} small />
+          <CopyButton text={editCents(r.cents)} label="Valor" what={`valor de ${r.name ?? r.payerKey}`} small />
         </div>
       ))}
     </div>
@@ -45,7 +45,7 @@ export function Rendimentos({ rendimentos, isento20 }: { rendimentos: Rendimento
               <span className="cat-ico" style={{ width: 30, height: 30, color: '#c6ff3d', background: '#c6ff3d22' }} aria-hidden><Sprout size={14} /></span>
               <div className="lmid"><div className="lname">Lucro isento no ano</div><div className="lsub">soma dos meses em que as vendas de ações ficaram até R$ 20 mil</div></div>
               <div className="lval">{money(isento20)}</div>
-              <CopyButton text={money(isento20)} label="Valor" what="lucro isento" small />
+              <CopyButton text={editCents(isento20)} label="Valor" what="lucro isento" small />
             </div>
           </div>
         )}

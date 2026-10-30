@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { formatCents } from '../../domain/money'
 import type { RfHolding } from '../../domain/rendaFixa'
@@ -22,7 +23,7 @@ export function RendaFixa({ list, onOpenSettings }: { list: RfHolding[]; onOpenS
   return (
     <>
       {open.map(row)}
-      {closed.length > 0 && <button className="link pos-more" aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}>{showClosed ? 'esconder encerrados' : `ver encerrados (${closed.length})`}</button>}
+      {closed.length > 0 && <button className="link pos-more" aria-expanded={showClosed} onClick={() => setShowClosed(!showClosed)}><ChevronRight size={13} className="chev" aria-hidden />{showClosed ? 'Esconder encerrados' : `Ver encerrados (${closed.length})`}</button>}
       {showClosed && closed.map(row)}
     </>
   )

@@ -1,3 +1,4 @@
+import { isMasked } from '../domain/money'
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
 
 // Validadas para daltonismo sobre o fundo dos cartões; texto nunca usa estas cores.
@@ -6,6 +7,7 @@ const color = (i: number) => SERIES_COLORS[i % SERIES_COLORS.length]
 
 /** Rótulo curto de eixo e barra: 6.482,17 → "6,5 mil"; abaixo de mil, o inteiro. */
 export function shortBRL(cents: number): string {
+  if (isMasked()) return '•••'
   const r = cents / 100
   if (Math.abs(r) < 1000) return String(Math.round(r))
   return `${(r / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mil`

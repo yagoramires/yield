@@ -4,7 +4,7 @@ import { loadCadastro, type Broker, type Issuer } from '../db/irRepo'
 import { BEM_CODES, bensDoAno, discriminacao, discriminacaoRf, LOCALIZACAO, lucroIsentoDoAno, pendencias, RF_CODES, rendaFixaDoAno, rendaVariavelDoAno, rendimentosDoAno, rendimentosRfDoAno, type Bem, type TipoRf } from '../domain/declaracao'
 import { rfInstitution } from '../domain/rendaFixa'
 import { normalizeBroker } from '../import/parse'
-import { formatBRL, formatCents } from '../domain/money'
+import { editCents, formatBRL, formatCents } from '../domain/money'
 import type { AssetType } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
 import { Cadastro } from './declaracao/Cadastro'
@@ -153,12 +153,14 @@ export function Declaracao() {
           {sel && (() => {
             const i = issuerOf(sel)
             const text = discriminacao(sel, year, i, brokers)
-            const fields: [string, string][] = [['Grupo / Código', BEM_CODES[sel.assetType].label], ['Localização', LOCALIZACAO], ['CNPJ', i?.cnpj ?? 'não cadastrado'], ['Código de negociação', sel.ticker], [`Situação 31/12/${year - 1}`, money(sel.costPrevCents)], [`Situação 31/12/${year}`, money(sel.costCents)]]
+            // [rótulo, o que copia, o que aparece]: o valor copiado é sempre o real, mesmo com o olhinho ligado
+            const fields: [string, string, string][] = [['Grupo / Código', BEM_CODES[sel.assetType].label, ''], ['Localização', LOCALIZACAO, ''], ['CNPJ', i?.cnpj ?? 'não cadastrado', ''], ['Código de negociação', sel.ticker, ''],
+              [`Situação 31/12/${year - 1}`, editCents(sel.costPrevCents), money(sel.costPrevCents)], [`Situação 31/12/${year}`, editCents(sel.costCents), money(sel.costCents)]]
             return (
               <div className="side-card decl-panel">
                 <div className="side-h"><span className="row" style={{ alignItems: 'center', gap: 8 }}><Avatar b={sel} size={26} /><b>{sel.ticker}</b></span><span className="muted">copie campo a campo</span></div>
-                {fields.map(([k, v]) => (
-                  <div key={k} className="copy-field"><span className="cf-k">{k}</span><span className={`cf-v ${v === 'não cadastrado' ? 'warn-text' : ''}`}>{v}</span>{v !== 'não cadastrado' && <CopyButton text={v} what={k} />}</div>
+                {fields.map(([k, v, shown]) => (
+                  <div key={k} className="copy-field"><span className="cf-k">{k}</span><span className={`cf-v ${v === 'não cadastrado' ? 'warn-text' : ''}`}>{shown || v}</span>{v !== 'não cadastrado' && <CopyButton text={v} what={k} />}</div>
                 ))}
                 <div className="disc-box">{text}</div>
                 <div className="panel-foot"><span className="muted">custo médio, não valor de mercado</span><CopyButton text={text} label="Copiar discriminação" what="discriminação" primary /></div>

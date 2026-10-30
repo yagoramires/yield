@@ -3,7 +3,7 @@
 import type { Note } from '../../db/repo'
 import { allocateFees, type NoteFees } from '../../domain/fees'
 import { normalizeTicker } from '../../domain/ledger'
-import { formatCents } from '../../domain/money'
+import { editCents } from '../../domain/money'
 import type { AssetType, Cents, ISODate, NewCorporateEvent, Side, Trade } from '../../domain/types'
 import type { NoteDraft } from '../../import/sinacorPdf'
 import { normalizeBroker, parseBRL } from '../../import/parse'
@@ -99,11 +99,11 @@ export function draftToSave(draft: NoteDraft, resolved: { ticker: string; assetT
 export function formFromNote(n: Note, trades: Trade[]): NoteForm {
   const fees = emptyFees()
   const sum = (k: 'feesCents' | 'irrfCents') => trades.reduce((s, t) => s + t[k], 0)
-  if (sum('feesCents')) fees.outrosCents = formatCents(sum('feesCents'))
-  if (sum('irrfCents')) fees.irrfCents = formatCents(sum('irrfCents'))
+  if (sum('feesCents')) fees.outrosCents = editCents(sum('feesCents'))
+  if (sum('irrfCents')) fees.irrfCents = editCents(sum('irrfCents'))
   return {
     number: n.source === 'sem_nota' ? '' : n.number, broker: n.broker, tradeDate: n.tradeDate, settleDate: n.settleDate, label: n.label ?? '',
-    items: trades.map(t => ({ side: t.side, assetType: t.assetType, ticker: t.ticker, qty: String(t.qty), price: formatCents(t.priceCents) })), fees,
+    items: trades.map(t => ({ side: t.side, assetType: t.assetType, ticker: t.ticker, qty: String(t.qty), price: editCents(t.priceCents) })), fees,
   }
 }
 

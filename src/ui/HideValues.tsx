@@ -1,31 +1,33 @@
 import { Eye, EyeOff } from 'lucide-react'
-import { useState } from 'react'
-import { formatBRL, formatCents } from '../domain/money'
+import { useSyncExternalStore } from 'react'
+import { formatBRL, formatCents, setMasked } from '../domain/money'
 import { shortBRL } from './charts'
 
 const KEY = 'yield.ocultarValores'
-const read = () => { try { return localStorage.getItem(KEY) === '1' } catch { return false } }
+let hidden = (() => { try { return localStorage.getItem(KEY) === '1' } catch { return false } })()
+setMasked(hidden)
+const listeners = new Set<() => void>()
+const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } }
 
-/** Modo olhinho dos resumos: com `hidden` os formatadores devolvem bolinhas no lugar do valor (texto, gráficos e leitor de tela). */
-export function useHideValues() {
-  const [hidden, setHidden] = useState(read)
-  const toggle = () => {
-    const next = !hidden
-    try { localStorage.setItem(KEY, next ? '1' : '0') } catch { /* sem storage: vale só nesta tela */ }
-    setHidden(next)
-  }
-  return {
-    hidden, toggle,
-    brl: hidden ? () => 'R$ •••••' : formatBRL,
-    cents: hidden ? () => '•••••' : formatCents,
-    short: hidden ? () => '•••' : shortBRL,
-  }
+/** Liga ou desliga o modo olhinho no app todo: os formatadores de dinheiro passam a devolver bolinhas e quem usa o hook redesenha. */
+export function toggleHideValues() {
+  hidden = !hidden
+  setMasked(hidden)
+  try { localStorage.setItem(KEY, hidden ? '1' : '0') } catch { /* sem storage: vale até fechar o app */ }
+  listeners.forEach(l => l())
 }
 
-export function EyeToggle({ hidden, toggle }: { hidden: boolean; toggle(): void }) {
+/** Modo olhinho: com `hidden` os formatadores devolvem bolinhas no lugar do valor (texto, gráficos e leitor de tela). */
+export function useHideValues() {
+  const h = useSyncExternalStore(subscribe, () => hidden)
+  return { hidden: h, toggle: toggleHideValues, brl: formatBRL, cents: formatCents, short: shortBRL }
+}
+
+export function EyeToggle() {
+  const { hidden: h, toggle } = useHideValues()
   return (
-    <button className="icon-btn sq" aria-label={hidden ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={hidden} title={hidden ? 'Mostrar valores' : 'Ocultar valores'} onClick={toggle}>
-      {hidden ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
+    <button className="icon-btn sq" aria-label={h ? 'Mostrar valores' : 'Ocultar valores'} aria-pressed={h} title={h ? 'Mostrar valores' : 'Ocultar valores'} onClick={toggle}>
+      {h ? <EyeOff size={14} aria-hidden /> : <Eye size={14} aria-hidden />}
     </button>
   )
 }

@@ -168,7 +168,7 @@ describe('migração', () => {
     d.exec(readFileSync(new URL('../../src-tauri/migrations/001_init.sql', import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('15')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('16')
     expect((await loadGastos(migrado)).categories).toHaveLength(17)
   })
 })

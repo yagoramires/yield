@@ -1,9 +1,11 @@
+import { EyeToggle } from './HideValues'
+import { SyncStatus } from './SyncStatus'
 import { ROUTES, type Route } from './routes'
 
 export function Sidebar({ route, onNavigate, open = false }: { route: Route; onNavigate: (r: Route) => void; open?: boolean }) {
   return (
     <nav id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}`}>
-      <div className="logo">yield<b>.</b></div>
+      <div className="logo-row"><div className="logo">yield<b>.</b></div><EyeToggle /></div>
       {ROUTES.map(({ page, items }) => (
         <div key={page} style={{ display: 'contents' }}>
           <div className={items.some(i => i.route === route) ? 'group on' : 'group'}>{page}</div>
@@ -21,6 +23,7 @@ export function Sidebar({ route, onNavigate, open = false }: { route: Route; onN
           ))}
         </div>
       ))}
+      <SyncStatus />
     </nav>
   )
 }

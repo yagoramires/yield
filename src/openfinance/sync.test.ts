@@ -45,6 +45,8 @@ describe('syncPluggy', () => {
     expect(g.accounts.map(a => [a.externalId, a.kind, a.name, a.institution]).sort()).toEqual([
       [`pluggy:${BANK}`, 'conta', 'Conta Exemplo', 'Banco Exemplo'], [`pluggy:${CARD}`, 'cartao', 'Cartão Exemplo', 'Banco Exemplo']])
     expect(g.accounts.every(a => a.lastSyncAt)).toBe(true)
+    // saldo vem da Pluggy em reais; conta sem saldo informado fica sem
+    expect(g.accounts.map(a => [a.kind, a.balanceCents]).sort()).toEqual([['cartao', null], ['conta', 123456]])
     expect(g.txns.find(t => t.description === 'Salario Ficticio')).toMatchObject({ date: '2026-10-05', pending: true, amountCents: 500000 })
     expect(g.txns.find(t => t.description === 'Loja Inventada')).toMatchObject({ amountCents: -7500, installment: '2/3' })
     expect(await syncPluggy(db, creds, fake().fn, today)).toMatchObject({ accounts: 2, inserted: 0, removed: 0, errors: [] })
