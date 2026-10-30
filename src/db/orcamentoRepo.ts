@@ -12,13 +12,13 @@ export type SourceKind = 'pj' | 'mei' | 'clt' | 'fixo'
 export interface IncomeSource extends PjConfig { id: string; name: string; kind: SourceKind; grossCents: Cents | null /* pj e clt */; netCents: Cents | null /* fixo */; dependents: number /* clt, para o IRRF */; sourceKey: string | null }
 // meta vale do mês dela em diante; amountCents null desliga a meta dali para frente
 export interface Goal { month: Month; key: string /* 'investir', 'variaveis' ou 'cat:<categoria>' */; amountCents: Cents | null }
-export interface OrcamentoData { months: Month[]; lines: BudgetLine[]; dismissed: { month: Month; key: string }[]; sources: IncomeSource[]; goals: Goal[]; fixedCategories: string[] }
+export interface OrcamentoData { months: Month[]; lines: BudgetLine[]; dismissed: { month: Month; key: string }[]; sources: IncomeSource[]; goals: Goal[]; fixedCategories: string[]; reservas: string[] /* destinos de investimento que são reserva (chave de investDest) */ }
 
 // categorias de gasto que contam como custo fixo no orçamento; as outras (e as que o usuário cria) são variáveis
 export const FIXAS_PADRAO = ['moradia', 'contas', 'saude', 'educacao', 'impostos-e-taxas', 'assinaturas']
 
 export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
-  const [months, lines, dismissed, sources, goals, fixas] = await Promise.all([
+  const [months, lines, dismissed, sources, goals, fixas, reservas] = await Promise.all([
     db.select<{ month: Month }>('SELECT month FROM budget_months ORDER BY month'),
     db.select<BudgetLine>(`SELECT id, month, kind, name, amount_cents AS amountCents, recurring, position, category_id AS categoryId,
       installment_current AS installmentCurrent, installment_total AS installmentTotal, source_id AS sourceId, source_key AS sourceKey, grupo
@@ -28,8 +28,9 @@ export async function loadOrcamento(db: Db): Promise<OrcamentoData> {
       contabilidade_cents AS contabilidadeCents, outros_cents AS outrosCents, das_cents AS dasCents, net_cents AS netCents, source_key AS sourceKey, dependents FROM income_sources ORDER BY name`),
     db.select<Goal>('SELECT month, key, amount_cents AS amountCents FROM budget_goals ORDER BY month, key'),
     db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'orcamento.fixas'"),
+    db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'orcamento.reservas'"),
   ])
-  return { months: months.map(m => m.month), lines: lines.map(l => ({ ...l, recurring: !!l.recurring })), dismissed, sources, goals, fixedCategories: fixas.length ? JSON.parse(fixas[0].value) as string[] : FIXAS_PADRAO }
+  return { months: months.map(m => m.month), lines: lines.map(l => ({ ...l, recurring: !!l.recurring })), dismissed, sources, goals, fixedCategories: fixas.length ? JSON.parse(fixas[0].value) as string[] : FIXAS_PADRAO, reservas: reservas.length ? JSON.parse(reservas[0].value) as string[] : [] }
 }
 
 const insertLine = (db: Db, id: string, l: Omit<BudgetLine, 'id'>) => db.execute(
@@ -67,6 +68,10 @@ export async function saveLine(db: Db, line: Omit<BudgetLine, 'id'> & { id?: str
 
 export async function deleteLine(db: Db, id: string): Promise<void> {
   await db.execute('DELETE FROM budget_lines WHERE id = ?', [id])
+}
+
+export async function saveReservas(db: Db, keys: string[]): Promise<void> {
+  await db.execute("INSERT INTO meta (key, value) VALUES ('orcamento.reservas', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [JSON.stringify(keys)])
 }
 
 export async function saveFixedCategories(db: Db, ids: string[]): Promise<void> {

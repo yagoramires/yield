@@ -1,6 +1,6 @@
 import type { Category, Txn } from '../db/gastosRepo'
 import type { BudgetLine, Goal, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
-import { monthTotals, normalizeDescription } from './gastos'
+import { fold, monthTotals, normalizeDescription, shortName } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import type { Cents, Month } from './types'
 
@@ -195,15 +195,37 @@ export function custos(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Catego
   }
 }
 
-/** Investido no mês: o que saiu da conta para investir mais as linhas à mão do bloco. */
-export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
-  { fromTxnsCents: Cents; txns: Txn[] /* mais recentes primeiro */; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
-  // Investimento e as categorias criadas que não contam como gasto (reserva, caixinha…), a mesma regra da migração 014
+export interface InvGroup { key: string; name: string; inCents: Cents; outCents: Cents /* resgates */; netCents: Cents; txns: Txn[] /* mais recentes primeiro */ }
+
+/** Destino de uma aplicação ou resgate: o nome curto sem "Aplicação"/"Resgate" na frente, para os dois caírem no mesmo grupo. */
+export function investDest(description: string): { key: string; name: string } {
+  const short = shortName(description)
+  const name = short.replace(/^(aplica[cç][aã]o|resgate|aporte|aplic\.?|resg\.?)\s+((de|em|no|na)\s+)?/i, '').trim() || short
+  return { key: fold(name), name }
+}
+
+/**
+ * Investido no mês: aplicações menos resgates de cada destino (lançamentos em Investimento ou numa categoria criada que não conta
+ * como gasto) mais as linhas à mão. Destinos marcados como reserva ficam de fora: é dinheiro guardado que entra e sai, não investimento.
+ */
+export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>, reservas: Set<string> = new Set()):
+  { groups: InvGroup[]; reservas: InvGroup[]; fromTxnsCents: Cents; reservaCents: Cents; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
   const invest = (c: Category | null) => !!c && (c.id === 'investimento' || (!c.countsAsSpending && !c.builtin))
-  const out = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && invest(cat(t))).sort((a, b) => b.date.localeCompare(a.date))
-  const fromTxnsCents = out.reduce((s, t) => s - t.amountCents, 0)
+  const by = new Map<string, InvGroup>()
+  for (const t of txns.filter(t => t.date.slice(0, 7) === month && t.amountCents !== 0 && invest(cat(t))).sort((a, b) => b.date.localeCompare(a.date))) {
+    const { key, name } = investDest(t.description)
+    const g = by.get(key) ?? { key, name, inCents: 0, outCents: 0, netCents: 0, txns: [] }
+    if (t.amountCents < 0) g.inCents -= t.amountCents; else g.outCents += t.amountCents
+    g.netCents = g.inCents - g.outCents
+    g.txns.push(t)
+    by.set(key, g)
+  }
+  const all = [...by.values()].sort((a, b) => Math.abs(b.netCents) - Math.abs(a.netCents))
+  const groups = all.filter(g => !reservas.has(g.key)), res = all.filter(g => reservas.has(g.key))
+  const sum = (gs: InvGroup[]) => gs.reduce((s, g) => s + g.netCents, 0)
   const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'meta')
-  return { fromTxnsCents, txns: out, manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
+  const fromTxnsCents = sum(groups)
+  return { groups, reservas: res, fromTxnsCents, reservaCents: sum(res), manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
 }
 
 /**

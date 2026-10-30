@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, tmpPath, type Db } from './testDb'
-import { DEFAULT_PJ, FIXAS_PADRAO, applySource, saveFixedCategories, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
+import { DEFAULT_PJ, FIXAS_PADRAO, applySource, saveFixedCategories, saveReservas, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
@@ -196,5 +196,10 @@ describe('migração', () => {
     await saveFixedCategories(db, ['moradia'])
     await saveFixedCategories(db, ['moradia', 'pet'])
     expect((await loadOrcamento(db)).fixedCategories).toEqual(['moradia', 'pet'])
+  })
+  test('reservas: nenhuma até marcar; a escolha fica gravada', async () => {
+    expect((await loadOrcamento(db)).reservas).toEqual([])
+    await saveReservas(db, ['rdb'])
+    expect((await loadOrcamento(db)).reservas).toEqual(['rdb'])
   })
 })
