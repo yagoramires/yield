@@ -40,7 +40,7 @@ export function spendingPlan(lines: BudgetLine[], categories: Category[], goals:
   for (const l of lines) {
     if (l.kind !== 'saida') continue
     if (l.grupo === 'meta' || (l.categoryId && off.has(l.categoryId))) reservedCents += l.amountCents
-    else plannedCents += l.amountCents
+    else if (!(l.grupo === 'variavel' && l.installmentTotal === null && goals.has('variaveis'))) plannedCents += l.amountCents // com limite total, a linha à mão já está nele
   }
   const cats = [...goals].filter(([k]) => k.startsWith('cat:')).reduce((s, [, v]) => s + v, 0)
   return { plannedCents: plannedCents + (goals.get('variaveis') ?? cats), reservedCents }

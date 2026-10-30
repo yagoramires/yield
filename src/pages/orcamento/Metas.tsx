@@ -30,7 +30,7 @@ export function Metas({ month, categories, goals, averages, busy, onSave, onClos
     <div className="card" style={{ marginBottom: 12, borderColor: '#2c3a14' }}>
       <div className="bar">
         <h5 style={{ margin: 0 }}>Metas</h5>
-        <span className="muted">valem de {monthName(month).toLowerCase()} em diante; os meses anteriores não mudam</span>
+        <span className="muted">a partir de {monthName(month).toLowerCase()}; os meses anteriores não mudam</span>
       </div>
       <div className="grid2" style={{ marginTop: 8, columnGap: 28, rowGap: 0 }}>
         {field(GOAL_INVESTIR, 'Investir no mês')}

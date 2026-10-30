@@ -42,7 +42,7 @@ export function ImportarOrcamento() {
     <div className="card">
       <b style={{ color: '#fff' }}>Importar orçamento (CSV)</b>
       <div className="muted" style={{ margin: '4px 0 10px' }}>
-        Uma linha por item com as colunas <b>mes</b> (AAAA-MM), <b>tipo</b> (receita, fixa, variavel ou meta), <b>nome</b> e <b>valor</b>, separadas por ponto e vírgula.
+        Uma linha por item com as colunas <b>mes</b> (AAAA-MM), <b>tipo</b> (receita, fixa, variavel ou meta; variavel e meta viram o limite dos variáveis e a meta de investir do mês), <b>nome</b> e <b>valor</b>, separadas por ponto e vírgula.
         Salve sua planilha nesse formato como CSV. Pode importar de novo: o que já existe no mês é pulado.
       </div>
       <pre className="t2" style={{ margin: '0 0 10px', whiteSpace: 'pre-wrap' }}>{ORCAMENTO_CSV_EXEMPLO}</pre>

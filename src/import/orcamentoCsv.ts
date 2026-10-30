@@ -1,5 +1,5 @@
 import type { Db } from '../db/client'
-import { createMonth, saveLine, type BudgetLine, type Grupo, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, saveGoals, saveLine, type BudgetLine, type Grupo, type LineKind } from '../db/orcamentoRepo'
 import { fold, normalizeDescription } from '../domain/gastos'
 import type { Month } from '../domain/types'
 import { splitRow } from './extratoCsv'
@@ -55,10 +55,24 @@ export function parseOrcamentoCsv(text: string): { month: Month; lines: CsvLine[
   return [...byMonth].sort(([a], [b]) => a.localeCompare(b)).map(([month, lines]) => ({ month, lines: lines.map(l => ({ ...l, recurring: monthsOf.get(id(l))! >= 2 })) }))
 }
 
+// meta e variável da planilha são planos, não gastos: viram a meta de investir e o limite dos variáveis do mês
+const GOAL_OF: Partial<Record<Grupo, string>> = { meta: 'investir', variavel: 'variaveis' }
+
 /** Mês novo é criado inteiro; num mês que já existe só entra o que não tem a mesma chave nem o mesmo tipo e nome. */
-export async function importOrcamentoCsv(db: Db, months: { month: Month; lines: CsvLine[] }[]): Promise<{ months: number; lines: number; skipped: number }> {
-  let created = 0, lines = 0, skipped = 0
-  for (const { month, lines: ls } of months) {
+export async function importOrcamentoCsv(db: Db, months: { month: Month; lines: CsvLine[] }[]): Promise<{ months: number; lines: number; goals: number; skipped: number }> {
+  let created = 0, lines = 0, goals = 0, skipped = 0
+  for (const { month, lines: all } of months) {
+    const sums = new Map<string, number>()
+    const ls = all.filter(l => {
+      const key = l.grupo ? GOAL_OF[l.grupo] : undefined
+      if (key) sums.set(key, (sums.get(key) ?? 0) + l.amountCents)
+      return !key
+    })
+    const had = await db.select<{ key: string; c: number | null }>('SELECT key, amount_cents AS c FROM budget_goals WHERE month = ?', [month])
+    const changed = [...sums].filter(([key, c]) => had.find(h => h.key === key)?.c !== c)
+    skipped += sums.size - changed.length
+    goals += changed.length
+    await saveGoals(db, month, changed.map(([key, amountCents]) => ({ key, amountCents })))
     if (await createMonth(db, month, ls.map((l, position) => ({ ...l, position }))) === 'criado') { created++; lines += ls.length; continue }
     const old = await db.select<{ kind: string; name: string; k: string | null }>('SELECT kind, name, source_key AS k FROM budget_lines WHERE month = ?', [month])
     const keys = new Set(old.map(o => o.k)), names = new Set(old.map(o => `${o.kind}:${nameKey(o.name)}`))
@@ -68,5 +82,5 @@ export async function importOrcamentoCsv(db: Db, months: { month: Month; lines: 
       lines++
     }
   }
-  return { months: created, lines, skipped }
+  return { months: created, lines, goals, skipped }
 }

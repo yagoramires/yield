@@ -35,12 +35,15 @@ test('erros em pt-BR com o número da linha', () => {
 
 test('reimportar pula o que já existe e não duplica o que foi digitado no app', async () => {
   const db = createTestDb()
-  expect(await importOrcamentoCsv(db, parseOrcamentoCsv(csv))).toEqual({ months: 2, lines: 5, skipped: 0 })
-  expect(await importOrcamentoCsv(db, parseOrcamentoCsv(csv))).toEqual({ months: 0, lines: 0, skipped: 5 })
+  // os dois Mercado (variável) de fevereiro viram o limite dos variáveis do mês, não linhas de gasto
+  expect(await importOrcamentoCsv(db, parseOrcamentoCsv(csv))).toEqual({ months: 2, lines: 3, goals: 1, skipped: 0 })
+  expect((await loadOrcamento(db)).goals).toEqual([{ month: '2026-02', key: 'variaveis', amountCents: 100000 }])
+  expect(await importOrcamentoCsv(db, parseOrcamentoCsv(csv))).toEqual({ months: 0, lines: 0, goals: 0, skipped: 4 })
   await saveLine(db, { month: '2026-03', kind: 'saida', name: 'Aluguel', amountCents: 180000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null })
-  expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-03;fixa;aluguel;1800\n2026-03;variavel;Mercado;50'))).toEqual({ months: 0, lines: 1, skipped: 1 })
+  expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-03;fixa;aluguel;1800\n2026-03;meta;Reserva;50'))).toEqual({ months: 0, lines: 0, goals: 1, skipped: 1 })
   const o = await loadOrcamento(db)
-  expect(o.lines.filter(l => l.month === '2026-03').map(l => l.name)).toEqual(['Aluguel', 'Mercado'])
+  expect(o.lines.filter(l => l.month === '2026-03').map(l => l.name)).toEqual(['Aluguel'])
+  expect(o.goals.find(g => g.month === '2026-03')).toEqual({ month: '2026-03', key: 'investir', amountCents: 5000 })
 })
 
 test('números no nome contam: cartões e parcelas diferentes não se misturam', async () => {
@@ -51,7 +54,7 @@ test('números no nome contam: cartões e parcelas diferentes não se misturam',
   expect(m[1].lines.find(l => l.name === 'Parcela 2')?.recurring).toBe(false)
   const db = createTestDb()
   await importOrcamentoCsv(db, m)
-  expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-02;fixa;Cartão 5678;200'))).toEqual({ months: 0, lines: 1, skipped: 0 })
+  expect(await importOrcamentoCsv(db, parseOrcamentoCsv('mes;tipo;nome;valor\n2026-02;fixa;Cartão 5678;200'))).toEqual({ months: 0, lines: 1, goals: 0, skipped: 0 })
 })
 
 test('o tipo da saída escolhe o bloco: fixa, variável, meta; despesa genérica vira custo fixo', () => {

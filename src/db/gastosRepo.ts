@@ -119,7 +119,7 @@ export async function updateCategory(db: Db, id: string, f: { name: string; icon
 }
 
 /**
- * Apaga uma categoria do usuário. Com `moveTo`, as compras escolhidas à mão, as regras e as linhas do orçamento vão para ela;
+ * Apaga uma categoria do usuário. Com `moveTo`, as compras escolhidas à mão, as regras, as linhas e as metas do orçamento vão para ela;
  * sem, as escolhas e regras somem (a compra volta para a categoria automática) e a linha do orçamento fica sem categoria.
  * Move antes de apagar: sem transação no plugin, uma falha no meio deixa a categoria, nunca perde dado.
  */
@@ -127,7 +127,10 @@ export async function deleteCategory(db: Db, id: string, moveTo: string | null):
   if ((await db.select('SELECT 1 FROM categories WHERE id = ? AND builtin = 1', [id])).length) throw new Error('Categoria padrão não pode ser apagada')
   if (moveTo) {
     for (const table of ['category_overrides', 'category_rules', 'budget_lines']) await db.execute(`UPDATE ${table} SET category_id = ? WHERE category_id = ?`, [moveTo, id])
+    // a meta vai junto, sem passar por cima de uma meta que o destino já tenha no mesmo mês
+    await db.execute("UPDATE OR IGNORE budget_goals SET key = 'cat:' || ? WHERE key = 'cat:' || ?", [moveTo, id])
   }
+  await db.execute("DELETE FROM budget_goals WHERE key = 'cat:' || ?", [id])
   await db.execute('DELETE FROM categories WHERE id = ?', [id])
 }
 

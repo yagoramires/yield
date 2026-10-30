@@ -128,18 +128,28 @@ export function goalsAt(goals: Goal[], month: Month): Map<string, Cents> {
 }
 
 /**
- * Lançamentos do mês que já estão planejados em outro bloco: parcelas (n/total), assinaturas aceitas
- * e a conta fixa paga pelo banco (mesma categoria, valor a até 5% da linha; cada linha leva um lançamento).
+ * Lançamentos do mês que já estão planejados em outro bloco: assinaturas aceitas, parcelas aceitas (pela chave da sugestão)
+ * e, para as outras linhas de custo fixo e parcela, um lançamento de valor a até 5% da linha na mesma categoria ou sem
+ * categoria (Pix para outra pessoa fica sem). Parcela que não está no plano conta como gasto variável.
  */
 function planned(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month): Set<string> {
   const ls = lines.filter(l => l.month === month && l.kind === 'saida')
-  const subs = new Set(ls.filter(l => l.sourceKey?.startsWith('sub:')).map(l => l.sourceKey!.slice(4).replace(/@\d{4}-\d{2}$/, '')))
+  const key = (l: BudgetLine) => l.sourceKey!.replace(/@\d{4}-\d{2}$/, '')
+  const subs = new Set(ls.filter(l => l.sourceKey?.startsWith('sub:')).map(l => key(l).slice(4)))
+  const parcs = new Set(ls.filter(l => l.sourceKey?.startsWith('parc:')).map(key))
   const out = new Set<string>()
   const ofMonth = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0)
-  for (const t of ofMonth) if (t.installment !== null || subs.has(`${t.accountId}|${normalizeDescription(t.description)}`)) out.add(t.id)
+  for (const t of ofMonth) {
+    const total = t.installment?.match(/^\d+\/(\d+)$/)?.[1]
+    if (subs.has(`${t.accountId}|${normalizeDescription(t.description)}`)
+      || (total && parcs.has(`parc:${t.accountId}|${normalizeDescription(t.description)}|${total}|${-t.amountCents}`))) out.add(t.id)
+  }
   for (const l of ls) {
-    if (blocoOf(l) !== 'fixo' || !l.categoryId || l.sourceKey?.startsWith('sub:')) continue
-    const t = ofMonth.find(t => !out.has(t.id) && cat(t)?.id === l.categoryId && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05)
+    if (blocoOf(l) === 'variavel' || blocoOf(l) === 'meta' || /^(sub|parc):/.test(l.sourceKey ?? '')) continue
+    const t = ofMonth.find(t => {
+      const c = cat(t)
+      return !out.has(t.id) && (c === null || c.id === l.categoryId) && Math.abs(-t.amountCents - l.amountCents) <= l.amountCents * 0.05
+    })
     if (t) out.add(t.id)
   }
   return out
@@ -170,12 +180,24 @@ export function variaveis(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Cat
   }
 }
 
-/** Investido no mês: o que saiu da conta na categoria Investimento mais as linhas à mão do bloco. */
+/** Investido no mês: o que saiu da conta para investir mais as linhas à mão do bloco. */
 export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Category | null, month: Month, goals: Map<string, Cents>):
   { fromTxnsCents: Cents; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
-  const fromTxnsCents = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && cat(t)?.id === 'investimento').reduce((s, t) => s - t.amountCents, 0)
+  // Investimento e as categorias criadas que não contam como gasto (reserva, caixinha…), a mesma regra da migração 014
+  const invest = (c: Category | null) => !!c && (c.id === 'investimento' || (!c.countsAsSpending && !c.builtin))
+  const fromTxnsCents = txns.filter(t => t.date.slice(0, 7) === month && t.amountCents < 0 && invest(cat(t))).reduce((s, t) => s - t.amountCents, 0)
   const manual = lines.filter(l => l.month === month && l.kind === 'saida' && blocoOf(l) === 'meta')
   return { fromTxnsCents, manual, realCents: fromTxnsCents + manual.reduce((s, l) => s + l.amountCents, 0), goalCents: goals.get(GOAL_INVESTIR) ?? null }
+}
+
+/**
+ * Metas que valem para as telas do mês: só em mês com plano (sem plano não há orçamento) e só de categorias que
+ * existem e contam como gasto (categoria apagada ou que deixou de ser gasto não pode ter meta que ninguém consegue tirar).
+ */
+export function goalsFor(goals: Goal[], months: Month[], month: Month, categories: Category[]): Map<string, Cents> {
+  if (!months.includes(month)) return new Map()
+  const spending = new Set(categories.filter(c => c.countsAsSpending).map(c => catGoal(c.id)))
+  return new Map([...goalsAt(goals, month)].filter(([k]) => !k.startsWith('cat:') || spending.has(k)))
 }
 
 /** Média mensal de gasto por categoria nos `n` meses antes de `month` (para sugerir a meta). */

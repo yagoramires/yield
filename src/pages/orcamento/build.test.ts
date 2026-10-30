@@ -62,6 +62,7 @@ describe('spendingPlan', () => {
   it('soma a meta dos variáveis: o limite total, ou as metas por categoria', () => {
     expect(spendingPlan([line({ amountCents: 70 })], cats, new Map([['cat:a', 100], ['cat:b', 200], ['investir', 9]])).plannedCents).toBe(370)
     expect(spendingPlan([], cats, new Map([['cat:a', 100], ['variaveis', 250]])).plannedCents).toBe(250)
+    expect(spendingPlan([line({ amountCents: 40, grupo: 'variavel' })], cats, new Map([['variaveis', 250]])).plannedCents).toBe(250)
   })
 })
 

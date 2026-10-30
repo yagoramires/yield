@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { createMonth, deleteLine, dismissSuggestion, saveGoals, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
-import { averageByCategory, blocoOf, cltTabelaAno, copyLines, goalsAt, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, variaveis, withSources, type Bloco, type VarRow } from '../domain/orcamento'
+import { averageByCategory, blocoOf, cltTabelaAno, copyLines, goalsFor, investido, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, variaveis, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
@@ -100,7 +100,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const saidas = lines.filter(l => l.kind === 'saida')
   const of = (b: Bloco) => saidas.filter(l => blocoOf(l) === b)
   const fixos = of('fixo'), parcelas = of('parcela')
-  const goals = goalsAt(data.goals, month)
+  const goals = goalsFor(data.goals, data.months, month, categories)
   const avgs = averageByCategory(gastos.data.txns, gastos.categorize, month)
   const vars = variaveis(data.lines, gastos.data.txns, gastos.categorize, month, goals)
   const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals)
@@ -114,7 +114,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
 
   const open = (at: At, f: Partial<Form> = {}) => {
     setDel(null); setError(null)
-    setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: at === 'variavel' || at === 'meta' ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: true, sourceId: '', sourceKey: null, position: 0, ...f })
+    // gasto ou aporte à mão é do mês: repetido no mês seguinte já nasceria como gasto feito
+    const manual = at === 'variavel' || at === 'meta'
+    setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: manual ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: !manual, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
     id: l.id, grupo: l.grupo ?? 'fixo', name: shown(l), amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
@@ -260,7 +262,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   }
   const plainRow = (l: BudgetLine) => (
     <>
-      {nameCell(l, [l.sourceKey?.startsWith('sub:') && !/^assinatura/i.test(catName(l.categoryId) ?? '') && 'assinatura', catName(l.categoryId), !l.recurring && 'só este mês'])}
+      {nameCell(l, [l.sourceKey?.startsWith('sub:') && !/^assinatura/i.test(catName(l.categoryId) ?? '') && 'assinatura', catName(l.categoryId), !l.recurring && 'só este mês', fatura(l) && 'fora da sobra: as compras do cartão já entram nos variáveis'])}
       <td className="r">{formatCents(l.amountCents)}</td>
     </>
   )
@@ -305,7 +307,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const varNote = !hasTxns ? 'sem lançamentos para comparar'
     : progress >= 1 ? 'mês fechado' : progress <= 0 ? 'o mês ainda não começou'
     : ritmo !== null ? `no ritmo fecha em ${formatBRL(ritmo)}` : `${Math.round(progress * 100)}% do mês`
-  const sobra = sum.entradasCents - total(fixos) - total(parcelas) - vars.realCents - inv.realCents
+  // com lançamentos, a fatura do cartão já entra compra por compra nos variáveis: a linha dela não sai de novo da sobra
+  const fatura = (l: BudgetLine) => hasTxns && l.categoryId === 'pagamento-de-fatura'
+  const sobra = sum.entradasCents - total(fixos.filter(l => !fatura(l))) - total(parcelas) - vars.realCents - inv.realCents
 
   return (
     <>

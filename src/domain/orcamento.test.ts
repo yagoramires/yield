@@ -3,7 +3,7 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { averageByCategory, blocoOf, copyLines, goalsAt, investido, missingSources, monthSummary, nextMonthLines, variaveis, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
+import { averageByCategory, blocoOf, copyLines, goalsAt, goalsFor, investido, missingSources, monthSummary, nextMonthLines, variaveis, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: 'k', ...o })
@@ -176,17 +176,23 @@ describe('variaveis', () => {
       line({ id: 's', sourceKey: 'sub:c1|mercado@2026-03' }),
       line({ id: 'f', name: 'Aluguel', amountCents: 100_000, categoryId: 'mercado', grupo: 'fixo' }),
       line({ id: 'm', name: 'Feira em dinheiro', amountCents: 2000, grupo: 'variavel' }),
+      line({ id: 'p', sourceKey: 'parc:c2|mercado|10|300@2026-03', installmentCurrent: 4, installmentTotal: 10, amountCents: 300 }),
+      line({ id: 'd', name: 'Diarista', amountCents: 20_000, categoryId: 'mercado', grupo: 'fixo' }),
     ]
     const txns = [
       txn({ id: '1', description: 'mercado', amountCents: -5000 }), // assinatura c1|mercado
       txn({ id: '2', accountId: 'c2', description: 'mercado', amountCents: -300, installment: '4/10' }),
       txn({ id: '3', accountId: 'c2', description: 'mercado', amountCents: -101_000 }), // a conta fixa (1% de diferença)
       txn({ id: '4', accountId: 'c2', description: 'mercado', amountCents: -700 }),
+      txn({ id: '6', accountId: 'c2', description: 'PIX MARIA', amountCents: -20_000 }), // sem categoria: a diarista paga por Pix
+      txn({ id: '7', accountId: 'c2', description: 'sem categoria', amountCents: -50, installment: '1/2' }), // parcela fora do plano conta
       txn({ id: '5', accountId: 'c2', description: 'mercado', amountCents: -900, date: '2026-04-01' }),
     ]
     const r = variaveis(lines, txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['cat:lazer', 400]]))
-    expect(r.rows.map(({ txns, ...x }) => ({ ...x, txns: txns.map(t => t.id) }))).toEqual([{ categoryId: 'mercado', realCents: 700, goalCents: 1000, txns: ['4'] }, { categoryId: 'lazer', realCents: 0, goalCents: 400, txns: [] }])
-    expect([r.manual.map(l => l.id), r.realCents, r.goalCents]).toEqual([['m'], 2700, null])
+    expect(r.rows.map(({ txns, ...x }) => ({ ...x, txns: txns.map(t => t.id) }))).toEqual([
+      { categoryId: 'mercado', realCents: 700, goalCents: 1000, txns: ['4'] }, { categoryId: null, realCents: 50, goalCents: null, txns: ['7'] }, { categoryId: 'lazer', realCents: 0, goalCents: 400, txns: [] },
+    ])
+    expect([r.manual.map(l => l.id), r.realCents, r.goalCents]).toEqual([['m'], 2750, null])
     expect(variaveis([], txns, catOf, '2026-03', new Map([['cat:mercado', 1000], ['variaveis', 5000]])).goalCents).toBe(5000)
   })
 })
@@ -197,6 +203,20 @@ describe('investido', () => {
     const txns = [txn({ description: 'aporte', amountCents: -30_000 }), txn({ description: 'aporte', amountCents: 5000 }), txn({ description: 'aporte', amountCents: -1, date: '2026-04-02' })]
     const r = investido([line({ grupo: 'meta', amountCents: 2000 })], txns, t => inv[t.description] ?? null, '2026-03', new Map([['investir', 50_000]]))
     expect([r.fromTxnsCents, r.realCents, r.goalCents]).toEqual([30_000, 32_000, 50_000])
+  })
+  it('categoria criada que não conta como gasto (uma reserva) também é investimento; fatura e transferência não', () => {
+    const cs: Record<string, Category> = { reserva: { ...cat('reserva', false), builtin: false }, fatura: cat('pagamento-de-fatura', false) }
+    const txns = [txn({ description: 'reserva', amountCents: -700 }), txn({ description: 'fatura', amountCents: -900 })]
+    expect(investido([], txns, t => cs[t.description] ?? null, '2026-03', new Map()).fromTxnsCents).toBe(700)
+  })
+})
+
+describe('goalsFor', () => {
+  it('sem plano no mês não há meta; meta de categoria apagada ou fora do gasto some', () => {
+    const goals = [{ month: '2026-01', key: 'cat:mercado', amountCents: 100 }, { month: '2026-01', key: 'cat:velha', amountCents: 5 }, { month: '2026-01', key: 'cat:pagamento-de-fatura', amountCents: 5 }, { month: '2026-01', key: 'investir', amountCents: 9 }]
+    const cats = [cat('mercado'), cat('pagamento-de-fatura', false)]
+    expect(goalsFor(goals, ['2026-02'], '2026-03', cats).size).toBe(0)
+    expect(Object.fromEntries(goalsFor(goals, ['2026-03'], '2026-03', cats))).toEqual({ 'cat:mercado': 100, investir: 9 })
   })
 })
 

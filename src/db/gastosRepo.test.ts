@@ -7,7 +7,7 @@ import {
   replaceWindow, saveCategory, savePluggyItem, saveRule, setLastSync, setOverride, updateCategory, upsertAccount,
   saveCompanyNames, saveOwnerNames,
 } from './gastosRepo'
-import { loadOrcamento, saveLine } from './orcamentoRepo'
+import { loadOrcamento, saveGoals, saveLine } from './orcamentoRepo'
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
@@ -117,6 +117,14 @@ describe('categorias, regras e demais tabelas', () => {
     expect(d.overrides).toEqual({ 'fp-1': 'outros' })
     expect(d.rules.map(r => [r.pattern, r.categoryId])).toEqual([['petz', 'outros'], ['racao', 'outros']])
     expect((await loadOrcamento(db)).lines.map(l => l.categoryId)).toEqual(['outros'])
+  })
+  test('deleteCategory leva a meta junto sem passar por cima da do destino; sem destino a meta some', async () => {
+    const pets = await saveCategory(db, 'Pets', true), gatos = await saveCategory(db, 'Gatos', true)
+    await saveGoals(db, '2026-10', [{ key: `cat:${pets}`, amountCents: 100 }, { key: 'cat:outros', amountCents: 7 }])
+    await saveGoals(db, '2026-11', [{ key: `cat:${pets}`, amountCents: 200 }, { key: `cat:${gatos}`, amountCents: 3 }])
+    await deleteCategory(db, pets, 'outros')
+    await deleteCategory(db, gatos, null)
+    expect((await loadOrcamento(db)).goals).toEqual([{ month: '2026-10', key: 'cat:outros', amountCents: 7 }, { month: '2026-11', key: 'cat:outros', amountCents: 200 }])
   })
   test('deleteCategory sem destino tira as escolhas e deixa a linha do orçamento sem categoria', async () => {
     const pets = await saveCategory(db, 'Pets', true)

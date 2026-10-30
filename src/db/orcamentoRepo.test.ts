@@ -152,8 +152,11 @@ describe('migração', () => {
     const path = tmpPath('v13.db')
     const d = new DatabaseSync(path)
     for (const f of ['001_init.sql', '002_gastos.sql', '003_orcamento.sql', '004_fontes_renda.sql', '005_categoria_pluggy.sql', '006_categoria_visual.sql', '007_fonte_clt.sql', '008_cadastro_ir.sql', '009_renda_fixa_cripto.sql', '010_aportado_manual.sql', '011_etf_renda_fixa.sql', '012_aportado_cripto.sql', '013_fonte_mei.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
-    d.exec(`INSERT INTO budget_months VALUES ('2026-01');
+    d.exec(`INSERT INTO budget_months VALUES ('2026-01'), ('2026-02'), ('2026-03');
+      INSERT INTO accounts (id, source, external_id, institution, name, kind) VALUES ('c1', 'arquivo', 'x', 'Banco Laranja', 'Conta', 'conta');
+      INSERT INTO transactions (id, account_id, date, description, amount_cents, pending, fingerprint, source_key) VALUES ('t1', 'c1', '2026-01-05', 'LOJA', -100, 0, 'fp', 'sk');
       INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, category_id, installment_current, installment_total, source_key) VALUES
+      ('v3', '2026-02', 'saida', 'Lazer', 300, 1, 0, 'lazer', NULL, NULL, NULL),
       ('e', '2026-01', 'entrada', 'Salário', 1, 1, 0, NULL, NULL, NULL, NULL),
       ('m', '2026-01', 'saida', 'Aporte', 1, 1, 1, 'investimento', NULL, NULL, NULL),
       ('v', '2026-01', 'saida', 'Mercado', 150, 1, 2, 'mercado', NULL, NULL, NULL),
@@ -165,10 +168,15 @@ describe('migração', () => {
       ('f', '2026-01', 'saida', 'Avulso', 1, 1, 8, NULL, NULL, NULL, NULL)`)
     d.close()
     const migrado = createTestDb(path)
-    // a 015 leva o teto (v) e a meta (m) para budget_goals; o resto fica com o bloco do palpite
+    // a 015 leva o teto do mês com lançamento (v) e a meta (m) para budget_goals; sem lançamento (fevereiro) o teto vira custo à mão;
+    // nos meses planejados depois, a meta que sumiu fica desligada em vez de voltar
     const o = await loadOrcamento(migrado)
-    expect(Object.fromEntries(o.lines.map(l => [l.id, l.grupo]))).toEqual({ e: null, v2: 'fixo', s: 'fixo', p: 'fixo', a: 'fixo', t: 'fixo', f: 'fixo' })
-    expect(o.goals).toEqual([{ month: '2026-01', key: 'cat:mercado', amountCents: 150 }, { month: '2026-01', key: 'investir', amountCents: 1 }])
+    expect(Object.fromEntries(o.lines.map(l => [l.id, l.grupo]))).toEqual({ v3: 'fixo', e: null, v2: 'fixo', s: 'fixo', p: 'fixo', a: 'fixo', t: 'fixo', f: 'fixo' })
+    expect(o.goals).toEqual([
+      { month: '2026-01', key: 'cat:mercado', amountCents: 150 }, { month: '2026-01', key: 'investir', amountCents: 1 },
+      { month: '2026-02', key: 'cat:mercado', amountCents: null }, { month: '2026-02', key: 'investir', amountCents: null },
+      { month: '2026-03', key: 'cat:mercado', amountCents: null }, { month: '2026-03', key: 'investir', amountCents: null },
+    ])
     const id = await saveLine(migrado, { month: '2026-01', ...linha('Novo', { grupo: 'variavel' }) })
     await saveLine(migrado, { month: '2026-01', ...linha('Sem grupo') })
     const ls = (await loadOrcamento(migrado)).lines

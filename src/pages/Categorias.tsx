@@ -1,5 +1,5 @@
 import { CircleHelp, Pencil, Plus } from 'lucide-react'
-import { goalsAt } from '../domain/orcamento'
+import { goalsFor } from '../domain/orcamento'
 import { useState } from 'react'
 import type { Category, Txn } from '../db/gastosRepo'
 import { monthTotals } from '../domain/gastos'
@@ -34,7 +34,7 @@ export function Categorias({ onOpenLancamentos }: { onOpenLancamentos(): void })
   const before = new Map(spentByCategory(prevTxns, data.accounts, cat, data.categories, prev).map(r => [r.category?.id ?? null, r.cents]))
   const spent = monthTotals(data.txns, data.accounts, cat, month).spentCents
   const spentBefore = monthTotals(prevTxns, data.accounts, cat, prev).spentCents
-  const budget = budgetByCategory(orcamento.data.lines, goalsAt(orcamento.data.goals, month), month)
+  const budget = budgetByCategory(orcamento.data.lines, goalsFor(orcamento.data.goals, orcamento.data.months, month, data.categories), month)
   const isSem = (t: Txn) => monthOf(t.date) === month && t.amountCents < 0 && cat(t) === null
   const sem = { cents: rows.find(r => !r.category)?.cents ?? 0, count: data.txns.filter(isSem).length }
   const spending = rows.filter((r): r is typeof r & { category: Category } => !!r.category && r.countsAsSpending)
