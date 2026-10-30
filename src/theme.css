@@ -75,7 +75,7 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .sidebar.mini .item { justify-content: center; padding: 8px 0; }
 .sidebar.mini .item .lbl, .sidebar.mini .item small { display: none; }
 .sidebar.mini .sync-status { align-items: center; padding: 10px 0 2px; }
-.sidebar.mini .logo-row .logo { margin: 0; }
+.sidebar.mini .logo-row .logo { margin: 0; order: -2; } /* recolhido: y. no topo, depois expandir e o olho */
 .sidebar.mini .menu-collapse { order: -1; }
 .sync-mini { position: relative; }
 .sync-mini .dot { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; }
