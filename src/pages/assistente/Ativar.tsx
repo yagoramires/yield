@@ -43,18 +43,20 @@ export function Ativar({ hw, target, onReady }: { hw: Hardware; target: CatalogM
       <div className="sum-row" style={{ cursor: 'default' }}><span className="grow">Este computador</span><b>{machineLabel(hw)}</b></div>
       {model ? <>
         <div className="sum-row" style={{ cursor: 'default' }}><span className="grow">Modelo recomendado</span><b>{model.name} · {gb(model.bytes)}</b></div>
-        {busy === 'baixando' && prog && (
+        {busy === 'baixando' && prog && (prog.total > 0 && prog.received >= prog.total
+          ? <div className="muted" style={{ marginTop: 8 }}>Conferindo o arquivo baixado…</div>
+          : (
           <div style={{ marginTop: 8 }}>
             <div className="meter big" aria-hidden><i style={{ width: `${prog.total ? (prog.received / prog.total) * 100 : 0}%` }} /></div>
             <div className="muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{gb(prog.received)} de {gb(prog.total)}</div>
           </div>
-        )}
+        ))}
         {busy === 'ligando' && <div className="muted" style={{ marginTop: 8 }}>Ligando o modelo e medindo a velocidade…</div>}
         {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span></div>}
         <div className="btns" style={{ marginTop: 10 }}>
-          {busy === 'baixando'
-            ? <button className="b ghost" onClick={() => void invoke('ai_cancel_download')}>Cancelar</button>
-            : <button className="b pri with-ico" disabled={busy !== null} onClick={() => void baixar(model)}><Download size={13} aria-hidden />{error ? 'Tentar de novo' : 'Baixar e ativar'}</button>}
+          {/* conferindo o arquivo ou ligando o modelo: nada para clicar */}
+          {busy === null && <button className="b pri with-ico" onClick={() => void baixar(model)}><Download size={13} aria-hidden />{error ? 'Tentar de novo' : 'Baixar e ativar'}</button>}
+          {busy === 'baixando' && !(prog && prog.total > 0 && prog.received >= prog.total) && <button className="b ghost" onClick={() => void invoke('ai_cancel_download')}>Cancelar</button>}
         </div>
         <div className="muted" style={{ marginTop: 8 }}>O download é feito uma vez só, do Hugging Face. Se parar no meio, continua de onde parou.</div>
       </> : <div className="note" style={{ marginTop: 8 }}>{'unavailable' in pick ? pick.unavailable : ''}</div>}

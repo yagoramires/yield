@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { Gauge } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Gauge } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { CATALOG, lighter, type Hardware } from '../ai/catalog'
 import { getHardware } from '../ai/server'
@@ -10,11 +10,12 @@ import { Ativar } from './assistente/Ativar'
 import { Chat } from './assistente/Chat'
 import { Insights } from './assistente/Insights'
 import { useAiInput } from './assistente/useAiInput'
-import { errText, GastosHeader } from './lancamentos/GastosHeader'
+import { addMonths } from '../domain/money'
+import { errText, monthName } from './lancamentos/GastosHeader'
 
 export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
   const settings = useAiSettings()
-  const { gastos: { month } } = useData()
+  const { gastos: { month, setMonth } } = useData()
   const { input, loadRent } = useAiInput(month)
   const [hw, setHw] = useState<Hardware | null>(null)
   const [installed, setInstalled] = useState<{ file: string; bytes: number }[] | null>(null)
@@ -30,7 +31,17 @@ export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
 
   return (
     <>
-      <GastosHeader title="Assistente" />
+      {/* só título e mês: sincronizar e importar extrato ficam nas telas de gastos */}
+      <div className="bar">
+        <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+          <h1 style={{ margin: 0 }}>Assistente</h1>
+          {model && settings.off === false && <>
+            <button className="icon-btn" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
+            <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
+            <button className="icon-btn" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight size={14} aria-hidden /></button>
+          </>}
+        </div>
+      </div>
       {settings.off !== false ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
         : !hw || !installed ? <div className="muted" style={{ marginTop: 12 }}>Verificando este computador…</div>
