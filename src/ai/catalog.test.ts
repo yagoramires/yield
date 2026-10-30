@@ -1,5 +1,5 @@
 import catalog from './catalog.json'
-import { lighter, pickModel, type Hardware } from './catalog'
+import { gb, lighter, machineLabel, pickModel, type Hardware } from './catalog'
 
 const GiB = 2 ** 30
 const mac = (gib: number, arch = 'aarch64'): Hardware => ({ ramBytes: gib * GiB, arch, os: 'macos', gpu: null })
@@ -24,4 +24,10 @@ test('Mac Intel e pouca memória ficam sem Assistente, com o motivo', () => {
 test('o modelo mais leve é o próximo do catálogo', () => {
   expect(lighter(catalog[0], catalog)?.id).toBe('qwen3-4b')
   expect(lighter(catalog[1], catalog)).toBeNull()
+})
+
+test('descreve a máquina e o tamanho do modelo em GB', () => {
+  expect(machineLabel(mac(16))).toBe('Mac com chip Apple · 16 GB')
+  expect(machineLabel(pc(15.8, 8192))).toBe('PC com Windows · 16 GB · GPU Teste 8 GB')
+  expect(gb(5027783488)).toBe('5,0 GB')
 })

@@ -22,3 +22,12 @@ export function pickModel(hw: Hardware, catalog = CATALOG): { model: CatalogMode
 
 /** O modelo da faixa de baixo, para quando a calibração mostra a máquina lenta. */
 export const lighter = (m: CatalogModel, catalog = CATALOG): CatalogModel | null => catalog[catalog.findIndex(c => c.id === m.id) + 1] ?? null
+
+export const gb = (bytes: number) => `${(bytes / 1e9).toFixed(1).replace('.', ',')} GB`
+
+/** "Mac com chip Apple · 16 GB" / "PC com Windows · 16 GB · <GPU> 8 GB": memória arredondada para o nominal. */
+export function machineLabel(hw: Hardware): string {
+  const ram = `${Math.round(gib(hw))} GB`
+  if (hw.os === 'macos') return `${hw.arch === 'aarch64' ? 'Mac com chip Apple' : 'Mac com processador Intel'} · ${ram}`
+  return [`PC com ${hw.os === 'windows' ? 'Windows' : hw.os}`, ram, ...(hw.gpu ? [`${hw.gpu.name} ${Math.round(hw.gpu.vramMib / 1024)} GB`] : [])].join(' · ')
+}

@@ -12,6 +12,8 @@ import { Lancamentos } from './pages/Lancamentos'
 import { Assinaturas } from './pages/Assinaturas'
 import { Categorias } from './pages/Categorias'
 import { Orcamento } from './pages/Orcamento'
+import { Assistente } from './pages/Assistente'
+import { getAiSettings } from './ai/settings'
 import { ROUTES, type Route } from './ui/routes'
 import { EyeToggle, useHideValues } from './ui/HideValues'
 import { UpdateBanner } from './ui/Atualizacao'
@@ -25,7 +27,8 @@ export default function App() {
   const [route, setRoute] = useState<Route>(() => {
     try {
       const saved = localStorage.getItem('yield.route')
-      return ROUTES.some(g => g.items.some(i => i.route === saved && !i.disabled)) ? (saved as Route) : 'carteira'
+      const off = saved === 'assistente' && getAiSettings().off // Assistente desligado depois de usado: não reabre nele
+      return !off && ROUTES.some(g => g.items.some(i => i.route === saved && !i.disabled)) ? (saved as Route) : 'carteira'
     } catch { return 'carteira' }
   })
   useEffect(() => { try { localStorage.setItem('yield.route', route) } catch { /* sem storage, só não lembra */ } }, [route])
@@ -45,7 +48,7 @@ export default function App() {
       <Sidebar route={route} onNavigate={navigate} open={menuOpen} />
       <main className="main">
         <UpdateBanner />
-        {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={(cls?: string) => { setCarteiraClass(cls ?? null); setRoute('carteira') }} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira key={carteiraClass ?? ''} initialClass={carteiraClass} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'configuracoes' ? <Configuracoes /> : (
+        {route === 'investimentos-resumo' ? <ResumoInvestimentos onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={(cls?: string) => { setCarteiraClass(cls ?? null); setRoute('carteira') }} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira key={carteiraClass ?? ''} initialClass={carteiraClass} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'assistente' ? <Assistente onNavigate={setRoute} /> : route === 'configuracoes' ? <Configuracoes /> : (
           <>
             <h1>{TITLES[route]}</h1>
             <div className="muted">Em construção.</div>

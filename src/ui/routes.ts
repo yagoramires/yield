@@ -1,7 +1,7 @@
-export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'orcamento' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'declaracao' | 'configuracoes'
+export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'orcamento' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'declaracao' | 'assistente' | 'configuracoes'
 
 export const ROUTES: {
-  page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Sistema'
+  page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Assistente' | 'Sistema'
   items: { route: Route | null; label: string; disabled: boolean }[]
 }[] = [
   {
@@ -25,5 +25,6 @@ export const ROUTES: {
       { route: 'declaracao', label: 'Declaração IR', disabled: false },
     ],
   },
+  { page: 'Assistente', items: [{ route: 'assistente', label: 'Assistente', disabled: false }] },
   { page: 'Sistema', items: [{ route: 'configuracoes', label: 'Configurações', disabled: false }] },
 ]

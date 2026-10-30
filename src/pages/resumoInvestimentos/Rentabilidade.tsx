@@ -34,14 +34,17 @@ export function loadHist(tickers: string[], from: Month, to: Month): Promise<His
   return cache.get(key)!
 }
 
+/** Tickers com histórico a baixar: os mesmos nomes do replay (PETR4F → PETR4) e o novo de cada mudança de ticker. */
+export const histTickers = (trades: Trade[], events: CorporateEvent[]) =>
+  [...new Set([...trades.map(t => normalizeTicker(t.ticker)), ...events.flatMap(e => (e.kind === 'mudanca_ticker' ? [normalizeTicker(e.newTicker)] : []))])].sort()
+
 const pct = (v: number) => `${v >= 100 ? '+' : '−'}${Math.abs(v - 100).toFixed(1).replace('.', ',')}%`
 const last = (vs: (number | null)[]) => [...vs].reverse().find((v): v is number => v !== null) ?? null
 
 /** Carteira de bolsa × CDI × Ibovespa nos últimos 12 meses, os três começando em 100. */
 export function Rentabilidade({ trades, events, dividends, thisMonth }: { trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; thisMonth: Month }) {
   const months = Array.from({ length: 13 }, (_, i) => addMonths(thisMonth, i - 12))
-  // mesmos nomes do replay (PETR4F → PETR4) e o ticker novo de cada mudança de ticker
-  const tickers = [...new Set([...trades.map(t => normalizeTicker(t.ticker)), ...events.flatMap(e => (e.kind === 'mudanca_ticker' ? [normalizeTicker(e.newTicker)] : []))])].sort()
+  const tickers = histTickers(trades, events)
   const [hist, setHist] = useState<Hist | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
