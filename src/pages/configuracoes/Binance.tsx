@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { clearBinanceCredentials, getBinanceCredentials, setBinanceCredentials } from '../../cripto/secrets'
+import { clearBinanceCredentials, setBinanceCredentials } from '../../cripto/secrets'
+import { vaultStatus } from '../../secrets/vault'
 import { saveCryptoBalances } from '../../db/rendaFixaRepo'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
@@ -14,7 +15,7 @@ export function Binance() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => { getBinanceCredentials().then(c => setSaved(c !== null), () => setSaved(false)) }, [])
+  useEffect(() => { vaultStatus().then(s => setSaved(s.binance), () => setSaved(false)) }, [])
 
   const run = async (what: string, fn: () => Promise<void>) => {
     setBusy(true)

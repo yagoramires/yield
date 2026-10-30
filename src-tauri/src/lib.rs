@@ -36,6 +36,10 @@ fn swap_in_dir(dir: &Path, source: &Path) -> Result<PathBuf, String> {
 fn swap_database(app: tauri::AppHandle, source: String) -> Result<String, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     let source = Path::new(&source);
+    // o caminho vem do webview: só aceita um banco SQLite
+    if !starts_with(source, SQLITE_MAGIC)? {
+        return Err("Este arquivo não é um backup do Yield.".into());
+    }
     let backup = swap_in_dir(&dir, source)?;
     if source == dir.join(RESTORE_FILE) {
         let _ = std::fs::remove_file(source); // cópia aberta do backup com senha: já está no banco
@@ -43,18 +47,17 @@ fn swap_database(app: tauri::AppHandle, source: String) -> Result<String, String
     Ok(backup.to_string_lossy().into_owned())
 }
 
-#[tauri::command]
-fn move_file(from: String, to: String) -> Result<(), String> {
-    if std::fs::rename(&from, &to).is_ok() {
-        return Ok(());
-    }
-    // rename falha entre volumes: copia e remove a origem
-    std::fs::copy(&from, &to).map_err(|e| e.to_string())?;
-    std::fs::remove_file(&from).map_err(|e| e.to_string())
-}
-
 // Backup com senha: "YIELDBK1" + sal (16) + nonce (12) + AES-256-GCM(banco), chave = Argon2id(senha, sal).
 const BACKUP_MAGIC: &[u8; 8] = b"YIELDBK1";
+const SQLITE_MAGIC: &[u8; 16] = b"SQLite format 3\0";
+
+fn starts_with(path: &Path, magic: &[u8]) -> Result<bool, String> {
+    use std::io::Read;
+    let mut head = vec![0u8; magic.len()];
+    let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    let n = f.read(&mut head).map_err(|e| e.to_string())?;
+    Ok(n == magic.len() && head == magic)
+}
 
 fn backup_key(password: &str, salt: &[u8]) -> Result<aes_gcm::Key<aes_gcm::Aes256Gcm>, String> {
     let mut key = [0u8; 32];
@@ -83,9 +86,32 @@ fn unseal(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
     cipher.decrypt(nonce.into(), body).map_err(|_| "Senha errada ou arquivo corrompido.".to_string())
 }
 
+/// O temporário do VACUUM INTO: `export-*.db` direto na pasta de dados do app.
+fn is_export_tmp(data_dir: &Path, path: &Path) -> bool {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    path.parent() == Some(data_dir) && name.starts_with("export-") && name.ends_with(".db")
+}
+
+/// Os caminhos vêm do webview: `from` só pode ser o temporário (ele é apagado)
+/// e `to` só um `.yield` novo ou outro backup com senha (ele é sobrescrito).
+fn check_export(data_dir: &Path, from: &Path, to: &Path) -> Result<(), String> {
+    if !is_export_tmp(data_dir, from) {
+        return Err("Origem do backup fora da pasta do Yield.".into());
+    }
+    let yield_ext = to.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("yield"));
+    if !yield_ext || (to.exists() && !starts_with(to, BACKUP_MAGIC)?) {
+        // o temporário é o banco inteiro sem senha: não fica para trás
+        let _ = std::fs::remove_file(from);
+        return Err("Escolha um arquivo .yield novo ou um backup do Yield para sobrescrever.".into());
+    }
+    Ok(())
+}
+
 /// Criptografa o banco exportado (`from`, temporário) em `to` e apaga o temporário.
 #[tauri::command]
-fn encrypt_backup(from: String, to: String, password: String) -> Result<(), String> {
+fn encrypt_backup(app: tauri::AppHandle, from: String, to: String, password: String) -> Result<(), String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    check_export(&data_dir, Path::new(&from), Path::new(&to))?;
     let plain = std::fs::read(&from).map_err(|e| e.to_string())?;
     let sealed = seal(&plain, &password);
     std::fs::remove_file(&from).map_err(|e| e.to_string())?;
@@ -94,10 +120,7 @@ fn encrypt_backup(from: String, to: String, password: String) -> Result<(), Stri
 
 #[tauri::command]
 fn is_encrypted_backup(path: String) -> Result<bool, String> {
-    use std::io::Read;
-    let mut head = [0u8; 8];
-    let n = std::fs::File::open(&path).and_then(|mut f| f.read(&mut head)).map_err(|e| e.to_string())?;
-    Ok(n == 8 && &head == BACKUP_MAGIC)
+    starts_with(Path::new(&path), BACKUP_MAGIC)
 }
 
 /// Descriptografa para `restore.db` na pasta do app; `swap_database` apaga esse arquivo depois de usar.
@@ -111,6 +134,20 @@ fn decrypt_backup(app: tauri::AppHandle, from: String, password: String) -> Resu
 }
 
 const RESTORE_FILE: &str = "restore.db";
+
+/// Apaga o `restore.db` (backup com senha já aberto, sem criptografia) quando a importação não vai até o fim.
+fn discard_restore_in(dir: &Path) -> Result<(), String> {
+    match std::fs::remove_file(dir.join(RESTORE_FILE)) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn discard_restore(app: tauri::AppHandle) -> Result<(), String> {
+    discard_restore_in(&app.path().app_config_dir().map_err(|e| e.to_string())?)
+}
 
 #[cfg(target_os = "macos")]
 fn menu_pt(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
@@ -163,19 +200,189 @@ fn delete_with(entry: &keyring::Entry) -> Result<(), String> {
     }
 }
 
-#[tauri::command]
-fn secret_get(key: String) -> Result<Option<String>, String> {
-    get_with(&entry_for(&key)?)
+// As credenciais nunca vão para o webview: ele só sabe se existem e pede as duas chamadas que precisam delas.
+#[derive(serde::Serialize, serde::Deserialize, Default, Clone, PartialEq, Debug)]
+struct Vault {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pluggy: Option<PluggyCreds>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    binance: Option<BinanceCreds>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+struct PluggyCreds {
+    client_id: String,
+    client_secret: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug)]
+#[serde(rename_all = "camelCase")]
+struct BinanceCreds {
+    api_key: String,
+    secret: String,
+}
+
+// Cada leitura do Keychain pode abrir o pedido de senha do macOS: lê uma vez por sessão (só guarda se der certo).
+static VAULT: std::sync::Mutex<Option<Vault>> = std::sync::Mutex::new(None);
+
+fn load_vault() -> Result<Vault, String> {
+    let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
+    if let Some(v) = cache.as_ref() {
+        return Ok(v.clone());
+    }
+    let v = match get_with(&entry_for(SECRET_KEYS[0])?)? {
+        // item ilegível não serve para nada: vale como vazio, e o próximo "Salvar" o sobrescreve
+        Some(raw) => serde_json::from_str(&raw).unwrap_or_default(),
+        None => {
+            // versões até a 0.3: um item por credencial da Pluggy. Passa para o item único e apaga os antigos.
+            let (id, secret) = (entry_for(SECRET_KEYS[1])?, entry_for(SECRET_KEYS[2])?);
+            match (get_with(&id)?, get_with(&secret)?) {
+                (Some(client_id), Some(client_secret)) => {
+                    let v = Vault { pluggy: Some(PluggyCreds { client_id, client_secret }), binance: None };
+                    set_with(&entry_for(SECRET_KEYS[0])?, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
+                    delete_with(&id)?;
+                    delete_with(&secret)?;
+                    v
+                }
+                _ => Vault::default(),
+            }
+        }
+    };
+    *cache = Some(v.clone());
+    Ok(v)
+}
+
+fn update_vault(change: impl FnOnce(&mut Vault)) -> Result<(), String> {
+    let mut v = load_vault()?;
+    change(&mut v);
+    let entry = entry_for(SECRET_KEYS[0])?;
+    if v == Vault::default() {
+        delete_with(&entry)?;
+    } else {
+        set_with(&entry, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
+    }
+    *VAULT.lock().map_err(|e| e.to_string())? = Some(v);
+    Ok(())
+}
+
+fn filled(values: &[&str]) -> Result<(), String> {
+    if values.iter().any(|v| v.trim().is_empty()) {
+        return Err("Preencha os dois campos.".into());
+    }
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+struct VaultStatus {
+    pluggy: bool,
+    binance: bool,
 }
 
 #[tauri::command]
-fn secret_set(key: String, value: String) -> Result<(), String> {
-    set_with(&entry_for(&key)?, &value)
+fn vault_status() -> Result<VaultStatus, String> {
+    let v = load_vault()?;
+    Ok(VaultStatus { pluggy: v.pluggy.is_some(), binance: v.binance.is_some() })
 }
 
 #[tauri::command]
-fn secret_delete(key: String) -> Result<(), String> {
-    delete_with(&entry_for(&key)?)
+fn vault_set_pluggy(client_id: String, client_secret: String) -> Result<(), String> {
+    filled(&[&client_id, &client_secret])?;
+    let creds = PluggyCreds { client_id: client_id.trim().into(), client_secret: client_secret.trim().into() };
+    update_vault(|v| v.pluggy = Some(creds))
+}
+
+#[tauri::command]
+fn vault_set_binance(api_key: String, secret: String) -> Result<(), String> {
+    filled(&[&api_key, &secret])?;
+    let creds = BinanceCreds { api_key: api_key.trim().into(), secret: secret.trim().into() };
+    update_vault(|v| v.binance = Some(creds))
+}
+
+#[tauri::command]
+fn vault_clear(part: String) -> Result<(), String> {
+    match part.as_str() {
+        "pluggy" => update_vault(|v| v.pluggy = None),
+        "binance" => update_vault(|v| v.binance = None),
+        _ => Err("credencial desconhecida".into()),
+    }
+}
+
+/// Resposta crua da API para o webview tratar status e corpo como faria com um fetch.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct HttpReply {
+    status: u16,
+    body: String,
+    retry_after: Option<String>,
+}
+
+type Reqwest = tauri_plugin_http::reqwest::Client;
+static HTTP: std::sync::OnceLock<Reqwest> = std::sync::OnceLock::new();
+
+/// Um cliente só: o histórico da Binance são centenas de chamadas e reaproveita conexão e TLS.
+fn http() -> Result<&'static Reqwest, String> {
+    if let Some(c) = HTTP.get() {
+        return Ok(c);
+    }
+    let c = Reqwest::builder().timeout(std::time::Duration::from_secs(30)).build().map_err(|e| e.to_string())?;
+    Ok(HTTP.get_or_init(|| c))
+}
+
+/// Erro de rede vira este código; os outros erros (cofre, chave ausente, chamada recusada) chegam com a mensagem real.
+const NET_ERROR: &str = "rede";
+
+async fn send(req: tauri_plugin_http::reqwest::RequestBuilder) -> Result<HttpReply, String> {
+    let res = req.send().await.map_err(|_| NET_ERROR.to_string())?;
+    let status = res.status().as_u16();
+    let retry_after = res.headers().get("retry-after").and_then(|v| v.to_str().ok()).map(str::to_owned);
+    let body = res.text().await.map_err(|_| NET_ERROR.to_string())?;
+    Ok(HttpReply { status, body, retry_after })
+}
+
+async fn vault_async() -> Result<Vault, String> {
+    tauri::async_runtime::spawn_blocking(load_vault).await.map_err(|e| e.to_string())?
+}
+
+/// POST /auth da Pluggy com o Client ID e o Client Secret; o webview recebe só a apiKey (dura 2h).
+#[tauri::command]
+async fn pluggy_auth() -> Result<HttpReply, String> {
+    let creds = vault_async().await?.pluggy.ok_or("Sem credenciais da Pluggy: configure em Configurações › Open Finance.")?;
+    let body = serde_json::to_string(&creds).map_err(|e| e.to_string())?;
+    send(http()?.post("https://api.pluggy.ai/auth").header("Content-Type", "application/json").body(body)).await
+}
+
+const BINANCE_READS: [&str; 6] = [
+    "/api/v3/account",
+    "/sapi/v1/simple-earn/flexible/position",
+    "/sapi/v1/simple-earn/locked/position",
+    "/sapi/v1/fiat/payments",
+    "/sapi/v1/convert/tradeFlow",
+    "/api/v3/myTrades",
+];
+
+fn hmac_hex(secret: &str, msg: &str) -> String {
+    use hmac::Mac;
+    let mut mac = hmac::Hmac::<sha2::Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC aceita chave de qualquer tamanho");
+    mac.update(msg.as_bytes());
+    mac.finalize().into_bytes().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Caminho e consulta vêm do webview: só as leituras da lista e só parâmetros simples, senão a assinatura vira um oráculo.
+fn binance_url(path: &str, query: &str, secret: &str) -> Result<String, String> {
+    let simple = query.bytes().all(|b| b.is_ascii_alphanumeric() || b"=&-_.".contains(&b));
+    if !BINANCE_READS.contains(&path) || !simple || query.contains("signature=") {
+        return Err("Chamada não permitida: o Yield só lê dados da Binance".into());
+    }
+    Ok(format!("https://api.binance.com{path}?{query}&signature={}", hmac_hex(secret, query)))
+}
+
+/// GET assinado da Binance: a secret fica aqui; o webview manda o caminho e a consulta e recebe a resposta.
+#[tauri::command]
+async fn binance_get(path: String, query: String) -> Result<HttpReply, String> {
+    let creds = vault_async().await?.binance.ok_or("Sem chave da Binance: configure em Configurações › Binance.")?;
+    let url = binance_url(&path, &query, &creds.secret)?;
+    send(http()?.get(url).header("X-MBX-APIKEY", creds.api_key)).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -299,6 +506,20 @@ pub fn run() {
         }
     });
     builder
+        // banco sem senha de uma importação ou exportação interrompida (app fechado no meio) não fica no disco
+        .setup(|app| {
+            if let Ok(dir) = app.path().app_config_dir() {
+                let _ = discard_restore_in(&dir);
+            }
+            if let Ok(dir) = app.path().app_data_dir() {
+                for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+                    if is_export_tmp(&dir, &entry.path()) {
+                        let _ = std::fs::remove_file(entry.path());
+                    }
+                }
+            }
+            Ok(())
+        })
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:yield.db", migrations)
@@ -310,7 +531,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .manage(ai::State::default())
         .invoke_handler(tauri::generate_handler![
-            swap_database, move_file, encrypt_backup, is_encrypted_backup, decrypt_backup, secret_get, secret_set, secret_delete,
+            swap_database, encrypt_backup, is_encrypted_backup, decrypt_backup, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
             ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
         ])
         .build(tauri::generate_context!())
@@ -361,10 +582,73 @@ mod tests {
     }
 
     #[test]
+    fn caminhos_do_webview_sao_conferidos() {
+        let dir = std::env::temp_dir().join(format!("yield-paths-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let tmp = dir.join("export-1.db");
+        let novo = dir.join("novo.yield");
+        assert!(check_export(&dir, &tmp, &novo).is_ok());
+        // origem fora da pasta do app, com outro nome ou escapando com ..
+        assert!(check_export(&dir, Path::new("/etc/hosts"), &novo).is_err());
+        assert!(check_export(&dir, &dir.join("yield.db"), &novo).is_err());
+        assert!(check_export(&dir, &dir.join("sub").join("..").join("export-1.db"), &novo).is_err());
+        assert!(check_export(&dir, &tmp, &dir.join("Novo.YIELD")).is_ok());
+        // destino: só .yield, e só sobrescreve outro backup com senha; recusado, o temporário sem senha some
+        std::fs::write(&tmp, "banco").unwrap();
+        assert!(check_export(&dir, &tmp, &dir.join("x.txt")).is_err());
+        assert!(!tmp.exists());
+        let outro = dir.join("documento.yield");
+        std::fs::write(&outro, "não é backup").unwrap();
+        assert!(check_export(&dir, &tmp, &outro).is_err());
+        std::fs::write(&outro, seal(b"x", "s").unwrap()).unwrap();
+        assert!(check_export(&dir, &tmp, &outro).is_ok());
+        assert!(!check_export(&dir, Path::new("/etc/hosts"), &dir.join("x.txt")).is_ok() && Path::new("/etc/hosts").exists());
+        // swap só aceita SQLite
+        std::fs::write(&tmp, b"SQLite format 3\0resto").unwrap();
+        assert!(starts_with(&tmp, SQLITE_MAGIC).unwrap());
+        assert!(!starts_with(&outro, SQLITE_MAGIC).unwrap());
+        // restore.db some; apagar de novo não é erro
+        std::fs::write(dir.join(RESTORE_FILE), "banco aberto").unwrap();
+        discard_restore_in(&dir).unwrap();
+        assert!(!dir.join(RESTORE_FILE).exists());
+        discard_restore_in(&dir).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn cofre_rejeita_key_desconhecida_antes_de_tocar_no_cofre() {
         assert!(entry_for("outra.coisa").is_err());
         assert!(entry_for("pluggy.clientId").is_ok());
         assert!(entry_for("yield.credentials").is_ok());
+    }
+
+    #[test]
+    fn binance_assina_igual_a_documentacao_e_so_le_da_lista() {
+        let q = "symbol=LTCBTC&side=BUY&type=LIMIT&timeInForce=GTC&quantity=1&price=0.1&recvWindow=5000&timestamp=1499827319559";
+        let secret = "NhqPtmdSJYdKjVHjA7PZj4Mge3R5YNiP1e3UZjInClVN65XAbvqqM6A7H5fATj0j";
+        assert_eq!(hmac_hex(secret, q), "c8db56825ae71d6d79447849e617115f4a920fa2acdcab2b053c4b2838bd6b71");
+        let url = binance_url("/api/v3/account", "timestamp=1&recvWindow=10000", secret).unwrap();
+        assert!(url.starts_with("https://api.binance.com/api/v3/account?timestamp=1&recvWindow=10000&signature="));
+        assert!(!url.contains(secret));
+        assert!(binance_url("/sapi/v1/capital/withdraw/apply", "timestamp=1", secret).is_err());
+        assert!(binance_url("/api/v3/order", "timestamp=1", secret).is_err());
+        assert!(binance_url("/api/v3/account/../order", "timestamp=1", secret).is_err());
+        for q in ["a=1#x", "a=1 b", "a=%2F", "a=1&signature=x", "@evil.example/"] {
+            assert!(binance_url("/api/v3/account", q, secret).is_err(), "{q}");
+        }
+    }
+
+    #[test]
+    fn cofre_le_o_formato_gravado_pelas_versoes_anteriores() {
+        let v: Vault = serde_json::from_str(r#"{"pluggy":{"clientId":"id","clientSecret":"s"}}"#).unwrap();
+        assert_eq!(v.pluggy, Some(PluggyCreds { client_id: "id".into(), client_secret: "s".into() }));
+        assert_eq!(v.binance, None);
+        let full = Vault { binance: Some(BinanceCreds { api_key: "k".into(), secret: "z".into() }), ..v };
+        assert_eq!(serde_json::to_string(&full).unwrap(), r#"{"pluggy":{"clientId":"id","clientSecret":"s"},"binance":{"apiKey":"k","secret":"z"}}"#);
+        assert!(filled(&["a", " "]).is_err() && filled(&["a", "b"]).is_ok());
+        assert_eq!(serde_json::from_str::<Vault>("{").unwrap_or_default(), Vault::default());
+        // o corpo do /auth é o que a Pluggy espera
+        assert_eq!(serde_json::to_string(&full.pluggy.unwrap()).unwrap(), r#"{"clientId":"id","clientSecret":"s"}"#);
     }
 
     #[test]

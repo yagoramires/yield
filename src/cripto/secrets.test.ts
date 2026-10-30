@@ -1,41 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { BINANCE_BASE } from './binance'
+import { clearBinanceCredentials, getBinanceSend, setBinanceCredentials } from './secrets'
 
-const store = new Map<string, string>()
-const invoke = vi.fn(async (cmd: string, args: { key: string; value?: string }) => {
-  if (cmd === 'secret_get') return store.get(args.key) ?? null
-  if (cmd === 'secret_set') store.set(args.key, args.value!)
-  if (cmd === 'secret_delete') store.delete(args.key)
+const status = { pluggy: false, binance: false }
+const invoke = vi.fn(async (cmd: string, _args?: unknown): Promise<unknown> => {
+  if (cmd === 'vault_status') return status
+  if (cmd === 'binance_get') return { status: 200, body: '{"balances":[]}', retryAfter: null }
   return undefined
 })
-vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: Parameters<typeof invoke>) => invoke(...a) }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: (cmd: string, args?: unknown) => invoke(cmd, args) }))
 
-let mod: typeof import('./secrets')
-beforeEach(async () => {
-  store.clear()
-  invoke.mockClear()
-  vi.resetModules() // o cache da sessão fica no módulo
-  mod = await import('./secrets')
-})
+beforeEach(() => { invoke.mockClear(); status.binance = false })
 
 describe('chave da Binance', () => {
-  it('grava com trim e lê de volta uma vez por sessão', async () => {
-    await mod.setBinanceCredentials('  chave ', ' segredo\n')
-    expect([...store.keys()]).toEqual(['yield.credentials'])
-    vi.resetModules(); mod = await import('./secrets'); invoke.mockClear()
-    expect(await mod.getBinanceCredentials()).toEqual({ apiKey: 'chave', secret: 'segredo' })
-    await mod.getBinanceCredentials()
-    expect(invoke).toHaveBeenCalledTimes(1)
-  })
-
-  it('vazio lança erro sem chamar o cofre', async () => {
-    await expect(mod.setBinanceCredentials('chave', '  ')).rejects.toThrow('Preencha a API Key e a Secret Key.')
+  it('grava com trim no Rust; vazio lança sem chamar o cofre', async () => {
+    await setBinanceCredentials(' k ', ' s\n')
+    expect(invoke).toHaveBeenCalledWith('vault_set_binance', { apiKey: 'k', secret: 's' })
+    invoke.mockClear()
+    await expect(setBinanceCredentials('', 's')).rejects.toThrow('Preencha')
     expect(invoke).not.toHaveBeenCalled()
   })
 
-  it('remover apaga as duas', async () => {
-    await mod.setBinanceCredentials('chave', 'segredo')
-    await mod.clearBinanceCredentials()
-    expect(store.size).toBe(0)
-    expect(await mod.getBinanceCredentials()).toBeNull()
+  it('o GET vai para o Rust só com caminho e consulta; a assinatura é feita lá', async () => {
+    expect(await getBinanceSend()).toBeNull()
+    status.binance = true
+    const send = (await getBinanceSend())!
+    const res = await send(`${BINANCE_BASE}/api/v3/account?timestamp=1&recvWindow=10000`)
+    expect(await res.json()).toEqual({ balances: [] })
+    expect(invoke).toHaveBeenLastCalledWith('binance_get', { path: '/api/v3/account', query: 'timestamp=1&recvWindow=10000' })
+  })
+
+  it('erro do Rust: rede vira "Sem conexão"; o resto chega com a mensagem real', async () => {
+    status.binance = true
+    const send = (await getBinanceSend())!
+    const url = `${BINANCE_BASE}/api/v3/account?timestamp=1`
+    invoke.mockRejectedValueOnce('rede')
+    await expect(send(url)).rejects.toMatchObject({ kind: 'rede', message: 'Sem conexão com a Binance' })
+    invoke.mockRejectedValueOnce('Chamada não permitida: o Yield só lê dados da Binance')
+    await expect(send(url)).rejects.toMatchObject({ kind: 'chave', message: /não permitida/ })
+  })
+
+  it('apagar tira só a parte da Binance', async () => {
+    await clearBinanceCredentials()
+    expect(invoke).toHaveBeenCalledWith('vault_clear', { part: 'binance' })
   })
 })

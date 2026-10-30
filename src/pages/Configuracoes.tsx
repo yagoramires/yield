@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
 import { renormalizeBrokers } from '../db/repo'
@@ -35,7 +35,10 @@ export function Configuracoes() {
   const [exportPw, setExportPw] = useState<{ password: string; confirm: string } | null>(null) // pedindo a senha do novo backup
   const [importPw, setImportPw] = useState<{ path: string; password: string } | null>(null) // backup com senha escolhido
 
-  const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(null); setExportPw(null); setImportPw(null) }
+  // restore.db é o backup com senha já aberto: não pode ficar no disco se a importação não for até o fim
+  const discardRestore = () => { invoke('discard_restore').catch(() => {}) }
+  useEffect(() => () => discardRestore(), []) // saiu da tela com a importação pendente
+  const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(null); setExportPw(null); setImportPw(null); discardRestore() }
 
   const exportar = async () => {
     if (!exportPw) return
@@ -78,7 +81,7 @@ export function Configuracoes() {
     try {
       await validar(await invoke<string>('decrypt_backup', { from: importPw.path, password: importPw.password }))
       setImportPw(null)
-    } catch (e) { setBackupError(e instanceof BackupError ? e.message : errText(e)) }
+    } catch (e) { setBackupError(e instanceof BackupError ? e.message : errText(e)); discardRestore() }
     setBusy(false)
   }
 
@@ -95,7 +98,7 @@ export function Configuracoes() {
       reload,
     })
     if (r.ok) setBackupMsg(r.message)
-    else setBackupError(r.message)
+    else { setBackupError(r.message); discardRestore() }
     setRestore(null); setBusy(false)
   }
 
@@ -154,7 +157,7 @@ export function Configuracoes() {
             <div className="note" style={{ marginTop: 10 }}>
               Isso substitui todos os dados atuais. Uma cópia de segurança será guardada.
               <div className="btns" style={{ marginTop: 8 }}>
-                <button className="b" disabled={busy} onClick={() => setRestore(null)}>Cancelar</button>
+                <button className="b" disabled={busy} onClick={() => { setRestore(null); discardRestore() }}>Cancelar</button>
                 <button className="b pri" disabled={busy} onClick={() => void substituir()}>{busy ? 'Substituindo…' : 'Substituir dados'}</button>
               </div>
             </div>

@@ -6220,6 +6220,7 @@ version = "0.8.0"
 dependencies = [
  "aes-gcm",
  "argon2",
+ "hmac",
  "keyring",
  "libc",
  "serde",

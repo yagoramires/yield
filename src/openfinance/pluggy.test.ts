@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createPluggyClient, PluggyError, pluggyDate, pluggyRequest, rendaVariavel, toTradeRow, toTxnRow, type PluggyInvestment, type PluggyInvestmentTxn, type PluggyTxn } from './pluggy'
 
-const creds = { clientId: 'cid', clientSecret: 'segredo-xyz' }
+// o /auth (no app, feito pelo Rust) passa pelo mesmo fetch falso
+const client = (fn: typeof fetch) => createPluggyClient(() => fn('https://api.pluggy.ai/auth', { method: 'POST' }), fn)
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
 
 function fake(handler: (url: URL) => Response) {
@@ -97,11 +98,12 @@ describe('toTradeRow', () => {
 })
 
 describe('porta só-leitura', () => {
-  it('recusa fora de POST /auth e GET de contas, transações e investimentos', () => {
+  it('recusa fora de GET de contas, transações e investimentos; /auth só pelo Rust', () => {
     expect(() => pluggyRequest('PATCH', 'https://api.pluggy.ai/items/x')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/payments')).toThrow(/não permitida/)
     expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/accounts')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://evil.example/accounts')).toThrow(/não permitida/)
+    expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/auth')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/v2/transactions?a=1')).not.toThrow()
   })
   it('investimentos: só GET da lista e das operações de um id UUID', () => {
@@ -120,7 +122,7 @@ describe('porta só-leitura', () => {
   })
   it('um `next` malicioso não chama fetchFn', async () => {
     const f = fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [], next: '/../payments' }))
-    const c = createPluggyClient(creds, f.fn)
+    const c = client(f.fn)
     await expect(c.listTransactions('a', '2026-01-01', '2026-02-01')).rejects.toBeInstanceOf(PluggyError)
     expect(f.calls.every(x => /\/(auth|accounts|v2\/transactions)(\?|$)/.test(x.url))).toBe(true)
   })
@@ -129,7 +131,7 @@ describe('porta só-leitura', () => {
 describe('cliente', () => {
   it('reutiliza a apiKey e manda X-API-KEY', async () => {
     const f = fake(ok)
-    const c = createPluggyClient(creds, f.fn)
+    const c = client(f.fn)
     await c.listAccounts('i1'); await c.listAccounts('i2')
     expect(f.calls.filter(x => x.url.endsWith('/auth'))).toHaveLength(1)
     expect(f.calls[1].key).toBe('K1')
@@ -140,14 +142,14 @@ describe('cliente', () => {
       if (u.pathname === '/auth') return json({ apiKey: 'K' })
       return u.searchParams.get('after') ? json({ results: [{ id: 'b', date: '2026-01-01T00:00:00.000Z', description: 'x', amount: 1 }], next: null }) : json({ results: [{ id: 'a', date: '2026-01-01T00:00:00.000Z', description: 'x', amount: 1 }], next: '?accountId=acc&after=zzz' })
     })
-    const r = await createPluggyClient(creds, f.fn).listTransactions('acc', '2026-01-01', '2026-02-01')
+    const r = await client(f.fn).listTransactions('acc', '2026-01-01', '2026-02-01')
     expect(r.map(t => t.id)).toEqual(['a', 'b'])
     expect(f.calls[2].url).toBe('https://api.pluggy.ai/v2/transactions?accountId=acc&after=zzz')
   })
   it('401 com chave em cache reautentica uma vez e repete', async () => {
     let n = 0
     const f = fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' + ++n }) : json({ results: [] }, f.calls.at(-1)!.key === 'K1' && f.calls.filter(x => x.url.includes('/accounts')).length > 1 ? 401 : 200))
-    const c = createPluggyClient(creds, f.fn)
+    const c = client(f.fn)
     await c.listAccounts('i') // guarda K1
     await c.listAccounts('i') // K1 expirou no servidor: 401 → /auth → K2
     expect(f.calls.filter(x => x.url.endsWith('/auth'))).toHaveLength(2)
@@ -156,10 +158,10 @@ describe('cliente', () => {
   it('mapeia erros sem vazar segredo', async () => {
     const kind = async (status: number, path = '/accounts') => {
       const f = fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K-SECRETA' }) : json({ erro: 'corpo-secreto' }, status))
-      const c = createPluggyClient(creds, f.fn)
+      const c = client(f.fn)
       const e = await (path === '/accounts' ? c.listAccounts('i1') : c.listTransactions('a', '2026-01-01', '2026-01-02')).catch(e => e)
       expect(e).toBeInstanceOf(PluggyError)
-      expect(e.message).not.toMatch(/K-SECRETA|segredo-xyz|corpo-secreto/)
+      expect(e.message).not.toMatch(/K-SECRETA|corpo-secreto/)
       return [e.kind, e.message]
     }
     expect(await kind(403)).toEqual(['credenciais', 'Client ID ou Client Secret inválidos'])
@@ -171,7 +173,7 @@ describe('cliente', () => {
   })
   it('400/404 nos investimentos não vira "item não encontrado"', async () => {
     for (const status of [400, 404]) {
-      const c = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({}, status)).fn)
+      const c = client(fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({}, status)).fn)
       await expect(c.listInvestments('i1')).rejects.toMatchObject({ kind: 'resposta', message: `a Pluggy não tem investimentos para este banco (HTTP ${status})` })
     }
   })
@@ -183,7 +185,7 @@ describe('cliente', () => {
       if (u.pathname === '/investments') return json({ page, total: 2, totalPages: 2, results: [{ id: page === 1 ? INV : 'x2', code: 'AAAA3', name: 'AAAA3 ON', type: 'EQUITY', subtype: 'STOCK' }] })
       return json({ page, total: 0, totalPages: 0, results: [] })
     })
-    const c = createPluggyClient(creds, f.fn)
+    const c = client(f.fn)
     expect((await c.listInvestments('i1')).map(i => i.id)).toEqual([INV, 'x2'])
     expect(await c.listInvestmentTransactions(INV)).toEqual([])
     expect(f.calls.slice(1).map(x => x.url)).toEqual([
@@ -191,29 +193,30 @@ describe('cliente', () => {
       'https://api.pluggy.ai/investments?itemId=i1&page=2&pageSize=500',
       `https://api.pluggy.ai/investments/${INV}/transactions?page=1&pageSize=500`,
     ])
-    const bad = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [], totalPages: 'muitas' })).fn)
+    const bad = client(fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [], totalPages: 'muitas' })).fn)
     await expect(bad.listInvestments('i1')).rejects.toMatchObject({ kind: 'resposta' })
-    const noQty = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [{ id: 't', type: 'BUY', date: '2026-01-02T00:00:00.000Z', value: 10 }], totalPages: 1 })).fn)
+    const noQty = client(fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ results: [{ id: 't', type: 'BUY', date: '2026-01-02T00:00:00.000Z', value: 10 }], totalPages: 1 })).fn)
     // sem quantidade a lista vem inteira; toTradeRow pula só essa operação
     expect((await noQty.listInvestmentTransactions(INV)).map(t => toTradeRow(t))).toEqual([null])
     // id fora do formato não sai pela porta
     await expect(c.listInvestmentTransactions('../payments')).rejects.toMatchObject({ message: /não permitida/ })
   })
   it('auth 401, rede e JSON fora do formato', async () => {
-    const bad = createPluggyClient(creds, fake(() => json({}, 401)).fn)
+    const bad = client(fake(() => json({}, 401)).fn)
     await expect(bad.listAccounts('i')).rejects.toMatchObject({ kind: 'credenciais' })
-    const net = createPluggyClient(creds, (async () => { throw new TypeError('boom') }) as typeof fetch)
+    const net = client((async () => { throw new TypeError('boom') }) as typeof fetch)
     await expect(net.listAccounts('i')).rejects.toMatchObject({ kind: 'rede', message: 'Sem conexão com a Pluggy' })
     const calls: (AbortSignal | null | undefined)[] = []
-    const slow = createPluggyClient(creds, (async (_: RequestInfo | URL, init?: RequestInit) => {
+    const slow = client((async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/auth')) return json({ apiKey: 'K' })
       calls.push(init?.signal)
       throw new DOMException('The operation timed out.', 'TimeoutError')
     }) as typeof fetch)
     await expect(slow.listAccounts('i')).rejects.toMatchObject({ kind: 'rede', message: 'A Pluggy não respondeu a tempo; tente de novo' })
     expect(calls[0]).toBeInstanceOf(AbortSignal)
-    const aborted = createPluggyClient(creds, (async () => { throw new DOMException('aborted', 'AbortError') }) as typeof fetch)
+    const aborted = client((async () => { throw new DOMException('aborted', 'AbortError') }) as typeof fetch)
     await expect(aborted.listAccounts('i')).rejects.toMatchObject({ kind: 'rede', message: 'A Pluggy não respondeu a tempo; tente de novo' })
-    const odd = createPluggyClient(creds, fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ foo: 1 })).fn)
+    const odd = client(fake((u) => u.pathname === '/auth' ? json({ apiKey: 'K' }) : json({ foo: 1 })).fn)
     await expect(odd.listAccounts('i')).rejects.toMatchObject({ kind: 'resposta' })
   })
 })

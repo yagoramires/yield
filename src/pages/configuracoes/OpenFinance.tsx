@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { deleteAccount, deletePluggyItem, saveCompanyNames, saveOwnerNames, savePluggyItem, type Account } from '../../db/gastosRepo'
 import { validCompanyNames, validOwnerNames } from '../../domain/transferencias'
 import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
-import { clearPluggyCredentials, getPluggyCredentials, setPluggyCredentials } from '../../openfinance/secrets'
+import { clearPluggyCredentials, getPluggyAuth, setPluggyCredentials } from '../../openfinance/secrets'
+import { vaultStatus } from '../../secrets/vault'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 import { investmentLine, parseItemId } from './build'
@@ -30,7 +31,7 @@ export function OpenFinance() {
   const [guide, setGuide] = useState(false)
 
   useEffect(() => {
-    getPluggyCredentials().then(c => setSaved(c !== null), () => setSaved(false))
+    vaultStatus().then(s => setSaved(s.pluggy), () => setSaved(false))
   }, [])
 
   const run = async (what: string, fn: () => Promise<void>) => {
@@ -62,9 +63,9 @@ export function OpenFinance() {
 
   const test = async () => {
     setTesting(true); setError(null)
-    const creds = await getPluggyCredentials().catch(() => null)
-    if (!creds) { setError('Salve o Client ID e o Client Secret primeiro'); setTesting(false); return }
-    const client = createPluggyClient(creds, tauriFetch as typeof fetch)
+    const auth = await getPluggyAuth().catch(() => null)
+    if (!auth) { setError('Salve o Client ID e o Client Secret primeiro'); setTesting(false); return }
+    const client = createPluggyClient(auth, tauriFetch as typeof fetch)
     const out: Record<string, Status> = {}
     for (const it of data.pluggyItems) {
       try { out[it.itemId] = { ok: true, text: plural((await client.listAccounts(it.itemId)).length, 'conta', 'contas') } }

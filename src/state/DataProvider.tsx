@@ -14,9 +14,10 @@ import { categorize } from '../domain/gastos'
 import { pairTransfers, type TransferLink } from '../domain/transferencias'
 import { detectSubscriptions, type Subscription } from '../domain/assinaturas'
 import type { Month } from '../domain/types'
-import { getPluggyCredentials } from '../openfinance/secrets'
+import { getPluggyAuth } from '../openfinance/secrets'
+import { vaultStatus } from '../secrets/vault'
 import { fetchBinanceBalances } from '../cripto/binance'
-import { getBinanceCredentials } from '../cripto/secrets'
+import { getBinanceSend } from '../cripto/secrets'
 import { saveCryptoBalances } from '../db/rendaFixaRepo'
 import { syncCryptoCosts } from '../cripto/aportado'
 import { binanceErrorText, costSummaryText } from '../pages/configuracoes/build'
@@ -104,18 +105,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Erros (inclusive credencial ausente) vão para lastSyncResult.errors e aparecem na linha de avisos.
-  // `known`: credenciais já lidas na abertura, para não pedir o Keychain duas vezes.
-  const syncNow = useCallback(async (known?: { clientId: string; clientSecret: string }) => {
+  const syncNow = useCallback(async () => {
     const d = dbRef.current
     if (!d || syncingRef.current) return
     syncingRef.current = true; setSyncing(true)
     const fail = (message: string): SyncResult => ({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message }], investments: [] })
     try {
-      const creds = known ?? (await getPluggyCredentials())
+      const auth = await getPluggyAuth()
       const items = (await loadGastos(d)).pluggyItems
-      if (!creds) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Open Finance.'))
+      if (!auth) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Open Finance.'))
       else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Open Finance.'))
-      else setLastSyncResult(await syncPluggy(d, creds, tauriFetch as typeof fetch, todayISO()))
+      else setLastSyncResult(await syncPluggy(d, auth, tauriFetch as typeof fetch, todayISO()))
       const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)]) // compras e vendas da Pluggy mudam a carteira
       setData(ds); setGastosData(g)
     } catch (e) { setLastSyncResult(fail(`Não foi possível sincronizar: ${e instanceof Error ? e.message : String(e)}`)) }
@@ -130,9 +130,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!d) return
     setBinance(b => ({ ...b, syncing: true }))
     try {
-      const creds = await getBinanceCredentials()
-      if (!creds) { binanceFailed.current = true; return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false }) }
-      const r = await fetchBinanceBalances(creds, tauriFetch as typeof fetch)
+      const send = await getBinanceSend()
+      if (!send) { binanceFailed.current = true; return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false }) }
+      const r = await fetchBinanceBalances(send)
       await saveCryptoBalances(d, r.balances, new Date().toISOString())
       setData(await loadAll(d))
       binanceFailed.current = false
@@ -146,9 +146,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!d) return
     setCostState({ loading: true, note: null, progress: null })
     try {
-      const creds = await getBinanceCredentials()
-      if (!creds) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.', progress: null })
-      const r = await syncCryptoCosts(d, creds, tauriFetch as typeof fetch, undefined, undefined, progress => setCostState(s => ({ ...s, progress })))
+      const send = await getBinanceSend()
+      if (!send) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.', progress: null })
+      const r = await syncCryptoCosts(d, send, tauriFetch as typeof fetch, undefined, undefined, progress => setCostState(s => ({ ...s, progress })))
       setData(await loadAll(d))
       setCostState({ loading: false, note: costSummaryText(r), progress: null })
     } catch (e) { setCostState({ loading: false, note: binanceErrorText(e), progress: null }) }
@@ -188,8 +188,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         void (ds.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
         if (needsSync(g, Date.now())) {
           pluggyAuto.current.last = Date.now()
-          getPluggyCredentials().then(
-            c => { if (c && !cancelled) void syncNow(c) },
+          vaultStatus().then(
+            s => { if (s.pluggy && !cancelled) void syncNow() },
             e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
           )
         }
@@ -202,7 +202,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           const auto = pluggyAuto.current
           if (gNow && !auto.off && Date.now() - auto.last > SYNC_EVERY_MS && needsSync(gNow, Date.now())) {
             auto.last = Date.now()
-            getPluggyCredentials().then(c => { if (c && !cancelled) void syncNow(c) }, () => { auto.off = true })
+            vaultStatus().then(s => { if (s.pluggy && !cancelled) void syncNow() }, () => { auto.off = true })
           }
         }, REFRESH_MS)
       } catch (e) {

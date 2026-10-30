@@ -20,20 +20,15 @@ export function binanceRequest(method: string, url: string): URL {
   return u
 }
 
-export async function sign(secret: string, query: string): Promise<string> {
-  const enc = new TextEncoder()
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'])
-  return [...new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(query)))].map(b => b.toString(16).padStart(2, '0')).join('')
-}
+/** GET da URL (sem assinatura) assinado no Rust com a chave salva (comando `binance_get`): a secret não chega ao JavaScript. */
+export type BinanceSend = (url: string) => Promise<Response>
 
-type Creds = { apiKey: string; secret: string }
-
-async function signedGet(path: string, creds: Creds, fetchFn: typeof fetch, now: () => number, params = ''): Promise<Response> {
+async function signedGet(path: string, send: BinanceSend, now: () => number, params = ''): Promise<Response> {
   // shortcut: o Earn pagina (padrão 10 linhas); 100 é o máximo de uma página, paginar se alguém tiver mais produtos
   const query = `${params}${EARN.includes(path) ? 'size=100&' : ''}timestamp=${now()}&recvWindow=10000`
-  const u = binanceRequest('GET', `${path}?${query}&signature=${await sign(creds.secret, query)}`)
-  try { return await fetchFn(u.toString(), { method: 'GET', headers: { 'X-MBX-APIKEY': creds.apiKey }, signal: AbortSignal.timeout(30_000) }) } catch {
-    throw new BinanceError('Sem conexão com a Binance', 'rede')
+  const u = binanceRequest('GET', `${path}?${query}`)
+  try { return await send(u.toString()) } catch (e) {
+    throw e instanceof BinanceError ? e : new BinanceError('Sem conexão com a Binance', 'rede')
   }
 }
 
@@ -44,8 +39,8 @@ const num = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? Nu
  * (LDO é uma moeda de verdade; sem o Earn, o espelho é a única pista do saldo).
  * Sem permissão para o Earn a chave ainda serve: `earnSkipped` avisa a tela.
  */
-export async function fetchBinanceBalances(creds: Creds, fetchFn: typeof fetch, now: () => number = Date.now): Promise<{ balances: { asset: string; qty: number }[]; earnSkipped: boolean }> {
-  const res = await signedGet(ACCOUNT, creds, fetchFn, now)
+export async function fetchBinanceBalances(send: BinanceSend, now: () => number = Date.now): Promise<{ balances: { asset: string; qty: number }[]; earnSkipped: boolean }> {
+  const res = await signedGet(ACCOUNT, send, now)
   if (res.status === 401 || res.status === 403) throw new BinanceError('Chave da Binance inválida ou sem permissão de leitura', 'chave')
   const body = res.ok ? await res.json().catch(() => null) : null
   if (!body || !Array.isArray(body.balances)) throw new BinanceError(`A Binance respondeu com erro (HTTP ${res.status})`, 'resposta')
@@ -57,7 +52,7 @@ export async function fetchBinanceBalances(creds: Creds, fetchFn: typeof fetch, 
   const inFlexible = new Set<string>()
   // flexível e travado em paralelo; o resultado é tratado na ordem de EARN
   const earn = await Promise.all(EARN.map(async path => {
-    const r = await signedGet(path, creds, fetchFn, now)
+    const r = await signedGet(path, send, now)
     return { path, rows: r.ok ? (await r.json().catch(() => null))?.rows : null }
   }))
   for (const { path, rows } of earn) {
@@ -81,12 +76,12 @@ const DAY = 86_400_000
  * Linhas da resposta (`key`: onde a lista está); null quando o símbolo não existe (-1121).
  * No limite de consultas (429/418) espera o Retry-After (60 s sem ele, no máximo 120 s) e tenta de novo uma vez.
  */
-async function readRows(path: string, params: string, creds: Creds, fetchFn: typeof fetch, now: () => number, sleep: (ms: number) => Promise<void>, key?: string): Promise<Row[] | null> {
-  let res = await signedGet(path, creds, fetchFn, now, params)
+async function readRows(path: string, params: string, send: BinanceSend, now: () => number, sleep: (ms: number) => Promise<void>, key?: string): Promise<Row[] | null> {
+  let res = await signedGet(path, send, now, params)
   if (res.status === 429 || res.status === 418) {
     const s = Number(res.headers.get('Retry-After') || 60)
     await sleep(Math.min(Number.isFinite(s) && s >= 0 ? s : 60, 120) * 1000)
-    res = await signedGet(path, creds, fetchFn, now, params)
+    res = await signedGet(path, send, now, params)
   }
   const body = await res.json().catch(() => null) as Row | Row[] | null
   if (res.ok && body) {
@@ -112,13 +107,13 @@ const QUOTES = ['BRL', 'USDT', 'FDUSD', 'USDC', 'BUSD']
  * Trocas do histórico para o aportado: compras/vendas com PIX ou cartão, Convert e negociações spot nos pares em real e em dólar.
  * Uma fonte que falha (sem permissão, rede, limite) vai para `failed` e as outras seguem.
  */
-export async function fetchBinanceSwaps(creds: Creds, assets: string[], fetchFn: typeof fetch, now: () => number = Date.now,
+export async function fetchBinanceSwaps(send: BinanceSend, assets: string[], now: () => number = Date.now,
   sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms)), onProgress?: (text: string) => void): Promise<{ swaps: Swap[]; failed: { source: string; error: unknown }[]; found: Record<string, number> }> {
   // a leitura leva minutos: cada fonte diz onde está, juntas numa linha só
   const stage: Record<string, string> = { 'PIX/cartão': '…', Convert: '…', 'à vista': '…' }
   const tell = (k: string, v: string) => { stage[k] = v; onProgress?.(Object.entries(stage).map(([a, b]) => `${a} ${b}`).join(' · ')) }
   const month = (ms: number) => { const d = new Date(ms); return `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}` }
-  const read = (path: string, params: string, key?: string) => readRows(path, params, creds, fetchFn, now, sleep, key)
+  const read = (path: string, params: string, key?: string) => readRows(path, params, send, now, sleep, key)
   const fiats = new Set(['BRL'])
 
   // sem beginTime/endTime a Binance só devolve 30 dias; o limite da janela não é documentado, 90 dias por segurança
