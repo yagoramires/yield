@@ -331,7 +331,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <td className="ell-cell"><div className="cat-line">
           <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />
           <div className="grow"><div className="nm">
-            <button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{[plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ')} {opened ? '▾' : '▸'}</span></button>
+            <button className="cat-toggle" aria-expanded={opened} onClick={toggle}>{g.name} <span className="muted">{[ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ')} {opened ? '▾' : '▸'}</span></button>
             <span className="acts muted"><button className="link" disabled={busy} onClick={() => toggleReserva(g.key)}>{reserva ? 'é investimento' : 'é reserva'}</button></span>
           </div></div>
         </div></td>
@@ -366,7 +366,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
         <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
-        <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">{inv.reservaCents !== 0 ? `${inv.reservaCents > 0 ? 'fora os' : 'com os'} ${formatBRL(Math.abs(inv.reservaCents))} ${inv.reservaCents > 0 ? 'guardados na' : 'tirados da'} reserva` : 'o que entra − o que já saiu'}</div></div>
+        <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">{inv.reservaCents > 0 ? `inclui ${formatBRL(inv.reservaCents)} guardados na reserva` : inv.reservaCents < 0 ? `sem contar ${formatBRL(-inv.reservaCents)} tirados da reserva` : 'o que entra − o que já saiu'}</div></div>
       </div>
 
       {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={avgs} fixed={data.fixedCategories} busy={busy}

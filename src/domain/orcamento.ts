@@ -197,12 +197,20 @@ export function custos(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Catego
 
 export interface InvGroup { key: string; name: string; inCents: Cents; outCents: Cents /* resgates */; netCents: Cents; txns: Txn[] /* mais recentes primeiro */ }
 
-/** Destino de uma aplicação ou resgate: o nome curto sem "Aplicação"/"Resgate" na frente, para os dois caírem no mesmo grupo. */
+/**
+ * Destino de uma aplicação ou resgate: o nome curto sem "Aplicação"/"Resgate" na frente, para os dois caírem no mesmo grupo.
+ * A chave fica salva em orcamento.reservas: mudar shortName/displayName ou esta função muda a chave (o teste fixa os formatos).
+ */
 export function investDest(description: string): { key: string; name: string } {
   const short = shortName(description)
-  const name = short.replace(/^(aplica[cç][aã]o|resgate|aporte|aplic\.?|resg\.?)\s+((de|em|no|na)\s+)?/i, '').trim() || short
-  return { key: fold(name), name }
+  const name = /^dinheiro (guardado|resgatado)\b/i.test(short) ? 'Dinheiro guardado' // a caixinha do Nubank
+    : short.replace(/^(aplica[cç][aã]o|resgate|aporte|aplic|resg)\b\.?\s*((de|em|no|na)\s+)?/i, '').replace(/\bautom[aá]tic[ao]\b/i, 'automática').trim()
+  const shown = name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Aplicações e resgates'
+  return { key: fold(shown), name: shown }
 }
+
+// entrada que é rendimento (juros, dividendo, JCP) não é resgate: não desconta do investido
+const isYield = (t: Txn) => t.operationType === 'RENDIMENTO_APLIC_FINANCEIRA' || /rendimento|dividend|jcp|juros s|provento/i.test(t.description)
 
 /**
  * Investido no mês: aplicações menos resgates de cada destino (lançamentos em Investimento ou numa categoria criada que não conta
@@ -212,7 +220,7 @@ export function investido(lines: BudgetLine[], txns: Txn[], cat: (t: Txn) => Cat
   { groups: InvGroup[]; reservas: InvGroup[]; fromTxnsCents: Cents; reservaCents: Cents; manual: BudgetLine[]; realCents: Cents; goalCents: Cents | null } {
   const invest = (c: Category | null) => !!c && (c.id === 'investimento' || (!c.countsAsSpending && !c.builtin))
   const by = new Map<string, InvGroup>()
-  for (const t of txns.filter(t => t.date.slice(0, 7) === month && t.amountCents !== 0 && invest(cat(t))).sort((a, b) => b.date.localeCompare(a.date))) {
+  for (const t of txns.filter(t => t.date.slice(0, 7) === month && (t.amountCents < 0 || (t.amountCents > 0 && !isYield(t))) && invest(cat(t))).sort((a, b) => b.date.localeCompare(a.date))) {
     const { key, name } = investDest(t.description)
     const g = by.get(key) ?? { key, name, inCents: 0, outCents: 0, netCents: 0, txns: [] }
     if (t.amountCents < 0) g.inCents -= t.amountCents; else g.outCents += t.amountCents

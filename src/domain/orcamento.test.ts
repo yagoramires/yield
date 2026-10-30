@@ -3,7 +3,7 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { averageByCategory, blocoOf, copyLines, custos, goalsAt, goalsFor, investido, missingSources, monthSummary, nextMonthLines, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
+import { averageByCategory, blocoOf, copyLines, custos, goalsAt, goalsFor, investDest, investido, missingSources, monthSummary, nextMonthLines, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: 'k', ...o })
@@ -237,6 +237,23 @@ describe('investido por destino e reserva', () => {
     expect(r.groups.map(g => [g.name, g.inCents, g.outCents, g.netCents, g.txns.length])).toEqual([['Operacoes Em Bolsa', 120_000, 0, 120_000, 1], ['Rdb', 797_050, 750_000, 47_050, 2]])
     const res = investido([], txns, inv, '2026-03', new Map(), new Set(['rdb']))
     expect([res.groups.map(g => g.key), res.reservas.map(g => g.key), res.fromTxnsCents, res.reservaCents]).toEqual([['operacoes em bolsa'], ['rdb'], 120_000, 47_050])
+  })
+})
+
+describe('investDest', () => {
+  it('aplicação e resgate do mesmo produto têm a mesma chave nos formatos dos bancos', () => {
+    const pairs = [['APLICACAO RDB', 'RESGATE RDB'], ['APLIC.CDB BANCO X', 'RESG.CDB BANCO X'], ['APLICACAO AUTOMATICA', 'RESGATE AUTOMATICO'],
+      ['APLICACAO', 'RESGATE'], ['Dinheiro guardado', 'Dinheiro resgatado'], ['Aplicação em CDB Banco Azul', 'Resgate de CDB Banco Azul']]
+    expect(pairs.map(([a, b]) => [investDest(a).key, investDest(b).key])).toEqual([
+      ['rdb', 'rdb'], ['cdb banco x', 'cdb banco x'], ['automatica', 'automatica'], ['aplicacoes e resgates', 'aplicacoes e resgates'],
+      ['dinheiro guardado', 'dinheiro guardado'], ['cdb banco azul', 'cdb banco azul'],
+    ])
+  })
+  it('rendimento e dividendo não descontam do investido', () => {
+    const inv = () => cat('investimento', false)
+    const txns = [txn({ id: '1', description: 'APLICACAO CDB', amountCents: -100_000 }), txn({ id: '2', description: 'DIVIDENDOS AAAA3', amountCents: 8000 }),
+      txn({ id: '3', description: 'CDB', amountCents: 500, operationType: 'RENDIMENTO_APLIC_FINANCEIRA' })]
+    expect(investido([], txns, inv, '2026-03', new Map()).fromTxnsCents).toBe(100_000)
   })
 })
 
