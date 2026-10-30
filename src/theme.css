@@ -595,3 +595,6 @@ tr.hl td { background: #1a1213; }
 .ai-foot { margin-top: 16px; font-size: 11px; }
 .sum-row .grow, .note .grow { flex: 1; min-width: 0; }
 .link.with-ico { display: inline-flex; align-items: center; gap: 4px; }
+.chat-log { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; font-variant-numeric: tabular-nums; }
+.chat-q { align-self: flex-end; margin-left: auto; width: fit-content; max-width: 80%; background: var(--border); color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+.chat-a { margin-top: 6px; max-width: 90%; font-size: 12px; line-height: 1.5; white-space: pre-wrap; color: var(--text); }

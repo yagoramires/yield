@@ -7,6 +7,7 @@ import { useData } from '../state/DataProvider'
 import { EyeToggle } from '../ui/HideValues'
 import type { Route } from '../ui/routes'
 import { Ativar } from './assistente/Ativar'
+import { Chat } from './assistente/Chat'
 import { Insights } from './assistente/Insights'
 import { useAiInput } from './assistente/useAiInput'
 import { errText, GastosHeader } from './lancamentos/GastosHeader'
@@ -18,7 +19,7 @@ export const getHardware = () => (hwOnce ??= invoke<Hardware>('ai_hardware'))
 export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
   const settings = useAiSettings()
   const { gastos: { month } } = useData()
-  const { input } = useAiInput(month)
+  const { input, loadRent } = useAiInput(month)
   const [hw, setHw] = useState<Hardware | null>(null)
   const [installed, setInstalled] = useState<{ file: string; bytes: number }[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -47,6 +48,7 @@ export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
             </div>
           )}
           <Insights model={model} month={month} input={input} onNavigate={onNavigate} />
+          <Chat model={model} input={input} loadRent={loadRent} />
         </>}
       <div className="muted ai-foot">Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>
     </>

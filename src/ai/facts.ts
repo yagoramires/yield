@@ -9,12 +9,13 @@ import { goalsFor } from '../domain/orcamento'
 import { portfolioResult, type Portfolio } from '../domain/portfolio'
 import { rfJurosByMonth } from '../domain/rendaFixa'
 import type { rentOver } from '../domain/rentabilidade'
-import type { Cents, Dividend, ISODate, Month } from '../domain/types'
+import type { Dividend, ISODate, Month } from '../domain/types'
 import { biggestChanges, nextCharges, spentByCategory } from '../pages/categorias/build'
 import { cleanDescription, comparePreviousMonth, cutToDay, monthForecast, spentByMonth, topSpending } from '../pages/lancamentos/build'
 import { spendingPlan } from '../pages/orcamento/build'
 import { passiveCoverage } from '../pages/resumoInvestimentos/build'
 import type { Route } from '../ui/routes'
+import { brlS, pctS, pctU } from './fmt'
 
 export interface AiInput {
   today: ISODate
@@ -33,13 +34,6 @@ export interface Fact { id: string; kind: FactKind; text: string; route: Route; 
 
 const monthLabel = (m: Month) => `${new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 15)).toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' })} de ${m.slice(0, 4)}`
 const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
-const num1 = (v: number) => Math.abs(v).toFixed(1).replace('.', ',')
-/** % com sinal (variação) */
-const pctS = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${num1(v)}%`
-/** % sem sinal (parte de um todo) */
-const pctU = (v: number) => `${num1(v)}%`
-/** R$ com sinal (diferença) */
-const brlS = (c: Cents) => `${c > 0 ? '+' : c < 0 ? '−' : ''}${plainBRL(Math.abs(c))}`
 
 export function buildFacts(month: Month, input: AiInput): Fact[] {
   const { data, categorize: cat, subscriptions } = input.gastos
