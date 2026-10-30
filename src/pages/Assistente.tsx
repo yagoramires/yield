@@ -28,7 +28,7 @@ export function Assistente() {
   const light = model && settings.tokS !== null && settings.tokS < 8 ? lighter(model) : null
 
   return (
-    <>
+    <div className="chat-page">
       <h1 style={{ margin: 0 }}>Assistente</h1>
       {!on ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
@@ -42,10 +42,8 @@ export function Assistente() {
               <button className="link" onClick={() => setAiSettings({ modelId: light.id, tokS: null })}>Usar o {light.name}</button>
             </div>
           )}
-          <div className="muted" style={{ marginTop: 8 }}>Os insights do mês aparecem sozinhos no Resumo de gastos e no Resumo de investimentos.</div>
           <Chat model={model} input={input} loadRent={loadRent} />
         </>}
-      <div className="muted ai-foot">Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>
-    </>
+    </div>
   )
 }
