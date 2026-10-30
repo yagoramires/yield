@@ -1,0 +1,31 @@
+import { useSyncExternalStore } from 'react'
+import type { Module } from './routes'
+
+// Preferências de tela guardadas no aparelho (módulos desligados, menu recolhido); storage pode falhar e aí vale o padrão.
+function store<T>(key: string, fallback: T) {
+  let value: T = (() => { try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v) as T } catch { return fallback } })()
+  const listeners = new Set<() => void>()
+  return {
+    get: () => value,
+    set: (v: T) => { value = v; try { localStorage.setItem(key, JSON.stringify(v)) } catch { /* sem storage: vale até fechar */ } listeners.forEach(l => l()) },
+    subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } },
+  }
+}
+
+const off = store<Module[]>('yield.modulosDesligados', [])
+const mini = store<boolean>('yield.menuRecolhido', false)
+
+export function useModules() {
+  const disabled = useSyncExternalStore(off.subscribe, off.get)
+  return {
+    enabled: (m: Module | null) => m === null || !disabled.includes(m),
+    // pelo menos um módulo fica ligado
+    toggle: (m: Module) => off.set(disabled.includes(m) ? disabled.filter(x => x !== m) : disabled.length >= 2 ? disabled : [...disabled, m]),
+    disabled,
+  }
+}
+
+export function useSidebarMini() {
+  const v = useSyncExternalStore(mini.subscribe, mini.get)
+  return { mini: v, toggle: () => mini.set(!v) }
+}
