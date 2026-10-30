@@ -14,6 +14,7 @@ import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulat
 import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
+import { TINT } from '../ui/palette'
 
 export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
   const { gastos, orcamento } = useData()
@@ -94,7 +95,7 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
         const at = withBal.map(a => a.balanceAt).filter(Boolean).sort().at(-1)
         const row = (a: typeof data.accounts[number], cartao: boolean) => (
           <div key={a.id} className="bal-row">
-            <IconGlyph name={cartao ? 'credit-card' : 'landmark'} color={cartao ? '#9a9da6' : '#5fb3ff'} size={26} />
+            <IconGlyph name={cartao ? 'credit-card' : 'landmark'} color={cartao ? TINT.cinza : TINT.azul} size={26} />
             <span className="grow"><b>{a.institution}</b><small>{a.name}{cartao ? ' · fatura em aberto' : ''}</small></span>
             <span className={`r${cartao ? ' t2' : (a.balanceCents ?? 0) < 0 ? ' dn' : ''}`}>{a.balanceCents == null ? <span className="muted">sem saldo</span> : brl(cartao ? -a.balanceCents : a.balanceCents)}</span>
           </div>

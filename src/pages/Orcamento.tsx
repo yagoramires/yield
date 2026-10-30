@@ -16,6 +16,7 @@ import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
 import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
+import { TINT } from '../ui/palette'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
@@ -26,7 +27,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
 // ícone de cada tipo de fonte de renda (avulso = sem fonte)
-const SOURCE_LOOK: Record<string, [string, string]> = { clt: ['briefcase-business', '#c6ff3d'], pj: ['landmark', '#5fb3ff'], mei: ['store', '#9aa8ff'], fixo: ['piggy-bank', '#4fd1a5'], avulso: ['gift', '#f5d76e'] }
+const SOURCE_LOOK: Record<string, [string, string]> = { clt: ['briefcase-business', '#c6ff3d'], pj: ['landmark', TINT.azul], mei: ['store', TINT.violeta], fixo: ['piggy-bank', TINT.turquesa], avulso: ['gift', TINT.areia] }
 const SourceIcon = ({ kind, dim }: { kind: string; dim?: boolean }) => <span style={dim ? { opacity: 0.45 } : undefined}><IconGlyph name={SOURCE_LOOK[kind][0]} color={SOURCE_LOOK[kind][1]} size={28} /></span>
 const total = (ls: BudgetLine[]) => ls.reduce((s, l) => s + l.amountCents, 0)
 
@@ -313,7 +314,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
             </div>
           </div>
         </td>
-        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: soft ? '#ffcf5c' : 'var(--negative)' } : {}) }}>
+        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: soft ? 'var(--warn)' : 'var(--negative)' } : {}) }}>
           {formatCents(r.realCents)}{note && <div className="d2" style={{ textAlign: 'right' }}>{note}</div>}
         </td>
       </tr>,
@@ -348,7 +349,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
     return [
       <tr key={key} className={g.txns.length ? `acc${opened ? ' open' : ''}` : undefined} onClick={e => { if (g.txns.length && !(e.target as HTMLElement).closest('button')) toggle() }}>
         <td className="ell-cell"><div className="cat-line">
-          {reserva ? <IconGlyph name="piggy-bank" color="#4fd1a5" size={28} /> : <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />}
+          {reserva ? <IconGlyph name="piggy-bank" color={TINT.turquesa} size={28} /> : <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />}
           <div className="grow"><div className="nm">
             <button className="cat-toggle" aria-expanded={opened} disabled={!g.txns.length} onClick={toggle}>{g.name} <span className="muted">{g.txns.length ? [ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ') : 'sem movimento no mês'}{g.txns.length > 0 && <ChevronRight size={12} className="chev" aria-hidden />}</span></button>
             <span className="acts muted"><button className="link" disabled={busy} onClick={() => toggleReserva(g.key)}>{reserva ? 'é investimento' : 'é reserva'}</button></span>
@@ -404,7 +405,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
         }).then(ok => ok && setMetasOpen(false))} />}
 
       {suggestions.length > 0 && (
-        <div className="card" style={{ marginBottom: 12, borderColor: '#2c3a14' }}>
+        <div className="card" style={{ marginBottom: 12, borderColor: 'var(--accent-line)' }}>
           <div className="bar"><h5 style={{ margin: 0 }}>Sugestões dos seus gastos <span className="muted">({suggestions.length})</span></h5><span className="muted">nada entra no plano sem você aceitar</span></div>
           {suggestions.map(s => (
             <div key={s.key} className="sug">
@@ -443,7 +444,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
               <button className="b ghost sq" disabled={busy} aria-label={tab === 'fixos' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(tab === 'fixos' ? 'fixo' : 'variavel')}><Plus size={14} aria-hidden /></button>
             </div>
             <div className="costs-big">{formatBRL(custosCents)}</div>
-            <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: '#8a8d96' }} /><i style={{ flexGrow: vars.realCents, background: '#3987e5' }} /></div>
+            <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: 'var(--faint)' }} /><i style={{ flexGrow: vars.realCents, background: 'var(--c2)' }} /></div>
             <div className="cost-seg" role="group" aria-label="Mostrar custos">
               {(['fixos', 'variaveis'] as const).map(t => (
                 <button key={t} aria-pressed={tab === t} className={tab === t ? 'on' : ''} onClick={() => {
@@ -452,7 +453,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
                   if (del?.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel')) setDel(null)
                   setTab(t)
                 }}>
-                  <b><span className="dot" style={{ background: t === 'fixos' ? '#8a8d96' : '#3987e5' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
+                  <b><span className="dot" style={{ background: t === 'fixos' ? 'var(--faint)' : 'var(--c2)' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
                   <span>{formatBRL(t === 'fixos' ? fixosCents : vars.realCents)} · {share(t === 'fixos' ? fixosCents : vars.realCents)}%</span>
                 </button>
               ))}

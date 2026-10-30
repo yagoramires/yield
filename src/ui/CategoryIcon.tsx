@@ -4,6 +4,7 @@ import {
   Scissors, Shirt, ShoppingBag, ShoppingCart, Smartphone, Sparkles, Store, Tag, TrendingUp, Utensils, Wifi, Wine, Wrench, Zap, type LucideIcon,
 } from 'lucide-react'
 import type { Category } from '../db/gastosRepo'
+import { TINT } from './palette'
 
 // Nome salvo no banco (kebab-case do Lucide) → componente. Mapa fixo para o bundle levar só estes.
 const ICONS: Record<string, LucideIcon> = {
@@ -16,24 +17,29 @@ const ICONS: Record<string, LucideIcon> = {
   pill: Pill, 'piggy-bank': PiggyBank, tag: Tag, 'circle-help': CircleHelp,
 }
 export const ICON_CHOICES = Object.keys(ICONS).filter(n => n !== 'circle-help')
-export const COLOR_CHOICES = ['#ff9f5a', '#f5d76e', '#6fdc8c', '#4fd1a5', '#7fd1d1', '#5fb3ff', '#9aa8ff', '#c79bff', '#ff8fd0', '#ff7a8a', '#9a9da6']
+export const COLOR_CHOICES: string[] = Object.values(TINT)
+// cores da paleta antiga, já salvas em categorias: desenhadas com a equivalente da paleta nova (sem migrar o banco)
+const OLD: Record<string, string> = {
+  '#ff9f5a': TINT.ambar, '#f5d76e': TINT.areia, '#6fdc8c': TINT.verde, '#4fd1a5': TINT.turquesa, '#7fd1d1': TINT.turquesa, '#5fb3ff': TINT.azul,
+  '#9aa8ff': TINT.violeta, '#c79bff': TINT.violeta, '#ff8fd0': TINT.rosa, '#ff7a8a': TINT.coral, '#9a9da6': TINT.cinza,
+}
 
 // Categorias padrão (migração 002); as criadas pelo usuário, sem escolha, usam a etiqueta.
 const DEFAULTS: Record<string, [string, string]> = {
-  alimentacao: ['utensils', '#ff9f5a'], mercado: ['shopping-cart', '#6fdc8c'], transporte: ['car', '#5fb3ff'], moradia: ['house', '#e8b86d'],
-  contas: ['receipt-text', '#7fd1d1'], saude: ['heart-pulse', '#ff7a8a'], educacao: ['graduation-cap', '#9aa8ff'], lazer: ['popcorn', '#ff8fd0'],
-  compras: ['shopping-bag', '#f5d76e'], assinaturas: ['repeat', '#c79bff'], viagem: ['plane', '#5fd4ff'], 'impostos-e-taxas': ['landmark', '#d9a066'],
-  outros: ['ellipsis', '#9a9da6'], receita: ['briefcase-business', '#c6ff3d'], transferencia: ['arrow-left-right', '#9a9da6'],
-  'pagamento-de-fatura': ['credit-card', '#9a9da6'], investimento: ['trending-up', '#4fd1a5'],
+  alimentacao: ['utensils', TINT.ambar], mercado: ['shopping-cart', TINT.verde], transporte: ['car', TINT.azul], moradia: ['house', TINT.areia],
+  contas: ['receipt-text', TINT.turquesa], saude: ['heart-pulse', TINT.coral], educacao: ['graduation-cap', TINT.violeta], lazer: ['popcorn', TINT.rosa],
+  compras: ['shopping-bag', TINT.areia], assinaturas: ['repeat', TINT.violeta], viagem: ['plane', TINT.azul], 'impostos-e-taxas': ['landmark', TINT.ambar],
+  outros: ['ellipsis', TINT.cinza], receita: ['briefcase-business', '#c6ff3d' /* o verde da marca: entrada de dinheiro */], transferencia: ['arrow-left-right', TINT.cinza],
+  'pagamento-de-fatura': ['credit-card', TINT.cinza], investimento: ['trending-up', TINT.turquesa],
 }
 
 type Look = Pick<Category, 'id' | 'icon' | 'color'>
 
 /** Ícone e cor de uma categoria: a escolha salva, senão o padrão do id, senão etiqueta cinza. `null` = sem categoria. */
 export function categoryLook(c: Look | null): { icon: string; color: string } {
-  if (!c) return { icon: 'circle-help', color: '#ffcf5c' }
-  const [icon, color] = DEFAULTS[c.id] ?? ['tag', '#9a9da6']
-  return { icon: c.icon && ICONS[c.icon] ? c.icon : icon, color: c.color ?? color }
+  if (!c) return { icon: 'circle-help', color: '#fbc959' /* --warn: sem categoria pede atenção */ }
+  const [icon, color] = DEFAULTS[c.id] ?? ['tag', TINT.cinza]
+  return { icon: c.icon && ICONS[c.icon] ? c.icon : icon, color: c.color ? OLD[c.color.toLowerCase()] ?? c.color : color }
 }
 
 /** Ícone da categoria num círculo com a cor dela; `bare` mostra só o traço colorido. */

@@ -33,7 +33,7 @@ export function Metas({ month, categories, goals, averages, fixed, busy, onSave,
   }
 
   return (
-    <div className="card" style={{ marginBottom: 12, borderColor: '#2c3a14' }}>
+    <div className="card" style={{ marginBottom: 12, borderColor: 'var(--accent-line)' }}>
       <div className="bar">
         <h5 style={{ margin: 0 }}>Metas</h5>
         <span className="muted">a partir de {monthName(month).toLowerCase()}; os meses anteriores não mudam</span>

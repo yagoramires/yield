@@ -136,8 +136,8 @@ export function FontesRenda() {
         </div>
       )}
       {form && (
-        <div className="card" style={{ marginTop: 10, background: '#16171a' }}>
-          <div className="muted" style={{ marginBottom: 6 }}>{editing ? <>Editando <b style={{ color: '#e8e9ec' }}>{editing.name}</b></> : 'Nova fonte de renda'}</div>
+        <div className="card" style={{ marginTop: 10, background: 'var(--well)' }}>
+          <div className="muted" style={{ marginBottom: 6 }}>{editing ? <>Editando <b style={{ color: '#fff' }}>{editing.name}</b></> : 'Nova fonte de renda'}</div>
           <div className="row">
             {field('Nome', 'name', 180)}
             <div className="field"><span>Tipo</span>
@@ -156,7 +156,7 @@ export function FontesRenda() {
               </div>
               {preview && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(preview.netCents)}</b> (pró-labore {brl(preview.proLaboreCents)} · imposto {brl(preview.irpjCents)} · INSS {brl(preview.inssCents)} · contabilidade {brl(preview.contabilidadeCents)} · outros {brl(preview.outrosCents)})
+                  Líquido: <b style={{ color: '#fff' }}>R$ {brl(preview.netCents)}</b> (pró-labore {brl(preview.proLaboreCents)} · imposto {brl(preview.irpjCents)} · INSS {brl(preview.inssCents)} · contabilidade {brl(preview.contabilidadeCents)} · outros {brl(preview.outrosCents)})
                 </div>
               )}
               <div className="muted" style={{ marginTop: 6 }}>Simples Nacional (DAS), lucro presumido ou outro regime: informe a alíquota efetiva sobre o faturamento. Pró-labore 0 se você não retira pró-labore.</div>
@@ -170,7 +170,7 @@ export function FontesRenda() {
               </div>
               {preview && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(preview.netCents)}</b> (DAS {brl(preview.dasCents)}{preview.outrosCents > 0 && ` · outros ${brl(preview.outrosCents)}`})
+                  Líquido: <b style={{ color: '#fff' }}>R$ {brl(preview.netCents)}</b> (DAS {brl(preview.dasCents)}{preview.outrosCents > 0 && ` · outros ${brl(preview.outrosCents)}`})
                 </div>
               )}
               <div className="muted" style={{ marginTop: 6 }}>O DAS do MEI é um valor fixo por mês (já inclui o INSS); confira o valor do ano no Portal do Empreendedor.</div>
@@ -184,7 +184,7 @@ export function FontesRenda() {
               </div>
               {clt && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#e8e9ec' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
+                  Líquido: <b style={{ color: '#fff' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
                 </div>
               )}
               <div className="muted" style={{ marginTop: 6 }}>

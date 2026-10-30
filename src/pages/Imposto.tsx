@@ -72,7 +72,7 @@ export function Imposto() {
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
 
       <div className="kpis">
-        <div className="k" style={{ borderColor: darfs.openCents > 0 ? '#4a2224' : undefined }}>
+        <div className="k" style={{ borderColor: darfs.openCents > 0 ? 'var(--neg-line)' : undefined }}>
           <div className="muted">DARF em aberto</div>
           <div className={`v ${darfs.openCents > 0 ? 'dn' : ''}`}>{formatBRL(darfs.openCents)}</div>
           <div className="s muted">{plural(counts.complete)} em aberto · código {DARF_CODE}</div>

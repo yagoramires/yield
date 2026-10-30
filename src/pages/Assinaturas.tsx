@@ -8,8 +8,9 @@ import { nextCharges, totalsOfSubscriptions } from './categorias/build'
 import { cleanDescription, NO_FILTER, shortAccountLabel } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, errText } from './lancamentos/GastosHeader'
+import { TINT } from '../ui/palette'
 
-const COLORS = ['#ff7a8a', '#c79bff', '#6fdc8c', '#5fb3ff', '#7fd1d1', '#f5d76e', '#ff9f5a', '#9aa8ff']
+const COLORS = [TINT.coral, TINT.violeta, TINT.verde, TINT.azul, TINT.turquesa, TINT.areia, TINT.ambar, TINT.rosa]
 // cor fixa por nome, para a mesma assinatura ter sempre a mesma cor
 const colorOf = (name: string) => COLORS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]
 

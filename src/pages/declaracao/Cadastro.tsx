@@ -4,6 +4,7 @@ import { saveBroker, saveIssuer, type Broker, type Issuer } from '../../db/irRep
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 import { classColor } from '../resumoInvestimentos/build'
+import { TINT } from '../../ui/palette'
 
 type Edit = { kind: 'issuer' | 'broker'; key: string; name: string; cnpj: string }
 
@@ -67,7 +68,7 @@ export function Cadastro({ issuers, brokers, tickers, brokerCodes, pending, onCh
         <div className="day-card">
           <div className="day-h"><span>Corretoras</span><span className="muted">nomes como vêm das notas e da B3</span></div>
           {brokerCodes.length === 0 ? <div className="srow muted">Nenhuma corretora nas notas ainda.</div>
-            : order(brokerCodes, pending.brokers).map(c => row('broker', c, brokers.get(c), <span className="cat-ico" style={{ width: 30, height: 30, color: '#9a9da6', background: '#9a9da622' }} aria-hidden><Landmark size={14} /></span>, pending.brokers.includes(c)))}
+            : order(brokerCodes, pending.brokers).map(c => row('broker', c, brokers.get(c), <span className="cat-ico" style={{ width: 30, height: 30, color: TINT.cinza, background: `${TINT.cinza}22` }} aria-hidden><Landmark size={14} /></span>, pending.brokers.includes(c)))}
         </div>
       </div>
     </>
