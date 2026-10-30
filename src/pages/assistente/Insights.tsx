@@ -16,7 +16,12 @@ import { NO_FILTER } from '../lancamentos/build'
 import { errText, monthName } from '../lancamentos/GastosHeader'
 import { useAiInput } from './useAiInput'
 
-const when = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+// hoje só a hora; outro dia, dia e hora
+const when = (iso: string) => {
+  const d = new Date(iso)
+  const hm = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return d.toDateString() === new Date().toDateString() ? `às ${hm}` : `em ${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${hm}`
+}
 // fatos já tentados nesta sessão: se a geração falhar, não tenta de novo a cada visita (o botão continua lá)
 const tried = new Set<string>()
 
@@ -79,16 +84,20 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
   }
 
   return (
-    <div className="card" style={{ marginTop: 12 }}>
-      <div className="bar">
-        <div className="row" style={{ alignItems: 'center', gap: 8 }}>
-          <Sparkles size={14} aria-hidden /><h5 style={{ margin: 0 }}>{title}</h5>
-          {busy ? <span className="tag">atualizando…</span> : saved && <span className="muted">gerado em {when(saved.createdAt)}</span>}
-        </div>
-        {!busy && saved && <button className="icon-btn" aria-label="Gerar de novo" title="Gerar de novo" disabled={!hash} onClick={() => void gerar()}><RefreshCw size={13} aria-hidden /></button>}
+    <div className="card" style={{ marginTop: 12 }} aria-busy={busy}>
+      <div className="ai-head">
+        <Sparkles size={15} className="ai-ico" aria-hidden />
+        <h5>{title}</h5>
+        <span className="ai-status">
+          {busy ? <><RefreshCw size={12} className="spin" aria-hidden />analisando…</>
+            : saved && <>gerado {when(saved.createdAt)}<button className="icon-btn" aria-label="Gerar de novo" title="Gerar de novo" disabled={!hash} onClick={() => void gerar()}><RefreshCw size={12} aria-hidden /></button></>}
+        </span>
       </div>
-      {!saved ? <div className="muted">{busy ? 'A IA está analisando os números… (leva de 10 a 30 s)' : 'Não deu para gerar agora.'}</div> : (
-        <div className="ai-grid">
+      {!saved ? (busy ? <>
+        <div className="ai-grid" aria-hidden>{[0, 1, 2].map(n => <div key={n} className="ai-skel"><i style={{ width: '45%' }} /><i /><i style={{ width: '80%' }} /></div>)}</div>
+        <div className="ai-note">A IA está lendo os números do mês. Leva de 10 a 30 segundos.</div>
+      </> : <div className="muted">Não deu para gerar agora.</div>) : <>
+        <div className={`ai-grid${busy ? ' dim' : ''}`}>
           {saved.insights.map((i, n) => (
             <div key={n} className="ai-card">
               <b>{maskMoney(i.titulo)}</b>
@@ -98,9 +107,9 @@ function Panel({ area, month, model, onNavigate }: { area: Area; month: Month; m
             </div>
           ))}
         </div>
-      )}
+        <div className="ai-note">Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>
+      </>}
       {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span>{!busy && !saved && <button className="link" onClick={() => void gerar()}>Tentar de novo</button>}</div>}
-      <div className="muted ai-foot" style={{ marginTop: 8 }}>Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>
     </div>
   )
 }

@@ -625,3 +625,15 @@ tr.hl td { background: #1a1213; }
 .chat-log { display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow-y: auto; font-variant-numeric: tabular-nums; }
 .chat-q { align-self: flex-end; margin-left: auto; width: fit-content; max-width: 80%; background: var(--border); color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 12px; }
 .chat-a { margin-top: 6px; max-width: 90%; font-size: 12px; line-height: 1.5; white-space: pre-wrap; color: var(--text); }
+
+/* Insights nos Resumos */
+.ai-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ai-head h5 { margin: 0; }
+.ai-ico { color: var(--accent); flex-shrink: 0; }
+.ai-status { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.ai-skel { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 12px; min-height: 84px; }
+.ai-skel i { display: block; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 25%, #2a2d33 50%, var(--border) 75%); background-size: 200% 100%; animation: ai-shimmer 1.4s linear infinite; }
+@keyframes ai-shimmer { to { background-position: -200% 0; } }
+.ai-grid.dim { opacity: .5; transition: opacity .2s; }
+.ai-note { margin-top: 10px; font-size: 10px; color: var(--faint); }
+@media (prefers-reduced-motion: reduce) { .ai-skel i { animation: none; } }
