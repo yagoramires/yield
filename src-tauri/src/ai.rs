@@ -58,7 +58,9 @@ pub struct State {
     server: Mutex<Option<Server>>,
     hardware: Mutex<Option<Hardware>>,
     cancel_download: AtomicBool,
-    abort: AtomicBool,
+    downloading: AtomicBool,
+    starting: tokio::sync::Mutex<()>, // um ai_start por vez: o segundo espera o primeiro ficar pronto
+    abort_gen: AtomicU64,             // "Parar" vale para a requisição em andamento, não para a próxima
     last_use: AtomicU64,
     watchdog: AtomicBool,
 }
@@ -101,6 +103,19 @@ pub(crate) fn take_utf8(buf: &mut Vec<u8>) -> String {
     let out = String::from_utf8_lossy(&buf[..n]).into_owned();
     buf.drain(..n);
     out
+}
+
+/// Marca de "um por vez": `begin` falha se já há outro em andamento; soltar (fim ou erro) libera.
+pub(crate) struct Busy<'a>(&'a AtomicBool);
+impl<'a> Busy<'a> {
+    pub(crate) fn begin(flag: &'a AtomicBool) -> Option<Self> {
+        (!flag.swap(true, Ordering::AcqRel)).then_some(Busy(flag))
+    }
+}
+impl Drop for Busy<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::Release);
+    }
 }
 
 fn io_err(e: std::io::Error) -> String {
@@ -319,6 +334,8 @@ pub async fn ai_download(app: AppHandle, url: String, sha256: String, file: Stri
         return Err("Endereço do modelo inválido.".into());
     }
     let st = app.state::<State>();
+    // dois downloads no mesmo .part embaralham o arquivo (e os dois terminam com SHA errado)
+    let _busy = Busy::begin(&st.downloading).ok_or("Já há um download do modelo em andamento.")?;
     st.cancel_download.store(false, Ordering::Relaxed);
     let dest = models_dir(&app)?.join(&file);
     let client = reqwest::Client::new();
@@ -365,6 +382,7 @@ pub async fn ai_start(app: AppHandle, file: String, ctx: u32) -> Result<(), Stri
     }
     let st = app.state::<State>();
     touch(&st);
+    let _one = st.starting.lock().await;
     let (port, key) = {
         let mut srv = st.server.lock().unwrap();
         if let Some(s) = srv.as_mut() {
@@ -417,7 +435,7 @@ pub fn ai_stop(app: AppHandle) {
 
 #[tauri::command]
 pub fn ai_abort(app: AppHandle) {
-    app.state::<State>().abort.store(true, Ordering::Relaxed);
+    app.state::<State>().abort_gen.fetch_add(1, Ordering::Relaxed);
 }
 
 /// POST no servidor local. Com `"stream": true` repassa o texto por `on_chunk`, manda "" no fim e devolve "".
@@ -429,7 +447,7 @@ pub async fn ai_post(app: AppHandle, path: String, body: String, on_chunk: Chann
     let st = app.state::<State>();
     let (port, key) = st.server.lock().unwrap().as_ref().map(|s| (s.port, s.key.clone())).ok_or(NOT_ON)?;
     touch(&st);
-    st.abort.store(false, Ordering::Relaxed);
+    let generation = st.abort_gen.load(Ordering::Relaxed);
     let stream = serde_json::from_str::<serde_json::Value>(&body).ok().and_then(|v| v.get("stream")?.as_bool()).unwrap_or(false);
     let net = |e: reqwest::Error| format!("O modelo não respondeu: {e}");
     let mut resp = local_client()?
@@ -449,7 +467,7 @@ pub async fn ai_post(app: AppHandle, path: String, body: String, on_chunk: Chann
     }
     let mut buf = Vec::new();
     while let Some(chunk) = resp.chunk().await.map_err(net)? {
-        if st.abort.load(Ordering::Relaxed) {
+        if st.abort_gen.load(Ordering::Relaxed) != generation {
             break;
         }
         buf.extend_from_slice(&chunk);
@@ -507,6 +525,15 @@ mod tests {
         buf.push(e[1]);
         assert_eq!(take_utf8(&mut buf), "é");
         assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn um_download_por_vez() {
+        let flag = AtomicBool::new(false);
+        let first = Busy::begin(&flag).expect("o primeiro começa");
+        assert!(Busy::begin(&flag).is_none(), "o segundo é recusado enquanto o primeiro roda");
+        drop(first);
+        assert!(Busy::begin(&flag).is_some(), "terminado (ou com erro), libera");
     }
 
     const BODY: &[u8] = b"0123456789";

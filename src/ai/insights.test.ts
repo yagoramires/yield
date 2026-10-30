@@ -18,6 +18,7 @@ test('descarta insight que cita fato inexistente ou valor fora dos fatos citados
     { factIds: [], titulo: 'Sem fato', texto: 'z' },
   ] }
   expect(acceptInsights(raw, facts)).toEqual([bom])
+  expect(acceptInsights({ insights: [{ ...bom, titulo: 'Mercado subiu R$ 900' }] }, facts)).toEqual([]) // título também é conferido
   expect(acceptInsights([bom], facts)).toEqual([])
   expect(acceptInsights(null, facts)).toEqual([])
 })

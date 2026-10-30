@@ -44,7 +44,7 @@ export function Assistente({ onNavigate }: { onNavigate(r: Route): void }) {
               <button className="link" onClick={() => setAiSettings({ modelId: light.id, tokS: null })}>Usar o {light.name}</button>
             </div>
           )}
-          <Insights model={model} month={month} input={input} onNavigate={onNavigate} />
+          <Insights key={month} model={model} month={month} input={input} onNavigate={onNavigate} />
           <Chat model={model} input={input} loadRent={loadRent} />
         </>}
       <div className="muted ai-foot">Sugestões automáticas a partir dos seus dados; não são recomendação de investimento.</div>

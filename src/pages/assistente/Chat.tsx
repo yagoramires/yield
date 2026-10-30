@@ -1,5 +1,5 @@
 import { MessageSquare, Square } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CatalogModel } from '../../ai/catalog'
 import { runChat } from '../../ai/chat'
 import { maskMoney } from '../../ai/check'
@@ -23,18 +23,20 @@ export function Chat({ model, input, loadRent }: { model: CatalogModel; input: A
   const [turns, setTurns] = useState<Turn[]>([])
   const [q, setQ] = useState('')
   const [live, setLive] = useState<{ q: string; text: string; tool: string | null } | null>(null)
+  const stop = useRef<AbortController | null>(null)
 
   const send = async () => {
     const question = q.trim()
     if (!question || live || !input) return
     setQ('')
     setLive({ q: question, text: '', tool: null })
+    const ctrl = (stop.current = new AbortController())
     try {
       await ensureServer(model)
       const r = await runChat(tauriPost, [...history, { role: 'user', content: question }], input, loadRent, {
         delta: t => setLive(l => l && { ...l, text: l.text + t, tool: null }),
         tool: name => setLive(l => l && { ...l, text: '', tool: name }),
-      })
+      }, ctrl.signal)
       setHistory(r.messages.filter(m => m.role !== 'system'))
       setTurns(ts => [...ts, { q: question, a: r.answer, unverified: r.unverified }])
     } catch (e) {
@@ -66,7 +68,7 @@ export function Chat({ model, input, loadRent }: { model: CatalogModel; input: A
       <form className="row" style={{ gap: 8, marginTop: 10 }} onSubmit={e => { e.preventDefault(); void send() }}>
         <input className="in" style={{ flex: 1 }} aria-label="Pergunta" placeholder="Ex.: quanto gastei com mercado este ano?" value={q} disabled={!!live || !input} onChange={e => setQ(e.target.value)} />
         {live
-          ? <button type="button" className="b ghost with-ico" onClick={() => void abort()}><Square size={12} aria-hidden />Parar</button>
+          ? <button type="button" className="b ghost with-ico" onClick={() => { stop.current?.abort(); void abort() }}><Square size={12} aria-hidden />Parar</button>
           : <button type="submit" className="b pri" disabled={!q.trim() || !input}>Enviar</button>}
       </form>
     </div>

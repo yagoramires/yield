@@ -61,3 +61,11 @@ test('chamada de ferramenta escrita como texto também roda', async () => {
   expect(tools).toEqual(['carteira'])
   expect(r.answer).toBe('Você tem R$ 0,00 investidos.')
 })
+
+test('Parar entre as rodadas de ferramenta não chama o modelo de novo', async () => {
+  const ctrl = new AbortController()
+  const { post, bodies } = fake([toolCall('gastos', { de: '2026-10', ate: '2026-10' }), say('não devia chegar aqui')])
+  const r = await runChat(post, [{ role: 'user', content: 'quanto gastei?' }], input(), noRent, { ...on, tool: () => ctrl.abort() }, ctrl.signal)
+  expect(bodies).toHaveLength(1)
+  expect(r.answer).toBe('')
+})

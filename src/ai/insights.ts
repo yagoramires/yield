@@ -31,7 +31,7 @@ export function acceptInsights(raw: unknown, facts: Fact[]): Insight[] {
     if (!i || !Array.isArray(i.factIds) || !i.factIds.length || typeof i.titulo !== 'string' || typeof i.texto !== 'string') return false
     const cited: (Fact | undefined)[] = i.factIds.map((id: unknown) => byId.get(String(id)))
     if (cited.some(f => !f)) return false
-    return unverified(`${i.texto} ${i.recomendacao ?? ''}`, cited.map(f => f!.text)).length === 0
+    return unverified(`${i.titulo} ${i.texto} ${i.recomendacao ?? ''}`, cited.map(f => f!.text)).length === 0
   })
 }
 

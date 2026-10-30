@@ -14,7 +14,6 @@ export function IaLocal() {
   const [confirm, setConfirm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const refresh = () => invoke<{ file: string; bytes: number }[]>('ai_installed').then(setInstalled, e => setError(errText(e)))
-  useEffect(() => { getHardware().then(setHw, e => setError(errText(e))); void refresh() }, [])
 
   const current = CATALOG.find(m => m.id === s.modelId) ?? CATALOG.find(m => installed.some(i => i.file === m.file)) ?? null
   const size = installed.find(i => i.file === current?.file)?.bytes
@@ -26,6 +25,8 @@ export function IaLocal() {
     setConfirm(false); void refresh()
   }
   const on = s.off === false
+  // quem não usa IA não detecta hardware nem cria a pasta de modelos
+  useEffect(() => { if (on) { getHardware().then(setHw, e => setError(errText(e))); void refresh() } }, [on]) // eslint-disable-line react-hooks/exhaustive-deps
   const toggle = () => { setAiSettings({ off: on }); if (on) void stopServer().catch(() => {}) }
   const row = (label: string, value: React.ReactNode) => <div className="sum-row" style={{ cursor: 'default' }}><span className="grow">{label}</span><b>{value}</b></div>
 
@@ -36,6 +37,7 @@ export function IaLocal() {
         <span>Usar o Assistente<small>insights do mês e perguntas sobre os seus dados; nenhum dado sai deste computador</small></span>
         <input type="checkbox" className="switch" role="switch" checked={on} onChange={toggle} />
       </label>
+      {on && <>
       {row('Este computador', hw ? machineLabel(hw) : '…')}
       {row('Modelo', current ? `${current.name}${size ? ` · ${gb(size)} no disco` : ' · não baixado'}` : 'nenhum')}
       {s.tokS !== null && row('Velocidade medida', `${s.tokS.toFixed(1).replace('.', ',')} tokens/s`)}
@@ -46,6 +48,7 @@ export function IaLocal() {
           : <button className="b ghost" onClick={() => setConfirm(true)}>Remover modelo</button>)}
       </div>
       {current && size === undefined && on && <div className="muted" style={{ marginTop: 8 }}>Abra o Assistente para baixar o {current.name}.</div>}
+      </>}
       {error && <div className="alert-bad" style={{ marginTop: 8 }}><span>{error}</span></div>}
     </div>
   )

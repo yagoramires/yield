@@ -71,7 +71,7 @@ export function Insights({ model, month, input, onNavigate }: { model: CatalogMo
           <div className="ai-grid">
             {saved.insights.map((i, n) => (
               <div key={n} className="ai-card">
-                <b>{i.titulo}</b>
+                <b>{maskMoney(i.titulo)}</b>
                 <p>{maskMoney(i.texto)}</p>
                 {i.recomendacao && <div className="ai-rec">{maskMoney(i.recomendacao)}</div>}
                 {facts.some(f => f.id === i.factIds[0]) && <button className="link with-ico" onClick={() => open(i.factIds[0])}>ver<ArrowRight size={12} aria-hidden /></button>}

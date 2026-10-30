@@ -53,6 +53,13 @@ test('o olhinho não esconde os valores do que vai para o modelo', () => {
   try { expect(text(buildFacts('2026-10', input()), 'gasto_mes')).toContain(plainBRL(39000)) } finally { setMasked(false) }
 })
 
+test('mês vazio com o anterior cheio não vira "caiu 100%"', () => {
+  expect(buildFacts('2026-11', { ...input(), today: '2026-12-15' })).toEqual([])
+  const kinds = buildFacts('2026-11', { ...input(), today: '2026-11-01' }).map(f => f.kind)
+  expect(kinds).not.toContain('vs_anterior')
+  expect(kinds).not.toContain('variacao_categoria')
+})
+
 test('sem dado nenhum, nenhum fato', () => {
   const vazio = input({ portfolio: buildPortfolio([], [], [], [], TODAY), rent: null })
   vazio.gastos = { ...vazio.gastos, data: { ...vazio.gastos.data, txns: [], accounts: [] } }

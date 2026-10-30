@@ -1,32 +1,37 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 import { Download, Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { gb, machineLabel, pickModel, type CatalogModel, type Hardware } from '../../ai/catalog'
 import { calibrate } from '../../ai/llm'
 import { ensureServer, tauriPost } from '../../ai/server'
 import { setAiSettings } from '../../ai/settings'
 import { errText } from '../lancamentos/GastosHeader'
 
+type Dl = { busy: 'baixando' | 'ligando' | null; prog: { received: number; total: number } | null; error: string | null }
+// fora do componente: sair da tela no meio do download e voltar mostra o mesmo download, não um botão para começar outro
+let dl: Dl = { busy: null, prog: null, error: null }
+const listeners = new Set<() => void>()
+const set = (patch: Partial<Dl>) => { dl = { ...dl, ...patch }; listeners.forEach(l => l()) }
+const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } }
+
 /** Primeiro uso: mostra a máquina e o modelo que cabe nela, baixa, liga e mede a velocidade. */
 export function Ativar({ hw, target, onReady }: { hw: Hardware; target: CatalogModel | null; onReady(): void }) {
   const pick = pickModel(hw)
   const model = target ?? ('model' in pick ? pick.model : null)
-  const [busy, setBusy] = useState<'baixando' | 'ligando' | null>(null)
-  const [prog, setProg] = useState<{ received: number; total: number } | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const { busy, prog, error } = useSyncExternalStore(subscribe, () => dl)
 
   const baixar = async (m: CatalogModel) => {
-    setError(null); setBusy('baixando'); setProg(null)
+    set({ error: null, busy: 'baixando', prog: null })
     try {
       const ch = new Channel<{ received: number; total: number }>()
-      ch.onmessage = setProg
+      ch.onmessage = prog => set({ prog })
       await invoke('ai_download', { url: m.url, sha256: m.sha256, file: m.file, onProgress: ch })
       setAiSettings({ modelId: m.id, tokS: null })
-      setBusy('ligando')
+      set({ busy: 'ligando' })
       try { await ensureServer(m); setAiSettings({ tokS: await calibrate(tauriPost) }) } catch { /* a velocidade fica sem medir; o resto funciona */ }
       onReady()
-    } catch (e) { setError(errText(e)) }
-    setBusy(null)
+    } catch (e) { set({ error: errText(e) }) }
+    set({ busy: null })
   }
 
   return (

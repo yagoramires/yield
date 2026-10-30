@@ -29,10 +29,12 @@ export function trimHistory(msgs: ChatMsg[], max = MAX_CHARS): ChatMsg[] {
 }
 
 export async function runChat(post: Post, history: ChatMsg[], input: AiInput, loadRent: (meses: number) => Promise<AiInput['rent']>,
-  on: { delta(text: string): void; tool(name: string): void }): Promise<{ messages: ChatMsg[]; answer: string; unverified: string[] }> {
+  on: { delta(text: string): void; tool(name: string): void }, signal?: AbortSignal): Promise<{ messages: ChatMsg[]; answer: string; unverified: string[] }> {
   const sys: ChatMsg = { role: 'system', content: `${SISTEMA}\nHoje é ${input.today}; o mês atual é ${input.today.slice(0, 7)}. Mês citado sem ano é o mais recente que já começou (ex.: "setembro" = ${input.today.slice(0, 4)}-09 se já passou). "Este ano" vai de ${input.today.slice(0, 4)}-01 até o mês atual. Para perguntas sobre os dados, use as ferramentas.` }
   let messages = trimHistory([sys, ...history.filter(m => m.role !== 'system')])
   for (let round = 0; ; round++) {
+    // "Parar" entre as rodadas (enquanto uma ferramenta roda): não pede mais nada ao modelo
+    if (signal?.aborted) return { messages, answer: '', unverified: [] }
     const tools = round < MAX_ROUNDS
     const r = await chatStream(post, { messages, temperature: 0.2, ...(tools ? { tools: TOOLS } : {}) }, on.delta)
     const asText = r.finish === 'tool_calls' ? null : textToolCall(r.content)
