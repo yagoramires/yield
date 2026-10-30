@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
-import { categorize, fingerprint, monthTotals, normalizeDescription, withFingerprints } from './gastos'
+import { categorize, displayName, fingerprint, monthTotals, normalizeDescription, withFingerprints } from './gastos'
 
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const categories = [
@@ -17,6 +17,13 @@ describe('normalizeDescription', () => {
     expect(normalizeDescription('PG *NETFLIX.COM 1234')).toBe('netflix com')
     expect(normalizeDescription('Pão de Açúcar  #12')).toBe('pao de acucar')
     expect(normalizeDescription('IFD*Pizzaria')).toBe('pizzaria')
+  })
+})
+
+describe('displayName', () => {
+  it('tira o prefixo da maquininha, a parcela do fim e o caixa alta do extrato; nome digitado fica como está', () => {
+    expect(['MP*LOJAEXEMPLO', 'Pg *Barbearia', 'IFD*IFOOD', 'MERCADOLIVRE*MERCADOLIVRE', 'LOJAMKTPLC*CASA', 'Pag*Jogos 1/3', 'BANDA LARGA - INTERNET', 'PLANO DE SAUDE', 'Transferência enviada pelo Pix|Ana Teste', 'Aluguel do apê', 'MP3 Player'].map(displayName))
+      .toEqual(['Lojaexemplo', 'Barbearia', 'Ifood', 'Mercadolivre', 'Lojamktplc · Casa', 'Jogos', 'Banda Larga - Internet', 'Plano de Saude', 'Pix para Ana Teste', 'Aluguel do apê', 'MP3 Player'])
   })
 })
 

@@ -394,6 +394,10 @@ tr.hl td { background: #1a1213; }
 .lt .pj { color: var(--text-2); }
 .lt.blk { width: 100%; }
 .lt.blk td:first-child { width: 100%; }
+.lt.blk .nm { color: #fff; display: flex; gap: 10px; align-items: baseline; }
+.lt.blk .nm > :last-child:not(:first-child) { margin-left: auto; font-size: 11px; white-space: nowrap; }
+.lt.blk .acts { opacity: 0; transition: opacity .12s; }
+.lt.blk tr:hover .acts, .lt.blk tr:focus-within .acts { opacity: 1; }
 .lt tr.edit td { background: #16171a; border-bottom: 1px solid var(--border); }
 .ic { color: var(--faint); font-size: 11px; }
 .ic.on { color: var(--accent); }

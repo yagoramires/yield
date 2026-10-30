@@ -1,7 +1,7 @@
 import type { Category, Txn } from '../db/gastosRepo'
 import type { BudgetLine } from '../db/orcamentoRepo'
 import type { Subscription } from './assinaturas'
-import { normalizeDescription } from './gastos'
+import { displayName, normalizeDescription } from './gastos'
 import { monthOf, monthsBetween } from './money'
 import type { Cents, Month } from './types'
 
@@ -13,7 +13,7 @@ export function suggestForMonth(month: Month, subscriptions: Subscription[], txn
     if (!s.active || (s.period === 'anual' && s.nextDate.slice(0, 7) !== month)) continue
     const desc = s.merchantKey.slice(s.merchantKey.indexOf('|') + 1)
     const last = txns.find(t => t.accountId === s.accountId && t.date === s.lastDate && normalizeDescription(t.description) === desc)
-    out.push({ key: `sub:${s.merchantKey}@${month}`, reason: 'assinatura', name: s.name, amountCents: s.amountCents, categoryId: (last && cat(last)?.id) ?? null, installmentCurrent: null, installmentTotal: null, recurring: s.period !== 'anual' })
+    out.push({ key: `sub:${s.merchantKey}@${month}`, reason: 'assinatura', name: displayName(s.name), amountCents: s.amountCents, categoryId: (last && cat(last)?.id) ?? null, installmentCurrent: null, installmentTotal: null, recurring: s.period !== 'anual' })
   }
 
   const groups = new Map<string, { t: Txn; n: number; total: number }>()
@@ -28,7 +28,7 @@ export function suggestForMonth(month: Month, subscriptions: Subscription[], txn
   }
   for (const [key, { t, n, total }] of groups) {
     const j = monthsBetween(monthOf(t.date), month).length - 1 // meses desde a última parcela vista
-    if (j >= 1 && j <= total - n) out.push({ key: `${key}@${month}`, reason: 'parcela', name: t.description.trim(), amountCents: Math.abs(t.amountCents), categoryId: cat(t)?.id ?? null, installmentCurrent: n + j, installmentTotal: total, recurring: true })
+    if (j >= 1 && j <= total - n) out.push({ key: `${key}@${month}`, reason: 'parcela', name: displayName(t.description), amountCents: Math.abs(t.amountCents), categoryId: cat(t)?.id ?? null, installmentCurrent: n + j, installmentTotal: total, recurring: true })
   }
 
   const hidden = new Set([...dismissed, ...lines.filter(l => l.month === month && l.sourceKey).map(l => l.sourceKey!)])

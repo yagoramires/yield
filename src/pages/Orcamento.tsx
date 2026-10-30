@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { createMonth, deleteLine, dismissSuggestion, saveLine, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, formatBRL, formatCents } from '../domain/money'
 import { blocoOf, cltTabelaAno, copyLines, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, variaveis, withSources, type Bloco } from '../domain/orcamento'
+import { displayName } from '../domain/gastos'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
@@ -108,7 +109,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: at === 'variavel' || at === 'meta' ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: true, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
-    id: l.id, grupo: l.grupo ?? 'fixo', name: l.name, amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
+    id: l.id, grupo: l.grupo ?? 'fixo', name: l.kind === 'saida' ? displayName(l.name) : l.name, amount: formatCents(l.amountCents), recurring: l.recurring, categoryId: l.categoryId ?? '', sourceId: l.sourceId ?? '', sourceKey: l.sourceKey, position: l.position,
     installment: l.installmentCurrent !== null && l.installmentTotal !== null ? `${l.installmentCurrent}/${l.installmentTotal}` : '',
   })
   const fromSource = (s: IncomeSource) => ({ sourceId: s.id, name: s.name, amount: formatCents(sourceNet(s, month)) })
@@ -150,7 +151,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const entradaForm = (f: Form) => {
     const source = data.sources.find(s => s.id === f.sourceId)
     return (
-      <tr className="edit" key="form"><td colSpan={3}>
+      <tr className="edit" key="form"><td colSpan={2}>
         <div className="row" style={{ alignItems: 'center' }}>
           <Select ariaLabel="Fonte" value={f.sourceId} onChange={v => {
             const s = data.sources.find(x => x.id === v)
@@ -169,7 +170,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const saidaForm = (f: Form) => {
     const parcela = f.at === 'parcela', last = f.installment.trim().match(/^\d+\/(\d+)$/)?.[1]
     return (
-      <tr className="edit" key="form"><td colSpan={3}>
+      <tr className="edit" key="form"><td colSpan={2}>
         <div className="row" style={{ alignItems: 'center' }}>
           <input className="in" aria-label="Nome" placeholder="nome" autoFocus style={{ width: 140 }} value={f.name} onChange={e => setForm({ ...f, name: e.target.value })} />
           <input className="in" aria-label="Valor" placeholder="0,00" style={{ width: 90 }} value={f.amount} onChange={e => setForm({ ...f, amount: e.target.value })} />
@@ -188,9 +189,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     )
   }
   const actions = (l: BudgetLine) => (
-    <td className="muted r" style={{ whiteSpace: 'nowrap' }}>
+    <span className="acts muted">
       <button className="link" disabled={busy} onClick={() => edit(l)}>editar</button> · <button className="link" disabled={busy} onClick={() => { setForm(null); setError(null); setDel(l) }}>apagar</button>
-    </td>
+    </span>
   )
   const confirmDel = (l: BudgetLine) => (
     <div className="note" style={{ marginTop: 8 }}>
@@ -201,7 +202,11 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       </span>
     </div>
   )
-  const once = (l: BudgetLine) => !l.recurring && <div className="d2">só este mês</div>
+  // nome em cima, o resto numa linha só embaixo
+  const nameCell = (l: BudgetLine, sub: (string | null | false | undefined)[]) => {
+    const info = sub.filter(Boolean).join(' · ')
+    return <td><div className="nm" title={l.name}><span>{displayName(l.name)}</span>{actions(l)}</div>{info && <div className="d2">{info}</div>}</td>
+  }
 
   // um bloco da tela: linhas do bloco, formulário no lugar da linha editada e o de linha nova no fim
   const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode }) => {
@@ -211,14 +216,14 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="bar">
           <h5 style={{ margin: 0 }}>{title}</h5>
-          <span className="row" style={{ alignItems: 'center', gap: 10 }}><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>
+          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra) && <b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
             <button className="b ghost" disabled={busy} onClick={opts.add ?? (() => open(at))}>+</button></span>
         </div>
         {opts.hint && <div className="muted" style={{ marginTop: 2 }}>{opts.hint}</div>}
         <table className="lt blk" style={{ marginTop: 6 }}>
           <tbody>
-            {ls.length === 0 && !opts.extra && !(form?.at === at && !form.id) && <tr><td colSpan={3} className="muted">{opts.empty}</td></tr>}
-            {ls.map(l => (form?.id === l.id ? formRow(form) : <tr key={l.id}>{row(l)}{actions(l)}</tr>))}
+            {ls.length === 0 && !opts.extra && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
+            {ls.map(l => (form?.id === l.id ? formRow(form) : <tr key={l.id}>{row(l)}</tr>))}
             {opts.extra}
             {form?.at === at && !form.id && formRow(form)}
           </tbody>
@@ -232,25 +237,20 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     const source = data.sources.find(s => s.id === l.sourceId)
     const pj = (source?.kind === 'pj' || source?.kind === 'mei') && l.amountCents === sourceNet(source, month) ? pjNet(source.grossCents ?? 0, source) : null
     const ano = Number(month.slice(0, 4))
+    const kind = !source ? 'valor avulso' : source.kind === 'pj' ? 'PJ' : source.kind === 'mei' ? 'MEI' : source.kind === 'clt' ? 'CLT' : 'fonte'
+    const detail = pj ? `bruto ${formatCents(pj.grossCents)} − ${formatCents(pj.grossCents - pj.netCents)} de ${source?.kind === 'mei' ? 'DAS e custos' : 'impostos e custos'}`
+      : source?.kind === 'clt' ? `líquido de INSS e IRRF${cltTabelaAno(ano) !== ano ? ` (tabela de ${cltTabelaAno(ano)})` : ''}` : null
+    const full = pj && source?.kind !== 'mei' ? `imposto ${formatCents(pj.irpjCents)} · INSS ${formatCents(pj.inssCents)} · contabilidade ${formatCents(pj.contabilidadeCents)} · outros ${formatCents(pj.outrosCents)} · pró-labore ${formatCents(pj.proLaboreCents)}` : undefined
     return (
       <>
-        <td>
-          <div style={{ color: '#fff' }}>{l.name} {source && <span className="pill">{source.kind === 'pj' ? 'fonte PJ' : source.kind === 'mei' ? 'fonte MEI' : source.kind === 'clt' ? 'fonte CLT' : 'fonte'}</span>}</div>
-          {pj ? <div className="pj">{source?.kind === 'mei' ? <>bruto {formatCents(pj.grossCents)} − DAS {formatCents(pj.dasCents)} − outros {formatCents(pj.outrosCents)}</> : <>bruto {formatCents(pj.grossCents)} − imposto {formatCents(pj.irpjCents)} − INSS {formatCents(pj.inssCents)} − contabilidade {formatCents(pj.contabilidadeCents)} − outros {formatCents(pj.outrosCents)} · pró-labore {formatCents(pj.proLaboreCents)}</>}</div>
-            : !source ? <div className="d2">valor avulso{l.recurring ? '' : ' · só este mês'}</div>
-            : source.kind === 'clt' ? <div className="d2">líquido de INSS e IRRF{cltTabelaAno(ano) !== ano ? ` · usando a tabela de ${cltTabelaAno(ano)}` : ''}</div> : once(l)}
-        </td>
+        <td title={full}><div className="nm"><span>{l.name}</span>{actions(l)}</div><div className="d2">{[kind, detail, !l.recurring && 'só este mês'].filter(Boolean).join(' · ')}</div></td>
         <td className="r">{formatCents(l.amountCents)}</td>
       </>
     )
   }
   const plainRow = (l: BudgetLine) => (
     <>
-      <td>
-        <div style={{ color: '#fff' }}>{l.name} {l.sourceKey?.startsWith('sub:') && <span className="tag">assinatura</span>}</div>
-        {l.categoryId && <div className="d2">{catName(l.categoryId)}</div>}
-        {once(l)}
-      </td>
+      {nameCell(l, [l.sourceKey?.startsWith('sub:') && !/^assinatura/i.test(catName(l.categoryId) ?? '') && 'assinatura', catName(l.categoryId), !l.recurring && 'só este mês'])}
       <td className="r">{formatCents(l.amountCents)}</td>
     </>
   )
@@ -258,7 +258,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     const n = l.installmentCurrent!, last = l.installmentTotal!
     return (
       <>
-        <td><div style={{ color: '#fff' }}>{l.name}</div><div className="d2">parcela {n} de {last} · {n >= last ? 'última' : `acaba em ${lower(addMonths(month, last - n))}`}</div></td>
+        {nameCell(l, [`${n} de ${last}`, n >= last ? 'última' : `acaba em ${lower(addMonths(month, last - n))}`])}
         <td className="r">{formatCents(l.amountCents)}</td>
       </>
     )
@@ -268,7 +268,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     return (
       <>
         <td>
-          <div style={{ color: '#fff' }}>{l.name} {l.categoryId && catName(l.categoryId) !== l.name && <span className="muted">· {catName(l.categoryId)}</span>}</div>
+          <div className="nm" title={l.name}><span>{displayName(l.name)} {l.categoryId && catName(l.categoryId) !== l.name && <span className="muted">· {catName(l.categoryId)}</span>}</span>{actions(l)}</div>
           {real === null ? <div className="d2">escolha uma categoria para acompanhar o gasto</div> : hasTxns && <Track real={real} planned={l.amountCents} />}
         </td>
         <td className="r" style={{ whiteSpace: 'nowrap', ...(real !== null && real > l.amountCents ? { color: 'var(--negative)' } : {}) }}>
@@ -278,7 +278,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     )
   }
 
-  const varNote = !hasTxns ? 'sem lançamentos para comparar'
+  const varNote = !vars.tetos.length ? 'nenhum teto definido' : !hasTxns ? 'sem lançamentos para comparar'
     : progress >= 1 ? 'mês fechado' : progress <= 0 ? 'o mês ainda não começou'
     : `${Math.round(progress * 100)}% do mês${ritmo !== null ? ` · no ritmo fecha em ${formatBRL(ritmo)}` : ''}`
   const metasCents = total(metas)
@@ -290,7 +290,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
       <div className="kpis">
         <div className="k"><div className="muted">O que entra</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada', 'entradas')} · líquido</div></div>
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(total(fixos) + total(parcelas))}</div><div className="s muted">{plural(fixos.length, 'custo fixo', 'custos fixos')} · {plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
-        <div className="k"><div className="muted">Variáveis</div><div className="v">{hasTxns ? <>{formatBRL(vars.realCents)} <span className="muted" style={{ fontSize: 12 }}>de {formatBRL(vars.plannedCents)}</span></> : formatBRL(vars.plannedCents)}</div><div className="s muted">{varNote}</div></div>
+        <div className="k"><div className="muted">Variáveis</div><div className="v">{!vars.tetos.length ? '—' : hasTxns ? <>{formatBRL(vars.realCents)} <span className="muted" style={{ fontSize: 12 }}>de {formatBRL(vars.plannedCents)}</span></> : formatBRL(vars.plannedCents)}</div><div className="s muted">{varNote}</div></div>
         <div className="k"><div className="muted">Sobra</div><div className={`v ${sum.saldoCents > 0 ? 'up' : sum.saldoCents < 0 ? 'dn' : ''}`}>{sum.saldoCents > 0 ? '+' : ''}{formatBRL(sum.saldoCents)}</div><div className="s muted">{metasCents > 0 ? `depois de investir ${formatBRL(metasCents)}` : 'o que entra − o que sai'}</div></div>
       </div>
 
@@ -318,22 +318,21 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           {block('entrada', 'O que eu ganho', entradas, formatCents(sum.entradasCents), entradaRow, {
             empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Fontes de renda e eles entram sozinhos todo mês.',
             add: () => { const s = missing[0] ?? data.sources[0]; open('entrada', s ? fromSource(s) : {}) },
-            extra: missing.map(s => (
+            extra: missing.length > 0 && missing.map(s => (
               <tr key={`fonte-${s.id}`}>
-                <td className="muted">{s.name} <span className="pill">fonte</span><div className="d2">não está neste mês</div></td>
+                <td className="muted"><div className="nm"><span className="muted">{s.name}</span><button className="link" disabled={busy} onClick={() => include(s)}>incluir</button></div><div className="d2">fonte de renda · não está neste mês</div></td>
                 <td className="r muted">{formatCents(sourceNet(s, month))}</td>
-                <td className="r"><button className="link" disabled={busy} onClick={() => include(s)}>incluir</button></td>
               </tr>
             )),
           })}
-          {block('meta', 'Investimentos e metas', metas, formatCents(metasCents), plainRow, { empty: 'Aportes e reservas que você separa todo mês. Não contam como gasto.' })}
-          {block('fixo', 'Custos fixos', fixos, formatCents(total(fixos)), plainRow, { empty: 'Assinaturas e contas que se repetem. As assinaturas detectadas aparecem nas sugestões acima.' })}
-        </div>
-        <div>
           {block('variavel', 'Custos variáveis', vars.tetos.map(t => t.line), hasTxns ? `${formatCents(vars.realCents)} de ${formatCents(vars.plannedCents)}` : formatCents(vars.plannedCents), tetoRow, {
             empty: 'Um teto por categoria (mercado, restaurante, lazer…); o gasto real vem dos lançamentos.',
             hint: !hasTxns && <>Para ver o gasto real, conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</>,
           })}
+          {block('meta', 'Investimentos e metas', metas, formatCents(metasCents), plainRow, { empty: 'Aportes e reservas que você separa todo mês. Não contam como gasto.' })}
+        </div>
+        <div>
+          {block('fixo', 'Custos fixos', fixos, formatCents(total(fixos)), plainRow, { empty: 'Assinaturas e contas que se repetem. As assinaturas detectadas aparecem nas sugestões acima.' })}
           {block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' })}
         </div>
       </div>

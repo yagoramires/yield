@@ -17,6 +17,18 @@ export function normalizeDescription(s: string): string {
     .trim()
 }
 
+const SMALL = new Set(['de', 'da', 'do', 'das', 'dos', 'e'])
+
+/** Descrição do extrato para mostrar: sem o prefixo da maquininha (MP*, PG *…), sem a parcela do fim e sem o caixa alta. */
+export function displayName(s: string): string {
+  let n = s.trim().replace(/^Transfer[eê]ncia enviada pelo Pix\s*\|\s*/i, 'Pix para ')
+    .replace(/^\s*(pg|pag|paypal|mp|ifd|asaas|ebn|pagseguro|picpay)\s*\*\s*/i, '').replace(/\s+\d{1,2}\/\d{1,2}$/, '')
+  const parts = n.split('*').map(p => p.trim()).filter(Boolean)
+  n = [...new Set(parts.map(p => p.toLowerCase()))].length === 1 ? parts[0] : parts.join(' · ')
+  if (/\p{Ll}/u.test(n)) return n // já tem minúscula: alguém escreveu assim
+  return n.toLowerCase().split(' ').map((w, i) => (i && SMALL.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ')
+}
+
 export function fingerprint(accountId: string, date: ISODate, amountCents: Cents, description: string, occurrence: number): string {
   return `${accountId}|${date}|${amountCents}|${normalizeDescription(description)}|#${occurrence}`
 }
