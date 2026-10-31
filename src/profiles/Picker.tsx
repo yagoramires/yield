@@ -14,7 +14,7 @@ interface Props {
   onEnter(): void
 }
 
-const randomId = () => crypto.randomUUID().replace(/-/g, '').toLowerCase()
+export const randomId = () => crypto.randomUUID().replace(/-/g, '').toLowerCase()
 
 export function Picker({ profiles, activeId, onCreated, onEnter }: Props) {
   const [creating, setCreating] = useState(false)
