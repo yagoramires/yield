@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BackupError, stageBackup } from '../../db/backup'
 import { openDb } from '../../db/client'
 import { migrateOnce } from '../../db/migrate'
@@ -27,7 +27,8 @@ export function Backup() {
 
   // restore.db é o backup já aberto: não fica no disco se a importação não for até o fim
   const discardRestore = () => { invoke('discard_restore').catch(() => {}) }
-  useEffect(() => () => discardRestore(), []) // saiu da seção com a importação pendente
+  const swapping = useRef(false) // a troca já começou no Rust: sair da seção não descarta o arquivo que ela está lendo
+  useEffect(() => () => { if (!swapping.current) discardRestore() }, []) // saiu da seção com a importação pendente
   const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(false); setExporting(false); setImportPw(null); discardRestore() }
 
   const validar = async (path: string, password: string | null) => {
@@ -58,6 +59,7 @@ export function Backup() {
   const substituir = async () => {
     if (!restore) return
     setBusy(true)
+    swapping.current = true
     const r = await restoreBackup({
       checkpoint: async () => { await db.execute('PRAGMA wal_checkpoint(TRUNCATE)') },
       close: () => db.close(),
@@ -70,6 +72,7 @@ export function Backup() {
     })
     if (r.ok) setBackupMsg(r.message)
     else { setBackupError(r.message); discardRestore() }
+    swapping.current = false
     setRestore(false); setBusy(false)
   }
 
