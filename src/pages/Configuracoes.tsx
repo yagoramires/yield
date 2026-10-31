@@ -4,7 +4,7 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
-import { migrate } from '../db/migrate'
+import { migrateOnce } from '../db/migrate'
 import { MIGRATIONS } from '../db/migrations'
 import { renormalizeBrokers } from '../db/repo'
 import { repairCryptoSymbols } from '../quotes/yahoo'
@@ -100,7 +100,7 @@ export function Configuracoes() {
       // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
       // (`sqlite:<banco do perfil>`); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
       // backup de versão antiga: no `yield.db` o plugin migra no load; nos outros perfis, o `migrate`
-      reopen: async () => { const d = await openDb(`sqlite:${dbFile}`); await migrate(d, MIGRATIONS); await renormalizeBrokers(d); await repairCryptoSymbols(d) },
+      reopen: async () => { const d = await openDb(`sqlite:${dbFile}`); await migrateOnce(dbFile, d, MIGRATIONS); await renormalizeBrokers(d); await repairCryptoSymbols(d) },
       reload,
     })
     if (r.ok) setBackupMsg(r.message)

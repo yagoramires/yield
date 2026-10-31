@@ -1,7 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { openDb, type Db } from '../db/client'
-import { migrate } from '../db/migrate'
+import { migrateOnce } from '../db/migrate'
 import { MIGRATIONS } from '../db/migrations'
 import { useProfiles } from '../profiles/Gate'
 import { loadAll, renormalizeBrokers, type Dataset, type ManualAsset } from '../db/repo'
@@ -182,7 +182,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       try {
         // no `yield.db` o plugin já migrou no primeiro Database.load; os outros perfis são migrados aqui
         const d = await openDb(`sqlite:${dbFile}`)
-        await migrate(d, MIGRATIONS)
+        await migrateOnce(dbFile, d, MIGRATIONS)
         if (cancelled) return
         dbRef.current = d
         setDb(d)
@@ -212,7 +212,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }
         }, REFRESH_MS)
       } catch (e) {
-        setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
+        if (!cancelled) setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
       }
     })()
     return () => { cancelled = true; if (timer) clearInterval(timer) }
