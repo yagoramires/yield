@@ -36,7 +36,7 @@ O app ganhou muitas features (gastos, orçamento, investimentos, Open Finance, B
 
 ### O que é um perfil
 - Um perfil = um banco SQLite próprio + um item próprio no cofre do sistema + preferências próprias (módulos ligados, tema, olhinho, menu recolhido, última tela, escolha de IA, tour visto).
-- Fica **fora** do banco (para a tela de escolha funcionar antes do PIN): lista de perfis com id, nome, cor, caminho do avatar, se tem PIN, e o estado do limite de tentativas. Um arquivo na pasta de dados do app (ex.: `profiles.json`) e os avatares em `avatars/<id>.png`. Nome, cor e foto ficam visíveis sem PIN, como na tela de bloqueio de um celular.
+- Fica **fora** do banco (para a tela de escolha funcionar antes do PIN): lista de perfis com id, nome, cor e avatar (`perfis.json`, avatar como imagem embutida). "Tem PIN" vem do cabeçalho do arquivo do banco (cifrado não começa com `SQLite format 3`); o sal do PIN e o estado do limite de tentativas ficam no `pins.json`, que só o Rust grava, com uma cópia do sal em `<banco>.salt`. Nome, cor e foto ficam visíveis sem PIN, como na tela de bloqueio de um celular.
 - Os modelos de IA baixados são da máquina, compartilhados (5 GB não se baixa duas vezes); ligar ou não o Assistente é por perfil.
 - Backup exporta e restaura **o perfil aberto**. Continua como hoje: o `.yield` é sempre criptografado com uma senha escolhida na hora (não é o PIN) e não leva as credenciais da Pluggy/Binance. Restaurar troca os dados e mantém o PIN que o perfil já tem.
 - O tema das telas antes de abrir um perfil (escolha, PIN, espera, wizard de instalação nova) é o do último perfil aberto, guardado no `profiles.json` junto com a lista (tema não é dado sensível); sem nenhum perfil, escuro.

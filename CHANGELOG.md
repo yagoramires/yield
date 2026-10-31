@@ -9,6 +9,11 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 - **Foto do perfil**: avatar com iniciais, cor ou imagem.
 - **Troca de perfil**: menu no topo da sidebar e tela "Quem está usando?" ao abrir o app com 2+ perfis.
 - **Apagar perfil**: com diálogo de confirmação, em Configurações › Perfil.
+- **PIN por perfil**: opcional, 4 dígitos; com ele os dados e as credenciais do perfil ficam criptografados no disco.
+- **Limite de tentativas do PIN**: esperas de 1 min, 5 min, 15 min e 1 h; nunca apaga dados.
+- **Esqueci o PIN**: explica que os dados não voltam e permite apagar o perfil.
+- **Restaurar backup como perfil novo**: "Novo perfil" › "Restaurar de um backup".
+- **Backup de perfil com PIN em formato novo**: versões anteriores do app não abrem esse arquivo.
 
 ## 0.8.0
 
