@@ -2,9 +2,22 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
-## Não lançado
+## 0.9.0
+
+Assistente com IA que roda no seu computador, perfis com PIN, setup inicial e Configurações novas.
 
 ### Novidades
+- **Assistente com IA local (opcional)**: chat em português que consulta os seus dados por ferramentas só de leitura (gastos, lançamentos, orçamento, carteira, rentabilidade, proventos). O `llama.cpp` vem no instalador e o modelo Qwen3 (8B ou 4B, escolhido pela memória do computador) é baixado no primeiro uso, com o download retomável e conferido por SHA-256. Nada sai da máquina.
+- **Insights** nos Resumos de gastos e de investimentos, no Orçamento e em Proventos, gerados quando os números do mês mudam. Todo valor em R$ e % é conferido contra os dados do app: insight com número inventado é descartado, e no chat o valor fora das ferramentas aparece como "não conferido".
+- **Tema claro**: botão no menu (sistema, claro, escuro) e Configurações › Aparência.
+- **Saldo nas contas** e fatura do cartão vindos da Pluggy, no Resumo de gastos.
+- **Investimentos do banco pela Pluggy** (RDB, caixinhas, fundos, CDB…) na Carteira, só leitura, sem repetir o que a Posição da B3 já mostra.
+- **Reserva** no Orçamento com o saldo no banco: ligação pelo nome do investimento ou à mão.
+- **Proventos reinvestidos**: opção em Configurações; com ela o Patrimônio mostra o que saiu do seu bolso e o Resultado soma os proventos.
+- **Olhinho** no menu esconde os valores em todas as telas.
+- **Status de sincronização** no menu (Open Finance, Binance, cotações) com "Sincronizar tudo"; com o app aberto, cotações e Binance a cada 15 min e Open Finance a cada 6 h.
+- **Módulos** (Últimos gastos, Orçamento, Investimentos) ligados e desligados em Configurações, e menu recolhível só com ícones.
+- **Orçamento**: "Entradas" soma o que entrou de terceiros (sem as suas próprias contas nem o salário duas vezes), trazer o plano do mês anterior para um mês vazio e excluir mês.
 - **Perfis**: múltiplos perfis num computador, cada um com seus dados e credenciais.
 - **Foto do perfil**: avatar com iniciais, cor ou imagem.
 - **Troca de perfil**: menu no topo da sidebar e tela "Quem está usando?" ao abrir o app com 2+ perfis.
@@ -16,6 +29,16 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 - **Backup de perfil com PIN em formato novo**: versões anteriores do app não abrem esse arquivo.
 - **Setup inicial**: na primeira abertura e em cada perfil novo, 5 passos (perfil e PIN, quais abas, contas, Assistente, resumo) e um tour curto pelo app. Quem atualiza não vê; dá para refazer em Configurações › Perfil e PIN.
 - **Configurações em seções**: menu lateral com busca (Perfil, Aparência, Contas conectadas, Importar arquivos, Backup…), lembra a última seção aberta e os links das outras telas abrem direto na seção certa.
+- **Contas conectadas**: uma lista por banco com a situação, reconectar e as credenciais atrás de um link.
+
+### Melhorias
+- O app abre na última tela usada.
+- Paleta em torno do verde, validada para daltonismo; seletor de mês com a grade do ano; botões, campos e espaçamentos padronizados.
+
+### Segurança
+- As credenciais da Pluggy e da Binance ficam só no Rust: ele faz o `POST /auth` da Pluggy e as leituras assinadas da Binance, e o JavaScript não vê a chave.
+- Comandos de arquivo só aceitam os arquivos da pasta do app; o banco sem senha de uma importação de backup não fica no disco.
+- CSP ligada e actions do GitHub fixadas por SHA.
 
 ## 0.8.0
 
