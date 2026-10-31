@@ -37,6 +37,9 @@ jobs:
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # build de teste: sem os arquivos do updater, que pedem a chave privada (só o Release assina)
+          args: --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: yield-windows
