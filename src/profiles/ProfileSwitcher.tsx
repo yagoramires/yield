@@ -30,7 +30,7 @@ export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
       <div className="prof-box" ref={box} onBlur={e => { if (open && e.relatedTarget && !box.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
         <button ref={trigger} className="prof-btn" aria-expanded={open} aria-haspopup="dialog" onClick={() => { const r = trigger.current?.getBoundingClientRect(); setPos(mini && r ? { left: r.right + 8, top: r.top } : null); setOpen(!open) }}
           aria-label={mini ? `Perfil: ${profile.name}. Trocar perfil` : undefined} title={mini ? `Perfil: ${profile.name}` : undefined}>
-          <Avatar profile={profile} size={28} />
+          <Avatar profile={profile} size={mini ? 26 : 28} />
           {!mini && <span className="prof-txt"><span className="prof-n">{profile.name}</span><span className="prof-s">trocar perfil <ChevronDown size={11} aria-hidden /></span></span>}
         </button>
         {open && (

@@ -53,7 +53,8 @@ export function NewProfileModal({ profiles, save, onCancel }: { profiles: Profil
       discard,
     }, new Date().toISOString(), randomId)
     staged.current = false
-    if (!r.profile) throw new Error(r.error ?? 'Não foi possível criar o perfil.') // o ProfileForm mostra
+    // o restore.db já foi descartado: escolher o arquivo de novo, em vez de criar um perfil vazio na segunda tentativa
+    if (!r.profile) { setError(r.error); setStage({ kind: 'new' }); return }
     if (r.error) return setStage({ kind: 'failed', profile: r.profile, message: r.error })
     await switchTo(r.profile.id)
   }

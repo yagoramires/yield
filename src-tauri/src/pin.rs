@@ -280,6 +280,8 @@ pub fn profile_unlocked(id: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn profile_unlock(app: tauri::AppHandle, id: String, db_file: String, pin: String) -> Result<Unlock, String> {
     let dir = app.path().app_config_dir().map_err(err)?;
+    // uma troca de PIN no meio recifra o banco: as chaves conferidas antes dela não podem cair no UNLOCKED depois
+    let _op = PIN_OPS.lock().await;
     let (result, keys) = check_pin_in(&dir, &id, &db_file, &pin, now()?).await?;
     if let Some(keys) = keys {
         *UNLOCKED.lock().map_err(err)? = Some((id, keys));
@@ -320,6 +322,32 @@ pub async fn rekey_in(dir: &Path, db_file: &str, from: Option<&Key>, to: Option<
     commit_swap(dir, db_file, &tmp).inspect_err(|_| {
         let _ = std::fs::remove_file(&tmp);
     })
+}
+
+/// Arquivo cifrado com a chave do perfil desbloqueado (a cópia de segurança que um restore guardou dele): vai para `out` com essa chave; outro arquivo dá None.
+pub(crate) async fn stage_with_unlocked(out: &Path, data: &[u8]) -> Result<Option<Key>, String> {
+    let Some(key) = UNLOCKED.lock().map_err(err)?.as_ref().map(|(_, k)| k.db) else { return Ok(None) };
+    crate::db::remove_tmp(out)?;
+    std::fs::write(out, data).map_err(err)?;
+    if crate::db::key_opens(out, &key).await.unwrap_or(false) {
+        return Ok(Some(key));
+    }
+    crate::db::remove_tmp(out)?;
+    Ok(None)
+}
+
+/// Cópias de segurança do restore cifradas com o PIN antigo vão para a chave nova (ou em claro, ao tirar o PIN); senão nenhum PIN abre mais.
+pub(crate) async fn rekey_safety_copies(dir: &Path, db_file: &str, from: &Key, to: Option<&Key>) -> Result<(), String> {
+    let names: Vec<String> = std::fs::read_dir(dir).map_err(err)?.flatten()
+        .filter_map(|e| e.file_name().to_str().map(String::from))
+        .filter(|n| n.ends_with(".db") && is_safety_copy_of(n, db_file))
+        .collect();
+    for n in names {
+        if has_pin_file(&dir.join(&n))? {
+            rekey_in(dir, &n, Some(from), to).await?;
+        }
+    }
+    Ok(())
 }
 
 /// Apaga as cópias de segurança do restore (`seguranca-*`) de `db_file`; com `only_plain`, só as que não estão cifradas pelo PIN.
@@ -493,6 +521,7 @@ pub async fn change_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, curre
         return Err(e);
     }
     after_swap(reseal(id, None, Some(next.vault)).await);
+    after_swap(rekey_safety_copies(dir, db_file, &old.db, Some(&next.db)).await);
     after_swap(reopened);
     Ok(Unlock::Ok)
 }
@@ -514,6 +543,7 @@ pub async fn remove_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, curre
         let _ = reseal(id, None, Some(old.vault)).await;
         return Err(e);
     }
+    after_swap(rekey_safety_copies(dir, db_file, &old.db, None).await);
     after_swap(update_pins(dir, |f| f.profiles.remove(id).is_some()).await);
     after_swap(remove_if_exists(&salt_copy(dir, db_file)));
     after_swap(reopened);
@@ -771,6 +801,41 @@ mod tests {
         assert!(!key_opens(&db, &a.db).await.unwrap() && key_opens(&db, &b.db).await.unwrap());
         rekey_in(&dir, "perfil-abcd1234.db", Some(&b.db), None).await.unwrap();
         assert!(is_plain_header(&db) && file_has(&db, MARKER));
+    }
+
+    #[tokio::test]
+    async fn trocar_e_tirar_o_pin_leva_as_copias_de_seguranca_cifradas() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let (a, b) = (derive("1234", &SALT).unwrap(), derive("5678", &SALT).unwrap());
+        // cópia de um restore feito com o PIN 1234: cifrada como o banco
+        let copia = dir.join("seguranca-perfil-abcd1234-1793000000.db");
+        std::fs::copy(dir.join("perfil-abcd1234.db"), &copia).unwrap();
+        std::fs::write(dir.join("seguranca-yield-1793000000.db"), "de outro perfil").unwrap();
+        rekey_safety_copies(&dir, "perfil-abcd1234.db", &a.db, Some(&b.db)).await.unwrap();
+        assert!(!key_opens(&copia, &a.db).await.unwrap() && key_opens(&copia, &b.db).await.unwrap());
+        rekey_safety_copies(&dir, "perfil-abcd1234.db", &b.db, None).await.unwrap();
+        assert!(is_plain_header(&copia) && file_has(&copia, MARKER));
+        assert_eq!(std::fs::read_to_string(dir.join("seguranca-yield-1793000000.db")).unwrap(), "de outro perfil");
+        assert!(!pin_tmp(&dir, "seguranca-perfil-abcd1234-1793000000.db").exists());
+    }
+
+    #[tokio::test]
+    async fn copia_de_seguranca_cifrada_abre_com_o_perfil_desbloqueado() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let data = std::fs::read(dir.join("perfil-abcd1234.db")).unwrap();
+        let out = dir.join("restore.db");
+        let _g = globals();
+        set_unlocked(None);
+        assert_eq!(stage_with_unlocked(&out, &data).await.unwrap(), None);
+        let keys = derive("1234", &SALT).unwrap();
+        set_unlocked(Some(("abcd1234".into(), keys.clone())));
+        assert_eq!(stage_with_unlocked(&out, &data).await.unwrap(), Some(keys.db));
+        assert!(key_opens(&out, &keys.db).await.unwrap());
+        // com outra chave na memória, o arquivo não fica no lugar do restore
+        set_unlocked(Some(("abcd1234".into(), derive("9999", &SALT).unwrap())));
+        assert_eq!(stage_with_unlocked(&out, &data).await.unwrap(), None);
+        assert!(!out.exists());
+        set_unlocked(None);
     }
 
     #[tokio::test]

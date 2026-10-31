@@ -828,8 +828,8 @@ tr.hl td { background: var(--neg-bg); }
 .prof-opt:hover { background: var(--surface); }
 .prof-opt.sub { color: var(--text-2); }
 .prof-optn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar.mini .prof-box { margin: 0 0 10px; }
-.sidebar.mini .prof-btn { width: auto; padding: 3px; border-radius: 50%; }
+.sidebar.mini .prof-box { margin: 0 0 10px; display: flex; justify-content: center; }
+.sidebar.mini .prof-btn { width: var(--ctl-sm); height: var(--ctl-sm); padding: 0; justify-content: center; border-radius: 50%; } /* do tamanho dos botões de ícone acima */
 .sidebar.mini .prof-pop { position: fixed; right: auto; width: 190px; } /* left e top vêm do botão */
 .pin-panel { margin-top: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--well); }
 

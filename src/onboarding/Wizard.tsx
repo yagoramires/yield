@@ -53,7 +53,8 @@ export function Wizard({ step }: { step: number }) {
   const next = () => {
     if (step === 1) modules.set(disabledFrom(uses))
     if (step === 3) {
-      if (iaChoice === 'sim' && model) {
+      if (iaChoice === 'sim' && ai.off === false && ai.modelId) { /* já usa o Assistente: mantém o modelo escolhido */ }
+      else if (iaChoice === 'sim' && model) {
         setAiSettings({ off: false, modelId: model.id, tokS: null })
         // baixa em segundo plano; o Assistente mostra o andamento (vem do Rust) e liga quando terminar
         void invoke('ai_download', { url: model.url, sha256: model.sha256, file: model.file, bytes: model.bytes }).catch(() => {})
@@ -161,7 +162,7 @@ export function Wizard({ step }: { step: number }) {
           <span className="sp" />
           {step > 0 && step < SETUP_STEPS - 1 && <button type="button" className="b ghost" onClick={skip}>Pular</button>}
           {step === 0 ? <button type="submit" form="wz-perfil" className="b pri">Continuar</button>
-            : step < SETUP_STEPS - 1 ? <button type="button" className="b pri" disabled={(step === 1 && !uses.length) || (step === 3 && !iaChoice)} onClick={next}>Continuar</button>
+            : step < SETUP_STEPS - 1 ? <button type="button" className="b pri" disabled={(step === 1 && !uses.length) || (step === 3 && (!iaChoice || (iaChoice === 'sim' && !model && !(ai.off === false && ai.modelId))))} onClick={next}>Continuar</button>
               : <button type="button" className="b pri" onClick={finish}>Abrir o yield</button>}
         </div>
       </main>
