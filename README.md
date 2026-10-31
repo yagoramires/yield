@@ -92,9 +92,9 @@ As transações chegam de dois jeitos:
 
 ### ⚙️ Sistema
 
-- **Perfis**: um perfil por pessoa que usa o computador (ou por cenário). Cada perfil tem seus próprios dados, credenciais (Pluggy, Binance) e preferências de tela. Crie um perfil novo no menu do topo da sidebar; troque entre perfis ali mesmo ou pela tela "Quem está usando?", que aparece ao abrir o app se houver 2 ou mais perfis. Edite o nome, a cor e a foto do perfil em Configurações › Perfil; apague um perfil e seus dados só nesse lugar. Se há só um perfil, o app abre direto nele (sem muda visível para quem está atualizando).
+- **Perfis**: um perfil por pessoa que usa o computador (ou por cenário). Cada perfil tem seus próprios dados, credenciais (Pluggy, Binance) e preferências de tela. Crie um perfil novo no menu do topo da sidebar; troque entre perfis ali mesmo ou pela tela "Quem está usando?", que aparece ao abrir o app se houver 2 ou mais perfis. Edite o nome, a cor e a foto do perfil em Configurações › Perfil; apague um perfil e seus dados só nesse lugar (o último não pode ser apagado). Dados antigos viram o primeiro perfil automaticamente; quem está atualizando vê só um perfil e o app abre direto nele (sem mudança visível).
 - Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição, vários de uma vez, sem duplicar.
-- Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). O arquivo salvo é do perfil aberto quando você exporta; antes de importar um backup, o app guarda uma cópia de segurança do perfil atual. Cada perfil tem seu histórico de backups.
+- Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). O arquivo salvo é do perfil aberto quando você exporta; antes de importar um backup, o app guarda uma cópia de segurança do perfil atual.
 - Cotações automáticas a cada 15 minutos.
 - Atualização automática: o app avisa quando sai versão nova no GitHub e se atualiza sozinho (pacotes assinados).
 
