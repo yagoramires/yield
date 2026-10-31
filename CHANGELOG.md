@@ -2,6 +2,14 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## Não lançado
+
+### Novidades
+- **Perfis**: múltiplos perfis num computador, cada um com seus dados e credenciais.
+- **Foto do perfil**: avatar com iniciais, cor ou imagem.
+- **Troca de perfil**: menu no topo da sidebar e tela "Quem está usando?" ao abrir o app com 2+ perfis.
+- **Apagar perfil**: com diálogo de confirmação, em Configurações › Perfil.
+
 ## 0.8.0
 
 Orçamento novo, no jeito de uma planilha de controle: o que você ganha, custos fixos e custos variáveis.
