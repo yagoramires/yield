@@ -20,6 +20,7 @@ import { useModules } from './ui/prefs'
 import { EyeToggle, useHideValues } from './ui/HideValues'
 import { ThemeToggle } from './ui/theme'
 import { UpdateBanner } from './ui/Atualizacao'
+import { scoped } from './profiles/active'
 
 const TITLES = Object.fromEntries(
   ROUTES.flatMap(p => p.items).flatMap(i => (i.route ? [[i.route, i.label]] : [])),
@@ -29,11 +30,11 @@ export default function App() {
   // abre na última tela usada; storage pode falhar (modo privado, dados limpos) e aí cai na Carteira
   const [route, setRoute] = useState<Route>(() => {
     try {
-      const saved = localStorage.getItem('yield.route')
+      const saved = localStorage.getItem(scoped('yield.route'))
       return ROUTES.some(g => g.items.some(i => i.route === saved && !i.disabled)) ? (saved as Route) : 'carteira'
     } catch { return 'carteira' }
   })
-  useEffect(() => { try { localStorage.setItem('yield.route', route) } catch { /* sem storage, só não lembra */ } }, [route])
+  useEffect(() => { try { localStorage.setItem(scoped('yield.route'), route) } catch { /* sem storage, só não lembra */ } }, [route])
   // módulo desligado em Configurações: a tela dele sai do menu e o app vai para a primeira tela de um módulo ligado
   const { enabled } = useModules()
   const ai = useAiSettings()

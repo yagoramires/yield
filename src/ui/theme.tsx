@@ -1,13 +1,14 @@
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSyncExternalStore } from 'react'
+import { scoped } from '../profiles/active'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
 
 /** O tema que vale: "sistema" segue o claro/escuro do macOS ou do Windows. */
 export const effectiveTheme = (mode: ThemeMode, prefersLight: boolean): 'light' | 'dark' => (mode === 'system' ? (prefersLight ? 'light' : 'dark') : mode)
 
-const KEY = 'yield.tema'
+const KEY = scoped('yield.tema')
 // começa no escuro (o visual de sempre); quem quiser escolhe claro ou "igual ao sistema"
 let mode: ThemeMode = (() => { try { const v = localStorage.getItem(KEY); return v === 'light' || v === 'system' ? v : 'dark' } catch { return 'dark' } })()
 const listeners = new Set<() => void>()

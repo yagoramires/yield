@@ -2,8 +2,9 @@ import { Eye, EyeOff } from 'lucide-react'
 import { useSyncExternalStore } from 'react'
 import { formatBRL, formatCents, setMasked } from '../domain/money'
 import { shortBRL } from './charts'
+import { scoped } from '../profiles/active'
 
-const KEY = 'yield.ocultarValores'
+const KEY = scoped('yield.ocultarValores')
 let hidden = (() => { try { return localStorage.getItem(KEY) === '1' } catch { return false } })()
 setMasked(hidden)
 const listeners = new Set<() => void>()
