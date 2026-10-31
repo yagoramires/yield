@@ -203,3 +203,12 @@ export function costSummaryText(r: { failed: { source: string; error: unknown }[
   if (fail) parts.push(fail)
   return parts.join(' ')
 }
+
+/** Linha de um banco em Contas conectadas: quantas contas, quando sincronizou e se está ok, com erro ou ainda sem sincronizar. */
+export function bankLine(accounts: { itemId: string | null; lastSyncAt: string | null }[], itemId: string, status: { ok: boolean; text: string } | null, ago: (iso: string) => string): { state: 'ok' | 'erro' | 'novo'; text: string } {
+  const mine = accounts.filter(a => a.itemId === itemId)
+  if (status && !status.ok) return { state: 'erro', text: status.text }
+  const at = mine.map(a => a.lastSyncAt).filter((x): x is string => !!x).sort().at(-1)
+  if (!at) return status ? { state: 'ok', text: status.text } : { state: 'novo', text: 'Ainda não sincronizado' }
+  return { state: 'ok', text: `${mine.length} ${mine.length === 1 ? 'conta' : 'contas'} · sincronizado ${ago(at)}` }
+}

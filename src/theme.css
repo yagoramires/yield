@@ -852,3 +852,11 @@ tr.hl td { background: var(--neg-bg); }
   .cfg.open .cfg-nav, .cfg:not(.open) .cfg-body { display: none; }
   .cfg-back { display: inline-flex; }
 }
+/* Contas conectadas: um banco por linha, com a situação */
+.conn-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 10px; }
+.conn-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.conn-row:first-child { border-top: 0; }
+.conn-row b { color: var(--strong); font-weight: 600; }
+.conn-row .grow { flex: 1; min-width: 0; }
+.conn-logo { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--hover); color: var(--strong); font-weight: 700; font-size: 12px; }
+.conn-err { color: var(--negative); font-size: 11.5px; overflow-wrap: anywhere; }

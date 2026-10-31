@@ -7,10 +7,11 @@ import { clearPluggyCredentials, getPluggyAuth, setPluggyCredentials } from '../
 import { vaultStatus } from '../../secrets/vault'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
-import { investmentLine, parseItemId } from './build'
+import { bankLine, investmentLine, parseItemId } from './build'
+import { ago } from '../../ui/SyncStatus'
+import { initial } from '../../profiles/profiles'
 import { PluggyGuia } from './PluggyGuia'
 
-const short = (id: string) => `${id.slice(0, 4)}…${id.slice(-4)}`
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 
 type Status = { ok: boolean; text: string }
@@ -29,6 +30,7 @@ export function OpenFinance() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guide, setGuide] = useState(false)
+  const [showCreds, setShowCreds] = useState(false) // credenciais salvas ficam atrás de um link: quase nunca mudam
 
   useEffect(() => {
     vaultStatus().then(s => setSaved(s.pluggy), () => setSaved(false))
@@ -114,21 +116,21 @@ export function OpenFinance() {
   )
 
   const banks = data.pluggyItems.length > 0 && (
-    <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
-      <thead><tr><th>Banco</th><th>itemId</th><th>Situação</th><th></th></tr></thead>
-      <tbody>
-        {data.pluggyItems.map(it => {
-          const s = status(it.itemId)
-          return (
-            <tr key={it.itemId}>
-              <td>{it.label}</td><td className="t2">{short(it.itemId)}</td>
-              <td>{s ? <span className={`pill ${s.ok ? 'ok' : 'bad'}`}>{s.text}</span> : <span className="muted">—</span>}</td>
-              <td><button className="b ghost" disabled={busy} onClick={() => setConfirm(it)}>tirar</button></td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table></div>
+    <div className="conn-list">
+      {data.pluggyItems.map(it => {
+        const l = bankLine(data.accounts, it.itemId, status(it.itemId), ago)
+        return (
+          <div key={it.itemId} className="conn-row">
+            <span className="conn-logo" aria-hidden>{initial(it.label)}</span>
+            <div className="grow"><b>{it.label}</b><div className={l.state === 'erro' ? 'conn-err' : 'muted'}>{l.text}</div></div>
+            {l.state === 'erro'
+              ? <button className="b sm" onClick={() => setGuide(true)} title="Abra o Meu Pluggy e entre de novo no banco">Reconectar</button>
+              : l.state === 'ok' && <span className="pill ok">ok</span>}
+            <button className="b ghost sm" disabled={busy} aria-label={`Tirar ${it.label}`} onClick={() => setConfirm(it)}>tirar</button>
+          </div>
+        )
+      })}
+    </div>
   )
 
   const addBank = (
@@ -166,8 +168,7 @@ export function OpenFinance() {
         </div>
       ) : (
         <div style={{ marginTop: 10 }}>
-          {credentials}
-          <div style={{ marginTop: 10 }}>{banks}</div>
+          {banks || <div className="muted">Nenhum banco ainda: use + Adicionar banco.</div>}
           {confirmItem && (
             <div className="note" style={{ marginTop: 8 }}>
               Tirar {confirmItem.label}? As contas e os lançamentos já baixados continuam no Yield; só deixa de sincronizar.
@@ -181,7 +182,9 @@ export function OpenFinance() {
             <button className="b ghost" onClick={() => setGuide(true)}>+ Adicionar banco</button>
             <button className="b" disabled={testing || busy} onClick={() => void test()}>{testing ? 'Testando…' : 'Testar conexão'}</button>
             <button className="b pri" disabled={syncing} onClick={() => void syncNow()}>{syncing ? 'Sincronizando…' : '↻ Sincronizar agora'}</button>
+            {saved && <button className="b ghost" aria-expanded={showCreds} onClick={() => setShowCreds(v => !v)}>Credenciais da Pluggy…</button>}
           </div>
+          {(showCreds || saved === false) && <div style={{ marginTop: 10 }}>{credentials}</div>}
           {!guide && error && <div className="note" style={{ marginTop: 8 }}>{error}</div>}
           {generalErrors.map(e => <div key={e.message} className="note" style={{ marginTop: 8 }}>{e.message}</div>)}
           {lastSyncResult && !syncing && lastSyncResult.errors.length === 0 && (
