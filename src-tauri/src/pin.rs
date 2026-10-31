@@ -1,11 +1,11 @@
-use crate::db::{cipher_version, has_pin_file, key_opens, Key, CORRUPT};
-use crate::{active, valid_profile, write_atomic, LEGACY_DB, LEGACY_ID, RESTORE_FILE};
+use crate::db::{cipher_version, commit_swap, export_verified, has_pin_file, key_opens, open_pool, pin_tmp, Dbs, Key, CORRUPT};
+use crate::{active, is_safety_copy_of, remove_if_exists, valid_profile, write_atomic, LEGACY_DB, LEGACY_ID, RESTORE_FILE};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::Manager;
+use tauri::{Manager, State};
 
 /// Argon2id(PIN, sal) → 64 bytes: os 32 primeiros abrem o banco, os outros 32 o item do cofre.
 #[derive(Clone)]
@@ -17,7 +17,7 @@ pub struct Keys {
 pub const PINS_FILE: &str = "pins.json";
 const PER_ROUND: u32 = 5;
 const WAITS: [u64; 4] = [60, 300, 900, 3600];
-const LOCKED: &str = "Perfil bloqueado: digite o PIN.";
+pub(crate) const LOCKED: &str = "Perfil bloqueado: digite o PIN.";
 
 /// Sal e tentativas de cada perfil com PIN; fica na pasta de config e só o Rust lê e grava.
 #[derive(Serialize, Deserialize, Default)]
@@ -48,6 +48,8 @@ pub(crate) static RESTORE: Mutex<Option<Key>> = Mutex::new(None);
 static CHECKING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 // toda gravação do pins.json, e a reconstrução do ilegível, uma de cada vez (sem await dentro)
 static PINS_WRITE: Mutex<()> = Mutex::new(());
+// ligar, trocar e tirar o PIN um de cada vez: duas trocas cruzadas deixariam o cofre com a chave de um PIN que já não abre o banco
+static PIN_OPS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn err(e: impl ToString) -> String {
     e.to_string()
@@ -65,15 +67,16 @@ pub fn hex(b: &[u8]) -> String {
     b.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn salt_from_hex(s: &str) -> Option<[u8; 16]> {
-    if s.len() != 32 || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
+pub fn unhex(s: &str) -> Option<Vec<u8>> {
+    // o from_str_radix aceitaria um "+" na frente
+    if !s.len().is_multiple_of(2) || !s.bytes().all(|b| b.is_ascii_hexdigit()) {
         return None;
     }
-    let mut out = [0u8; 16];
-    for (i, b) in out.iter_mut().enumerate() {
-        *b = u8::from_str_radix(&s[2 * i..2 * i + 2], 16).ok()?;
-    }
-    Some(out)
+    (0..s.len()).step_by(2).map(|i| u8::from_str_radix(&s[i..i + 2], 16).ok()).collect()
+}
+
+fn salt_from_hex(s: &str) -> Option<[u8; 16]> {
+    unhex(s)?.try_into().ok()
 }
 
 pub fn derive(pin: &str, salt: &[u8; 16]) -> Result<Keys, String> {
@@ -226,7 +229,6 @@ pub fn key_for(dir: &Path, file: &str) -> Result<Option<Key>, String> {
     Err(if has_salt { LOCKED } else { CORRUPT }.into())
 }
 
-#[cfg_attr(not(test), allow(dead_code))] // o cofre cifrado pelo PIN (Task 3) usa
 pub fn vault_key_for(id: &str) -> Option<Key> {
     UNLOCKED.lock().ok()?.as_ref().filter(|(u, _)| u == id).map(|(_, k)| k.vault)
 }
@@ -284,6 +286,217 @@ pub async fn profile_unlock(app: tauri::AppHandle, id: String, db_file: String, 
     Ok(result)
 }
 
+/// Lê, muda e grava o `pins.json` sob a trava das tentativas de PIN; `change` diz se mudou (sem mudança não grava).
+pub(crate) async fn update_pins(dir: &Path, change: impl FnOnce(&mut PinsFile) -> bool) -> Result<(), String> {
+    let _checking = CHECKING.lock().await;
+    let mut f = read_pins(dir)?;
+    if change(&mut f) {
+        write_pins(dir, &f)?;
+    }
+    Ok(())
+}
+
+fn file_of(id: &str) -> Option<String> {
+    let db_file = if id == LEGACY_ID { LEGACY_DB.into() } else { format!("perfil-{id}.db") };
+    valid_profile(id, &db_file).then_some(db_file)
+}
+
+/// No startup: entrada no `pins.json` com o banco em claro é um crash entre a troca do arquivo e o `pins.json`; sai, senão todo PIN contaria como erro.
+pub async fn forget_plain_pins(dir: &Path) -> Result<(), String> {
+    let plain = |id: &str| file_of(id).is_some_and(|f| crate::starts_with(&dir.join(f), crate::SQLITE_MAGIC).unwrap_or(false));
+    update_pins(dir, |f| {
+        let before = f.profiles.len();
+        f.profiles.retain(|id, _| !plain(id));
+        f.profiles.len() != before
+    })
+    .await
+}
+
+/// Recria o banco com a chave `to` em `<db_file>.pin-tmp`, confere e troca pelo original.
+pub async fn rekey_in(dir: &Path, db_file: &str, from: Option<&Key>, to: Option<&Key>) -> Result<(), String> {
+    let tmp = pin_tmp(dir, db_file);
+    export_verified(&dir.join(db_file), from, &tmp, to).await?;
+    commit_swap(dir, db_file, &tmp).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })
+}
+
+/// As cópias de segurança do restore (`seguranca-*`) de `db_file`; com o PIN ligado, as em claro não ficam no disco.
+pub fn remove_plain_safety_copies(dir: &Path, db_file: &str) -> Result<(), String> {
+    for entry in std::fs::read_dir(dir).map_err(err)? {
+        let path = entry.map_err(err)?.path();
+        if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| is_safety_copy_of(n, db_file)) {
+            remove_if_exists(&path)?;
+        }
+    }
+    Ok(())
+}
+
+/// O PIN só muda no perfil aberto.
+fn only_active(id: &str, db_file: &str) -> Result<(), String> {
+    if !valid_profile(id, db_file) || active()?.0 != id {
+        return Err("Perfil inválido.".into());
+    }
+    Ok(())
+}
+
+async fn derive_async(pin: &str, salt: [u8; 16]) -> Result<Keys, String> {
+    let pin = pin.to_owned();
+    tauri::async_runtime::spawn_blocking(move || derive(&pin, &salt)).await.map_err(err)?
+}
+
+async fn reseal(from: Option<Key>, to: Option<Key>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || crate::reseal_vault(from.as_ref(), to.as_ref())).await.map_err(err)?
+}
+
+fn set_unlocked(v: Option<(String, Keys)>) {
+    // trava envenenada não impede de trocar as chaves: o banco já está com a chave nova
+    *UNLOCKED.lock().unwrap_or_else(|e| e.into_inner()) = v;
+}
+
+/// Fecha o pool do banco, roda `op` e reabre com a chave do estado final, também se `op` falhar: o `db` do DataProvider segue valendo.
+/// Segura a trava dos pools o tempo todo: nenhum `db_load` abre o arquivo no meio da troca. Devolve (op, reabertura).
+async fn with_pool_closed(
+    dbs: &Dbs,
+    dir: &Path,
+    db_file: &str,
+    op: impl std::future::Future<Output = Result<(), String>>,
+) -> (Result<(), String>, Result<(), String>) {
+    let mut map = dbs.0.lock().await;
+    if let Some(p) = map.remove(db_file) {
+        p.close().await;
+    }
+    let r = op.await;
+    let reopened = match key_for(dir, db_file) {
+        Ok(key) => open_pool(&dir.join(db_file), key.as_ref()).await.map(|p| {
+            map.insert(db_file.into(), p);
+        }),
+        Err(e) => Err(e),
+    };
+    (r, reopened)
+}
+
+pub async fn set_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, pin: &str) -> Result<(), String> {
+    let _op = PIN_OPS.lock().await;
+    only_active(id, db_file)?;
+    if !valid_pin(pin) {
+        return Err("O PIN tem 4 dígitos.".into());
+    }
+    if !pin_supported().await {
+        return Err("PIN indisponível nesta instalação: o Yield não encontrou a criptografia do banco (SQLCipher).".into());
+    }
+    if has_pin_file(&dir.join(db_file))? {
+        return Err("Este perfil já tem PIN.".into());
+    }
+    // o sal no disco antes do banco cifrado: um crash depois do rename não deixa o banco sem sal
+    let mut salt = [0u8; 16];
+    update_pins(dir, |f| {
+        salt = f.profiles.get(id).and_then(|s| salt_from_hex(&s.salt)).unwrap_or_else(|| {
+            use aes_gcm::aead::{rand_core::RngCore, OsRng};
+            let mut new = [0u8; 16];
+            OsRng.fill_bytes(&mut new);
+            new
+        });
+        f.profiles.insert(id.into(), PinState { salt: hex(&salt), fails: 0, until: 0 });
+        true
+    })
+    .await?;
+    write_salt_copy(dir, db_file, &salt)?;
+    let keys = derive_async(pin, salt).await?;
+    let (swapped, reopened) = with_pool_closed(dbs, dir, db_file, async {
+        rekey_in(dir, db_file, None, Some(&keys.db)).await?;
+        set_unlocked(Some((id.into(), keys.clone())));
+        Ok(())
+    })
+    .await;
+    if let Err(e) = swapped {
+        // o banco segue em claro: o pins.json volta a dizer o mesmo
+        let _ = update_pins(dir, |f| f.profiles.remove(id).is_some()).await;
+        return Err(e);
+    }
+    reseal(None, Some(keys.vault)).await?;
+    remove_plain_safety_copies(dir, db_file)?;
+    reopened
+}
+
+/// Confere o PIN atual (conta no limite) e deixa as chaves dele como as do perfil desbloqueado; `Err(resultado)` se não abriu.
+async fn current_keys(dir: &Path, id: &str, db_file: &str, current: &str, now: u64) -> Result<Result<Keys, Unlock>, String> {
+    only_active(id, db_file)?;
+    if !has_pin_file(&dir.join(db_file))? {
+        return Err("Este perfil não tem PIN.".into());
+    }
+    let (result, keys) = check_pin_in(dir, id, db_file, current, now).await?;
+    let Some(keys) = keys else { return Ok(Err(result)) };
+    set_unlocked(Some((id.into(), keys.clone())));
+    Ok(Ok(keys))
+}
+
+pub async fn change_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, current: &str, next: &str, now: u64) -> Result<Unlock, String> {
+    if !valid_pin(next) {
+        return Err("O PIN tem 4 dígitos.".into());
+    }
+    let _op = PIN_OPS.lock().await;
+    let old = match current_keys(dir, id, db_file, current, now).await? {
+        Ok(keys) => keys,
+        Err(result) => return Ok(result),
+    };
+    // o mesmo sal: o check_pin_in acabou de gravá-lo no pins.json
+    let salt = read_pins(dir)?.profiles.get(id).and_then(|s| salt_from_hex(&s.salt)).ok_or(CORRUPT)?;
+    let next = derive_async(next, salt).await?;
+    // o cofre em claro durante a troca: um crash no meio não o deixa cifrado com uma chave que nenhum PIN gera
+    reseal(Some(old.vault), None).await?;
+    let (swapped, reopened) = with_pool_closed(dbs, dir, db_file, async {
+        rekey_in(dir, db_file, Some(&old.db), Some(&next.db)).await?;
+        set_unlocked(Some((id.into(), next.clone())));
+        Ok(())
+    })
+    .await;
+    if let Err(e) = swapped {
+        // o banco segue com o PIN atual: o cofre volta a ser dele
+        let _ = reseal(None, Some(old.vault)).await;
+        return Err(e);
+    }
+    reseal(None, Some(next.vault)).await?;
+    reopened.map(|_| Unlock::Ok)
+}
+
+pub async fn remove_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, current: &str, now: u64) -> Result<Unlock, String> {
+    let _op = PIN_OPS.lock().await;
+    let old = match current_keys(dir, id, db_file, current, now).await? {
+        Ok(keys) => keys,
+        Err(result) => return Ok(result),
+    };
+    reseal(Some(old.vault), None).await?;
+    let (swapped, reopened) = with_pool_closed(dbs, dir, db_file, async {
+        rekey_in(dir, db_file, Some(&old.db), None).await?;
+        set_unlocked(None);
+        Ok(())
+    })
+    .await;
+    if let Err(e) = swapped {
+        let _ = reseal(None, Some(old.vault)).await;
+        return Err(e);
+    }
+    update_pins(dir, |f| f.profiles.remove(id).is_some()).await?;
+    remove_if_exists(&salt_copy(dir, db_file))?;
+    reopened.map(|_| Unlock::Ok)
+}
+
+#[tauri::command]
+pub async fn profile_set_pin(app: tauri::AppHandle, state: State<'_, Dbs>, id: String, db_file: String, pin: String) -> Result<(), String> {
+    set_pin_in(&state, &app.path().app_config_dir().map_err(err)?, &id, &db_file, &pin).await
+}
+
+#[tauri::command]
+pub async fn profile_change_pin(app: tauri::AppHandle, state: State<'_, Dbs>, id: String, db_file: String, current: String, next: String) -> Result<Unlock, String> {
+    change_pin_in(&state, &app.path().app_config_dir().map_err(err)?, &id, &db_file, &current, &next, now()?).await
+}
+
+#[tauri::command]
+pub async fn profile_remove_pin(app: tauri::AppHandle, state: State<'_, Dbs>, id: String, db_file: String, current: String) -> Result<Unlock, String> {
+    remove_pin_in(&state, &app.path().app_config_dir().map_err(err)?, &id, &db_file, &current, now()?).await
+}
+
 #[cfg(test)]
 pub(crate) mod testutil {
     use super::*;
@@ -333,8 +546,8 @@ pub(crate) mod testutil {
 mod tests {
     use super::testutil::*;
     use super::*;
-    use crate::db::testutil::file_has;
-    use crate::db::testutil::MARKER;
+    use crate::db::testutil::{file_has, is_plain_header, tmp, MARKER};
+    use crate::db::{cleanup_pin_tmp, select};
 
     #[test]
     fn espera_cresce_a_cada_rodada_de_5_erros() {
@@ -482,5 +695,155 @@ mod tests {
         assert_eq!(read_salt_copy(&dir, "perfil-abcd1234.db"), None); // PIN errado não grava nada fora do pins.json
         check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "1234", 1000).await.unwrap();
         assert_eq!(read_salt_copy(&dir, "perfil-abcd1234.db"), Some(SALT));
+    }
+
+    #[tokio::test]
+    async fn ligar_pin_nao_deixa_texto_claro() {
+        let dir = em_claro("perfil-abcd1234.db").await;
+        let k = derive("1234", &SALT).unwrap();
+        rekey_in(&dir, "perfil-abcd1234.db", None, Some(&k.db)).await.unwrap();
+        let db = dir.join("perfil-abcd1234.db");
+        assert!(!is_plain_header(&db) && !file_has(&db, MARKER) && !file_has(&db, "CREATE TABLE"));
+        assert!(!key_opens(&db, &derive("9999", &SALT).unwrap().db).await.unwrap());
+        let pool = open_pool(&db, Some(&k.db)).await.unwrap();
+        assert_eq!(select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"], MARKER);
+        assert!(!pin_tmp(&dir, "perfil-abcd1234.db").exists());
+    }
+
+    #[tokio::test]
+    async fn trocar_e_tirar_o_pin() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let (a, b) = (derive("1234", &SALT).unwrap(), derive("5678", &SALT).unwrap());
+        let db = dir.join("perfil-abcd1234.db");
+        rekey_in(&dir, "perfil-abcd1234.db", Some(&a.db), Some(&b.db)).await.unwrap();
+        assert!(!key_opens(&db, &a.db).await.unwrap() && key_opens(&db, &b.db).await.unwrap());
+        rekey_in(&dir, "perfil-abcd1234.db", Some(&b.db), None).await.unwrap();
+        assert!(is_plain_header(&db) && file_has(&db, MARKER));
+    }
+
+    #[tokio::test]
+    async fn crash_antes_do_rename_mantem_o_banco_antigo() {
+        let dir = em_claro("perfil-abcd1234.db").await;
+        let db = dir.join("perfil-abcd1234.db");
+        let k = derive("1234", &SALT).unwrap();
+        let tmp = pin_tmp(&dir, "perfil-abcd1234.db");
+        export_verified(&db, None, &tmp, Some(&k.db)).await.unwrap(); // "crash" aqui
+        cleanup_pin_tmp(&dir); // próximo startup
+        assert!(!tmp.exists());
+        assert!(is_plain_header(&db) && file_has(&db, MARKER));
+        let pool = open_pool(&db, None).await.unwrap();
+        assert_eq!(select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"], MARKER);
+        pool.close().await;
+        // trocando o PIN: o original segue abrindo com a chave antiga
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let db = dir.join("perfil-abcd1234.db");
+        let tmp = pin_tmp(&dir, "perfil-abcd1234.db");
+        export_verified(&db, Some(&k.db), &tmp, Some(&derive("5678", &SALT).unwrap().db)).await.unwrap();
+        std::fs::write(dir.join("perfil-abcd1234.db.pin-tmp-journal"), "x").unwrap();
+        cleanup_pin_tmp(&dir);
+        assert!(!tmp.exists() && !dir.join("perfil-abcd1234.db.pin-tmp-journal").exists());
+        let pool = open_pool(&db, Some(&k.db)).await.unwrap();
+        assert_eq!(select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"], MARKER);
+    }
+
+    #[tokio::test]
+    async fn erro_na_copia_nao_deixa_o_temporario() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let tmp = pin_tmp(&dir, "perfil-abcd1234.db");
+        let errada = derive("9999", &SALT).unwrap();
+        assert!(rekey_in(&dir, "perfil-abcd1234.db", Some(&errada.db), None).await.is_err());
+        assert!(!tmp.exists() && key_opens(&dir.join("perfil-abcd1234.db"), &derive("1234", &SALT).unwrap().db).await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn crash_depois_do_rename_vale_o_cabecalho() {
+        let dir = em_claro("perfil-abcd1234.db").await;
+        let mut f = PinsFile::default();
+        f.profiles.insert("abcd1234".into(), PinState { salt: hex(&SALT), fails: 0, until: 0 }); // sal gravado antes do swap
+        write_pins(&dir, &f).unwrap();
+        rekey_in(&dir, "perfil-abcd1234.db", None, Some(&derive("1234", &SALT).unwrap().db)).await.unwrap(); // "crash": cofre não regravado
+        assert!(has_pin_file(&dir.join("perfil-abcd1234.db")).unwrap());
+        assert_eq!(check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "1234", 1000).await.unwrap().0, Unlock::Ok);
+    }
+
+    #[tokio::test]
+    async fn troca_recusa_journal_quente() {
+        let dir = em_claro("perfil-abcd1234.db").await;
+        let tmp = pin_tmp(&dir, "perfil-abcd1234.db");
+        export_verified(&dir.join("perfil-abcd1234.db"), None, &tmp, Some(&derive("1234", &SALT).unwrap().db)).await.unwrap();
+        std::fs::write(dir.join("perfil-abcd1234.db-journal"), "x").unwrap();
+        assert!(commit_swap(&dir, "perfil-abcd1234.db", &tmp).is_err());
+        assert!(is_plain_header(&dir.join("perfil-abcd1234.db")));
+    }
+
+    #[test]
+    fn ligar_pin_apaga_copias_em_claro_do_perfil() {
+        let dir = tmp("pin-copias");
+        let dele = ["seguranca-perfil-abcd1234-1793000000.db", "seguranca-perfil-abcd1234-1793000000.db-wal"];
+        let ficam = ["seguranca-yield-1793000000.db", "seguranca-1700000000.db", "seguranca-perfil-zzzz9999-1793000000.db"];
+        for f in dele.iter().chain(&ficam) { std::fs::write(dir.join(f), "x").unwrap(); }
+        remove_plain_safety_copies(&dir, "perfil-abcd1234.db").unwrap();
+        assert!(dele.iter().all(|f| !dir.join(f).exists()) && ficam.iter().all(|f| dir.join(f).exists()));
+        remove_plain_safety_copies(&dir, "yield.db").unwrap(); // o principal leva também as legadas sem stem
+        assert!(!dir.join("seguranca-1700000000.db").exists() && dir.join("seguranca-perfil-zzzz9999-1793000000.db").exists());
+    }
+
+    #[tokio::test]
+    async fn startup_tira_do_pins_json_o_perfil_em_claro() {
+        let dir = em_claro("perfil-abcd1234.db").await;
+        forget_plain_pins(&dir).await.unwrap();
+        assert!(!dir.join(PINS_FILE).exists()); // quem não usa PIN não ganha pins.json
+        let pool = open_pool(&dir.join("yield.db"), Some(&derive("1234", &SALT).unwrap().db)).await.unwrap();
+        crate::db::execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        pool.close().await;
+        let mut f = PinsFile::default();
+        for id in ["abcd1234", "principal", "zzzz9999"] {
+            f.profiles.insert(id.into(), PinState { salt: hex(&SALT), fails: 2, until: 0 });
+        }
+        write_pins(&dir, &f).unwrap();
+        forget_plain_pins(&dir).await.unwrap();
+        // o em claro sai; o cifrado e o de arquivo ausente ficam
+        assert_eq!(read_pins(&dir).unwrap().profiles.keys().collect::<Vec<_>>(), ["principal", "zzzz9999"]);
+    }
+
+    #[tokio::test]
+    async fn ligar_trocar_e_tirar_pelo_comando() {
+        let _g = globals();
+        keyring::set_default_credential_builder(keyring::mock::default_credential_builder()); // nunca o Keychain de verdade
+        let (id, file) = ("abcd1234", "perfil-abcd1234.db");
+        let dir = em_claro(file).await;
+        let db = dir.join(file);
+        std::fs::write(dir.join("seguranca-perfil-abcd1234-1793000000.db"), "x").unwrap();
+        let dbs = Dbs::default();
+        crate::set_active(id.into(), file.into()).unwrap();
+        crate::db::load_in(&dbs, &dir, file).await.unwrap();
+        let marker = |dbs: &Dbs| {
+            let pool = dbs.0.try_lock().unwrap().get(file).cloned().unwrap();
+            async move { select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"].clone() }
+        };
+        assert_eq!(set_pin_in(&dbs, &dir, "zzzz9999", "perfil-zzzz9999.db", "1234").await.unwrap_err(), "Perfil inválido.");
+
+        set_pin_in(&dbs, &dir, id, file, "1234").await.unwrap();
+        let salt = salt_from_hex(&read_pins(&dir).unwrap().profiles[id].salt).unwrap();
+        assert_eq!(read_salt_copy(&dir, file), Some(salt));
+        assert!(has_pin_file(&db).unwrap() && !file_has(&db, MARKER));
+        assert!(!dir.join("seguranca-perfil-abcd1234-1793000000.db").exists());
+        assert_eq!(marker(&dbs).await, MARKER); // o pool voltou aberto, com a chave nova
+        assert_eq!(set_pin_in(&dbs, &dir, id, file, "1234").await.unwrap_err(), "Este perfil já tem PIN.");
+
+        let antes = std::fs::read(&db).unwrap();
+        assert!(matches!(change_pin_in(&dbs, &dir, id, file, "9999", "5678", 1000).await.unwrap(), Unlock::Wrong { .. }));
+        assert_eq!(std::fs::read(&db).unwrap(), antes);
+        assert_eq!(change_pin_in(&dbs, &dir, id, file, "1234", "5678", 1000).await.unwrap(), Unlock::Ok);
+        assert!(key_opens(&db, &derive("5678", &salt).unwrap().db).await.unwrap());
+        assert_eq!(read_pins(&dir).unwrap().profiles[id].fails, 0);
+        assert_eq!(marker(&dbs).await, MARKER);
+
+        assert_eq!(remove_pin_in(&dbs, &dir, id, file, "5678", 1000).await.unwrap(), Unlock::Ok);
+        assert!(is_plain_header(&db) && !read_pins(&dir).unwrap().profiles.contains_key(id) && read_salt_copy(&dir, file).is_none());
+        assert!(UNLOCKED.lock().unwrap().is_none());
+        assert_eq!(marker(&dbs).await, MARKER);
+        assert_eq!(remove_pin_in(&dbs, &dir, id, file, "5678", 1000).await.unwrap_err(), "Este perfil não tem PIN.");
+        *crate::ACTIVE.lock().unwrap() = None;
     }
 }

@@ -179,15 +179,22 @@ pub async fn close_others(dbs: &Dbs, keep: &str) {
 
 /// O nome vem do webview: só o banco do perfil aberto ou o backup em importação, sempre na pasta do app (como o plugin).
 fn db_dir(app: &tauri::AppHandle, file: &str) -> Result<PathBuf, String> {
-    if file != crate::active()?.1 && file != crate::RESTORE_FILE {
-        return Err("Banco fora do perfil aberto.".into());
-    }
+    open_allowed(file)?;
     let dir = app.path().app_config_dir().map_err(err)?;
     std::fs::create_dir_all(&dir).map_err(err)?;
     Ok(dir)
 }
 
+fn open_allowed(file: &str) -> Result<(), String> {
+    if file != crate::active()?.1 && file != crate::RESTORE_FILE {
+        return Err("Banco fora do perfil aberto.".into());
+    }
+    Ok(())
+}
+
+/// Pool de `file`, só do perfil aberto ou do backup em importação: um pool que sobrou de outro perfil não responde.
 async fn pool_of(dbs: &Dbs, file: &str) -> Result<SqlitePool, String> {
+    open_allowed(file)?;
     dbs.0.lock().await.get(file).cloned().ok_or_else(|| "Banco não está aberto.".into())
 }
 
@@ -200,16 +207,111 @@ pub async fn db_load(app: tauri::AppHandle, state: State<'_, Dbs>, file: String)
 pub async fn load_in(dbs: &Dbs, dir: &Path, file: &str) -> Result<(), String> {
     // a chave antes do atalho: um pool que ficou aberto não dispensa o PIN
     let key = crate::pin::key_for(dir, file)?;
+    // a trava durante a abertura toda: a troca do PIN (que também a segura) não acontece no meio
+    let mut map = dbs.0.lock().await;
     // o StrictMode do React carrega duas vezes: o segundo não fecha o pool que o primeiro já entregou
-    if dbs.0.lock().await.contains_key(file) {
+    if map.contains_key(file) {
         return Ok(());
     }
     let pool = open_pool(&dir.join(file), key.as_ref()).await?;
-    let old = dbs.0.lock().await.insert(file.into(), pool);
-    if let Some(old) = old {
-        old.close().await;
+    // o perfil pode ter mudado enquanto abria: o pool de um perfil que não está mais aberto não fica
+    if open_allowed(file).is_err() {
+        pool.close().await;
+        return Err(crate::pin::LOCKED.into());
+    }
+    map.insert(file.into(), pool);
+    Ok(())
+}
+
+/// `<db_file>.pin-tmp`: o banco recriado com a chave nova, antes de tomar o lugar do original.
+pub fn pin_tmp(dir: &Path, db_file: &str) -> PathBuf {
+    dir.join(format!("{db_file}.pin-tmp"))
+}
+
+const PIN_TMP_SUFFIXES: [&str; 4] = [".pin-tmp", ".pin-tmp-journal", ".pin-tmp-wal", ".pin-tmp-shm"];
+
+fn remove_tmp(to: &Path) -> Result<(), String> {
+    for ext in ["", "-journal", "-wal", "-shm"] {
+        let mut p = to.as_os_str().to_owned();
+        p.push(ext);
+        crate::remove_if_exists(Path::new(&p))?;
     }
     Ok(())
+}
+
+/// Com chave, o arquivo novo não pode ter o cabeçalho em claro: um SQLite sem criptografia ignora a `KEY`.
+fn refuse_plain(path: &Path, key: Option<&Key>) -> Result<(), String> {
+    if key.is_some() && crate::starts_with(path, crate::SQLITE_MAGIC)? {
+        return Err("A criptografia do banco não está ativa nesta instalação; nada foi alterado.".into());
+    }
+    Ok(())
+}
+
+/// Copia `from` para `to` (novo) com outra chave e confere a cópia; em qualquer erro `to` some.
+pub async fn export_verified(from: &Path, from_key: Option<&Key>, to: &Path, to_key: Option<&Key>) -> Result<(), String> {
+    let r = export_into(from, from_key, to, to_key).await;
+    if r.is_err() {
+        let _ = remove_tmp(to);
+    }
+    r
+}
+
+async fn export_into(from: &Path, from_key: Option<&Key>, to: &Path, to_key: Option<&Key>) -> Result<(), String> {
+    remove_tmp(to)?;
+    // a conexão em `from` não tem permissão de criar arquivo (não cria um banco que sumiu): o ATTACH abre um vazio
+    std::fs::File::create(to).map_err(err)?;
+    let mut opts = SqliteConnectOptions::new().filename(from);
+    if from_key.is_some() {
+        opts = opts.pragma("key", key_sql(from_key));
+    }
+    let mut conn = sqlx::SqliteConnection::connect_with(&opts).await.map_err(err)?;
+    let copied = async {
+        // a primeira leitura desfaz um `-journal` quente: a cópia sai do banco consistente
+        sqlx::query("SELECT count(*) FROM sqlite_master").execute(&mut conn).await?;
+        sqlx::query(&format!("ATTACH DATABASE ? AS dst KEY {}", key_sql(to_key))).bind(to.to_string_lossy().into_owned()).execute(&mut conn).await?;
+        sqlx::query("SELECT sqlcipher_export('dst')").execute(&mut conn).await?;
+        sqlx::query("DETACH DATABASE dst").execute(&mut conn).await
+    }
+    .await;
+    let _ = conn.close().await;
+    copied.map_err(err)?;
+    refuse_plain(to, to_key)?;
+    let mut opts = SqliteConnectOptions::new().filename(to);
+    if to_key.is_some() {
+        opts = opts.pragma("key", key_sql(to_key));
+    }
+    let mut conn = sqlx::SqliteConnection::connect_with(&opts).await.map_err(err)?;
+    let check = sqlx::query_scalar::<_, String>("PRAGMA integrity_check").fetch_one(&mut conn).await;
+    let _ = conn.close().await;
+    if check.map_err(err)? != "ok" {
+        return Err(CORRUPT.into());
+    }
+    std::fs::File::open(to).and_then(|f| f.sync_all()).map_err(err)
+}
+
+/// Põe `tmp` no lugar de `<dir>/<db_file>`: o rename é atômico, então um crash deixa o banco velho ou o novo, inteiro.
+pub fn commit_swap(dir: &Path, db_file: &str, tmp: &Path) -> Result<(), String> {
+    for ext in ["-journal", "-wal"] {
+        if dir.join(format!("{db_file}{ext}")).exists() {
+            // seria aplicado sobre o arquivo novo, que é outro banco
+            return Err("O banco ainda tem transações pendentes; feche e abra o Yield e tente de novo.".into());
+        }
+    }
+    std::fs::rename(tmp, dir.join(db_file)).map_err(err)?;
+    // depois do rename a troca já valeu: `Err` aqui faria quem chama achar que o banco ainda tem a chave antiga
+    #[cfg(unix)]
+    let _ = std::fs::File::open(dir).and_then(|d| d.sync_all());
+    Ok(())
+}
+
+/// No startup: um `.pin-tmp` é uma troca de PIN que não chegou ao rename; o banco original segue valendo.
+pub fn cleanup_pin_tmp(dir: &Path) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if PIN_TMP_SUFFIXES.iter().any(|s| name.ends_with(s)) {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
 }
 
 #[tauri::command]
@@ -345,5 +447,35 @@ mod tests {
         assert_eq!(open_pool(&dir.join("c.db"), Some(&other)).await.unwrap_err(), CORRUPT);
         std::fs::write(dir.join("lixo.db"), [0xAB; 4096]).unwrap();
         assert_eq!(open_pool(&dir.join("lixo.db"), None).await.unwrap_err(), CORRUPT);
+    }
+
+    #[tokio::test]
+    async fn com_chave_recusa_copia_em_claro() {
+        let dir = tmp("refuse-plain");
+        let pool = open_pool(&dir.join("claro.db"), None).await.unwrap();
+        execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        pool.close().await;
+        assert_eq!(refuse_plain(&dir.join("claro.db"), Some(&[7u8; 32])).unwrap_err(), "A criptografia do banco não está ativa nesta instalação; nada foi alterado.");
+        assert!(refuse_plain(&dir.join("claro.db"), None).is_ok());
+        std::fs::write(dir.join("cifrado.db"), [0xAB; 64]).unwrap();
+        assert!(refuse_plain(&dir.join("cifrado.db"), Some(&[7u8; 32])).is_ok());
+    }
+
+    #[tokio::test]
+    async fn pool_so_do_perfil_aberto() {
+        let _g = crate::pin::testutil::globals();
+        let dir = crate::pin::testutil::em_claro("perfil-abcd1234.db").await;
+        let dbs = Dbs::default();
+        *crate::ACTIVE.lock().unwrap() = Some(("abcd1234".into(), "perfil-abcd1234.db".into()));
+        load_in(&dbs, &dir, "perfil-abcd1234.db").await.unwrap();
+        assert!(pool_of(&dbs, "perfil-abcd1234.db").await.is_ok());
+        // outro perfil ativado (sem o close_others ainda): o pool que sobrou não responde
+        *crate::ACTIVE.lock().unwrap() = Some(("zzzz9999".into(), "perfil-zzzz9999.db".into()));
+        assert_eq!(pool_of(&dbs, "perfil-abcd1234.db").await.unwrap_err(), "Banco fora do perfil aberto.");
+        // abrir o banco de um perfil que deixou de ser o ativo: o pool novo não entra
+        dbs.0.lock().await.clear();
+        assert_eq!(load_in(&dbs, &dir, "perfil-abcd1234.db").await.unwrap_err(), "Perfil bloqueado: digite o PIN.");
+        assert!(dbs.0.lock().await.is_empty());
+        *crate::ACTIVE.lock().unwrap() = None;
     }
 }

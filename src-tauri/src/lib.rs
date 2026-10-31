@@ -290,26 +290,22 @@ fn remove_profile_in(dir: &Path, id: &str, db_file: &str, active_id: &str) -> Re
     if id == active_id {
         return Err("Não dá para apagar o perfil aberto.".into());
     }
-    for ext in ["", "-wal", "-shm"] {
+    // o sal por último: sem ele um banco cifrado que sobrasse não abriria mais
+    for ext in ["", "-wal", "-shm", "-journal", ".pin-tmp", ".pin-tmp-journal", ".pin-tmp-wal", ".pin-tmp-shm", ".salt"] {
         remove_if_exists(&dir.join(format!("{db_file}{ext}")))?;
     }
-    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
-        let path = entry.map_err(|e| e.to_string())?.path();
-        if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| is_safety_copy_of(n, db_file)) {
-            remove_if_exists(&path)?;
-        }
-    }
-    Ok(())
+    pin::remove_plain_safety_copies(dir, db_file)
 }
 
-/// `Err`: algum arquivo ficou e o cofre nem foi tocado. `Ok(Some(erro))`: arquivos apagados, mas o item do cofre ficou.
+/// `Err`: algum arquivo ficou e o cofre nem foi tocado. `Ok(Some(erro))`: arquivos apagados, mas o item do cofre (ou a entrada no `pins.json`) ficou.
 #[tauri::command]
-fn profile_remove_files(app: tauri::AppHandle, id: String, db_file: String) -> Result<Option<String>, String> {
+async fn profile_remove_files(app: tauri::AppHandle, id: String, db_file: String) -> Result<Option<String>, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     remove_profile_in(&dir, &id, &db_file, &active()?.0)?;
+    let pins = pin::update_pins(&dir, |f| f.profiles.remove(&id).is_some()).await.err();
     // id já validado acima; entry_for só aceita o item do perfil ativo
     let entry = keyring::Entry::new(SECRET_SERVICE, &vault_key(&id)).map_err(|e| e.to_string());
-    Ok(entry.and_then(|e| delete_with(&e)).err())
+    Ok(entry.and_then(|e| delete_with(&e)).err().or(pins))
 }
 
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
@@ -375,6 +371,56 @@ struct BinanceCreds {
     secret: String,
 }
 
+// Item do cofre de perfil com PIN: "pin1:" + hex(nonce (12) || AES-256-GCM(json)), chave = a parte do cofre do Argon2id do PIN.
+const VAULT_SEALED: &str = "pin1:";
+
+fn seal_vault(json: &str, key: &db::Key) -> Result<String, String> {
+    use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
+    let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
+    let cipher = aes_gcm::Aes256Gcm::new(key.into());
+    let body = cipher.encrypt(&nonce, json.as_bytes()).map_err(|_| "Não foi possível criptografar as credenciais.".to_string())?;
+    Ok(format!("{VAULT_SEALED}{}", pin::hex(&[nonce.as_slice(), &body].concat())))
+}
+
+/// Item sem o prefixo é de antes do PIN (ilegível vale como vazio); cifrado, só abre com a chave certa e nunca vira vazio.
+fn open_vault(raw: &str, key: Option<&db::Key>) -> Result<Vault, String> {
+    use aes_gcm::aead::{Aead, KeyInit};
+    let Some(sealed) = raw.strip_prefix(VAULT_SEALED) else {
+        return Ok(serde_json::from_str(raw).unwrap_or_default());
+    };
+    let key = key.ok_or(pin::LOCKED)?;
+    let bad = || "Não foi possível abrir as credenciais deste perfil com o PIN.".to_string();
+    let data = pin::unhex(sealed).filter(|d| d.len() > 12).ok_or_else(bad)?;
+    let (nonce, body) = data.split_at(12);
+    let json = aes_gcm::Aes256Gcm::new(key.into()).decrypt(nonce.into(), body).map_err(|_| bad())?;
+    serde_json::from_slice(&json).map_err(|_| bad())
+}
+
+/// Grava o item: cifrado quando há chave (perfil com PIN desbloqueado), em claro como antes quando não.
+fn store_vault(entry: &keyring::Entry, v: &Vault, key: Option<&db::Key>) -> Result<(), String> {
+    let json = serde_json::to_string(v).map_err(|e| e.to_string())?;
+    set_with(entry, &match key {
+        Some(k) => seal_vault(&json, k)?,
+        None => json,
+    })
+}
+
+/// Regrava o item do perfil ativo de `from` para `to` e atualiza o cache; sem item, só migra os antigos da Pluggy (já com `to`).
+fn reseal_vault(from: Option<&db::Key>, to: Option<&db::Key>) -> Result<(), String> {
+    let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
+    let entry = entry_for(&vault_key(&active()?.0))?;
+    let v = match get_with(&entry)? {
+        Some(raw) => {
+            let v = open_vault(&raw, from)?;
+            store_vault(&entry, &v, to)?;
+            v
+        }
+        None => read_vault(to)?,
+    };
+    *cache = Some(v);
+    Ok(())
+}
+
 // Cada leitura do Keychain pode abrir o pedido de senha do macOS: lê uma vez por sessão (só guarda se der certo).
 // É do perfil ativo: `profile_activate` zera.
 static VAULT: std::sync::Mutex<Option<Vault>> = std::sync::Mutex::new(None);
@@ -388,18 +434,32 @@ fn load_cached(cache: &mut Option<Vault>) -> Result<Vault, String> {
     if let Some(v) = cache.as_ref() {
         return Ok(v.clone());
     }
+    let v = read_vault(pin::vault_key_for(&active()?.0).as_ref())?;
+    *cache = Some(v.clone());
+    Ok(v)
+}
+
+/// Lê o item do perfil ativo com `key` (a do PIN desbloqueado, ou nenhuma).
+fn read_vault(key: Option<&db::Key>) -> Result<Vault, String> {
     let profile = active()?.0;
-    let key = vault_key(&profile);
-    let v = match get_with(&entry_for(&key)?)? {
+    let entry = entry_for(&vault_key(&profile))?;
+    Ok(match get_with(&entry)? {
         // item ilegível não serve para nada: vale como vazio, e o próximo "Salvar" o sobrescreve
-        Some(raw) => serde_json::from_str(&raw).unwrap_or_default(),
+        Some(raw) => {
+            let v = open_vault(&raw, key)?;
+            // em claro num perfil desbloqueado: sobra de um crash no meio de ligar ou trocar o PIN
+            if key.is_some() && !raw.starts_with(VAULT_SEALED) && v != Vault::default() {
+                store_vault(&entry, &v, key)?;
+            }
+            v
+        }
         // versões até a 0.3: um item por credencial da Pluggy. Passa para o item único e apaga os antigos.
         None if profile == LEGACY_ID => {
             let (id, secret) = (entry_for(OLD_PLUGGY_KEYS[0])?, entry_for(OLD_PLUGGY_KEYS[1])?);
             match (get_with(&id)?, get_with(&secret)?) {
                 (Some(client_id), Some(client_secret)) => {
                     let v = Vault { pluggy: Some(PluggyCreds { client_id, client_secret }), binance: None };
-                    set_with(&entry_for(&key)?, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
+                    store_vault(&entry, &v, key)?;
                     delete_with(&id)?;
                     delete_with(&secret)?;
                     v
@@ -408,20 +468,19 @@ fn load_cached(cache: &mut Option<Vault>) -> Result<Vault, String> {
             }
         }
         None => Vault::default(),
-    };
-    *cache = Some(v.clone());
-    Ok(v)
+    })
 }
 
 fn update_vault(change: impl FnOnce(&mut Vault)) -> Result<(), String> {
     let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
     let mut v = load_cached(&mut cache)?;
     change(&mut v);
-    let entry = entry_for(&vault_key(&active()?.0))?;
+    let profile = active()?.0;
+    let entry = entry_for(&vault_key(&profile))?;
     if v == Vault::default() {
         delete_with(&entry)?;
     } else {
-        set_with(&entry, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
+        store_vault(&entry, &v, pin::vault_key_for(&profile).as_ref())?;
     }
     *cache = Some(v);
     Ok(())
@@ -561,6 +620,8 @@ pub fn run() {
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
                 let _ = discard_restore_in(&dir);
+                db::cleanup_pin_tmp(&dir);
+                let _ = tauri::async_runtime::block_on(pin::forget_plain_pins(&dir));
             }
             if let Ok(dir) = app.path().app_data_dir() {
                 for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
@@ -582,7 +643,7 @@ pub fn run() {
             swap_database, encrypt_backup, is_encrypted_backup, backup_open, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
             profiles_read, profiles_write, profile_activate, profile_remove_files,
             db::db_load, db::db_select, db::db_execute, db::db_close, db::profile_lock,
-            pin::pin_supported, pin::profiles_locks, pin::profile_unlocked, pin::profile_unlock,
+            pin::pin_supported, pin::profiles_locks, pin::profile_unlocked, pin::profile_unlock, pin::profile_set_pin, pin::profile_change_pin, pin::profile_remove_pin,
             ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
         ])
         .build(tauri::generate_context!())
@@ -692,7 +753,8 @@ mod tests {
     #[test]
     fn remover_perfil_apaga_so_os_arquivos_dele() {
         let dir = tmp("perfis-remover");
-        for f in ["yield.db", "yield.db-wal", "perfil-abcd1234.db", "perfil-abcd1234.db-wal", "perfil-abcd1234.db-shm"] {
+        let do_perfil = ["perfil-abcd1234.db", "perfil-abcd1234.db-wal", "perfil-abcd1234.db-shm", "perfil-abcd1234.db.pin-tmp", "perfil-abcd1234.db.salt"];
+        for f in do_perfil.iter().chain(&["yield.db", "yield.db-wal"]) {
             std::fs::write(dir.join(f), "x").unwrap();
         }
         assert!(remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "abcd1234").is_err());
@@ -700,7 +762,7 @@ mod tests {
         assert!(remove_profile_in(&dir, "../x", "perfil-../x.db", "principal").is_err());
         assert!(dir.join("perfil-abcd1234.db").exists());
         remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "principal").unwrap();
-        assert!(!dir.join("perfil-abcd1234.db").exists() && !dir.join("perfil-abcd1234.db-wal").exists() && !dir.join("perfil-abcd1234.db-shm").exists());
+        assert!(do_perfil.iter().all(|f| !dir.join(f).exists()));
         assert!(dir.join("yield.db").exists() && dir.join("yield.db-wal").exists());
         // de novo, sem arquivos: não é erro
         remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "principal").unwrap();
@@ -859,6 +921,17 @@ mod tests {
         assert_eq!(serde_json::from_str::<Vault>("{").unwrap_or_default(), Vault::default());
         // o corpo do /auth é o que a Pluggy espera
         assert_eq!(serde_json::to_string(&full.pluggy.unwrap()).unwrap(), r#"{"clientId":"id","clientSecret":"s"}"#);
+    }
+
+    #[test]
+    fn cofre_cifrado_so_abre_com_a_chave_do_pin() {
+        let (k, outra) = ([7u8; 32], [8u8; 32]);
+        let raw = seal_vault(r#"{"pluggy":{"clientId":"id","clientSecret":"segredo"}}"#, &k).unwrap();
+        assert!(raw.starts_with("pin1:") && !raw.contains("segredo") && !raw.contains("clientSecret"));
+        assert_eq!(open_vault(&raw, Some(&k)).unwrap().pluggy.unwrap().client_secret, "segredo");
+        assert!(open_vault(&raw, None).is_err() && open_vault(&raw, Some(&outra)).is_err());
+        assert!(open_vault(r#"{"binance":{"apiKey":"a","secret":"b"}}"#, None).unwrap().binance.is_some()); // item de antes do PIN
+        assert!(open_vault("pin1:zz", Some(&k)).is_err() && open_vault("pin1:", Some(&k)).is_err());
     }
 
     #[test]
