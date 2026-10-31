@@ -258,7 +258,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance, costState, fetchCryptoCost])
 
-  if (error) return <main className="main"><h1>Yield</h1><div className="note">{error}</div></main>
+  if (error) return <main className="main"><h1>Yield</h1><div className="note" style={{ marginTop: 10 }}>{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

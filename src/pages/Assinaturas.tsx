@@ -8,8 +8,9 @@ import { nextCharges, totalsOfSubscriptions } from './categorias/build'
 import { cleanDescription, NO_FILTER, shortAccountLabel } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, errText } from './lancamentos/GastosHeader'
+import { ico, TINT } from '../ui/palette'
 
-const COLORS = ['#ff7a8a', '#c79bff', '#6fdc8c', '#5fb3ff', '#7fd1d1', '#f5d76e', '#ff9f5a', '#9aa8ff']
+const COLORS = [TINT.coral, TINT.violeta, TINT.verde, TINT.azul, TINT.turquesa, TINT.areia, TINT.ambar, TINT.rosa]
 // cor fixa por nome, para a mesma assinatura ter sempre a mesma cor
 const colorOf = (name: string) => COLORS[[...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]
 
@@ -36,11 +37,11 @@ export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }
   const row = (s: Subscription) => {
     const name = cleanDescription(s.name).name
     const color = colorOf(name)
-    const avatar = <div className="sub-av" style={{ background: `${color}22`, color }} aria-hidden>{name.charAt(0).toUpperCase()}</div>
+    const avatar = <div className="sub-av" style={ico(color)} aria-hidden>{name.charAt(0).toUpperCase()}</div>
     if (confirming === s.merchantKey) return (
       <div key={s.merchantKey} className="srow confirm" role="alert">
         {avatar}
-        <div className="lmid"><div>Excluir <b style={{ color: '#fff' }}>{name}</b> das assinaturas?</div>
+        <div className="lmid"><div>Excluir <b style={{ color: 'var(--strong)' }}>{name}</b> das assinaturas?</div>
           <div className="lsub">Ela não volta a aparecer aqui. Os lançamentos continuam em Lançamentos.</div>
           {error && <div className="note" style={{ marginTop: 6 }}>{error}</div>}</div>
         <span className="btns">

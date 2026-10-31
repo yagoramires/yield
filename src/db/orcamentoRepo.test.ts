@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, tmpPath, type Db } from './testDb'
-import { DEFAULT_PJ, FIXAS_PADRAO, applySource, saveFixedCategories, saveReservaLinks, saveReservas, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
+import { DEFAULT_PJ, FIXAS_PADRAO, addLines, applySource, deleteMonth, saveFixedCategories, saveReservaLinks, saveReservas, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
@@ -135,7 +135,7 @@ describe('migração', () => {
     d.exec("INSERT INTO meta (key, value) VALUES ('orcamento.pj', '{}'); INSERT INTO budget_months VALUES ('2026-01'); INSERT INTO budget_lines (id, month, kind, name, amount_cents, recurring, position, pj_gross_cents) VALUES ('l', '2026-01', 'entrada', 'R', 99, 1, 0, 5)")
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('17')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('18')
     expect(await migrado.select("SELECT 1 FROM meta WHERE key = 'orcamento.pj'")).toEqual([])
     expect((await loadOrcamento(migrado)).lines[0]).toMatchObject({ amountCents: 99, sourceId: null })
   })
@@ -145,7 +145,7 @@ describe('migração', () => {
     for (const f of ['001_init.sql', '002_gastos.sql']) d.exec(readFileSync(new URL(`../../src-tauri/migrations/${f}`, import.meta.url), 'utf8'))
     d.close()
     const migrado = createTestDb(path)
-    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('17')
+    expect((await migrado.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('18')
     expect((await loadOrcamento(migrado)).months).toEqual([])
   })
   test('014 e 015: saída antiga ganha bloco pelo palpite (um teto por categoria; fatura e moradia são fixo), teto e meta viram metas; entrada fica sem; grupo novo é gravado e lido', async () => {
@@ -203,5 +203,23 @@ describe('migração', () => {
     expect((await loadOrcamento(db)).reservas).toEqual(['rdb'])
     await saveReservaLinks(db, { rdb: 'inv-1' })
     expect((await loadOrcamento(db)).reservaLinks).toEqual({ rdb: 'inv-1' })
+  })
+})
+
+describe('excluir mês e copiar para mês vazio', () => {
+  test('deleteMonth apaga o mês, as linhas e as sugestões descartadas dele; os outros meses ficam', async () => {
+    await createMonth(db, '2026-10', [linha('Aluguel')])
+    await createMonth(db, '2026-11', [linha('Luz'), linha('Água')])
+    await dismissSuggestion(db, '2026-11', 'sub:x@2026-11')
+    await deleteMonth(db, '2026-11')
+    const d = await loadOrcamento(db)
+    expect(d.months).toEqual(['2026-10'])
+    expect(d.lines.map(l => l.name)).toEqual(['Aluguel'])
+    expect(d.dismissed).toEqual([])
+  })
+  test('addLines põe as linhas num mês que já existe (vazio) sem recriar', async () => {
+    await createMonth(db, '2026-11', [])
+    await addLines(db, '2026-11', [linha('Luz'), linha('Água', { position: 1 })])
+    expect((await loadOrcamento(db)).lines.map(l => [l.month, l.name])).toEqual([['2026-11', 'Luz'], ['2026-11', 'Água']])
   })
 })

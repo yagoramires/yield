@@ -6222,6 +6222,7 @@ dependencies = [
  "argon2",
  "hmac",
  "keyring",
+ "libc",
  "serde",
  "serde_json",
  "sha2",
@@ -6232,6 +6233,8 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-sql",
  "tauri-plugin-updater",
+ "tokio",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

@@ -1,0 +1,203 @@
+// Fatos do mês para a IA: cada número sai dos mesmos cálculos dos Resumos; o modelo só escolhe o que importa e explica.
+import type { Category, GastosData, Txn } from '../db/gastosRepo'
+import type { OrcamentoData } from '../db/orcamentoRepo'
+import type { RfMove } from '../db/rendaFixaRepo'
+import type { Subscription } from '../domain/assinaturas'
+import { monthTotals } from '../domain/gastos'
+import { addMonths, monthOf, plainBRL } from '../domain/money'
+import { custos, goalsFor, monthSummary } from '../domain/orcamento'
+import { portfolioResult, type Portfolio } from '../domain/portfolio'
+import { rfJurosByMonth } from '../domain/rendaFixa'
+import type { rentOver } from '../domain/rentabilidade'
+import type { Dividend, ISODate, Month } from '../domain/types'
+import { biggestChanges, nextCharges, spentByCategory } from '../pages/categorias/build'
+import { cleanDescription, comparePreviousMonth, cutToDay, monthForecast, spentByMonth, topSpending } from '../pages/lancamentos/build'
+import { spendingPlan } from '../pages/orcamento/build'
+import { passiveCoverage } from '../pages/resumoInvestimentos/build'
+import { byTicker, summary, yieldOnCost } from '../pages/proventos/build'
+import type { Route } from '../ui/routes'
+import { brlS, pctS, pctU } from './fmt'
+
+export interface AiInput {
+  today: ISODate
+  gastos: { data: GastosData; categorize: (t: Txn) => Category | null; subscriptions: Subscription[] }
+  orcamento: OrcamentoData
+  portfolio: Portfolio
+  dividends: Dividend[]
+  rfMoves: RfMove[]
+  rent: ReturnType<typeof rentOver> | null
+}
+
+/** Os do mês escolhido entram no hash do cache; os de agora (cotação, CDI, saldo) mudam toda hora e não. */
+// proventos também: só mudam quando cai um provento novo, então vale comparar os valores
+export const MONTH_KINDS = ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'plano_mes', 'metas', 'maiores_gastos', 'cobrancas', 'proventos_ano', 'proventos_12m', 'proventos_custo', 'proventos_mes'] as const
+export type FactKind = (typeof MONTH_KINDS)[number] | 'carteira' | 'rentabilidade' | 'renda_passiva' | 'saldo_parado'
+export interface Fact { id: string; kind: FactKind; text: string; route: Route; categoryId?: string }
+
+const monthLabel = (m: Month) => `${new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1, 15)).toLocaleString('pt-BR', { month: 'long', timeZone: 'UTC' })} de ${m.slice(0, 4)}`
+const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+
+export type Area = 'gastos' | 'investimentos' | 'orcamento' | 'proventos'
+const AREAS: Record<Area, FactKind[]> = {
+  gastos: ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas', 'saldo_parado'],
+  investimentos: ['carteira', 'rentabilidade', 'renda_passiva'],
+  // sem o 'orcamento' (planejado do spendingPlan × gasto bruto): não é o número da tela do Orçamento e confundia com o plano
+  orcamento: ['plano_mes', 'metas'],
+  proventos: ['proventos_ano', 'proventos_12m', 'proventos_custo', 'proventos_mes'],
+}
+
+/** Fatos de cada tela: Resumo de gastos, Resumo de investimentos (sempre o retrato de hoje) e Orçamento. */
+export const buildFacts = (month: Month, area: Area, input: AiInput): Fact[] =>
+  allFacts(month, input).filter(f => AREAS[area].includes(f.kind))
+
+function allFacts(month: Month, input: AiInput): Fact[] {
+  const { data, categorize: cat, subscriptions } = input.gastos
+  const thisMonth = monthOf(input.today)
+  const isCurrent = month === thisMonth
+  const prev = addMonths(month, -1)
+  const [mes, mesAnt] = [monthLabel(month), monthLabel(prev)]
+  const out: Fact[] = []
+
+  const totals = monthTotals(data.txns, data.accounts, cat, month)
+  if (totals.spentCents > 0 || totals.incomeCents > 0) {
+    const left = totals.incomeCents - totals.spentCents
+    out.push({ id: 'gasto_mes', kind: 'gasto_mes', route: 'gastos-resumo',
+      text: totals.incomeCents > 0
+        ? `Em ${mes}: entradas de ${plainBRL(totals.incomeCents)}; gasto de ${plainBRL(totals.spentCents)} (${pctU((totals.spentCents / totals.incomeCents) * 100)} das entradas); sobrou ${plainBRL(left)} (${pctU((left / totals.incomeCents) * 100)} das entradas).`
+        : `Em ${mes}: gasto de ${plainBRL(totals.spentCents)}, sem entradas registradas.` })
+  }
+
+  const cmp = comparePreviousMonth(data.txns, cat, month, input.today)
+  // mês anterior sem gasto (começo do histórico): comparar daria "+100%" sem sentido
+  if (cmp.previousSameDayCents > 0 && totals.spentCents > 0) {
+    const diff = cmp.currentCents - cmp.previousSameDayCents
+    out.push({ id: 'vs_anterior', kind: 'vs_anterior', route: 'gastos-resumo',
+      text: `Gasto até o dia ${cmp.day}: ${plainBRL(cmp.currentCents)} em ${mes} contra ${plainBRL(cmp.previousSameDayCents)} em ${mesAnt} até o mesmo dia (diferença de ${brlS(diff)}${cmp.previousSameDayCents > 0 ? `, ${pctS((diff / cmp.previousSameDayCents) * 100)}` : ''}).` })
+  }
+
+  // como no Resumo: no mês atual compara com o anterior até o mesmo dia
+  const prevTxns = isCurrent ? cutToDay(data.txns, prev, cmp.day) : data.txns
+  const spendMap = (txns: Txn[], m: Month) => new Map(spentByCategory(txns, data.accounts, cat, data.categories, m).flatMap(r => (r.category && r.countsAsSpending ? [[r.category.id, r.cents] as const] : [])))
+  const [curMap, prevMap] = [spendMap(data.txns, month), spendMap(prevTxns, prev)]
+  const names = new Map(data.categories.map(c => [c.id, c.name]))
+  // sem gasto no mês (ainda não sincronizou, ou antes/depois do histórico) a comparação viraria "caiu 100%"
+  for (const ch of totals.spentCents > 0 && [...prevMap.values()].some(v => v > 0) ? biggestChanges(curMap, prevMap, 3) : []) {
+    const [c, p] = [curMap.get(ch.id) ?? 0, prevMap.get(ch.id) ?? 0]
+    out.push({ id: `variacao_categoria:${ch.id}`, kind: 'variacao_categoria', route: 'lancamentos', categoryId: ch.id,
+      text: `${names.get(ch.id) ?? ch.id}: ${plainBRL(c)} em ${mes} contra ${plainBRL(p)} em ${mesAnt}${isCurrent ? ` até o dia ${cmp.day}` : ''} (diferença de ${brlS(ch.deltaCents)}${ch.pct !== null ? `, ${pctS(ch.pct * 100)}` : ''}).` })
+  }
+
+  const lines = input.orcamento.lines.filter(l => l.month === month)
+  const goals = goalsFor(input.orcamento.goals, input.orcamento.months, month, data.categories)
+  const planned = spendingPlan(lines, data.categories, goals).plannedCents
+  if (planned > 0) {
+    const spent = totals.spentCents
+    const forecast = monthForecast(spent, month, input.today)
+    const fim = forecast !== null
+      ? `No ritmo atual o mês fecha em ${plainBRL(forecast)}, ${plainBRL(Math.abs(forecast - planned))} ${forecast > planned ? 'acima' : 'abaixo'} do planejado.`
+      : spent > planned ? `Passou ${plainBRL(spent - planned)} do planejado.` : `Sobraram ${plainBRL(planned - spent)} do planejado.`
+    out.push({ id: 'orcamento', kind: 'orcamento', route: 'orcamento',
+      text: `Orçamento de ${mes}: planejado ${plainBRL(planned)}, gasto ${plainBRL(spent)} (${pctU((spent / planned) * 100)} do planejado). ${fim}` })
+  }
+
+  if (lines.length) {
+    const p = monthSummary(lines)
+    out.push({ id: 'plano_mes', kind: 'plano_mes', route: 'orcamento',
+      text: `Plano de ${mes}: entradas previstas de ${plainBRL(p.entradasCents)}, saídas planejadas de ${plainBRL(p.saidasCents)}, saldo previsto de ${brlS(p.saldoCents)}.` })
+  }
+
+  // metas por categoria e limite dos variáveis, com o mesmo cálculo da tela do Orçamento
+  const c = custos(input.orcamento.lines, data.txns, cat, month, goals, new Set(input.orcamento.fixedCategories))
+  const meta = (name: string, real: number, goal: number) =>
+    `${name} ${plainBRL(real)} de ${plainBRL(goal)} (${pctU((real / goal) * 100)}, ${real > goal ? `passou ${plainBRL(real - goal)}` : `faltam ${plainBRL(goal - real)}`})`
+  const withGoal = c.variaveis.filter(v => v.goalCents).sort((a, b) => b.realCents / b.goalCents! - a.realCents / a.goalCents!).slice(0, 5)
+  const parts = [...(c.goalCents ? [meta('Limite dos gastos variáveis', c.realCents, c.goalCents)] : []), ...withGoal.map(v => meta(names.get(v.categoryId ?? '') ?? 'Sem categoria', v.realCents, v.goalCents!))]
+  if (parts.length) out.push({ id: 'metas', kind: 'metas', route: 'orcamento', text: `Metas de ${mes}: ${parts.join('; ')}.` })
+
+  const top = topSpending(data.txns, cat, month, 3)
+  if (top.length) {
+    out.push({ id: 'maiores_gastos', kind: 'maiores_gastos', route: 'lancamentos',
+      text: `Maiores gastos de ${mes}: ${top.map(t => `${cleanDescription(t.description).name} ${plainBRL(-t.amountCents)} em ${day(t.date)}`).join('; ')}.` })
+  }
+
+  if (!isCurrent) return out // daqui para baixo é o retrato de hoje: num mês passado confundiria
+
+  const soon = nextCharges(subscriptions, input.today)
+  if (soon.list.length) {
+    out.push({ id: 'cobrancas', kind: 'cobrancas', route: 'assinaturas',
+      text: `Assinaturas nos próximos 30 dias: ${plainBRL(soon.totalCents)} em ${soon.list.length} cobrança${soon.list.length === 1 ? '' : 's'} (${soon.list.slice(0, 3).map(s => `${s.name} ${plainBRL(s.amountCents)} em ${day(s.nextDate)}`).join('; ')}).` })
+  }
+
+  const p = input.portfolio
+  if (p.totalValueCents > 0) {
+    const { gainCents, baseCents } = portfolioResult(p)
+    out.push({ id: 'carteira', kind: 'carteira', route: 'carteira',
+      // valorização como na Carteira (sem os proventos, que o Resumo soma no Resultado)
+      text: `Carteira: patrimônio de ${plainBRL(p.totalValueCents)}; valorização de ${brlS(gainCents)}${baseCents > 0 ? ` (${pctS((gainCents / baseCents) * 100)}) sobre ${plainBRL(baseCents)} investidos` : ''}.` })
+  }
+
+  const r = input.rent
+  if (r && r.carteiraPct !== null && (r.cdiPct !== null || r.ibovPct !== null)) {
+    const vs = r.cdiPct === null ? '' : ` A carteira ficou ${r.carteiraPct >= r.cdiPct ? 'acima' : 'abaixo'} do CDI.`
+    out.push({ id: 'rentabilidade', kind: 'rentabilidade', route: 'investimentos-resumo',
+      text: `Rentabilidade nos últimos 12 meses: carteira de bolsa ${pctS(r.carteiraPct)}${r.cdiPct !== null ? `, CDI ${pctS(r.cdiPct)}` : ''}${r.ibovPct !== null ? `, Ibovespa ${pctS(r.ibovPct)}` : ''}.${vs}` })
+  }
+
+  // mesmo cálculo do Resumo de investimentos: meses fechados de gasto e juros da renda fixa junto dos proventos
+  const juros12m = rfJurosByMonth(input.rfMoves, thisMonth, 12).reduce((s, m) => s + m.cents, 0)
+  const cov = data.txns.length ? passiveCoverage(p.dividends12mCents + juros12m, spentByMonth(data.txns, cat, addMonths(thisMonth, -1), 12).map(m => m.cents)) : null
+  if (cov && cov.avgDividendsCents > 0) {
+    out.push({ id: 'renda_passiva', kind: 'renda_passiva', route: 'investimentos-resumo',
+      text: `Renda passiva: proventos e juros dos últimos 12 meses dão em média ${plainBRL(cov.avgDividendsCents)} por mês, ${pctU(cov.pct * 100)} do gasto médio de ${plainBRL(cov.avgSpentCents)} por mês${cov.gapCents > 0 ? `; faltam ${plainBRL(cov.gapCents)} por mês para cobrir o gasto` : ''}.` })
+  }
+
+  // mesmas contas da tela de Proventos
+  const sm = summary(input.dividends, input.today)
+  if (sm.ytdCents > 0 || sm.ytdPrevCents > 0) {
+    const prevYear = String(Number(sm.year) - 1)
+    const diff = sm.ytdCents - sm.ytdPrevCents
+    out.push({ id: 'proventos_ano', kind: 'proventos_ano', route: 'proventos',
+      text: `Proventos: ${plainBRL(sm.ytdCents)} em ${sm.year} até agora, contra ${plainBRL(sm.ytdPrevCents)} no mesmo período de ${prevYear} (diferença de ${brlS(diff)}${sm.ytdPrevCents > 0 ? `, ${pctS((diff / sm.ytdPrevCents) * 100)}` : ''}).` })
+  }
+  if (sm.last12Cents > 0) {
+    const top = byTicker(sm.last12).slice(0, 3).map(t => `${t.ticker} ${plainBRL(t.totalCents)} (${pctU((t.totalCents / sm.last12Cents) * 100)})`)
+    out.push({ id: 'proventos_12m', kind: 'proventos_12m', route: 'proventos',
+      text: `Proventos nos últimos 12 meses: ${plainBRL(sm.last12Cents)}, média de ${plainBRL(sm.avg12Cents)} por mês. Maiores pagadores: ${top.join('; ')}.` })
+    const yoc = yieldOnCost(sm.last12, p.rows)
+    if (yoc.total !== null) {
+      const best = [...yoc.byTicker].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, v]) => `${t} ${pctU(v * 100)}`)
+      out.push({ id: 'proventos_custo', kind: 'proventos_custo', route: 'proventos',
+        text: `Rendimento sobre o custo nos últimos 12 meses (proventos ÷ quanto custaram as posições de hoje): ${pctU(yoc.total * 100)}${best.length ? `; os que mais rendem: ${best.join(', ')}` : ''}.` })
+    }
+  }
+  const lastYearMonth = addMonths(thisMonth, -12)
+  const inMonth = (m: Month) => input.dividends.filter(d => monthOf(d.payDate) === m && d.payDate <= input.today).reduce((s, d) => s + d.amountCents, 0)
+  const [nowCents, beforeCents] = [inMonth(thisMonth), inMonth(lastYearMonth)]
+  if (nowCents > 0 || beforeCents > 0) {
+    out.push({ id: 'proventos_mes', kind: 'proventos_mes', route: 'proventos',
+      text: `Proventos no mês: ${plainBRL(nowCents)} em ${mes} até agora (o mês ainda não acabou), contra ${plainBRL(beforeCents)} em ${monthLabel(lastYearMonth)} inteiro.` })
+  }
+
+  // saldo como a Pluggy informou, só de banco ainda conectado (como no Resumo); conta por arquivo não tem saldo
+  const contas = data.accounts.filter(a => a.source === 'pluggy' && data.pluggyItems.some(i => i.itemId === a.itemId) && a.kind === 'conta' && (a.balanceCents ?? 0) > 0)
+  if (contas.length) {
+    const total = contas.reduce((s, a) => s + a.balanceCents!, 0)
+    const at = contas.map(a => a.balanceAt).filter(Boolean).sort().at(-1)
+    const rende = r?.cdiMonthPct != null ? ` A 100% do CDI do último mês (${pctU(r.cdiMonthPct)}) esse valor renderia cerca de ${plainBRL(Math.round((total * r.cdiMonthPct) / 100))} por mês.` : ''
+    out.push({ id: 'saldo_parado', kind: 'saldo_parado', route: 'gastos-resumo',
+      text: `Saldo em conta corrente: ${plainBRL(total)} (${[...new Set(contas.map(a => a.institution))].join(', ')}${at ? `, saldo de ${day(at.slice(0, 10))}` : ''}).${rende}` })
+  }
+  return out
+}
+
+/**
+ * SHA-256 dos fatos do mês. Os de agora (cotação, CDI, saldo) mudam a cada 15 min e regerariam a cada visita:
+ * no lugar dos valores, entram só o tipo e o dia, então mudam no máximo uma vez por dia.
+ */
+export async function factsHash(facts: Fact[], today: ISODate): Promise<string> {
+  const isMonth = (f: Fact) => (MONTH_KINDS as readonly string[]).includes(f.kind)
+  const now = facts.filter(f => !isMonth(f)).map(f => f.kind)
+  const key = { own: facts.filter(isMonth), ...(now.length ? { now, today } : {}) }
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(key)))
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
+}

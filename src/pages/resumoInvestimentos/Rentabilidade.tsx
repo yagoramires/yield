@@ -9,12 +9,12 @@ import { yahooSymbol } from '../../quotes/yahoo'
 import { LineChart } from '../../ui/charts'
 import { monthName } from '../lancamentos/GastosHeader'
 
-type Hist = { closes: Map<string, Map<Month, Cents>>; ibov: Map<Month, Cents>; cdi: Map<Month, number>; missing: string[] }
+export type Hist = { closes: Map<string, Map<Month, Cents>>; ibov: Map<Month, Cents>; cdi: Map<Month, number>; missing: string[] }
 
 // shortcut: histórico baixado uma vez por sessão e guardado só em memória; guardar no banco se a abertura ficar lenta.
 const cache = new Map<string, Promise<Hist>>()
 
-function loadHist(tickers: string[], from: Month, to: Month): Promise<Hist> {
+export function loadHist(tickers: string[], from: Month, to: Month): Promise<Hist> {
   const key = `${tickers.join(',')}|${from}|${to}`
   if (!cache.has(key)) {
     const f = tauriFetch as typeof fetch
@@ -34,14 +34,17 @@ function loadHist(tickers: string[], from: Month, to: Month): Promise<Hist> {
   return cache.get(key)!
 }
 
+/** Tickers com histórico a baixar: os mesmos nomes do replay (PETR4F → PETR4) e o novo de cada mudança de ticker. */
+export const histTickers = (trades: Trade[], events: CorporateEvent[]) =>
+  [...new Set([...trades.map(t => normalizeTicker(t.ticker)), ...events.flatMap(e => (e.kind === 'mudanca_ticker' ? [normalizeTicker(e.newTicker)] : []))])].sort()
+
 const pct = (v: number) => `${v >= 100 ? '+' : '−'}${Math.abs(v - 100).toFixed(1).replace('.', ',')}%`
 const last = (vs: (number | null)[]) => [...vs].reverse().find((v): v is number => v !== null) ?? null
 
 /** Carteira de bolsa × CDI × Ibovespa nos últimos 12 meses, os três começando em 100. */
 export function Rentabilidade({ trades, events, dividends, thisMonth }: { trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; thisMonth: Month }) {
   const months = Array.from({ length: 13 }, (_, i) => addMonths(thisMonth, i - 12))
-  // mesmos nomes do replay (PETR4F → PETR4) e o ticker novo de cada mudança de ticker
-  const tickers = [...new Set([...trades.map(t => normalizeTicker(t.ticker)), ...events.flatMap(e => (e.kind === 'mudanca_ticker' ? [normalizeTicker(e.newTicker)] : []))])].sort()
+  const tickers = histTickers(trades, events)
   const [hist, setHist] = useState<Hist | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {

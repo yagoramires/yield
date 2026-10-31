@@ -1,11 +1,11 @@
-import { BriefcaseBusiness, CalendarRange, ChartLine, Coins, FileCheck2, FileText, Landmark, LayoutDashboard, ReceiptText, Repeat, Settings, Tags, type LucideIcon } from 'lucide-react'
+import { BriefcaseBusiness, CalendarRange, ChartLine, Coins, FileCheck2, FileText, Landmark, LayoutDashboard, ReceiptText, Repeat, Settings, Sparkles, Tags, type LucideIcon } from 'lucide-react'
 
-export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'orcamento' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'declaracao' | 'configuracoes'
+export type Route = 'investimentos-resumo' | 'gastos-resumo' | 'lancamentos' | 'assinaturas' | 'categorias' | 'orcamento' | 'carteira' | 'notas' | 'proventos' | 'imposto' | 'declaracao' | 'assistente' | 'configuracoes'
 // módulo que a pessoa pode desligar em Configurações; Sistema fica sempre
 export type Module = 'gastos' | 'orcamento' | 'investimentos'
 
 export const ROUTES: {
-  page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Sistema'
+  page: 'Últimos gastos' | 'Orçamento mensal' | 'Investimentos' | 'Assistente' | 'Sistema'
   module: Module | null
   items: { route: Route | null; label: string; disabled: boolean; icon: LucideIcon }[]
 }[] = [
@@ -30,6 +30,8 @@ export const ROUTES: {
       { route: 'declaracao', label: 'Declaração IR', disabled: false, icon: FileCheck2 },
     ],
   },
+  // fora dos módulos: quem liga e desliga é a escolha de usar IA (primeira abertura ou Configurações › IA local)
+  { page: 'Assistente', module: null, items: [{ route: 'assistente', label: 'Assistente', disabled: false, icon: Sparkles }] },
   { page: 'Sistema', module: null, items: [{ route: 'configuracoes', label: 'Configurações', disabled: false, icon: Settings }] },
 ]
 

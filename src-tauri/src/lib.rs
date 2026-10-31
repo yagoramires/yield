@@ -5,6 +5,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
+mod ai;
+
 /// Troca `yield.db` em `dir` pelo conteúdo de `source`; devolve o caminho da cópia de segurança.
 fn swap_in_dir(dir: &Path, source: &Path) -> Result<PathBuf, String> {
     let err = |e: std::io::Error| e.to_string();
@@ -488,6 +490,12 @@ pub fn run() {
             sql: include_str!("../migrations/017_investimentos_banco.sql"),
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 18,
+            description: "insights da ia",
+            sql: include_str!("../migrations/018_ai_insights.sql"),
+            kind: MigrationKind::Up,
+        },
     ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).
@@ -521,9 +529,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .invoke_handler(tauri::generate_handler![swap_database, encrypt_backup, is_encrypted_backup, decrypt_backup, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .manage(ai::State::default())
+        .invoke_handler(tauri::generate_handler![
+            swap_database, encrypt_backup, is_encrypted_backup, decrypt_backup, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
+            ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                ai::shutdown(app); // o modelo ocupa gigas de memória: não fica rodando depois que o app fecha
+            }
+        });
 }
 
 #[cfg(test)]

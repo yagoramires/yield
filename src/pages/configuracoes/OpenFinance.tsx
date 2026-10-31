@@ -152,7 +152,7 @@ export function OpenFinance() {
   return (
     <div className="card" style={{ marginTop: 12 }}>
       <div className="bar">
-        <b style={{ color: '#fff' }}>Open Finance (Pluggy + Meu Pluggy)</b>
+        <b style={{ color: 'var(--strong)' }}>Open Finance (Pluggy + Meu Pluggy)</b>
         <div className="row" style={{ alignItems: 'center' }}>
           <span className="pill ok">{plural(data.pluggyItems.length, 'banco conectado', 'bancos conectados')}</span>
           {configured && <button className="b" onClick={() => setGuide(true)}>Passo a passo</button>}
@@ -237,7 +237,7 @@ export function Contas() {
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
-      <b style={{ color: '#fff' }}>Contas</b>
+      <b style={{ color: 'var(--strong)' }}>Contas</b>
       <div className="muted" style={{ margin: '4px 0 10px' }}>Contas e cartões trazidos da Pluggy ou de extratos. Apague uma conta repetida para o saldo não contar em dobro.</div>
       {data.accounts.length === 0 ? <div className="muted">Nenhuma conta ainda.</div> : (
         <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
@@ -266,7 +266,7 @@ export function Contas() {
       )}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
       <div style={{ marginTop: 14 }}>
-        <b style={{ color: '#fff' }}>Transferências entre suas contas</b>
+        <b style={{ color: 'var(--strong)' }}>Transferências entre suas contas</b>
         <div className="muted" style={{ margin: '4px 0 8px' }}>
           Saída numa conta e entrada do mesmo valor noutra, até 3 dias depois, viram Transferência sozinhas e não contam como gasto nem como entrada.
           Para contas fora do app, diga como seu nome aparece nos extratos: Pix e TED com ele também viram Transferência. Se você tem empresa (PJ ou MEI), informe o nome ou o CNPJ dela: o que ela paga conta como Receita.

@@ -1,4 +1,6 @@
 import { Coins, Landmark, RefreshCw, Sprout, TrendingUp, Wallet } from 'lucide-react'
+import { Insights } from './assistente/Insights'
+import type { Route } from '../ui/routes'
 import { DARF_CODE } from '../domain/darf'
 import { portfolioResult } from '../domain/portfolio'
 import { addMonths, monthOf } from '../domain/money'
@@ -14,12 +16,13 @@ import { reinvested } from '../domain/reinvestimento'
 import { carteiraClasses } from './carteira/build'
 import { pct as pct1, sign, tone, when } from './carteira/fmt'
 import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './resumoInvestimentos/build'
+import { ico } from '../ui/palette'
 
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
 
-export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
-  onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
+export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
+  onNavigate(r: Route): void; onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
 }) {
   const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
@@ -42,7 +45,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       <>
         {header}
         <div className="card" style={{ marginTop: 12 }}>
-          <b style={{ color: '#fff' }}>Ainda não há investimentos por aqui</b>
+          <b style={{ color: 'var(--strong)' }}>Ainda não há investimentos por aqui</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Importe os relatórios da B3 em Configurações ou lance suas compras em Notas.</div>
           <div className="btns"><button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button><button className="b ghost" onClick={onOpenNotas}>Abrir Notas</button></div>
         </div>
@@ -101,6 +104,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
       ))}
       {incomplete.length > 0 && <div className="note" style={{ marginTop: 10 }}>Imposto incompleto em {incomplete.map(r => monLabel(r.month)).join(', ')}: faltam notas antes destas datas. Compras de antes do relatório da B3 entram em <button className="link" onClick={onOpenNotas}>Notas › Operação sem nota</button>. <button className="link" onClick={onOpenImposto}>Abrir Imposto</button></div>}
 
+      <Insights area="investimentos" month={thisMonth} onNavigate={onNavigate} />
       <div className="kpis">
         <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Patrimônio</div><div className="v">{brl(p.totalValueCents)}</div>
           <div className="s muted">{reinvest > 0 ? `do seu bolso ${brl(fromPocket)} · ${brl(reinvest)} de proventos reinvestidos` : `aportado ${brl(p.totalCostCents)}`}{p.missingQuotes.length > 0 && ` · sem cotação: ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'}`}{p.noCostCount > 0 && ` · ${p.noCostCount} ${p.noCostCount === 1 ? 'item sem aportado' : 'itens sem aportado'}`}</div></div>
@@ -130,7 +134,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
 
       {coverage && (
         <div className="card coverage">
-          <div className="bar"><h5 style={{ margin: 0 }} className="k-l"><Sprout size={14} aria-hidden style={{ color: 'var(--accent)' }} />Renda passiva</h5><span className="muted">últimos 12 meses</span></div>
+          <div className="bar"><h5 style={{ margin: 0 }} className="k-l"><Sprout size={14} aria-hidden style={{ color: 'var(--accent-fg)' }} />Renda passiva</h5><span className="muted">últimos 12 meses</span></div>
           <div className="coverage-v"><b>{Math.round(coverage.pct * 100)}%</b> <span className="muted">do seu gasto médio já é pago pelos proventos{juros12m > 0 ? ' e juros da renda fixa' : ''}</span></div>
           <div className="meter big split" aria-hidden>
             <i style={{ width: `${Math.min(100, (p.dividends12mCents / 12 / coverage.avgSpentCents) * 100)}%` }} />
@@ -191,7 +195,7 @@ export function ResumoInvestimentos({ onOpenCarteira, onOpenImposto, onOpenNotas
             <div className="sum-rows">
               {top.map(t => (
                 <button key={`${t.manual}-${t.name}`} className="sum-row" onClick={() => onOpenCarteira(t.clsKey)}>
-                  <span className="tk-av" style={{ background: `${classColor(t.clsKey)}22`, color: classColor(t.clsKey) }} aria-hidden>{t.name.slice(0, 4).toUpperCase()}</span>
+                  <span className="tk-av" style={ico(classColor(t.clsKey))} aria-hidden>{t.name.slice(0, 4).toUpperCase()}</span>
                   <span className="lmid"><span className="sum-name">{t.name}</span><span className="muted">{t.manual ? t.cls : classLabel(t.cls)} · {pct1(t.pct).replace('+', '')} do patrimônio</span></span>
                   <span className="sum-val">{cents(t.valueCents)}<small className={tone(t.varPct)}>{t.varPct === null ? (t.manual ? 'à mão' : '—') : pct1(t.varPct)}</small></span>
                 </button>

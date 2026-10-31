@@ -29,9 +29,20 @@ aes-gcm = "0.10"
 argon2 = "0.5"
 hmac = "0.12"
 sha2 = "0.10"
+tokio = { version = "1", features = ["time", "sync"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_Security", "Win32_System_SystemInformation", "Win32_System_JobObjects", "Win32_System_Threading"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+# o SHA-256 do modelo (5 GB) leva minutos sem otimização: no modo dev também compila otimizado
+[profile.dev.package.sha2]
+opt-level = 3
+
 [profile.release]
 codegen-units = 1
 lto = true

@@ -112,10 +112,11 @@ As transações chegam de dois jeitos:
 
 ## Como rodar
 
-Pré-requisitos: [Node](https://nodejs.org) 24 (veja `.nvmrc`), [pnpm](https://pnpm.io) e [Rust](https://rustup.rs) com os [pré-requisitos do Tauri](https://tauri.app/start/prerequisites/).
+Pré-requisitos: [Node](https://nodejs.org) 24 (veja `.nvmrc`), [pnpm](https://pnpm.io), [Rust](https://rustup.rs) com os [pré-requisitos do Tauri](https://tauri.app/start/prerequisites/) e [CMake](https://cmake.org) (para o `llama-server` do Assistente).
 
 ```bash
 pnpm install
+pnpm llama          # compila o llama-server do Assistente (uma vez por versão; o Tauri precisa dele para compilar)
 pnpm tauri dev      # abre o app em modo de desenvolvimento
 pnpm test           # testes (Vitest)
 pnpm tauri build    # gera o instalador (.dmg no macOS)

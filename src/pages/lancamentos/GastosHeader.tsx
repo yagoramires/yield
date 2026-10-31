@@ -1,7 +1,7 @@
-import { ChevronLeft, ChevronRight, RefreshCw, Upload } from 'lucide-react'
+import { RefreshCw, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Account } from '../../db/gastosRepo'
-import { addMonths, formatCents } from '../../domain/money'
+import { formatCents } from '../../domain/money'
 import type { Month } from '../../domain/types'
 import { importStatement } from '../../import/extrato'
 import { detectCsvPreset, parseExtratoCsv, parseMappedCsv, sniffCsv, type CsvMapping, type CsvPreset, type CsvSniff } from '../../import/extratoCsv'
@@ -9,6 +9,7 @@ import { decodeStatement, parseOfx, type ParsedStatement } from '../../import/of
 import { useData } from '../../state/DataProvider'
 import { Select } from '../../ui/Select'
 import { duplicateAccountWarning } from './build'
+import { MonthNav } from '../../ui/MonthNav'
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 export const monthName = (m: Month) => MONTHS[Number(m.slice(5, 7)) - 1]
@@ -36,9 +37,7 @@ export function GastosHeader({ title, actions }: { title: string; actions?: Reac
       <div className="bar">
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>
           <h1 style={{ margin: 0 }}>{title}</h1>
-          <button className="icon-btn" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
-          <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
-          <button className="icon-btn" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight size={14} aria-hidden /></button>
+          <MonthNav month={month} onChange={setMonth} />
         </div>
         <div className="btns">
           {(syncing || lastSync) && <span className="muted" style={{ alignSelf: 'center' }}>{syncing ? 'sincronizando…' : `sincronizado ${syncedLabel(lastSync!)}`}</span>}

@@ -74,7 +74,7 @@ export function CategoriaPanel({ category, onClose }: { category: Category | nul
           <AddRule key={category.id} categoryId={category.id} />
         </div>
       )}
-      {error && <div className="note" style={{ margin: '0 14px 10px' }}>{error}</div>}
+      {error && <div className="note" style={{ margin: '10px 14px' }}>{error}</div>}
       {deleting && category && impact ? (
         <div className="panel-foot danger-zone">
           {moving.length === 0 ? <div>Apagar <b>{category.name}</b>? Ela não tem compras escolhidas à mão, regras nem orçamento.</div> : (

@@ -52,6 +52,22 @@ export async function createMonth(db: Db, month: Month, lines: Omit<BudgetLine, 
   return 'criado'
 }
 
+/** Linhas num mês que já existe (ex.: o plano do mês anterior trazido para um mês criado vazio). */
+export async function addLines(db: Db, month: Month, lines: Omit<BudgetLine, 'id' | 'month'>[]): Promise<void> {
+  for (const l of lines) await insertLine(db, crypto.randomUUID(), { ...l, month })
+}
+
+/**
+ * Apaga o mês com as linhas e as sugestões descartadas dele; as metas ficam, porque os meses seguintes as herdam.
+ * Sem transação (o plugin usa um pool de conexões, e BEGIN numa não vale para a próxima): o mês sai por último, então se
+ * parar no meio sobra um mês vazio e visível, que dá para excluir de novo — nunca linhas órfãs que voltariam num mês recriado.
+ */
+export async function deleteMonth(db: Db, month: Month): Promise<void> {
+  await db.execute('DELETE FROM budget_lines WHERE month = ?', [month]) // sem depender do PRAGMA foreign_keys de cada conexão
+  await db.execute('DELETE FROM budget_dismissals WHERE month = ?', [month])
+  await db.execute('DELETE FROM budget_months WHERE month = ?', [month])
+}
+
 export async function saveLine(db: Db, line: Omit<BudgetLine, 'id'> & { id?: string }): Promise<string> {
   if (line.id) {
     await db.execute(

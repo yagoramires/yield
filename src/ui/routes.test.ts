@@ -11,6 +11,7 @@ test('todas as subseções estão ativas, inclusive o Mês atual do orçamento',
   expect(gastos.items.every(i => !i.disabled)).toBe(true)
   const orc = ROUTES.find(p => p.page === 'Orçamento mensal')!
   expect(orc.items.map(({ icon: _, ...i }) => i)).toEqual([{ route: 'orcamento', label: 'Mês atual', disabled: false }])
+  expect({ ...ROUTES.at(-2)!, items: ROUTES.at(-2)!.items.map(({ icon: _, ...i }) => i) }).toEqual({ page: 'Assistente', module: null, items: [{ route: 'assistente', label: 'Assistente', disabled: false }] })
   expect(ROUTES.at(-1)!.items[0]).toMatchObject({ route: 'configuracoes', label: 'Configurações' })
 })
 

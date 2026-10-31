@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cdiIndex, closeIndex, portfolioIndex } from './rentabilidade'
+import { cdiIndex, closeIndex, portfolioIndex, rentOver } from './rentabilidade'
 import type { Dividend, Trade } from './types'
 
 const tr = (side: 'C' | 'V', qty: number, price: number, date: string): Trade =>
@@ -34,5 +34,19 @@ describe('rentabilidade', () => {
     expect(closeIndex(new Map([['2026-01', 2000], ['2026-02', 2200], ['2026-04', 1800]]), months).map(v => v && Math.round(v * 100) / 100)).toEqual([100, 110, 110, 90])
     const cdi = cdiIndex(new Map([['2026-02', 1], ['2026-03', 1]]), months)
     expect(cdi.map(v => v && Math.round(v * 10000) / 10000)).toEqual([100, 101, 102.01, null])
+  })
+})
+
+describe('rentOver', () => {
+  it('último valor de cada índice nos n meses, menos 100, e o CDI do último mês publicado', () => {
+    const months = ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07', '2026-08', '2026-09', '2026-10']
+    const cdi = new Map(months.slice(0, -1).map(m => [m, 1])) // outubro ainda não publicado
+    const ibov = new Map([['2025-10', 100_000], ['2026-10', 110_000]])
+    const r = rentOver([], [], [], { closes: new Map(), ibov, cdi }, '2026-10')
+    expect(r.carteiraPct).toBeNull()
+    expect(r.ibovPct).toBeCloseTo(10)
+    expect(r.cdiPct).toBeCloseTo((1.01 ** 11 - 1) * 100) // até o último mês publicado, como na tela
+    expect(r.cdiMonthPct).toBe(1)
+    expect(rentOver([], [], [], { closes: new Map(), ibov, cdi }, '2026-09', 11).cdiPct).toBeCloseTo((1.01 ** 11 - 1) * 100)
   })
 })

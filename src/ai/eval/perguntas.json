@@ -1,0 +1,365 @@
+[
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei em outubro de 2026?",
+  "valores": [
+   "R$ 1.620,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei com delivery em outubro?",
+  "valores": [
+   "R$ 520,00"
+  ],
+  "ferramenta": [
+   "gastos",
+   "lancamentos"
+  ]
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei com mercado este ano?",
+  "valores": [
+   "R$ 2.690,00"
+  ],
+  "ferramenta": [
+   "gastos",
+   "lancamentos"
+  ]
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei em setembro?",
+  "valores": [
+   "R$ 1.390,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Qual foi meu gasto total de agosto a outubro de 2026?",
+  "valores": [
+   "R$ 4.360,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei com transporte em agosto?",
+  "valores": [
+   "R$ 200,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Como está meu orçamento de outubro?",
+  "valores": [
+   "R$ 1.450,00",
+   "R$ 1.620,00"
+  ],
+  "ferramenta": "orcamento"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quais foram meus pedidos de delivery em outubro?",
+  "valores": [
+   "R$ 180,00",
+   "R$ 160,00"
+  ],
+  "ferramenta": "lancamentos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei com delivery em setembro?",
+  "valores": [
+   "R$ 300,00"
+  ],
+  "ferramenta": [
+   "gastos",
+   "lancamentos"
+  ]
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei com mercado em agosto?",
+  "valores": [
+   "R$ 900,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "gastador",
+  "pergunta": "Quanto gastei com delivery de agosto a outubro?",
+  "valores": [
+   "R$ 1.070,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto tenho investido?",
+  "valores": [
+   "R$ 7.050,00"
+  ],
+  "ferramenta": "carteira"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Minha carteira está rendendo mais que o CDI nos últimos 12 meses?",
+  "valores": [
+   "+4,2%",
+   "+11,8%"
+  ],
+  "ferramenta": "rentabilidade"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto recebi de proventos em 2026?",
+  "valores": [
+   "R$ 520,00"
+  ],
+  "ferramenta": "proventos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto o FIIA11 pagou de proventos este ano?",
+  "valores": [
+   "R$ 400,00"
+  ],
+  "ferramenta": "proventos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto recebi de proventos em agosto de 2026?",
+  "valores": [
+   "R$ 160,00"
+  ],
+  "ferramenta": "proventos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto minha carteira valorizou?",
+  "valores": [
+   "R$ 50,00"
+  ],
+  "ferramenta": "carteira"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto tenho em FIIs?",
+  "valores": [
+   "R$ 4.900,00"
+  ],
+  "ferramenta": "carteira"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto gastei com mercado em outubro?",
+  "valores": [
+   "R$ 1.000,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto recebi de proventos em setembro de 2026?",
+  "valores": [
+   "R$ 40,00"
+  ],
+  "ferramenta": "proventos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "investidor",
+  "pergunta": "Quanto tenho em ações?",
+  "valores": [
+   "R$ 2.150,00"
+  ],
+  "ferramenta": "carteira"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "semOrcamento",
+  "pergunta": "Quanto gastei na padaria em outubro?",
+  "valores": [
+   "R$ 75,00"
+  ],
+  "ferramenta": [
+   "gastos",
+   "lancamentos"
+  ]
+ },
+ {
+  "tipo": "chat",
+  "perfil": "semOrcamento",
+  "pergunta": "Quanto gastei em outubro?",
+  "valores": [
+   "R$ 645,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "semOrcamento",
+  "pergunta": "Como está meu orçamento de outubro?",
+  "valores": [],
+  "ferramenta": "orcamento"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "semOrcamento",
+  "pergunta": "Quanto gastei com transporte em outubro?",
+  "valores": [
+   "R$ 120,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "semOrcamento",
+  "pergunta": "Qual foi minha maior compra no mercado em outubro?",
+  "valores": [
+   "R$ 300,00"
+  ],
+  "ferramenta": "lancamentos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "semOrcamento",
+  "pergunta": "Quantas vezes comprei na padaria em outubro?",
+  "valores": [],
+  "ferramenta": "lancamentos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "dinheiroParado",
+  "pergunta": "Quanto gastei em outubro?",
+  "valores": [
+   "R$ 800,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "dinheiroParado",
+  "pergunta": "Quanto gastei em setembro?",
+  "valores": [
+   "R$ 800,00"
+  ],
+  "ferramenta": "gastos"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "dinheiroParado",
+  "pergunta": "Tenho investimentos?",
+  "valores": [],
+  "ferramenta": "carteira"
+ },
+ {
+  "tipo": "chat",
+  "perfil": "dinheiroParado",
+  "pergunta": "Quanto gastei com mercado entre setembro e outubro?",
+  "valores": [
+   "R$ 1.600,00"
+  ],
+  "ferramenta": [
+   "gastos",
+   "lancamentos"
+  ]
+ },
+ {
+  "tipo": "chat",
+  "perfil": "dinheiroParado",
+  "pergunta": "Qual o meu saldo no Banco Roxo?",
+  "valores": []
+ },
+ {
+  "tipo": "insights",
+  "perfil": "gastador",
+  "mes": "2026-10",
+  "valores": [
+   "R$ 520,00"
+  ]
+ },
+ {
+  "tipo": "insights",
+  "perfil": "gastador",
+  "mes": "2026-09",
+  "valores": [
+   "R$ 1.390,00"
+  ]
+ },
+ {
+  "tipo": "insights",
+  "perfil": "gastador",
+  "mes": "2026-08",
+  "valores": [
+   "R$ 1.350,00"
+  ]
+ },
+ {
+  "tipo": "insights",
+  "perfil": "investidor",
+  "mes": "2026-10",
+  "valores": [
+   "4,2%"
+  ],
+  "area": "investimentos"
+ },
+ {
+  "tipo": "insights",
+  "perfil": "investidor",
+  "mes": "2026-09",
+  "valores": [
+   "R$ 1.000,00"
+  ]
+ },
+ {
+  "tipo": "insights",
+  "perfil": "semOrcamento",
+  "mes": "2026-10",
+  "valores": [
+   "R$ 645,00"
+  ]
+ },
+ {
+  "tipo": "insights",
+  "perfil": "dinheiroParado",
+  "mes": "2026-10",
+  "valores": [
+   "R$ 20.000,00",
+   "R$ 180,00"
+  ]
+ },
+ {
+  "tipo": "insights",
+  "perfil": "dinheiroParado",
+  "mes": "2026-09",
+  "valores": [
+   "R$ 800,00"
+  ]
+ }
+]

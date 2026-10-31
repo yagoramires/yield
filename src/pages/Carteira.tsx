@@ -156,7 +156,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
 
       {form && (
         <div className="card" style={{ marginBottom: 12 }}>
-          <b style={{ color: '#fff' }}>{form.id ? 'Editar ativo' : 'Novo ativo'}</b>
+          <b style={{ color: 'var(--strong)' }}>{form.id ? 'Editar ativo' : 'Novo ativo'}</b>
           <div className="row" style={{ marginTop: 8 }}>
             <label className="field"><span>Nome</span><input className="in" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
             <div className="field"><span>Classe</span>
@@ -177,7 +177,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
 
       {classes.length === 0 ? (
         <div className="card">
-          <b style={{ color: '#fff' }}>{data.notes.length ? 'Nenhuma posição agora' : 'Comece importando da B3'}</b>
+          <b style={{ color: 'var(--strong)' }}>{data.notes.length ? 'Nenhuma posição agora' : 'Comece importando da B3'}</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>{data.notes.length ? 'Tudo o que você tinha foi vendido. Lance compras em Notas, importe da B3 ou adicione um ativo em + Ativo. ' : ''}Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior, dólar e cripto entram em + Ativo; cripto também pela Binance em Configurações.</div>
           <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
         </div>

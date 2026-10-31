@@ -11,6 +11,7 @@ import { CategoriaPanel } from './categorias/CategoriaPanel'
 import { RegrasPanel } from './categorias/RegrasPanel'
 import { cutToDay, NO_FILTER } from './lancamentos/build'
 import { GastosHeader, monthName } from './lancamentos/GastosHeader'
+import { ico } from '../ui/palette'
 
 type Side = { mode: 'regras' } | { mode: 'editar'; id: string } | { mode: 'criar' }
 
@@ -55,7 +56,7 @@ export function Categorias({ onOpenLancamentos }: { onOpenLancamentos(): void })
         <button className="tile-main" onClick={() => openTxns(c.id)} aria-label={`${c.name}: ${formatBRL(cents)} em ${monthName(month).toLowerCase()}, ${caption}. Abrir lançamentos`}>
           <span className="tile-h"><CategoryIcon category={c} size={28} /><span className="tile-name">{c.name}</span>{!c.builtin && <span className="badge">sua</span>}</span>
           <span className="tile-v"><b>{cents ? formatCents(cents) : '—'}</b><Delta d={monthDelta(cents, before.get(c.id) ?? 0)} prev={prevShort} /></span>
-          <span className="tile-bar"><i style={{ width: `${pct}%`, background: over ? 'var(--negative)' : categoryLook(c).color }} /></span>
+          <span className="tile-bar"><i style={{ width: `${pct}%`, ...ico(over ? 'var(--negative)' : categoryLook(c).color) }} /></span>
           <span className={`tile-cap ${over ? 'over' : ''}`}>{caption}</span>
         </button>
         <button className="icon-btn sq tile-edit" aria-label={`Editar ${c.name}`} onClick={() => edit(c.id)}><Pencil size={12} aria-hidden /></button>

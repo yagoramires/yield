@@ -3,7 +3,7 @@ import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
-import { averageByCategory, blocoOf, copyLines, custos, goalsAt, goalsFor, investDest, investido, missingSources, monthSummary, nextMonthLines, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
+import { averageByCategory, blocoOf, copyLines, outrasEntradas, custos, goalsAt, goalsFor, investDest, investido, missingSources, monthSummary, nextMonthLines, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'
 
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-03', kind: 'saida', name: 'Item', amountCents: 1000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: 'k', ...o })
@@ -270,5 +270,37 @@ describe('averageByCategory', () => {
   it('média dos 3 meses anteriores, sem o mês atual', () => {
     const txns = [txn({ description: 'mercado', date: '2026-02-10', amountCents: -900 }), txn({ description: 'mercado', date: '2026-01-10', amountCents: -300 }), txn({ description: 'mercado', date: '2026-03-10', amountCents: -99_999 })]
     expect([...averageByCategory(txns, catOf, '2026-03')]).toEqual([['mercado', 400]])
+  })
+})
+
+describe('outrasEntradas', () => {
+  const conta = (id: string, kind: 'conta' | 'cartao') => ({ id, source: 'pluggy' as const, externalId: id, institution: 'Banco Laranja', name: id, kind, number: null, itemId: null, lastSyncAt: null })
+  const tx = (id: string, accountId: string, date: string, amountCents: number, description: string) => ({ id, accountId, date, description, amountCents, pending: false, installment: null, operationType: null, fingerprint: id, sourceKey: 't' })
+  const transf = { id: 'transferencia', name: 'Transferência', countsAsSpending: false, builtin: true, icon: null, color: null }
+  const invest = { id: 'investimento', name: 'Investimento', countsAsSpending: false, builtin: true, icon: null, color: null }
+  const cat = (t: { id: string }) => (t.id === 'minha' ? transf : t.id === 'resgate' ? invest : null)
+  const salario = { id: 'l1', month: '2026-10', kind: 'entrada' as const, name: 'Salário', amountCents: 500000, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, grupo: null }
+  const txns = [
+    tx('sal', 'c1', '2026-10-05', 490000, 'TED EMPRESA FICTICIA'), // o salário do plano (±10%): não conta de novo
+    tx('pix', 'c1', '2026-10-12', 15000, 'PIX RECEBIDO MARIA EXEMPLO'),
+    tx('ted', 'c1', '2026-10-20', 80000, 'TED CLIENTE TESTE LTDA'),
+    tx('minha', 'c1', '2026-10-08', 100000, 'TRANSFERENCIA ENTRE CONTAS'), // entre contas suas
+    tx('eu', 'c1', '2026-10-09', 30000, 'PIX RECEBIDO ANA TITULAR'), // no nome do titular
+    tx('pj', 'c1', '2026-10-10', 200000, 'PIX ANA CONSULTORIA'), // da empresa dele
+    tx('resgate', 'c1', '2026-10-11', 50000, 'RESGATE CDB'),
+    tx('estorno', 'k1', '2026-10-13', 9000, 'ESTORNO LOJA'), // cartão
+    tx('set', 'c1', '2026-09-12', 7000, 'PIX RECEBIDO JOAO'), // outro mês
+  ]
+  it('o que entrou de terceiros na conta, sem o salário do plano nem dinheiro seu', () => {
+    const r = outrasEntradas([salario], txns, [conta('c1', 'conta'), conta('k1', 'cartao')], cat, '2026-10', { names: ['Ana Titular'], companies: ['Ana Consultoria'] })
+    expect(r.map(t => t.id)).toEqual(['pix', 'ted'])
+  })
+  it('salário pago em dois depósitos do mesmo pagador: a soma cobre a linha do plano', () => {
+    const pj = { ...salario, id: 'l2', name: 'Salário PJ', amountCents: 1071040 }
+    const dividido = [tx('a', 'c1', '2026-10-03', 724000, 'PIX EMPRESA FICTICIA SOFTWARE'), tx('b', 'c1', '2026-10-03', 336000, 'PIX EMPRESA FICTICIA SOFTWARE'), tx('pix', 'c1', '2026-10-12', 15000, 'PIX RECEBIDO MARIA EXEMPLO')]
+    expect(outrasEntradas([pj], dividido, [conta('c1', 'conta')], cat, '2026-10', { names: [], companies: [] }).map(t => t.id)).toEqual(['pix'])
+  })
+  it('sem salário no plano, o depósito do salário também é entrada', () => {
+    expect(outrasEntradas([], txns, [conta('c1', 'conta')], cat, '2026-10', { names: ['Ana Titular'], companies: ['Ana Consultoria'] }).map(t => t.id)).toEqual(['sal', 'pix', 'ted'])
   })
 })

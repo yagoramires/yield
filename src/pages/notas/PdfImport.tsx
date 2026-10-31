@@ -64,7 +64,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
 
   return (
     <div className="card">
-      <div className="bar"><b style={{ color: '#fff' }}>Importar nota em PDF (padrão SINACOR)</b><button className="link t2" onClick={onClose}>fechar</button></div>
+      <div className="bar"><b style={{ color: 'var(--strong)' }}>Importar nota em PDF (padrão SINACOR)</b><button className="link t2" onClick={onClose}>fechar</button></div>
       <div style={{ margin: '10px 0' }}>
         <input type="file" accept="application/pdf" multiple disabled={busy} onChange={e => { const fs = [...(e.target.files ?? [])]; e.target.value = ''; if (fs.length) void load(fs) }} />
       </div>
@@ -82,7 +82,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
       {cur && (
         <>
           <div className="bar">
-            <b style={{ color: '#fff' }}>Nota {cur.draft.number} · {cur.askBroker ? <input className="in" style={{ width: 140 }} placeholder="corretora" aria-label="Corretora" value={cur.draft.broker ?? ''} onChange={e => upd(idx, x => ({ ...x, draft: { ...x.draft, broker: e.target.value } }))} /> : cur.draft.broker} · {br(cur.draft.tradeDate)}</b>
+            <b style={{ color: 'var(--strong)' }}>Nota {cur.draft.number} · {cur.askBroker ? <input className="in" style={{ width: 140 }} placeholder="corretora" aria-label="Corretora" value={cur.draft.broker ?? ''} onChange={e => upd(idx, x => ({ ...x, draft: { ...x.draft, broker: e.target.value } }))} /> : cur.draft.broker} · {br(cur.draft.tradeDate)}</b>
             <span className="muted">
               {entries.length > 1 && <><button className="link" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>‹</button> {idx + 1} de {entries.length} <button className="link" disabled={idx === entries.length - 1} onClick={() => setIdx(idx + 1)}>›</button></>}
             </span>

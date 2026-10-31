@@ -115,7 +115,7 @@ export function Notas() {
                 {events.map(e => {
                   const semCusto = e.kind === 'bonificacao' && e.unitCostCents === null
                   return (
-                    <tr key={e.id} style={semCusto ? { background: '#241e0c' } : undefined}>
+                    <tr key={e.id} style={semCusto ? { background: 'var(--warn-bg)' } : undefined}>
                       <td>{br(e.date)}</td><td>{EVENT_LABEL[e.kind]}</td><td>{e.ticker}</td><td className="r">{eventQty(e)}</td>
                       <td className="t2">{e.kind === 'bonificacao' && e.unitCostCents !== null ? `custo ${formatCents(e.unitCostCents)}` : ''}</td>
                       <td className="r t2">

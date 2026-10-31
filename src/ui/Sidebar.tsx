@@ -1,17 +1,29 @@
+import { useAiSettings } from '../ai/settings'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { EyeToggle } from './HideValues'
+import { ThemeToggle } from './theme'
 import { useModules, useSidebarMini } from './prefs'
 import { SyncStatus } from './SyncStatus'
 import { ROUTES, type Route } from './routes'
+import { useEffect, useRef } from 'react'
 
 export function Sidebar({ route, onNavigate, open = false }: { route: Route; onNavigate: (r: Route) => void; open?: boolean }) {
   const { enabled } = useModules()
+  const ai = useAiSettings() // Assistente só aparece para quem escolheu usar IA
   const { mini: saved, toggle } = useSidebarMini()
   const mini = saved && !open // o menu aberto no celular é sempre o completo
+  // o botão muda de lugar ao recolher (é recriado): devolve o foco a ele para quem usa o teclado
+  const nav = useRef<HTMLElement>(null)
+  const refocus = useRef(false)
+  useEffect(() => { if (refocus.current) { nav.current?.querySelector<HTMLButtonElement>('.menu-collapse')?.focus(); refocus.current = false } }, [mini])
+  const collapse = <button className="icon-btn sq menu-collapse" aria-label={mini ? 'Expandir menu' : 'Recolher menu'} title={mini ? 'Expandir menu' : 'Recolher menu'} onClick={() => { refocus.current = true; toggle() }}>
+        {mini ? <PanelLeftOpen size={14} aria-hidden /> : <PanelLeftClose size={14} aria-hidden />}
+      </button>
   return (
-    <nav id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}${mini ? ' mini' : ''}`}>
-      <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div><EyeToggle /></div>
-      {ROUTES.filter(g => enabled(g.module)).map(({ page, items }) => (
+    <nav ref={nav} id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}${mini ? ' mini' : ''}`}>
+      {/* aberto: yield. · tema · olho · recolher; recolhido (em coluna): y. · expandir · tema · olho — a ordem do Tab é a da tela */}
+      <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div>{mini && collapse}<ThemeToggle /><EyeToggle />{!mini && collapse}</div>
+      {ROUTES.filter(g => enabled(g.module) && (g.page !== 'Assistente' || ai.off === false)).map(({ page, items }) => (
         <div key={page} style={{ display: 'contents' }}>
           <div className={items.some(i => i.route === route) ? 'group on' : 'group'}>{page}</div>
           {items.map(({ route: r, label, disabled, icon: Icon }) => (
@@ -31,9 +43,6 @@ export function Sidebar({ route, onNavigate, open = false }: { route: Route; onN
         </div>
       ))}
       <SyncStatus mini={mini} />
-      <button className="icon-btn sq menu-collapse" aria-label={mini ? 'Expandir menu' : 'Recolher menu'} title={mini ? 'Expandir menu' : 'Recolher menu'} onClick={toggle}>
-        {mini ? <PanelLeftOpen size={14} aria-hidden /> : <PanelLeftClose size={14} aria-hidden />}
-      </button>
     </nav>
   )
 }

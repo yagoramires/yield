@@ -14,6 +14,8 @@ import { Contas, OpenFinance } from './configuracoes/OpenFinance'
 import { Binance } from './configuracoes/Binance'
 import { Proventos } from './configuracoes/Proventos'
 import { Modulos } from './configuracoes/Modulos'
+import { Aparencia } from './configuracoes/Aparencia'
+import { IaLocal } from './configuracoes/IaLocal'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -112,14 +114,14 @@ export function Configuracoes() {
         <ImportarOrcamento />
 
         <div className="card">
-          <b style={{ color: '#fff' }}>Importar da B3</b>
+          <b style={{ color: 'var(--strong)' }}>Importar da B3</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Relatórios de Negociação, Proventos Recebidos, Movimentação e Posição (.xlsx) da Área do Investidor; a Posição também preenche o cadastro de empresas do IR. Dá para escolher vários de uma vez; o que já existe é pulado.</div>
           {b3.button('Escolher arquivos…', 'b pri')}
           {b3.panel}
         </div>
 
         <div className="card">
-          <b style={{ color: '#fff' }}>Backup</b>
+          <b style={{ color: 'var(--strong)' }}>Backup</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Um arquivo .yield com todos os seus dados, criptografado com uma senha sua (AES-256)</div>
           <div className="btns">
             <button className="b" disabled={busy} onClick={() => { resetBackup(); setExportPw({ password: '', confirm: '' }) }}>Exportar backup…</button>
@@ -166,7 +168,7 @@ export function Configuracoes() {
         </div>
 
         <div className="card">
-          <b style={{ color: '#fff' }}>Cotações</b>
+          <b style={{ color: 'var(--strong)' }}>Cotações</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Yahoo Finance, atraso de ~15 min</div>
           <div className="row"><span className="t2">Atualiza a cada 15 min</span><button className="b ghost" disabled={refreshing} onClick={() => void refreshQuotesNow()}>{refreshing ? 'Atualizando…' : '↻ Atualizar agora'}</button></div>
           <div className="muted" style={{ marginTop: 8 }}>
@@ -176,10 +178,12 @@ export function Configuracoes() {
         <AtualizacaoCard />
       </div>
       <div style={{ marginTop: 12 }}><FontesRenda /></div>
+      <Aparencia />
       <Modulos />
       <Proventos />
       <OpenFinance />
       <Binance />
+      <IaLocal />
       <Contas />
     </>
   )

@@ -1,9 +1,12 @@
 import { useState, type ReactNode } from 'react'
+import { Insights } from './assistente/Insights'
+import type { Route } from '../ui/routes'
 import { ChevronRight, Plus } from 'lucide-react'
-import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
+import { addLines, createMonth, deleteLine, deleteMonth, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
-import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
+import { averageByCategory, blocoOf, outrasEntradas, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
+import { cleanDescription } from './lancamentos/build'
 import { reservaInvestments } from '../domain/bancoInvest'
 import { ago } from '../ui/SyncStatus'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
@@ -14,6 +17,8 @@ import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
 import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
+import { TINT } from '../ui/palette'
+import { MonthNav } from '../ui/MonthNav'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
@@ -24,7 +29,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
 // ícone de cada tipo de fonte de renda (avulso = sem fonte)
-const SOURCE_LOOK: Record<string, [string, string]> = { clt: ['briefcase-business', '#c6ff3d'], pj: ['landmark', '#5fb3ff'], mei: ['store', '#9aa8ff'], fixo: ['piggy-bank', '#4fd1a5'], avulso: ['gift', '#f5d76e'] }
+const SOURCE_LOOK: Record<string, [string, string]> = { clt: ['briefcase-business', '#c6ff3d'], pj: ['landmark', TINT.azul], mei: ['store', TINT.violeta], fixo: ['piggy-bank', TINT.turquesa], avulso: ['gift', TINT.areia] }
 const SourceIcon = ({ kind, dim }: { kind: string; dim?: boolean }) => <span style={dim ? { opacity: 0.45 } : undefined}><IconGlyph name={SOURCE_LOOK[kind][0]} color={SOURCE_LOOK[kind][1]} size={28} /></span>
 const total = (ls: BudgetLine[]) => ls.reduce((s, l) => s + l.amountCents, 0)
 
@@ -33,7 +38,7 @@ function Track({ real, planned, soft }: { real: number; planned: number; soft?: 
   return <div className="track" style={{ height: 6, marginTop: 4 }}><div className={`fill${soft ? ' soft' : ''}${real > planned ? ' over' : ''}`} style={{ width: `${pct(real, planned)}%` }} /></div>
 }
 
-export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): void; onOpenSettings(): void }) {
+export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavigate(r: Route): void; onOpenGastos(): void; onOpenSettings(): void }) {
   const { db, gastos, orcamento, data: carteira } = useData()
   const { data, month, setMonth, reload } = orcamento
   const [form, setForm] = useState<Form | null>(null)
@@ -43,6 +48,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const [metasOpen, setMetasOpen] = useState(false)
   const [openCats, setOpenCats] = useState<Set<string>>(new Set()) // categorias abertas no cartão de custos
   const [tab, setTab] = useState<'fixos' | 'variaveis'>('variaveis')
+  const [delMonth, setDelMonth] = useState(false) // confirmando a exclusão do mês
 
   // toda escrita passa por aqui: recarrega e mostra o erro em pt-BR na tela
   const run = async (what: string, fn: () => Promise<void>) => {
@@ -51,7 +57,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     setBusy(false)
     return true
   }
-  const go = (m: Month) => { setForm(null); setDel(null); setError(null); setMetasOpen(false); setMonth(m) }
+  const go = (m: Month) => { setForm(null); setDel(null); setError(null); setMetasOpen(false); setDelMonth(false); setMonth(m) }
 
   const today = todayISO()
   const hasPlan = data.months.includes(month)
@@ -59,17 +65,23 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const lines = data.lines.filter(l => l.month === month)
   const categories = gastos.data.categories
   const catName = (id: string | null) => categories.find(c => c.id === id)?.name ?? null
+  // plano do mês anterior levado para este: recorrentes, a próxima parcela e as fontes de renda (o que já veio de sugestão some delas)
+  const prev = data.months.filter(m => m < month).at(-1)
+  const copy = prev ? copyLines(data.lines.filter(l => l.month === prev), data.sources, month) : []
 
   const header = (
     <div className="bar">
       <div className="row" style={{ alignItems: 'center', gap: 10 }}>
         <h1 style={{ margin: 0 }}>Orçamento</h1>
-        <button className="chip" aria-label="Mês anterior" disabled={busy} onClick={() => go(addMonths(month, -1))}>‹</button>
-        <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
-        <button className="chip" aria-label="Próximo mês" disabled={busy} onClick={() => go(next)}>›</button>
+        <MonthNav month={month} onChange={go} disabled={busy} />
       </div>
       {hasPlan && (
         <div className="btns">
+          {delMonth ? <>
+            <span className="muted" style={{ alignSelf: 'center' }}>Excluir {lower(month)}{lines.length ? ` e ${plural(lines.length, 'linha', 'linhas')}` : ''}?</span>
+            <button className="b danger" disabled={busy} onClick={() => void run(`Não foi possível excluir ${lower(month)}`, () => deleteMonth(db, month)).then(ok => ok && setDelMonth(false))}>Excluir</button>
+            <button className="b ghost" disabled={busy} onClick={() => setDelMonth(false)}>Cancelar</button>
+          </> : <button className="b ghost" disabled={busy} onClick={() => { setForm(null); setDel(null); setDelMonth(true) }}>Excluir mês</button>}
           <button className={metasOpen ? 'b' : 'b ghost'} disabled={busy} onClick={() => { setForm(null); setDel(null); setMetasOpen(!metasOpen) }}>Metas</button>
           {!data.months.includes(next) && <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível criar ${lower(next)}`, async () => {
             await createMonth(db, next, withSources(nextMonthLines(lines, data.sources), data.sources, next))
@@ -81,15 +93,13 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const errorBox = error && <div className="note" style={{ marginTop: 10 }}>{error}</div>
 
   if (!hasPlan) {
-    const prev = data.months.filter(m => m < month).at(-1)
-    const copy = prev ? copyLines(data.lines.filter(l => l.month === prev), data.sources, month) : []
     const fresh = withSources([], data.sources, month)
     return (
       <>
         {header}
         {errorBox}
         <div className="card" style={{ marginTop: 40, textAlign: 'center', padding: 28 }}>
-          <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{monthName(month)} ainda não tem plano</div>
+          <div style={{ color: 'var(--strong)', fontSize: 14, fontWeight: 600 }}>{monthName(month)} ainda não tem plano</div>
           <div className="muted" style={{ margin: '6px 0 14px' }}>
             {prev && copy.length ? `Copie as linhas recorrentes de ${lower(prev)} (${plural(copy.length, 'linha', 'linhas')}; parcelas avançam sozinhas) ou comece do zero.` : 'Comece do zero e adicione o que entra e o que sai no mês.'}
             {fresh.length > 0 && ` Suas fontes de renda já entram no mês.`}
@@ -113,6 +123,9 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const vars = custos(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.fixedCategories))
   const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.reservas))
   const sum = monthSummary(lines)
+  // o que entrou na conta de terceiros (Pix, TED…), fora o salário do plano e o dinheiro que é seu
+  const outras = outrasEntradas(data.lines, gastos.data.txns, gastos.data.accounts, gastos.categorize, month, { names: gastos.data.ownerNames, companies: gastos.data.companyNames })
+  const outrasCents = outras.reduce((s, t) => s + t.amountCents, 0)
   const progress = monthProgress(month, today)
   const ritmo = pace(vars.realCents, progress)
   const hasTxns = gastos.data.accounts.length > 0
@@ -229,24 +242,25 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   }
 
   // um bloco da tela: linhas do bloco, formulário no lugar da linha editada e o de linha nova no fim
-  const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode; goal?: { real: number; goal: number } }) => {
+  const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode; after?: ReactNode /* depois das linhas */; goal?: { real: number; goal: number } }) => {
     const formRow = (f: Form) => (f.kind === 'entrada' ? entradaForm(f) : saidaForm(f))
     const inBlock = (l: BudgetLine) => (l.kind === 'entrada' ? 'entrada' : blocoOf(l)) === at
     return (
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="bar">
           <h5 style={{ margin: 0 }}>{title}</h5>
-          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.goal) && <b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
+          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.after || opts.goal) && <b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
             <button className="b ghost sq" aria-label={`Adicionar em ${title}`} disabled={busy} onClick={opts.add ?? (() => open(at))}><Plus size={14} aria-hidden /></button></span>
         </div>
         {opts.goal && <Track real={opts.goal.real} planned={opts.goal.goal} />}
-        {opts.hint && <div className="muted" style={{ marginTop: 2 }}>{opts.hint}</div>}
+        {opts.hint && <div className="muted" style={{ marginTop: 6 }}>{opts.hint}</div>}
         <table className="lt blk" style={{ marginTop: 6 }}>
           <tbody>
-            {ls.length === 0 && !opts.extra && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
+            {ls.length === 0 && !opts.extra && !opts.after && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
             {opts.extra}
             {ls.map(l => (form?.id === l.id ? formRow(form) : <tr key={l.id}>{row(l)}</tr>))}
             {form?.at === at && !form.id && formRow(form)}
+            {opts.after}
           </tbody>
         </table>
         {del && inBlock(del) && confirmDel(del)}
@@ -311,7 +325,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
             </div>
           </div>
         </td>
-        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: soft ? '#ffcf5c' : 'var(--negative)' } : {}) }}>
+        <td className="r" style={{ whiteSpace: 'nowrap', ...(over ? { color: soft ? 'var(--warn)' : 'var(--negative)' } : {}) }}>
           {formatCents(r.realCents)}{note && <div className="d2" style={{ textAlign: 'right' }}>{note}</div>}
         </td>
       </tr>,
@@ -346,7 +360,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     return [
       <tr key={key} className={g.txns.length ? `acc${opened ? ' open' : ''}` : undefined} onClick={e => { if (g.txns.length && !(e.target as HTMLElement).closest('button')) toggle() }}>
         <td className="ell-cell"><div className="cat-line">
-          {reserva ? <IconGlyph name="piggy-bank" color="#4fd1a5" size={28} /> : <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />}
+          {reserva ? <IconGlyph name="piggy-bank" color={TINT.turquesa} size={28} /> : <CategoryIcon category={gastos.categorize(g.txns[0])} size={28} />}
           <div className="grow"><div className="nm">
             <button className="cat-toggle" aria-expanded={opened} disabled={!g.txns.length} onClick={toggle}>{g.name} <span className="muted">{g.txns.length ? [ins > 0 && plural(ins, reserva ? 'depósito' : 'aplicação', reserva ? 'depósitos' : 'aplicações'), outs > 0 && plural(outs, 'resgate', 'resgates')].filter(Boolean).join(' · ') : 'sem movimento no mês'}{g.txns.length > 0 && <ChevronRight size={12} className="chev" aria-hidden />}</span></button>
             <span className="acts muted"><button className="link" disabled={busy} onClick={() => toggleReserva(g.key)}>{reserva ? 'é investimento' : 'é reserva'}</button></span>
@@ -377,7 +391,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
   const fatura = (l: BudgetLine) => hasTxns && l.categoryId === 'pagamento-de-fatura'
   const fixosCents = total(fixos.filter(l => !fatura(l))) + vars.fixasCents, custosCents = fixosCents + vars.realCents
   const share = (part: number) => (custosCents > 0 ? Math.round((part / custosCents) * 100) : 0)
-  const sobra = sum.entradasCents - fixosCents - total(parcelas) - vars.realCents - inv.realCents
+  const sobra = sum.entradasCents + outrasCents - fixosCents - total(parcelas) - vars.realCents - inv.realCents
   const section = (label: string, cents: number) => <tr className="secl"><td>{label}</td><td className="r">{formatCents(cents)}</td></tr>
   const formHere = (at: At) => form?.at === at && !form.id && saidaForm(form)
   const lineRows = (ls: BudgetLine[]) => ls.map(l => (form?.id === l.id ? saidaForm(form) : <tr key={l.id}>{plainRow(l)}</tr>))
@@ -386,8 +400,15 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
     <>
       {header}
       {errorBox}
+      {lines.every(l => l.sourceId) && prev && copy.some(l => !l.sourceId) && ( /* só os salários ("Começar do zero" já os põe) conta como vazio */
+        <div className="sem-alert" style={{ marginTop: 12 }}>
+          <span className="grow">{monthName(month)} está vazio. Trazer o plano de {lower(prev)}: o que se repete e a próxima parcela ({plural(copy.filter(l => !l.sourceId).length, 'linha', 'linhas')}); depois só o que for novo aparece nas sugestões.</span>
+          <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível trazer ${lower(prev)}`, () => addLines(db, month, copy.filter(l => !lines.some(x => x.sourceId && x.sourceId === l.sourceId))))}>Trazer {lower(prev)}</button>
+        </div>
+      )}
+      <Insights area="orcamento" month={month} onNavigate={onNavigate} />
       <div className="kpis">
-        <div className="k"><div className="muted">O que entra</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada', 'entradas')} · líquido</div></div>
+        <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(sum.entradasCents + outrasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada do plano', 'entradas do plano')}{outras.length > 0 ? ` · ${formatBRL(outrasCents)} recebidos na conta` : ' · líquido'}</div></div>
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
         <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
@@ -401,12 +422,12 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
         }).then(ok => ok && setMetasOpen(false))} />}
 
       {suggestions.length > 0 && (
-        <div className="card" style={{ marginBottom: 12, borderColor: '#2c3a14' }}>
+        <div className="card" style={{ marginBottom: 12, borderColor: 'var(--accent-line)' }}>
           <div className="bar"><h5 style={{ margin: 0 }}>Sugestões dos seus gastos <span className="muted">({suggestions.length})</span></h5><span className="muted">nada entra no plano sem você aceitar</span></div>
           {suggestions.map(s => (
             <div key={s.key} className="sug">
               <span className="pill">{s.reason}</span>
-              <span className="grow"><b style={{ color: '#fff' }}>{s.name}</b> {s.installmentCurrent !== null && <span className="tag">{s.installmentCurrent}/{s.installmentTotal}</span>} <span className="muted">· {catName(s.categoryId) ?? 'sem categoria'}</span></span>
+              <span className="grow"><b style={{ color: 'var(--strong)' }}>{s.name}</b> {s.installmentCurrent !== null && <span className="tag">{s.installmentCurrent}/{s.installmentTotal}</span>} <span className="muted">· {catName(s.categoryId) ?? 'sem categoria'}</span></span>
               <span className="r">{formatCents(s.amountCents)}</span>
               <button className="b" disabled={busy} onClick={() => accept(s)}>Aceitar</button>
               <button className="b ghost" disabled={busy} onClick={() => open(s.reason === 'parcela' ? 'parcela' : 'fixo', {
@@ -421,9 +442,10 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
 
       <div className="grid2" style={{ alignItems: 'start' }}>
         <div>
-          {block('entrada', 'O que eu ganho', entradas, formatCents(sum.entradasCents), entradaRow, {
+          {block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
             empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Fontes de renda e eles entram sozinhos todo mês.',
             add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
+            hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={onOpenSettings}>Cadastre seu nome e o da sua empresa</button> em Configurações › Open Finance: o que vier deles sai daqui.</>,
             extra: missing.length > 0 && missing.map(s => (
               <tr key={`fonte-${s.id}`}>
                 <td className="ell-cell"><div className="cat-line">
@@ -433,6 +455,15 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
                 <td className="r"><button className="b" disabled={busy} onClick={() => include(s)}>Incluir</button></td>
               </tr>
             )),
+            after: outras.length > 0 && outras.map(t => (
+              <tr key={`recebido-${t.id}`}>
+                <td className="ell-cell"><div className="cat-line">
+                  <IconGlyph name="arrow-left-right" color={TINT.verde} size={28} />
+                  <div className="grow"><div className="nm">{cleanDescription(t.description).name}</div><div className="d2">recebido na conta em {brDay(t.date)}</div></div>
+                </div></td>
+                <td className="r">{formatCents(t.amountCents)}</td>
+              </tr>
+            )),
           })}
           <div className="card" style={{ marginBottom: 12 }}>
             <div className="bar">
@@ -440,7 +471,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
               <button className="b ghost sq" disabled={busy} aria-label={tab === 'fixos' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(tab === 'fixos' ? 'fixo' : 'variavel')}><Plus size={14} aria-hidden /></button>
             </div>
             <div className="costs-big">{formatBRL(custosCents)}</div>
-            <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: '#8a8d96' }} /><i style={{ flexGrow: vars.realCents, background: '#3987e5' }} /></div>
+            <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: 'var(--faint)' }} /><i style={{ flexGrow: vars.realCents, background: 'var(--c2)' }} /></div>
             <div className="cost-seg" role="group" aria-label="Mostrar custos">
               {(['fixos', 'variaveis'] as const).map(t => (
                 <button key={t} aria-pressed={tab === t} className={tab === t ? 'on' : ''} onClick={() => {
@@ -449,7 +480,7 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
                   if (del?.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel')) setDel(null)
                   setTab(t)
                 }}>
-                  <b><span className="dot" style={{ background: t === 'fixos' ? '#8a8d96' : '#3987e5' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
+                  <b><span className="dot" style={{ background: t === 'fixos' ? 'var(--faint)' : 'var(--c2)' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
                   <span>{formatBRL(t === 'fixos' ? fixosCents : vars.realCents)} · {share(t === 'fixos' ? fixosCents : vars.realCents)}%</span>
                 </button>
               ))}
@@ -486,8 +517,8 @@ export function Orcamento({ onOpenGastos, onOpenSettings }: { onOpenGastos(): vo
           })}
           {reservaGroups.length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
-              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
-              <div className="muted" style={{ marginTop: 2 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
+              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
+              <div className="muted" style={{ marginTop: 4 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
               <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
             </div>
           )}
