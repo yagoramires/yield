@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { LEGACY_ID, SCOPED_KEYS, scopedKey } from './profiles'
 
 // Perfil ativo mora no localStorage; trocar de perfil recarrega a janela, então as stores já leem as chaves certas na importação.
-const ACTIVE_KEY = 'yield.perfilAtivo'
+export const ACTIVE_KEY = 'yield.perfilAtivo'
 // sessionStorage: o perfil já escolhido nesta abertura do app (some ao fechar).
 const CHOSEN_KEY = 'yield.perfilEscolhido'
 
