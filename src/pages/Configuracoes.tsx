@@ -18,7 +18,7 @@ import { filterSections, savedSection, saveSection, SECTIONS, type SectionId } f
 
 const dayTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
-function ImportarB3() {
+export function ImportarB3() {
   const b3 = useB3Import()
   return (
     <div className="card">

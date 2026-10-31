@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { LEGACY_ID, SCOPED_KEYS, newProfile, randomId, scopedKey, type Profile, type ProfilesFile } from './profiles'
+import { LEGACY_ID, SCOPED_KEYS, SETUP_KEY, newProfile, randomId, scopedKey, type Profile, type ProfilesFile } from './profiles'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -39,6 +39,7 @@ export async function switchTo(id: string): Promise<void> {
 export async function createAndSwitch(profiles: Profile[], input: { name: string; color: string; avatar: string | null }, save: (next: ProfilesFile) => Promise<void>): Promise<void> {
   const p = newProfile(input, new Date().toISOString(), randomId)
   await save({ version: 1, profiles: [...profiles, p] })
+  try { localStorage.setItem(scopedKey(SETUP_KEY, p.id), '0') } catch { /* sem storage: o perfil abre sem o setup */ }
   await switchTo(p.id)
 }
 

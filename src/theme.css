@@ -860,3 +860,51 @@ tr.hl td { background: var(--neg-bg); }
 .conn-row .grow { flex: 1; min-width: 0; }
 .conn-logo { flex-shrink: 0; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; background: var(--hover); color: var(--strong); font-weight: 700; font-size: 12px; }
 .conn-err { color: var(--negative); font-size: 11.5px; overflow-wrap: anywhere; }
+
+/* Setup inicial em tela cheia: passos à esquerda, o passo aberto à direita */
+.wz { position: fixed; inset: 0; z-index: 45; display: grid; grid-template-columns: 260px minmax(0, 1fr); background: var(--bg); }
+.wz-l { display: flex; flex-direction: column; padding: 28px 22px; background: var(--sidebar); border-right: 1px solid var(--border); }
+.wz-l .logo { margin: 0 0 22px; }
+.wz-steps { list-style: none; margin: 0; padding: 0; }
+.wz-steps li { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; color: var(--faint); }
+.wz-steps li small { display: block; margin-top: 2px; color: var(--faint); font-size: 11px; }
+.wz-steps .wz-n { flex-shrink: 0; box-sizing: border-box; padding: 0; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border-strong); display: grid; place-items: center; font-size: 11px; }
+.wz-steps li.done { color: var(--text-2); }
+.wz-steps li.done .wz-n { background: var(--accent-bg); border-color: var(--accent-line); color: var(--accent-fg); }
+.wz-steps li.cur { color: var(--strong); }
+.wz-steps li.cur .wz-n { border-color: var(--accent-fg); color: var(--accent-fg); }
+.wz-hint { margin-top: auto; line-height: 1.5; }
+.wz-r { display: flex; flex-direction: column; min-width: 0; padding: 40px 52px 24px; overflow: auto; }
+.wz-r h1 { margin: 0 0 6px; color: var(--strong); font-size: 22px; }
+.wz-r .lead { margin: 0 0 22px; max-width: 600px; color: var(--text-2); line-height: 1.5; }
+.wz-r .profile-form, .wz-cards { max-width: 760px; }
+.wz-count { display: none; margin-bottom: 8px; }
+.wz-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 860px; }
+.wz-choice.two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
+.wz-ch { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; cursor: pointer; }
+.wz-ch b { color: var(--strong); }
+.wz-ch .t2, .wz-ch .muted { font-size: 12px; line-height: 1.45; }
+.wz-ch.sel { border-color: var(--accent-fg); background: linear-gradient(180deg, var(--accent-bg), var(--surface) 70%); }
+.wz-ch:disabled { opacity: .55; cursor: default; }
+.wz-ch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring); }
+.wz-ch .tick { position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--border-strong); display: grid; place-items: center; }
+.wz-ch.sel .tick { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.wz-sum { max-width: 560px; }
+.wz-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 24px; }
+.wz-foot .sp { flex: 1; }
+@media (max-width: 640px) {
+  .wz { grid-template-columns: minmax(0, 1fr); }
+  .wz-l { display: none; }
+  .wz-r { padding: 20px 16px; }
+  .wz-count { display: block; }
+  .wz-choice, .wz-choice.two { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Tour: escurece tudo menos a área destacada; o balão fica ao lado */
+.tour { position: fixed; inset: 0; z-index: 60; }
+.tour-hl { position: fixed; border-radius: 8px; outline: 2px solid var(--accent-fg); box-shadow: 0 0 0 9999px var(--overlay); pointer-events: none; transition: all .2s; }
+.tour-tip { position: fixed; width: 270px; padding: 12px 14px; background: var(--raised); border: 1px solid var(--accent-line); border-radius: 10px; box-shadow: 0 12px 30px var(--shadow-color); }
+.tour-tip b { color: var(--strong); }
+.tour-tip p { margin: 5px 0 10px; color: var(--text-2); font-size: 12px; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { .tour-hl { transition: none; } }
+.wz-steps .wz-n svg { display: block; }

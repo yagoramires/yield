@@ -11,12 +11,16 @@ interface Props {
   others: Profile[]
   submitLabel: string
   onSubmit(v: { name: string; color: string; avatar: string | null }): Promise<void>
-  onCancel(): void
+  /** Sem ele não há "Cancelar" (setup inicial: o perfil já existe). */
+  onCancel?(): void
+  /** Falso esconde os botões: quem envia é um botão de fora com `form={id}`. */
+  actions?: boolean
+  id?: string
   /** Falso onde o formulário já aparece aberto na tela (Configurações), para não roubar o foco ao entrar nela. */
   autoFocus?: boolean
 }
 
-export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, autoFocus = true }: Props) {
+export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, autoFocus = true, actions = true, id }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
   const [color, setColor] = useState(initial?.color ?? PROFILE_COLORS[0])
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null)
@@ -42,7 +46,7 @@ export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, 
   }
 
   return (
-    <form className="profile-form" onSubmit={e => void submit(e)} onKeyDown={e => { if (e.key === 'Escape') onCancel() }}>
+    <form id={id} className="profile-form" onSubmit={e => void submit(e)} onKeyDown={e => { if (e.key === 'Escape') onCancel?.() }}>
       <div className="profile-form-photo">
         <button type="button" className="profile-photo-btn" tabIndex={-1} aria-hidden onClick={() => file.current?.click()}>
           <Avatar profile={{ name, color, avatar }} size={72} />
@@ -69,10 +73,12 @@ export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, 
         </div>
         <div className="muted">Sem foto, o perfil usa a inicial sobre a cor.</div>
         {error && <div className="profile-err" role="alert">{error}</div>}
-        <div className="profile-form-actions">
-          <button type="button" className="b ghost" onClick={onCancel}>Cancelar</button>
-          <button type="submit" className="b pri" disabled={busy}>{submitLabel}</button>
-        </div>
+        {actions && (
+          <div className="profile-form-actions">
+            {onCancel && <button type="button" className="b ghost" onClick={onCancel}>Cancelar</button>}
+            <button type="submit" className="b pri" disabled={busy}>{submitLabel}</button>
+          </div>
+        )}
       </div>
     </form>
   )
