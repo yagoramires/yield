@@ -66,6 +66,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KP" "$KC"
           security list-keychains -d user -s "$KC" $(security list-keychains -d user | tr -d '"')
           security find-identity -p codesigning "$KC" | grep ${{ matrix.sign }}
+      # macOS: o SQLCipher usa o CommonCrypto do sistema; não definir OPENSSL_DIR aqui
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

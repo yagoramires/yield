@@ -86,23 +86,26 @@ export const refreshLine = (r: { ok: string[]; failed: string[] }) =>
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-export interface RestoreSteps { checkpoint(): Promise<void>; close(): Promise<void>; swap(): Promise<string>; reopen(): Promise<void>; reload(): Promise<void> }
+/** `swap` devolve o caminho da cópia de segurança, ou `null` quando não havia banco para copiar. */
+export interface RestoreSteps { checkpoint(): Promise<void>; close(): Promise<void>; swap(): Promise<string | null>; reopen(): Promise<void>; reload(): Promise<void> }
 
 /** Troca o banco pelo backup. Qualquer falha com o banco fechado reabre; depois da troca, a mensagem sempre diz onde ficou a cópia de segurança. */
 export async function restoreBackup(s: RestoreSteps): Promise<{ ok: boolean; message: string }> {
   let closed = false
-  let safety: string | undefined
+  let swapped = false
+  let safety: string | null = null
   try {
     await s.checkpoint()
     await s.close()
     closed = true
     safety = await s.swap()
+    swapped = true
     await s.reopen()
     closed = false
     await s.reload()
-    return { ok: true, message: `Dados substituídos. A cópia de segurança dos dados anteriores está em ${safety}.` }
+    return { ok: true, message: safety ? `Dados substituídos. A cópia de segurança dos dados anteriores está em ${safety}.` : 'Dados substituídos.' }
   } catch (e) {
-    let message = safety ? `O backup foi aplicado, mas houve um erro depois (${errText(e)}).` : `Não foi possível importar o backup: ${errText(e)}`
+    let message = swapped ? `O backup foi aplicado, mas houve um erro depois (${errText(e)}).` : `Não foi possível importar o backup: ${errText(e)}`
     if (closed) {
       try { await s.reopen(); await s.reload() } catch (e2) { message += ` O banco não reabriu (${errText(e2)}): feche e abra o Yield.` }
     }

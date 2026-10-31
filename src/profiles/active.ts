@@ -25,7 +25,7 @@ export function markChosen(id: string): void {
 // A IA e o banco do perfil anterior não podem seguir abertos com a janela nova: o servidor de IA enxerga dados dele e o pool SQL fica preso no processo.
 async function releasePrevious(): Promise<void> {
   await invoke('ai_stop').catch(() => {})
-  await invoke('plugin:sql|close').catch(() => {})
+  await invoke('profile_lock').catch(() => {})
 }
 
 export async function switchTo(id: string): Promise<void> {
@@ -40,6 +40,30 @@ export async function createAndSwitch(profiles: Profile[], input: { name: string
   const p = newProfile(input, new Date().toISOString(), randomId)
   await save({ version: 1, profiles: [...profiles, p] })
   await switchTo(p.id)
+}
+
+export interface RestoreNewSteps {
+  save(f: ProfilesFile): Promise<void>
+  activate(p: Profile): Promise<void>
+  swap(): Promise<unknown>
+  discard(): Promise<void>
+}
+
+/** Perfil novo com os dados de um backup já aberto (`stageBackup`): lista, ativa e troca o banco, nessa ordem. Qualquer falha descarta o restore.db. */
+export async function createFromBackup(profiles: Profile[], input: { name: string; color: string; avatar: string | null }, s: RestoreNewSteps, now: string, randomId: () => string): Promise<{ profile: Profile | null; error: string | null }> {
+  const p = newProfile(input, now, randomId)
+  try { await s.save({ version: 1, profiles: [...profiles, p] }) } catch (e) {
+    await s.discard().catch(() => {})
+    return { profile: null, error: `Não foi possível criar o perfil: ${errText(e)}` }
+  }
+  try {
+    await s.activate(p)
+    await s.swap()
+  } catch (e) {
+    await s.discard().catch(() => {})
+    return { profile: p, error: `O perfil foi criado, mas o backup não entrou: ${errText(e)}` }
+  }
+  return { profile: p, error: null }
 }
 
 export function lockToPicker(nextActiveId?: string): void {

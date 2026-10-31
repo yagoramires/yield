@@ -54,9 +54,9 @@ describe('b3Summary', () => {
 })
 
 describe('restoreBackup', () => {
-  const steps = (fail: Partial<Record<'checkpoint' | 'swap' | 'reopen' | 'reload', boolean>> = {}) => {
+  const steps = (fail: Partial<Record<'checkpoint' | 'swap' | 'reopen' | 'reload', boolean>> = {}, safety: string | null = '/cfg/seguranca-1.db') => {
     const f = (name: keyof typeof fail) => vi.fn(async () => { if (fail[name]) throw new Error(`${name} falhou`) })
-    const swap = vi.fn(async () => { if (fail.swap) throw new Error('swap falhou'); return '/cfg/seguranca-1.db' })
+    const swap = vi.fn(async () => { if (fail.swap) throw new Error('swap falhou'); return safety })
     return { checkpoint: f('checkpoint'), close: vi.fn(async () => {}), swap, reopen: f('reopen'), reload: f('reload') }
   }
   it('sucesso: mensagem com o caminho da cópia de segurança', async () => {
@@ -85,6 +85,10 @@ describe('restoreBackup', () => {
     const s = steps({ reload: true })
     expect(await restoreBackup(s)).toEqual({ ok: false, message: 'O backup foi aplicado, mas houve um erro depois (reload falhou). Seus dados anteriores estão em /cfg/seguranca-1.db.' })
     expect(s.reopen).toHaveBeenCalledOnce()
+  })
+  it('sem banco anterior não há cópia: a mensagem não traz caminho vazio', async () => {
+    expect(await restoreBackup(steps({}, null))).toEqual({ ok: true, message: 'Dados substituídos.' })
+    expect(await restoreBackup(steps({ reload: true }, null))).toEqual({ ok: false, message: 'O backup foi aplicado, mas houve um erro depois (reload falhou).' })
   })
 })
 

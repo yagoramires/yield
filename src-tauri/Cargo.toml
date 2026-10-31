@@ -21,7 +21,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tauri-plugin-sql = { version = "2.6.0", features = ["sqlite"] }
+sqlx = { version = "0.8", default-features = false, features = ["sqlite", "runtime-tokio", "json", "time"] }
 tauri-plugin-http = "2.8.3"
 tauri-plugin-dialog = "2.8.3"
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
@@ -33,14 +33,31 @@ tokio = { version = "1", features = ["time", "sync"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 libc = "0.2"
+# SQLCipher no lugar do SQLite do sqlx (feature unification); no macOS usa o CommonCrypto, sem OpenSSL
+libsqlite3-sys = { version = "0.30", features = ["bundled-sqlcipher"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.60", features = ["Win32_Foundation", "Win32_Security", "Win32_System_SystemInformation", "Win32_System_JobObjects", "Win32_System_Threading"] }
+# no Windows não há CommonCrypto: o OpenSSL é compilado junto (precisa de perl no build)
+libsqlite3-sys = { version = "0.30", features = ["bundled-sqlcipher-vendored-openssl"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 # o SHA-256 do modelo (5 GB) leva minutos sem otimização: no modo dev também compila otimizado
 [profile.dev.package.sha2]
+opt-level = 3
+
+# o Argon2 de 64 MiB do PIN levaria segundos sem otimização
+[profile.dev.package.libsqlite3-sys]
+opt-level = 3
+
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
 opt-level = 3
 
 [profile.release]

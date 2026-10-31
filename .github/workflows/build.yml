@@ -32,6 +32,8 @@ jobs:
       - name: llama-server do Assistente
         shell: bash
         run: bash scripts/build-llama.sh
+      # shell padrão (pwsh): o build do OpenSSL acha o Strawberry Perl, não o Perl do Git Bash
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

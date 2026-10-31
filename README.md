@@ -93,6 +93,7 @@ As transações chegam de dois jeitos:
 ### ⚙️ Sistema
 
 - **Perfis**: um perfil por pessoa que usa o computador (ou por cenário). Cada perfil tem seus próprios dados, credenciais (Pluggy, Binance) e preferências de tela. Crie um perfil novo no menu do topo da sidebar; troque entre perfis ali mesmo ou pela tela "Quem está usando?", que aparece ao abrir o app se houver 2 ou mais perfis. Edite o nome, a cor e a foto do perfil em Configurações › Perfil; apague um perfil e seus dados só nesse lugar (o último não pode ser apagado). Dados antigos viram o primeiro perfil automaticamente; quem está atualizando vê só um perfil e o app abre direto nele (sem mudança visível).
+- **PIN por perfil** (opcional, 4 dígitos), em Configurações › Perfil: com PIN, o banco e as credenciais do perfil ficam criptografados e só abrem com ele. **Esqueceu, perdeu:** o único jeito de recuperar os dados é um backup. Errar 5 vezes faz esperar 1 min; cada nova rodada de 5 erros aumenta para 5 min, 15 min e 1 h. Nunca apaga dados. 4 dígitos protegem de quem usa este computador, não de quem copia o arquivo e testa as 10 mil combinações por fora. Cópias feitas fora do app antes de ligar o PIN (Time Machine, backups do sistema) continuam sem criptografia. Um backup pode virar um perfil novo em "Novo perfil" › "Restaurar de um backup".
 - Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição, vários de uma vez, sem duplicar.
 - Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). O arquivo salvo é do perfil aberto quando você exporta; antes de importar um backup, o app guarda uma cópia de segurança do perfil atual.
 - Cotações automáticas a cada 15 minutos.
@@ -104,6 +105,7 @@ As transações chegam de dois jeitos:
 - **Binance somente leitura.** O Yield só faz três leituras assinadas (saldo da conta e do Simple Earn); qualquer outra chamada é recusada antes de sair da máquina, e a guia pede uma chave com só "Enable Reading".
 - **Backup com senha.** O arquivo exportado só abre com a senha escolhida na hora; sem ela nem o Yield recupera os dados.
 - **Credenciais no cofre do sistema** (Pluggy e Binance): Keychain no macOS, Credential Manager no Windows. Elas nunca vão para o banco, para o backup ou para log.
+- **Perfil com PIN criptografado no disco.** O banco usa SQLCipher; a chave sai do PIN com Argon2id e o item do cofre do perfil é selado com AES-256-GCM. Com o app fechado ou o perfil bloqueado, nada do perfil fica legível.
 - **Rede restrita.** As permissões do Tauri só liberam o Yahoo Finance, `api.bcb.gov.br` (CDI), `api.pluggy.ai` e `api.binance.com`.
 - **Seus arquivos fora do git.** `planilhas/`, `notas/` e `extratos/` são ignorados; os testes usam só dados sintéticos.
 
@@ -157,3 +159,10 @@ Spec, planos e telas aprovadas estão em [`docs/`](docs).
 ## Licença
 
 [MIT](LICENSE).
+
+### Licenças de terceiros
+
+- [SQLCipher](https://www.zetetic.net/sqlcipher/) (BSD-3-Clause, Zetetic LLC): criptografia do banco. Texto em [`src-tauri/licenses/SQLCipher-LICENSE.txt`](src-tauri/licenses/SQLCipher-LICENSE.txt).
+- [OpenSSL 3](https://www.openssl.org/) (Apache-2.0), só no Windows, por baixo do SQLCipher. Texto em [`src-tauri/licenses/OpenSSL-LICENSE.txt`](src-tauri/licenses/OpenSSL-LICENSE.txt).
+
+As duas licenças vão junto com o app instalado.

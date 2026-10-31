@@ -1,13 +1,13 @@
 import { Check, ChevronDown, Lock, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { createAndSwitch, lockToPicker, switchTo } from './active'
+import { lockToPicker, switchTo } from './active'
+import { NewProfileModal } from './NewProfileModal'
 import { Avatar } from './ProfileAvatar'
 import { useProfiles } from './Gate'
-import { ProfileForm } from './ProfileForm'
 
 /** O perfil ativo no topo do menu; abre a lista para trocar, criar um perfil novo ou voltar à tela de escolha. */
 export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
-  const { profile, profiles, save } = useProfiles()
+  const { profile, profiles, save, locks, hasPin } = useProfiles()
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const box = useRef<HTMLDivElement>(null)
@@ -25,8 +25,6 @@ export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc, true) }
   }, [open])
 
-  const create = (v: { name: string; color: string; avatar: string | null }) => createAndSwitch(profiles, v, save)
-
   return (
     <>
       <div className="prof-box" ref={box} onBlur={e => { if (open && e.relatedTarget && !box.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
@@ -41,23 +39,17 @@ export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
               <button key={p.id} className="prof-opt" aria-current={p.id === profile.id ? 'true' : undefined}
                 onClick={() => { if (p.id === profile.id) setOpen(false); else void switchTo(p.id) }}>
                 <Avatar profile={p} size={24} /><span className="prof-optn">{p.name}</span>
+                {locks[p.id]?.hasPin && <Lock className="pin-lock" size={12} role="img" aria-label="com PIN" />}
                 {p.id === profile.id && <Check size={14} aria-hidden />}
               </button>
             ))}
             <hr />
             <button className="prof-opt sub" onClick={() => { setOpen(false); setCreating(true) }}><Plus size={14} aria-hidden />Novo perfil</button>
-            {profiles.length >= 2 && <button className="prof-opt sub" onClick={() => lockToPicker()}><Lock size={14} aria-hidden />Bloquear agora</button>}
+            {(hasPin || profiles.length >= 2) && <button className="prof-opt sub" onClick={() => lockToPicker()}><Lock size={14} aria-hidden />Bloquear agora</button>}
           </div>
         )}
       </div>
-      {creating && (
-        <div className="modal-bg">
-          <div className="modal profile-modal" role="dialog" aria-modal="true" aria-label="Novo perfil">
-            <h2>Novo perfil</h2>
-            <ProfileForm others={profiles} submitLabel="Criar perfil" onSubmit={create} onCancel={() => { setCreating(false); trigger.current?.focus() }} />
-          </div>
-        </div>
-      )}
+      {creating && <NewProfileModal profiles={profiles} save={save} onCancel={() => { setCreating(false); trigger.current?.focus() }} />}
     </>
   )
 }

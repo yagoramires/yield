@@ -180,8 +180,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     ;(async () => {
       try {
-        // todo banco de perfil é migrado aqui, pelo `meta.schema_version` (o plugin não migra nenhum)
-        const d = await openDb(`sqlite:${dbFile}`)
+        // todo banco de perfil é migrado aqui, pelo `meta.schema_version` (o Rust não migra nenhum)
+        const d = await openDb(dbFile)
         await migrateOnce(dbFile, d, MIGRATIONS)
         if (cancelled) return
         dbRef.current = d

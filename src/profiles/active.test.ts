@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { deleteActive, type DeleteSteps } from './active'
+import { createFromBackup, deleteActive, type DeleteSteps } from './active'
 import type { Profile } from './profiles'
 
 const prof = (id: string, name: string): Profile =>
@@ -69,5 +69,43 @@ describe('deleteActive', () => {
     const { s } = steps({ removeFiles: () => 'acesso negado' })
     expect(await deleteActive([ana, casa], casa, s)).toEqual({ listed: false, message: 'Os dados do perfil foram apagados, mas não deu para limpar as credenciais salvas no Acesso às Chaves: acesso negado' })
     expect(storage.has('yield.route@abcd1234')).toBe(false)
+  })
+})
+
+describe('createFromBackup', () => {
+  const input = { name: 'Restaurado', color: '#3a91dc', avatar: null }
+  const NOW = '2026-10-31T12:00:00.000Z'
+
+  it('restaurar como perfil novo: lista, ativa e troca o banco, nessa ordem', async () => {
+    const calls: string[] = []
+    const r = await createFromBackup([ana], input, {
+      save: async f => { calls.push(`save:${f.profiles.map(p => p.id).join(',')}`) },
+      activate: async p => { calls.push(`activate:${p.id}`) },
+      swap: async () => { calls.push('swap') },
+      discard: async () => { calls.push('discard') },
+    }, NOW, () => 'novo1234')
+    expect(calls).toEqual(['save:principal,novo1234', 'activate:novo1234', 'swap'])
+    expect(r).toEqual({ profile: expect.objectContaining({ id: 'novo1234', dbFile: 'perfil-novo1234.db' }), error: null })
+  })
+
+  it('troca do banco falha: o perfil fica na lista e o restore.db é descartado', async () => {
+    const calls: string[] = []
+    const r = await createFromBackup([ana], input, {
+      save: async () => { calls.push('save') }, activate: async () => { calls.push('activate') },
+      swap: async () => { throw new Error('swap falhou') }, discard: async () => { calls.push('discard') },
+    }, NOW, () => 'novo1234')
+    expect(r.error).toBe('O perfil foi criado, mas o backup não entrou: swap falhou')
+    expect(r.profile?.id).toBe('novo1234')
+    expect(calls).toEqual(['save', 'activate', 'discard'])
+  })
+
+  it('lista não grava: nada é ativado nem trocado', async () => {
+    const calls: string[] = []
+    const r = await createFromBackup([ana], input, {
+      save: async () => { throw new Error('disco cheio') }, activate: async () => { calls.push('activate') },
+      swap: async () => { calls.push('swap') }, discard: async () => { calls.push('discard') },
+    }, NOW, () => 'novo1234')
+    expect(r).toEqual({ profile: null, error: 'Não foi possível criar o perfil: disco cheio' })
+    expect(calls).toEqual(['discard'])
   })
 })

@@ -8,9 +8,6 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-theme",
-    "sql:default",
-    "sql:allow-execute",
-    "sql:allow-close",
     {
       "identifier": "http:default",
       "allow": [

@@ -1,17 +1,24 @@
 import { invoke } from '@tauri-apps/api/core'
 import { appConfigDir } from '@tauri-apps/api/path'
 import { useEffect, useState } from 'react'
-import { useData } from '../state/DataProvider'
 import { deleteActive } from './active'
-import { useProfiles } from './Gate'
 import { Avatar } from './ProfileAvatar'
 import { deleteConfirmed, type Profile } from './profiles'
 import { saveProfiles } from './store'
 
-/** Confirma e apaga o perfil ativo. `onDeleted` segue para o próximo da lista (o perfil já saiu dela). */
-export function DeleteProfileDialog({ profile, onCancel, onDeleted }: { profile: Profile; onCancel(): void; onDeleted(): void }) {
-  const { profiles } = useProfiles()
-  const { db } = useData()
+interface Props {
+  profile: Profile
+  profiles: Profile[]
+  /** Fecha o banco do perfil antes de apagar; na tela do PIN ele nem chegou a abrir. */
+  close(): Promise<void>
+  onCancel(): void
+  /** `next`: o primeiro da lista sem o perfil apagado, que vira o ativo. */
+  onDeleted(next: Profile): void
+}
+
+/** Confirma e apaga o perfil ativo. */
+export function DeleteProfileDialog({ profile, profiles, close, onCancel, onDeleted }: Props) {
+  const next = profiles.find(p => p.id !== profile.id)
   const [typed, setTyped] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -33,12 +40,12 @@ export function DeleteProfileDialog({ profile, onCancel, onDeleted }: { profile:
     // a lista vai direto para o disco, sem o contexto: trocar o perfil do contexto faria o app abrir o banco do próximo
     const fail = await deleteActive(profiles, profile, {
       save: saveProfiles,
-      close: () => db.close(),
+      close,
       activate: p => invoke('profile_activate', { id: p.id, dbFile: p.dbFile }),
       removeFiles: p => invoke<string | null>('profile_remove_files', { id: p.id, dbFile: p.dbFile }),
       folder: appConfigDir,
     })
-    if (!fail) return onDeleted()
+    if (!fail) return onDeleted(next!)
     setBusy(false)
     if (fail.listed) setError(fail.message)
     else setLeftover(fail.message)
@@ -57,7 +64,7 @@ export function DeleteProfileDialog({ profile, onCancel, onDeleted }: { profile:
           <>
             <div className="note" role="alert">{leftover}</div>
             <div className="profile-form-actions" style={{ marginTop: 12 }}>
-              <button type="button" className="b pri" autoFocus onClick={onDeleted}>Continuar</button>
+              <button type="button" className="b pri" autoFocus onClick={() => onDeleted(next!)}>Continuar</button>
             </div>
           </>
         ) : (
