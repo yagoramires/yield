@@ -1,9 +1,9 @@
 import { Check, ChevronDown, Lock, Plus } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { createAndSwitch, lockToPicker, switchTo } from './active'
+import { lockToPicker, switchTo } from './active'
+import { NewProfileModal } from './NewProfileModal'
 import { Avatar } from './ProfileAvatar'
 import { useProfiles } from './Gate'
-import { ProfileForm } from './ProfileForm'
 
 /** O perfil ativo no topo do menu; abre a lista para trocar, criar um perfil novo ou voltar à tela de escolha. */
 export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
@@ -24,8 +24,6 @@ export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
     document.addEventListener('keydown', esc, true)
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc, true) }
   }, [open])
-
-  const create = (v: { name: string; color: string; avatar: string | null }) => createAndSwitch(profiles, v, save)
 
   return (
     <>
@@ -51,14 +49,7 @@ export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
           </div>
         )}
       </div>
-      {creating && (
-        <div className="modal-bg">
-          <div className="modal profile-modal" role="dialog" aria-modal="true" aria-label="Novo perfil">
-            <h2>Novo perfil</h2>
-            <ProfileForm others={profiles} submitLabel="Criar perfil" onSubmit={create} onCancel={() => { setCreating(false); trigger.current?.focus() }} />
-          </div>
-        </div>
-      )}
+      {creating && <NewProfileModal profiles={profiles} save={save} onCancel={() => { setCreating(false); trigger.current?.focus() }} />}
     </>
   )
 }
