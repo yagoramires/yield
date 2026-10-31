@@ -76,7 +76,7 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
 
       {form && (
         <div className="card" style={{ marginTop: 12 }}>
-          <b style={{ color: '#fff' }}>Novo provento</b>
+          <b style={{ color: 'var(--strong)' }}>Novo provento</b>
           <div className="row" style={{ margin: '10px 0' }}>
             <label className="field"><span>Ativo</span><input className="in" autoFocus style={{ width: 90 }} value={form.ticker} onChange={e => setForm({ ...form, ticker: e.target.value.toUpperCase() })} /></label>
             <div className="field"><span>Tipo</span>

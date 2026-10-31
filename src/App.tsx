@@ -18,6 +18,7 @@ import { AiPergunta } from './pages/assistente/Pergunta'
 import { moduleOf, ROUTES, type Route } from './ui/routes'
 import { useModules } from './ui/prefs'
 import { EyeToggle, useHideValues } from './ui/HideValues'
+import { ThemeToggle } from './ui/theme'
 import { UpdateBanner } from './ui/Atualizacao'
 
 const TITLES = Object.fromEntries(
@@ -50,6 +51,7 @@ export default function App() {
       <header className="mobile-header">
         <div className="logo">yield<b>.</b></div>
         <span className="t2">{TITLES[route]}</span>
+        <ThemeToggle />
         <EyeToggle />
         <button className="b ghost" aria-controls="app-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? 'Fechar menu' : 'Menu'}</button>
       </header>

@@ -95,7 +95,7 @@ export function Imposto() {
       </div>
       <div className="card" style={{ marginBottom: 10 }}>
         <div className="bar">
-          <b style={{ color: '#fff' }}>Prejuízo de antes do relatório da B3</b>
+          <b style={{ color: 'var(--strong)' }}>Prejuízo de antes do relatório da B3</b>
           {!opening && <button className="b ghost" onClick={startOpening}>{data.openingLoss ? 'editar' : 'Informar'}</button>}
         </div>
         <div className="muted" style={{ margin: '4px 0 0' }}>
@@ -176,7 +176,7 @@ export function Imposto() {
                   open === m && (
                     <tr key={`${m}-f`}><td colSpan={13}>
                       <div className="card">
-                        <b style={{ color: '#fff' }}>DARF {monLabel(m)} · código {DARF_CODE}</b>
+                        <b style={{ color: 'var(--strong)' }}>DARF {monLabel(m)} · código {DARF_CODE}</b>
                         <div className="t2" style={{ margin: '6px 0' }}>
                           Período de apuração {brDay(lastDayOfMonth(m))} · principal {formatBRL(d.darfCents)} · vencimento {d.dueDate ? brDay(d.dueDate) : '—'}
                           {d.status === 'em_aberto' && <><br />Pagamento em atraso: calcule multa e juros no SicalcWeb da Receita</>}
@@ -202,7 +202,7 @@ export function Imposto() {
       {irrfToDeclare(tax).length > 0 && (
         <>
           <h5>IRRF a informar na declaração</h5>
-          <div className="row">{irrfToDeclare(tax).map(x => <span key={x.year} className="t2">{x.year} <b style={{ color: '#fff' }}>{formatBRL(x.cents)}</b></span>)}</div>
+          <div className="row">{irrfToDeclare(tax).map(x => <span key={x.year} className="t2">{x.year} <b style={{ color: 'var(--strong)' }}>{formatBRL(x.cents)}</b></span>)}</div>
         </>
       )}
       <div className="info" style={{ marginTop: 10 }}>Marcar como pago pede a data e o valor pago (principal; multa e juros à parte, se pagou atrasado). Complementar substitui o pagamento do mês: informe o principal total pago.</div>

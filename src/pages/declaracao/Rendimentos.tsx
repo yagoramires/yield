@@ -3,7 +3,7 @@ import { RENDIMENTO_LABEL, type LinhaRendimento, type LinhaRV, type Rendimento }
 import { editCents, formatCents } from '../../domain/money'
 import { monthName } from '../lancamentos/GastosHeader'
 import { CopyButton } from './Copy'
-import { TINT } from '../../ui/palette'
+import { ico, TINT } from '../../ui/palette'
 
 const money = (c: number) => formatCents(c)
 
@@ -14,7 +14,7 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: Rendimento[] }) {
       <div className="day-h"><span>{titulo}</span><span>R$ {money(linhas.reduce((s, r) => s + r.cents, 0))}</span></div>
       {linhas.map(r => (
         <div key={r.payerKey} className="srow">
-          <span className="cat-ico" style={{ width: 30, height: 30, color: TINT.azul, background: `${TINT.azul}22` }} aria-hidden><Building2 size={14} /></span>
+          <span className="cat-ico" style={{ width: 30, height: 30, ...ico(TINT.azul) }} aria-hidden><Building2 size={14} /></span>
           <div className="lmid">
             <div className={`lname ${r.name ? '' : 'warn-text'}`}>{r.name ?? 'CNPJ não cadastrado'}</div>
             <div className="lsub">{r.cnpj && <span>{r.cnpj}</span>}<span>{r.cnpj ? '· ' : ''}{r.tickers.join(', ')}</span></div>
@@ -43,7 +43,7 @@ export function Rendimentos({ rendimentos, isento20 }: { rendimentos: Rendimento
           <div className="day-card">
             <div className="day-h"><span>Isentos · 20 – Ganhos líquidos em ações (vendas até R$ 20 mil no mês)</span></div>
             <div className="srow">
-              <span className="cat-ico" style={{ width: 30, height: 30, color: 'var(--accent)', background: 'var(--accent-bg)' }} aria-hidden><Sprout size={14} /></span>
+              <span className="cat-ico" style={{ width: 30, height: 30, color: 'var(--accent-fg)', background: 'var(--accent-bg)' }} aria-hidden><Sprout size={14} /></span>
               <div className="lmid"><div className="lname">Lucro isento no ano</div><div className="lsub">soma dos meses em que as vendas de ações ficaram até R$ 20 mil</div></div>
               <div className="lval">{money(isento20)}</div>
               <CopyButton text={editCents(isento20)} label="Valor" what="lucro isento" small />

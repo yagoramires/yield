@@ -19,7 +19,7 @@ export function Metas({ month, categories, goals, averages, fixed, busy, onSave,
   const [fixas, setFixas] = useState(() => new Set(fixed))
   const field = (key: string, label: string, hint?: string, kind?: string) => (
     <div className="catrow" key={key} style={{ gridTemplateColumns: kind ? '1fr auto 92px 100px' : '1fr auto 100px' }}>
-      <span style={{ color: '#fff' }}>{label}</span>
+      <span style={{ color: 'var(--strong)' }}>{label}</span>
       <span className="muted r">{hint}</span>
       {kind && <Select small ariaLabel={`${label}: fixo ou variável`} value={fixas.has(kind) ? 'fixo' : 'variavel'} onChange={v => {
         const n = new Set(fixas); if (v === 'fixo') n.add(kind); else n.delete(kind); setFixas(n)

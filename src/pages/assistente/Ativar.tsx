@@ -48,7 +48,7 @@ export function Ativar({ hw, target, onReady }: { hw: Hardware; target: CatalogM
 
   return (
     <div className="card" style={{ marginTop: 12 }}>
-      <div className="row" style={{ alignItems: 'center', gap: 8 }}><Sparkles size={16} aria-hidden /><b style={{ color: '#fff' }}>Assistente com IA local</b></div>
+      <div className="row" style={{ alignItems: 'center', gap: 8 }}><Sparkles size={16} aria-hidden /><b style={{ color: 'var(--strong)' }}>Assistente com IA local</b></div>
       <div className="muted" style={{ margin: '6px 0 10px' }}>
         Lê os números do app e aponta o que importa no mês, e responde perguntas sobre os seus dados. Roda neste computador: nenhum dado financeiro sai daqui.
       </div>

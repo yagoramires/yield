@@ -40,7 +40,7 @@ export function ImportarOrcamento() {
 
   return (
     <div className="card">
-      <b style={{ color: '#fff' }}>Importar orçamento (CSV)</b>
+      <b style={{ color: 'var(--strong)' }}>Importar orçamento (CSV)</b>
       <div className="muted" style={{ margin: '4px 0 10px' }}>
         Uma linha por item com as colunas <b>mes</b> (AAAA-MM), <b>tipo</b> (receita, fixa, variavel ou meta; variavel e meta viram o limite dos variáveis e a meta de investir do mês), <b>nome</b> e <b>valor</b>, separadas por ponto e vírgula.
         Salve sua planilha nesse formato como CSV. Pode importar de novo: o que já existe no mês é pulado.
@@ -108,7 +108,7 @@ export function FontesRenda() {
 
   return (
     <div className="card">
-      <div className="bar"><b style={{ color: '#fff' }}>Fontes de renda</b><button className="b ghost" disabled={busy} onClick={() => open(null)}>+ Fonte de renda</button></div>
+      <div className="bar"><b style={{ color: 'var(--strong)' }}>Fontes de renda</b><button className="b ghost" disabled={busy} onClick={() => open(null)}>+ Fonte de renda</button></div>
       <div className="muted" style={{ margin: '4px 0 8px' }}>As entradas do orçamento podem usar uma fonte. Mudar uma fonte recalcula este mês e os próximos; meses que já passaram ficam como estão.</div>
       {sources.length === 0 ? <div className="muted">Nenhuma fonte ainda.</div> : (
         <div className="table-scroll" role="region" aria-label="Tabela com rolagem horizontal" tabIndex={0}><table>
@@ -137,7 +137,7 @@ export function FontesRenda() {
       )}
       {form && (
         <div className="card" style={{ marginTop: 10, background: 'var(--well)' }}>
-          <div className="muted" style={{ marginBottom: 6 }}>{editing ? <>Editando <b style={{ color: '#fff' }}>{editing.name}</b></> : 'Nova fonte de renda'}</div>
+          <div className="muted" style={{ marginBottom: 6 }}>{editing ? <>Editando <b style={{ color: 'var(--strong)' }}>{editing.name}</b></> : 'Nova fonte de renda'}</div>
           <div className="row">
             {field('Nome', 'name', 180)}
             <div className="field"><span>Tipo</span>
@@ -156,7 +156,7 @@ export function FontesRenda() {
               </div>
               {preview && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#fff' }}>R$ {brl(preview.netCents)}</b> (pró-labore {brl(preview.proLaboreCents)} · imposto {brl(preview.irpjCents)} · INSS {brl(preview.inssCents)} · contabilidade {brl(preview.contabilidadeCents)} · outros {brl(preview.outrosCents)})
+                  Líquido: <b style={{ color: 'var(--strong)' }}>R$ {brl(preview.netCents)}</b> (pró-labore {brl(preview.proLaboreCents)} · imposto {brl(preview.irpjCents)} · INSS {brl(preview.inssCents)} · contabilidade {brl(preview.contabilidadeCents)} · outros {brl(preview.outrosCents)})
                 </div>
               )}
               <div className="muted" style={{ marginTop: 6 }}>Simples Nacional (DAS), lucro presumido ou outro regime: informe a alíquota efetiva sobre o faturamento. Pró-labore 0 se você não retira pró-labore.</div>
@@ -170,7 +170,7 @@ export function FontesRenda() {
               </div>
               {preview && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#fff' }}>R$ {brl(preview.netCents)}</b> (DAS {brl(preview.dasCents)}{preview.outrosCents > 0 && ` · outros ${brl(preview.outrosCents)}`})
+                  Líquido: <b style={{ color: 'var(--strong)' }}>R$ {brl(preview.netCents)}</b> (DAS {brl(preview.dasCents)}{preview.outrosCents > 0 && ` · outros ${brl(preview.outrosCents)}`})
                 </div>
               )}
               <div className="muted" style={{ marginTop: 6 }}>O DAS do MEI é um valor fixo por mês (já inclui o INSS); confira o valor do ano no Portal do Empreendedor.</div>
@@ -184,7 +184,7 @@ export function FontesRenda() {
               </div>
               {clt && (
                 <div className="info" style={{ marginTop: 8 }}>
-                  Líquido: <b style={{ color: '#fff' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
+                  Líquido: <b style={{ color: 'var(--strong)' }}>R$ {brl(clt.netCents)}</b> (INSS {brl(clt.inssCents)} · IRRF {brl(clt.irrfCents)}{clt.outrosCents > 0 && ` · outros ${brl(clt.outrosCents)}`}) · FGTS de {brl(clt.fgtsCents)} depositado pela empresa, fora do líquido
                 </div>
               )}
               <div className="muted" style={{ marginTop: 6 }}>

@@ -1,6 +1,7 @@
 import { useAiSettings } from '../ai/settings'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { EyeToggle } from './HideValues'
+import { ThemeToggle } from './theme'
 import { useModules, useSidebarMini } from './prefs'
 import { SyncStatus } from './SyncStatus'
 import { ROUTES, type Route } from './routes'
@@ -13,7 +14,7 @@ export function Sidebar({ route, onNavigate, open = false }: { route: Route; onN
   return (
     <nav id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}${mini ? ' mini' : ''}`}>
       {/* aberto: recolher ao lado do olho; recolhido: o botão de expandir fica no topo (order no CSS) */}
-      <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div><EyeToggle /><button className="icon-btn sq menu-collapse" aria-label={mini ? 'Expandir menu' : 'Recolher menu'} title={mini ? 'Expandir menu' : 'Recolher menu'} onClick={toggle}>
+      <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div><ThemeToggle /><EyeToggle /><button className="icon-btn sq menu-collapse" aria-label={mini ? 'Expandir menu' : 'Recolher menu'} title={mini ? 'Expandir menu' : 'Recolher menu'} onClick={toggle}>
         {mini ? <PanelLeftOpen size={14} aria-hidden /> : <PanelLeftClose size={14} aria-hidden />}
       </button></div>
       {ROUTES.filter(g => enabled(g.module) && (g.page !== 'Assistente' || ai.off === false)).map(({ page, items }) => (

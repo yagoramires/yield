@@ -4,7 +4,7 @@ import {
   Scissors, Shirt, ShoppingBag, ShoppingCart, Smartphone, Sparkles, Store, Tag, TrendingUp, Utensils, Wifi, Wine, Wrench, Zap, type LucideIcon,
 } from 'lucide-react'
 import type { Category } from '../db/gastosRepo'
-import { TINT } from './palette'
+import { ico, TINT } from './palette'
 
 // Nome salvo no banco (kebab-case do Lucide) → componente. Mapa fixo para o bundle levar só estes.
 const ICONS: Record<string, LucideIcon> = {
@@ -51,9 +51,9 @@ export function CategoryIcon({ category, size = 32, bare }: { category: Look | n
 /** Mesmo desenho a partir do nome e da cor (prévia no painel de edição). */
 export function IconGlyph({ name, color, size = 32, bare }: { name: string; color: string; size?: number; bare?: boolean }) {
   const Icon = ICONS[name] ?? Tag
-  if (bare) return <Icon size={size} color={color} strokeWidth={1.9} aria-hidden />
+  if (bare) return <Icon size={size} className="ico-bare" style={ico(color)} strokeWidth={1.9} aria-hidden />
   return (
-    <span className="cat-ico" style={{ width: size, height: size, color, background: `${color}22` }} aria-hidden>
+    <span className="cat-ico" style={{ width: size, height: size, ...ico(color) }} aria-hidden>
       <Icon size={Math.round(size / 2)} strokeWidth={1.9} />
     </span>
   )

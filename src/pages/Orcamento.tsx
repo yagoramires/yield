@@ -68,7 +68,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
       <div className="row" style={{ alignItems: 'center', gap: 10 }}>
         <h1 style={{ margin: 0 }}>Orçamento</h1>
         <button className="chip" aria-label="Mês anterior" disabled={busy} onClick={() => go(addMonths(month, -1))}>‹</button>
-        <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
+        <b style={{ color: 'var(--strong)', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
         <button className="chip" aria-label="Próximo mês" disabled={busy} onClick={() => go(next)}>›</button>
       </div>
       {hasPlan && (
@@ -92,7 +92,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
         {header}
         {errorBox}
         <div className="card" style={{ marginTop: 40, textAlign: 'center', padding: 28 }}>
-          <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{monthName(month)} ainda não tem plano</div>
+          <div style={{ color: 'var(--strong)', fontSize: 14, fontWeight: 600 }}>{monthName(month)} ainda não tem plano</div>
           <div className="muted" style={{ margin: '6px 0 14px' }}>
             {prev && copy.length ? `Copie as linhas recorrentes de ${lower(prev)} (${plural(copy.length, 'linha', 'linhas')}; parcelas avançam sozinhas) ou comece do zero.` : 'Comece do zero e adicione o que entra e o que sai no mês.'}
             {fresh.length > 0 && ` Suas fontes de renda já entram no mês.`}
@@ -239,7 +239,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="bar">
           <h5 style={{ margin: 0 }}>{title}</h5>
-          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.goal) && <b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
+          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.goal) && <b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
             <button className="b ghost sq" aria-label={`Adicionar em ${title}`} disabled={busy} onClick={opts.add ?? (() => open(at))}><Plus size={14} aria-hidden /></button></span>
         </div>
         {opts.goal && <Track real={opts.goal.real} planned={opts.goal.goal} />}
@@ -410,7 +410,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
           {suggestions.map(s => (
             <div key={s.key} className="sug">
               <span className="pill">{s.reason}</span>
-              <span className="grow"><b style={{ color: '#fff' }}>{s.name}</b> {s.installmentCurrent !== null && <span className="tag">{s.installmentCurrent}/{s.installmentTotal}</span>} <span className="muted">· {catName(s.categoryId) ?? 'sem categoria'}</span></span>
+              <span className="grow"><b style={{ color: 'var(--strong)' }}>{s.name}</b> {s.installmentCurrent !== null && <span className="tag">{s.installmentCurrent}/{s.installmentTotal}</span>} <span className="muted">· {catName(s.categoryId) ?? 'sem categoria'}</span></span>
               <span className="r">{formatCents(s.amountCents)}</span>
               <button className="b" disabled={busy} onClick={() => accept(s)}>Aceitar</button>
               <button className="b ghost" disabled={busy} onClick={() => open(s.reason === 'parcela' ? 'parcela' : 'fixo', {
@@ -490,7 +490,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
           })}
           {reservaGroups.length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
-              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
+              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
               <div className="muted" style={{ marginTop: 2 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
               <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
             </div>

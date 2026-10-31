@@ -12,13 +12,14 @@ import { CopyButton } from './declaracao/Copy'
 import { RendaVariavel, Rendimentos } from './declaracao/Rendimentos'
 import { errText } from './lancamentos/GastosHeader'
 import { classColor } from './resumoInvestimentos/build'
+import { ico } from '../ui/palette'
 
 type Tab = 'bens' | 'rendimentos' | 'rv' | 'cadastro'
 const CLASSES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']
 const money = (c: number) => formatCents(c)
 
 const Avatar = ({ b, size = 32 }: { b: Bem; size?: number }) => (
-  <span className="tk-av" style={{ width: size, height: size, background: `${classColor(b.assetType)}22`, color: classColor(b.assetType) }} aria-hidden>{b.ticker.slice(0, 4)}</span>
+  <span className="tk-av" style={{ width: size, height: size, ...ico(classColor(b.assetType)) }} aria-hidden>{b.ticker.slice(0, 4)}</span>
 )
 
 export function Declaracao() {
@@ -69,7 +70,7 @@ export function Declaracao() {
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>
           <h1 style={{ margin: 0 }}>Declaração de IR</h1>
           <button className="icon-btn" aria-label="Ano anterior" disabled={year <= firstYear} onClick={() => { setYear(year - 1); setPicked(null) }}><ChevronLeft size={14} aria-hidden /></button>
-          <b style={{ color: '#fff', fontSize: 13 }}>Ano-calendário {year}</b>
+          <b style={{ color: 'var(--strong)', fontSize: 13 }}>Ano-calendário {year}</b>
           <button className="icon-btn" aria-label="Próximo ano" disabled={year >= thisYear} onClick={() => { setYear(year + 1); setPicked(null) }}><ChevronRight size={14} aria-hidden /></button>
           <span className="muted">declaração entregue em {year + 1}</span>
         </div>

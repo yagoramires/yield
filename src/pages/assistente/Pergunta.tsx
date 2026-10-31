@@ -6,7 +6,7 @@ export function AiPergunta({ onUse }: { onUse(): void }) {
   return (
     <div className="modal-bg">
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="ai-pergunta" style={{ width: 'min(480px, 100%)' }}>
-        <div className="row" style={{ alignItems: 'center', gap: 8 }}><Sparkles size={16} aria-hidden /><b id="ai-pergunta" style={{ color: '#fff' }}>Quer usar o Assistente com IA?</b></div>
+        <div className="row" style={{ alignItems: 'center', gap: 8 }}><Sparkles size={16} aria-hidden /><b id="ai-pergunta" style={{ color: 'var(--strong)' }}>Quer usar o Assistente com IA?</b></div>
         <p className="muted" style={{ margin: '8px 0' }}>
           Uma IA que roda neste computador lê os números do app, aponta o que importa nos seus gastos e investimentos e responde perguntas sobre os seus dados.
           Nenhum dado financeiro sai daqui.

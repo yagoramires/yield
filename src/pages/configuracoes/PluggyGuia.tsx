@@ -69,7 +69,7 @@ export function PluggyGuia({ start, done, credentials, addBank, onClose }: {
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Conectar bancos pela Pluggy" onClick={e => e.stopPropagation()}>
         <div className="bar">
-          <b style={{ color: '#fff' }}>Conectar bancos pela Pluggy</b>
+          <b style={{ color: 'var(--strong)' }}>Conectar bancos pela Pluggy</b>
           <button className="b ghost" aria-label="Fechar" onClick={onClose}>✕</button>
         </div>
         <div className="muted" style={{ marginTop: 2 }}>Uns 15 minutos, uma vez só. Webhooks, produção e Pagamentos do dashboard não são necessários.</div>

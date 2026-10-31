@@ -37,7 +37,7 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
   const title = semNota ? 'Operação sem nota' : editing ? `Nota ${editing.number} · ${editing.broker}` : 'Nova nota'
   return (
     <div className="card">
-      <div className="bar"><b style={{ color: '#fff' }}>{title}</b>{editing && <span className="muted">editar = apagar e salvar de novo; o histórico é recalculado</span>}</div>
+      <div className="bar"><b style={{ color: 'var(--strong)' }}>{title}</b>{editing && <span className="muted">editar = apagar e salvar de novo; o histórico é recalculado</span>}</div>
       <div className="row" style={{ margin: '10px 0' }}>
         {!semNota && <label className="field"><span>Nº da nota</span><input className="in" autoFocus value={f.number} onChange={e => setF({ ...f, number: e.target.value })} /></label>}
         <label className="field"><span>Corretora</span><input className="in" value={f.broker} onChange={e => setF({ ...f, broker: e.target.value })} /></label>

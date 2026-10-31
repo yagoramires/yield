@@ -70,7 +70,7 @@ export function UpdateBanner() {
   const installing = state.progress !== undefined
   return (
     <div className="info update-banner" role="status">
-      <span><b style={{ color: '#fff' }}>Yield {update.version} disponível.</b> {installing ? `Baixando… ${state.progress}%` : 'Atualiza e reinicia em segundos; seus dados ficam.'}</span>
+      <span><b style={{ color: 'var(--strong)' }}>Yield {update.version} disponível.</b> {installing ? `Baixando… ${state.progress}%` : 'Atualiza e reinicia em segundos; seus dados ficam.'}</span>
       {state.error && <span className="warn">{state.error}</span>}
       <span className="btns">
         {!installing && <button className="b ghost" onClick={() => setLater(true)}>Depois</button>}
@@ -86,7 +86,7 @@ export function AtualizacaoCard() {
   const installing = state.progress !== undefined
   return (
     <div className="card">
-      <b style={{ color: '#fff' }}>Atualizações</b>
+      <b style={{ color: 'var(--strong)' }}>Atualizações</b>
       <div className="muted" style={{ margin: '4px 0 10px' }}>Versão {version ?? '…'}. O Yield procura versão nova ao abrir e avisa no topo.</div>
       <div className="btns">
         {update

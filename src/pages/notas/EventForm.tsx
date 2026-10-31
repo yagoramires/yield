@@ -16,7 +16,7 @@ export function EventForm({ onSave, onCancel }: { onSave(e: NewCorporateEvent): 
   }
   return (
     <div className="card">
-      <b style={{ color: '#fff' }}>Novo evento corporativo</b>
+      <b style={{ color: 'var(--strong)' }}>Novo evento corporativo</b>
       <div className="row" style={{ margin: '10px 0' }}>
         <div className="field"><span>Evento</span>
           <Select ariaLabel="Evento" value={f.kind} onChange={v => setF({ ...f, kind: v as Form['kind'] })} options={Object.entries(EVENT_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>

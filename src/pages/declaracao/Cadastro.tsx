@@ -4,7 +4,7 @@ import { saveBroker, saveIssuer, type Broker, type Issuer } from '../../db/irRep
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 import { classColor } from '../resumoInvestimentos/build'
-import { TINT } from '../../ui/palette'
+import { ico, TINT } from '../../ui/palette'
 
 type Edit = { kind: 'issuer' | 'broker'; key: string; name: string; cnpj: string }
 
@@ -62,13 +62,13 @@ export function Cadastro({ issuers, brokers, tickers, brokerCodes, pending, onCh
         <div className="day-card">
           <div className="day-h"><span>Empresas e fundos</span></div>
           {order(tickers.map(t => t.ticker), pending.tickers).map(t => row('issuer', t, issuers.get(t),
-            <span className="tk-av" style={{ background: `${classColor(cls.get(t) ?? '')}22`, color: classColor(cls.get(t) ?? '') }} aria-hidden>{t.slice(0, 4)}</span>, pending.tickers.includes(t)))}
+            <span className="tk-av" style={ico(classColor(cls.get(t) ?? ''))} aria-hidden>{t.slice(0, 4)}</span>, pending.tickers.includes(t)))}
           <div className="muted cad-hint">Preenchido ao importar a Posição da B3 em Configurações › Importar da B3 (razão social e CNPJ de ações, ETFs e fundos). O que você editar aqui não é sobrescrito.</div>
         </div>
         <div className="day-card">
           <div className="day-h"><span>Corretoras</span><span className="muted">nomes como vêm das notas e da B3</span></div>
           {brokerCodes.length === 0 ? <div className="srow muted">Nenhuma corretora nas notas ainda.</div>
-            : order(brokerCodes, pending.brokers).map(c => row('broker', c, brokers.get(c), <span className="cat-ico" style={{ width: 30, height: 30, color: TINT.cinza, background: `${TINT.cinza}22` }} aria-hidden><Landmark size={14} /></span>, pending.brokers.includes(c)))}
+            : order(brokerCodes, pending.brokers).map(c => row('broker', c, brokers.get(c), <span className="cat-ico" style={{ width: 30, height: 30, ...ico(TINT.cinza) }} aria-hidden><Landmark size={14} /></span>, pending.brokers.includes(c)))}
         </div>
       </div>
     </>

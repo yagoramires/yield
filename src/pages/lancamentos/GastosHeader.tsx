@@ -37,7 +37,7 @@ export function GastosHeader({ title, actions }: { title: string; actions?: Reac
         <div className="row" style={{ alignItems: 'center', gap: 10 }}>
           <h1 style={{ margin: 0 }}>{title}</h1>
           <button className="icon-btn" aria-label="Mês anterior" onClick={() => setMonth(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
-          <b style={{ color: '#fff', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
+          <b style={{ color: 'var(--strong)', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
           <button className="icon-btn" aria-label="Próximo mês" onClick={() => setMonth(addMonths(month, 1))}><ChevronRight size={14} aria-hidden /></button>
         </div>
         <div className="btns">
