@@ -415,7 +415,11 @@ async fn profile_remove_files(app: tauri::AppHandle, id: String, db_file: String
     Ok(entry.and_then(|e| delete_with(&e)).err().or(pins))
 }
 
-const SECRET_SERVICE: &str = "com.yagoramires.yield";
+// O build de teste (outro identifier) passa YIELD_SECRET_SERVICE: sem isso ele leria e gravaria as credenciais do app de verdade
+const SECRET_SERVICE: &str = match option_env!("YIELD_SECRET_SERVICE") {
+    Some(s) => s,
+    None => "com.yagoramires.yield",
+};
 // Itens antigos da Pluggy (até a 0.3), lidos uma vez para migrar para o item único do perfil de hoje.
 const OLD_PLUGGY_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
 
