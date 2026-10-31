@@ -272,7 +272,11 @@ async fn stage_restore_in(dir: &Path, data: &[u8], password: Option<&str>) -> Re
 async fn backup_open(app: tauri::AppHandle, path: String, password: Option<String>) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     let data = std::fs::read(&path).map_err(|e| e.to_string())?;
-    let key = stage_restore_in(&dir, &data, password.as_deref()).await?;
+    let key = match stage_restore_in(&dir, &data, password.as_deref()).await {
+        // nem .yield nem SQLite em claro: pode ser a cópia de segurança cifrada deste perfil com PIN
+        Err(e) if password.is_none() => pin::stage_with_unlocked(&dir.join(RESTORE_FILE), &data).await?.ok_or(e)?,
+        r => r?,
+    };
     *pin::RESTORE.lock().map_err(|e| e.to_string())? = Some(key);
     Ok(())
 }
@@ -347,13 +351,25 @@ fn write_atomic(path: &Path, contents: &str) -> Result<(), String> {
 }
 
 /// Lê o `perfis.json` de `dir`. Ilegível, o JS regrava só com o `principal`: antes guarda uma cópia para os outros perfis não se perderem.
+/// Lista que o JS aceita inteira: `profiles` é uma lista e cada perfil tem id e arquivo que combinam e um nome.
+fn profiles_look_ok(s: &str) -> bool {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(s) else { return false };
+    v.get("profiles").and_then(|p| p.as_array()).is_some_and(|ps| {
+        ps.iter().all(|p| {
+            let field = |k: &str| p.get(k).and_then(|x| x.as_str());
+            matches!((field("id"), field("dbFile")), (Some(id), Some(f)) if valid_profile(id, f)) && field("name").is_some_and(|n| !n.trim().is_empty())
+        })
+    })
+}
+
 fn read_profiles_in(dir: &Path) -> Result<Option<String>, String> {
     let s = match std::fs::read_to_string(dir.join(PROFILES_FILE)) {
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(e.to_string()),
     };
-    if !s.trim().is_empty() && serde_json::from_str::<serde_json::Value>(&s).is_err() {
+    // o JS descarta o que não reconhece e regrava a lista: antes disso, uma cópia do arquivo como estava
+    if !s.trim().is_empty() && !profiles_look_ok(&s) {
         let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
         std::fs::write(dir.join(format!("{PROFILES_FILE}.ilegivel-{secs}")), &s).map_err(|e| e.to_string())?;
     }
@@ -599,11 +615,24 @@ fn read_vault(key: Option<&db::Key>) -> Result<Vault, String> {
     })
 }
 
+/// Pasta de config do app, guardada no startup para o cofre saber se o banco do perfil tem PIN.
+static CONFIG_DIR: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Item selado (pede PIN) num perfil cujo banco está em claro: sobra de uma queda logo depois de ligar o PIN, no Windows (o rename não chegou ao disco).
+/// Nenhum PIN abre mais esse item; sem poder sobrescrevê-lo, salvar ou apagar credenciais falharia para sempre.
+fn overwrite_unopenable(err: &str, dir: Option<&Path>, db_file: &str) -> bool {
+    err == pin::LOCKED && dir.is_some_and(|d| db::has_pin_file(&d.join(db_file)).is_ok_and(|has| !has))
+}
+
 fn update_vault(change: impl FnOnce(&mut Vault)) -> Result<(), String> {
     // no meio de uma troca de PIN o cofre está em claro e a chave na memória é a do PIN antigo
     let _op = pin::pin_ops_idle()?;
     let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
-    let mut v = load_cached(&mut cache)?;
+    let mut v = match load_cached(&mut cache) {
+        Ok(v) => v,
+        Err(e) if overwrite_unopenable(&e, CONFIG_DIR.get().map(|d| d.as_path()), &active()?.1) => Vault::default(),
+        Err(e) => return Err(e),
+    };
     change(&mut v);
     let profile = active()?.0;
     let entry = entry_for(&vault_key(&profile))?;
@@ -749,6 +778,7 @@ pub fn run() {
         // banco sem senha de uma importação ou exportação interrompida (app fechado no meio) não fica no disco
         .setup(|app| {
             if let Ok(dir) = app.path().app_config_dir() {
+                let _ = CONFIG_DIR.set(dir.clone());
                 let _ = discard_restore_in(&dir);
                 db::cleanup_pin_tmp(&dir);
                 let _ = tauri::async_runtime::block_on(pin::forget_plain_pins(&dir));
@@ -1109,6 +1139,17 @@ mod tests {
         std::fs::write(dir.join("perfis.json"), "").unwrap();
         read_profiles_in(&dir).unwrap();
         assert!(copias(&dir).is_empty());
+        std::fs::write(dir.join("perfis.json"), r#"{"version":1,"profiles":[{"id":"principal","name":"Ana","dbFile":"yield.db"}]}"#).unwrap();
+        read_profiles_in(&dir).unwrap();
+        assert!(copias(&dir).is_empty());
+        // JSON válido que o JS não aceita inteiro (perfil sem arquivo, lista que não é lista): também ganha cópia
+        for torto in [r#"{"profiles":[{"id":"principal","name":"Ana","dbFile":"yield.db"},{"id":"abcd1234","name":"Casa"}]}"#, r#"{"profiles":{}}"#] {
+            std::fs::write(dir.join("perfis.json"), torto).unwrap();
+            read_profiles_in(&dir).unwrap();
+            let c = copias(&dir);
+            assert_eq!(c.len(), 1, "{torto}");
+            std::fs::remove_file(&c[0]).unwrap();
+        }
         std::fs::write(dir.join("perfis.json"), "{\"profiles\":[{\"id\":\"abcd1234\"").unwrap();
         assert_eq!(read_profiles_in(&dir).unwrap().as_deref(), Some("{\"profiles\":[{\"id\":\"abcd1234\""));
         let c = copias(&dir);
@@ -1234,6 +1275,17 @@ mod tests {
         drop(troca);
         activate_in(&db::Dbs::default(), LEGACY_ID.into(), LEGACY_DB.into()).await.unwrap();
         *ACTIVE.lock().unwrap() = None;
+    }
+
+    #[tokio::test]
+    async fn cofre_selado_num_banco_em_claro_pode_ser_sobrescrito() {
+        let claro = pin::testutil::em_claro("perfil-abcd1234.db").await;
+        assert!(overwrite_unopenable(pin::LOCKED, Some(&claro), "perfil-abcd1234.db"));
+        // banco com PIN, outro erro ou sem a pasta: o item continua valendo
+        let cifrado = pin::testutil::cifrado("perfil-abcd1234.db", "1234").await;
+        assert!(!overwrite_unopenable(pin::LOCKED, Some(&cifrado), "perfil-abcd1234.db"));
+        assert!(!overwrite_unopenable("Keychain negado", Some(&claro), "perfil-abcd1234.db"));
+        assert!(!overwrite_unopenable(pin::LOCKED, None, "perfil-abcd1234.db"));
     }
 
     #[test]

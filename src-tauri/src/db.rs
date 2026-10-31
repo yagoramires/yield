@@ -373,11 +373,13 @@ pub async fn profile_lock(state: State<'_, Dbs>) -> Result<(), String> {
 pub async fn lock_in(dbs: &Dbs) {
     // espera a troca de PIN em andamento: terminando depois, ela deixaria as chaves no UNLOCKED
     let _op = crate::pin::PIN_OPS.lock().await;
-    close_all(dbs).await;
-    // trava envenenada não impede de esquecer as chaves
+    // as chaves saem antes de fechar: um db_load no meio do fechamento não acha mais chave para reabrir o banco cifrado.
+    // Um db_load que já pegou a chave segura a trava dos pools, e o close_all espera por ele e fecha o pool dele também.
+    // Trava envenenada não impede de esquecer as chaves.
     *crate::pin::UNLOCKED.lock().unwrap_or_else(|e| e.into_inner()) = None;
     *crate::pin::RESTORE.lock().unwrap_or_else(|e| e.into_inner()) = None;
     *crate::VAULT.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    close_all(dbs).await;
 }
 
 #[cfg(test)]
