@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { ACTIVE_KEY, activeProfileId, chosenThisSession, switchTo } from './active'
+import { ACTIVE_KEY, activeProfileId, chosenThisSession } from './active'
+import { Picker } from './Picker'
 import { resolveActive, type Profile, type ProfilesFile } from './profiles'
 import { loadProfiles, saveProfiles } from './store'
 
@@ -64,14 +65,13 @@ export function Gate({ children }: { children: ReactNode }) {
       <button className="b" style={{ marginTop: 10 }} onClick={() => { setState({ kind: 'loading' }); setAttempt(a => a + 1) }}>Tentar de novo</button>
     </main>
   )
-  // shortcut: lista simples até a tela de escolha de perfil (Task 5) existir
   if (state.kind === 'pick') return (
-    <main className="main">
-      <h1>Quem está usando?</h1>
-      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-        {state.file.profiles.map(p => <button key={p.id} className="b" onClick={() => void switchTo(p.id)}>{p.name}</button>)}
-      </div>
-    </main>
+    <Picker
+      profiles={state.file.profiles}
+      activeId={resolveActive(state.file, activeProfileId()).id}
+      onCreated={p => setState({ kind: 'pick', file: { ...state.file, profiles: [...state.file.profiles, p] } })}
+      onEnter={() => { setState({ kind: 'loading' }); setAttempt(a => a + 1) }}
+    />
   )
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

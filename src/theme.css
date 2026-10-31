@@ -763,3 +763,34 @@ tr.hl td { background: var(--neg-bg); }
 .main > .card + .card, .main > .card + .grid2 { margin-top: 12px; }
 .chart + .muted { margin-top: 8px; } /* legenda abaixo do gráfico não encosta nos rótulos do eixo */
 .sync-pop:focus { outline: none; } /* recebe o foco ao abrir só para o teclado entrar nele */
+
+/* perfis: tela "Quem está usando?", avatar e formulário (só tokens, valem nos dois temas) */
+.profile-av { display: inline-grid; place-items: center; flex-shrink: 0; border-radius: 50%; overflow: hidden; color: #0b0c0d; font-weight: 600; line-height: 1; }
+.profile-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.profile-pick { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 24px; }
+.profile-pick h1 { margin: 0; color: var(--strong); font-size: 20px; font-weight: 600; }
+.profile-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 26px; }
+.profile-tile { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 96px; background: none; border: 0; padding: 0; color: var(--strong); cursor: pointer; }
+.profile-tile .profile-av { border: 2px solid transparent; box-sizing: content-box; transition: border-color .12s; }
+.profile-tile:hover .profile-av, .profile-tile:focus-visible .profile-av { border-color: var(--accent-fg); }
+.profile-tile:focus-visible { outline: none; }
+.profile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.profile-tile.add .profile-av { width: 76px; height: 76px; background: var(--surface); border: 2px dashed var(--border-strong); color: var(--text-2); }
+.profile-tile.add .profile-name { color: var(--text-2); }
+.profile-modal { width: min(520px, 100%); }
+.profile-modal h2 { margin: 0 0 14px; color: var(--strong); font-size: 16px; }
+.profile-form { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+.profile-form-photo { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.profile-photo-btn { position: relative; display: block; background: none; border: 0; padding: 0; border-radius: 50%; cursor: pointer; }
+.profile-photo-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus-ring), 0 0 0 5px var(--accent-fg); }
+.profile-photo-cam { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; background: var(--raised); border: 1px solid var(--border-strong); color: var(--text); }
+.profile-form-fields { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 10px; }
+.profile-form-fields .in { width: 100%; }
+.profile-colors { display: flex; gap: 8px; }
+.profile-swatch { position: relative; display: inline-flex; cursor: pointer; }
+.profile-swatch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.profile-swatch span { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .18); }
+.profile-swatch input:checked + span { outline: 2px solid var(--strong); outline-offset: 2px; }
+.profile-swatch input:focus-visible + span { box-shadow: 0 0 0 3px var(--focus-ring), 0 0 0 5px var(--accent-fg); }
+.profile-err { color: var(--negative); font-size: 11.5px; }
+.profile-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
