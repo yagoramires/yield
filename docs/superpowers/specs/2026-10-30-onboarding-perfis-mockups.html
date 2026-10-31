@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><title>yield · mockups</title>
+<style>
+:root{--bg:#0b0c0d;--sidebar:#121315;--surface:#1a1b1f;--well:#17181c;--hover:#1f2125;--raised:#202127;--line:#222428;--border:#26282e;--border-strong:#3a3d45;--text:#d6d8dd;--text-2:#8a8d96;--faint:#5d6068;--strong:#fff;--accent:#c6ff3d;--on-accent:#0b0c0d;--accent-bg:#1a2309;--accent-line:#34440d;--warn:#fbc959;--neg:#ff6e70;--c2:#3a91dc;--c3:#dc5f52;--c4:#956ed2;--c6:#009f99;--font:-apple-system,"SF Pro Display",Inter,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:#050505;color:var(--text);font:13px var(--font);padding:24px}
+h1.page{color:var(--strong);font-size:22px;margin:0 0 4px}.sub{color:var(--text-2);margin:0 0 18px;max-width:900px;line-height:1.5}
+.tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}.tabs button{background:var(--surface);border:1px solid var(--border);color:var(--text-2);padding:8px 14px;border-radius:8px;cursor:pointer}
+.tabs button.on{border-color:var(--accent);color:var(--accent)}
+.frame{width:1100px;height:680px;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg);display:flex;position:relative}
+.cap{color:var(--faint);font-size:12px;margin:10px 2px 26px;max-width:1100px;line-height:1.5}
+.cap b{color:var(--text)}
+.sec{display:none}.sec.on{display:block}
+/* app chrome */
+.sb{width:190px;background:var(--sidebar);border-right:1px solid var(--border);padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+.logo{font-weight:700;font-size:16px;color:var(--strong);margin:0 6px 12px}.logo b{color:var(--accent)}
+.grp{margin-top:8px;padding:4px 8px;font-weight:600}.grp.on{color:var(--accent)}
+.it{padding:6px 10px;border-radius:6px;color:var(--faint);font-size:12px}.it.on{background:var(--hover);color:var(--strong)}
+.main{flex:1;padding:22px 28px;overflow:auto}.main h2{color:var(--strong);font-size:20px;margin:0 0 4px}
+.muted{color:var(--faint);font-size:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px}
+.btn{display:inline-block;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:7px 14px;border-radius:7px;cursor:pointer;font-size:12.5px}
+.btn.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:600}.btn.ghost{background:none;border-color:transparent;color:var(--text-2)}
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;color:#0b0c0d;font-size:12px;flex-shrink:0}
+.sw{width:30px;height:17px;border-radius:9px;background:var(--border-strong);position:relative;flex-shrink:0}.sw::after{content:"";position:absolute;width:13px;height:13px;border-radius:50%;background:#fff;top:2px;left:2px}
+.sw.on{background:var(--accent)}.sw.on::after{left:15px;background:#0b0c0d}
+.row{display:flex;align-items:center;gap:10px}
+.pill{font-size:10.5px;padding:2px 7px;border-radius:10px;background:var(--accent-bg);color:var(--accent);border:1px solid var(--accent-line)}
+.pill.off{background:var(--well);color:var(--faint);border-color:var(--border)}
+/* profile switcher */
+.prof{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:10px;cursor:pointer}
+.prof .n{color:var(--strong);font-weight:600;font-size:12.5px}.prof .s{font-size:10.5px;color:var(--faint)}
+.pop{position:absolute;left:12px;top:92px;width:230px;background:var(--raised);border:1px solid #33353d;border-radius:10px;padding:6px;box-shadow:0 12px 30px #000a;z-index:5}
+.pop .o{display:flex;align-items:center;gap:9px;padding:8px;border-radius:7px}.pop .o:hover,.pop .o.cur{background:#2a2c33}
+.pop hr{border:0;border-top:1px solid #33353d;margin:5px 2px}
+/* lock / picker */
+.center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px}
+.pick{display:flex;gap:26px}
+.pk{display:flex;flex-direction:column;align-items:center;gap:9px;cursor:pointer}
+.pk .av{width:76px;height:76px;font-size:28px;border:2px solid transparent}.pk:hover .av{border-color:var(--accent)}
+.pk .n{color:var(--strong);font-weight:600}.pk .lk{font-size:11px;color:var(--faint)}
+.add .av{background:var(--surface)!important;border:1px dashed var(--border-strong);color:var(--text-2)}
+.dots{display:flex;gap:14px}.dots i{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--border-strong)}.dots i.f{background:var(--accent);border-color:var(--accent)}
+.pad{display:grid;grid-template-columns:repeat(3,58px);gap:10px}.pad span{height:58px;border-radius:50%;background:var(--surface);border:1px solid var(--border);display:grid;place-items:center;color:var(--strong);font-size:20px}
+.pad span.x{background:none;border:0;font-size:12px;color:var(--text-2)}
+/* wizard */
+.wz{flex:1;display:flex}
+.wz-l{width:270px;background:var(--sidebar);border-right:1px solid var(--border);padding:28px 22px;display:flex;flex-direction:column}
+.step{display:flex;gap:10px;align-items:flex-start;padding:9px 0;color:var(--faint)}
+.step .k{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--border-strong);display:grid;place-items:center;font-size:11px;flex-shrink:0}
+.step.done{color:var(--text-2)}.step.done .k{background:var(--accent-bg);border-color:var(--accent-line);color:var(--accent)}
+.step.cur{color:var(--strong)}.step.cur .k{border-color:var(--accent);color:var(--accent)}
+.step small{display:block;color:var(--faint);font-size:11px;margin-top:2px}
+.wz-r{flex:1;padding:40px 52px;display:flex;flex-direction:column;overflow:auto}
+.wz-r h3{color:var(--strong);font-size:22px;margin:0 0 6px}.wz-r .lead{color:var(--text-2);margin:0 0 22px;line-height:1.5;max-width:560px}
+.foot{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:18px}.foot .sp{flex:1}
+.choice{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.ch{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;position:relative}
+.ch.sel{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-bg),var(--surface) 70%)}
+.ch .ic{font-size:22px;margin-bottom:8px}.ch b{color:var(--strong);display:block;margin-bottom:4px}.ch p{margin:0;color:var(--text-2);font-size:12px;line-height:1.45}
+.ch .tick{position:absolute;top:12px;right:12px;width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border-strong)}
+.ch.sel .tick{background:var(--accent);border-color:var(--accent)}
+.ch.sel .tick::after{content:"✓";color:#0b0c0d;font-size:12px;font-weight:800;display:grid;place-items:center;height:100%}
+.ch ul{margin:8px 0 0;padding-left:16px;color:var(--faint);font-size:11.5px;line-height:1.6}
+.conn{display:flex;flex-direction:column;gap:10px;max-width:640px}
+.cn{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.cn .lg{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-weight:800;color:#fff;font-size:13px}
+.cn .tx{flex:1}.cn .tx b{color:var(--strong)}.cn .tx div{color:var(--faint);font-size:11.5px;margin-top:2px}
+.preview-sb{width:180px;background:var(--sidebar);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:11px}
+.dim{opacity:.25;text-decoration:line-through}
+/* settings */
+.set-nav{width:200px;border-right:1px solid var(--border);padding:22px 10px;display:flex;flex-direction:column;gap:2px}
+.set-nav .h{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);padding:12px 10px 4px}
+.set-nav .i{padding:7px 10px;border-radius:6px;color:var(--text-2);display:flex;justify-content:space-between;align-items:center}
+.set-nav .i.on{background:var(--hover);color:var(--strong)}
+.set-body{flex:1;padding:24px 30px;overflow:auto}
+.set-body h3{color:var(--strong);margin:0 0 3px;font-size:18px}
+.lst{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:14px}
+.lst .r{display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--surface);border-top:1px solid var(--line)}.lst .r:first-child{border-top:0}
+.lst .r .tx{flex:1}.lst .r .tx b{color:var(--strong);font-weight:600}.lst .r .tx div{font-size:11.5px;color:var(--faint);margin-top:2px}
+.lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:20px 0 0}
+.search{background:var(--well);border:1px solid var(--border);border-radius:7px;padding:7px 10px;color:var(--faint);margin:0 4px 6px}
+.hub{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+.hub .card b{color:var(--strong);display:block;margin:6px 0 3px}.hub .card .muted{line-height:1.45}
+.hub .card .ic{font-size:20px}
+.tour-tip{position:absolute;background:var(--raised);border:1px solid var(--accent-line);border-radius:10px;padding:12px 14px;width:260px;box-shadow:0 12px 30px #000c;z-index:6}
+.tour-tip b{color:var(--strong)}.tour-tip p{margin:5px 0 10px;color:var(--text-2);line-height:1.45;font-size:12px}
+.hl{outline:2px solid var(--accent);outline-offset:3px;border-radius:8px;position:relative;z-index:4}
+.shade{position:absolute;inset:0;background:#0009;z-index:3}
+svg.lucide{width:1em;height:1em;vertical-align:-2px;stroke-width:2}
+.ic svg.lucide{width:22px;height:22px;color:var(--accent)}
+.pad svg.lucide{width:20px;height:20px}
+</style><script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script></head><body>
+<h1 class="page">yield · primeira abertura, perfis e Configurações</h1>
+<p class="sub">Cada aba é um mockup clicável. O tour (aba 2) tem Voltar / Continuar e as opções dá pra clicar. Me diz o que mudar no terminal.</p>
+<div class="tabs" id="tabs">
+  <button class="on" data-t="perfis">1 · Perfis e PIN</button>
+  <button data-t="tour">2 · Tour inicial (wizard)</button>
+  <button data-t="coach">2b · Tour dentro do app</button>
+  <button data-t="cfgA">3A · Configurações em seções</button>
+  <button data-t="cfgB">3B · Configurações em painel</button>
+</div>
+
+<!-- ============ 1 · PERFIS ============ -->
+<div class="sec on" id="perfis">
+  <div class="frame">
+    <div class="center">
+      <div class="logo" style="font-size:22px;margin:0">yield<b>.</b></div>
+      <div style="color:var(--text-2)">Quem está usando?</div>
+      <div class="pick">
+        <div class="pk"><div class="av" style="background:var(--accent)">G</div><div class="n">Gabriel</div><div class="lk"><i data-lucide="lock"></i> PIN</div></div>
+        <div class="pk"><div class="av" style="background:url(https://i.pravatar.cc/160?img=47) center/cover"></div><div class="n">Marina</div><div class="lk">sem PIN</div></div>
+        <div class="pk"><div class="av" style="background:var(--c6)">C</div><div class="n">Casa</div><div class="lk"><i data-lucide="lock"></i> PIN</div></div>
+        <div class="pk add"><div class="av">+</div><div class="n" style="color:var(--text-2)">Novo perfil</div><div class="lk">&nbsp;</div></div>
+      </div>
+      <div class="muted">Só aparece quando existe mais de um perfil. Com um só, o app abre direto.</div>
+    </div>
+  </div>
+  <p class="cap"><b>Tela de escolha</b> (abrir o app com 2+ perfis). Cada perfil é um banco separado (yield-gabriel.db, yield-marina.db…): dados, contas conectadas, chaves da Pluggy/Binance e preferências não se misturam.</p>
+
+  <div class="frame">
+    <div class="center">
+      <div class="av" style="width:64px;height:64px;font-size:24px;background:var(--accent)">G</div>
+      <div style="color:var(--strong);font-weight:600;font-size:15px">Gabriel</div>
+      <div class="dots"><i class="f"></i><i class="f"></i><i></i><i></i></div>
+      <div class="pad"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="x">Voltar</span><span>0</span><span class="x"><i data-lucide="delete"></i></span></div>
+      <div class="muted">Dá pra digitar no teclado também. Esqueceu? Sem PIN não entra: restaure por um backup.</div>
+    </div>
+  </div>
+  <p class="cap"><b>PIN de 4 dígitos</b> (opcional por perfil). Criptografa o banco do perfil: sem o PIN os dados não abrem. Esqueceu = perdeu (só restaurando um backup).</p>
+
+  <div class="frame">
+    <div class="center">
+      <div class="av" style="width:64px;height:64px;font-size:24px;background:var(--accent)">G</div>
+      <div style="color:var(--strong);font-weight:600;font-size:15px">Gabriel</div>
+      <div class="dots"><i></i><i></i><i></i><i></i></div>
+      <div style="background:var(--warn-bg,#231a07);border:1px solid #4c3a13;color:var(--warn);border-radius:10px;padding:12px 16px;text-align:center;line-height:1.5;max-width:330px">
+        <i data-lucide="timer"></i> <b>5 tentativas erradas</b><br>Tente de novo em <b>0:47</b>
+      </div>
+      <div class="pad" style="opacity:.3;pointer-events:none"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span class="x">Voltar</span><span>0</span><span class="x"><i data-lucide="delete"></i></span></div>
+      <div class="muted" style="max-width:360px;text-align:center">Cada nova rodada de erros aumenta a espera: 1 min, 5 min, 15 min, 1 h. Fechar o app não zera a contagem. Os dados nunca são apagados.</div>
+    </div>
+  </div>
+  <p class="cap"><b>Limite de tentativas</b>. Durante a espera o teclado fica desligado; dá pra voltar e escolher outro perfil.</p>
+
+  <div class="frame">
+    <div class="sb">
+      <div class="logo">yield<b>.</b></div>
+      <div class="prof"><div class="av" style="background:var(--accent)">G</div><div><div class="n">Gabriel</div><div class="s">trocar perfil <i data-lucide="chevron-down"></i></div></div></div>
+      <div class="grp">Últimos gastos</div><div class="it">Resumo</div><div class="it">Lançamentos</div>
+      <div class="grp on">Investimentos</div><div class="it on">Resumo</div><div class="it">Carteira</div><div class="it">Proventos</div>
+      <div class="grp">Sistema</div><div class="it">Configurações</div>
+    </div>
+    <div class="pop">
+      <div class="o cur"><div class="av" style="background:var(--accent)">G</div><div style="flex:1"><div style="color:var(--strong)">Gabriel</div><div class="muted">este perfil</div></div><i data-lucide="check"></i></div>
+      <div class="o"><div class="av" style="background:var(--c4)">M</div><div style="flex:1;color:var(--text)">Marina</div></div>
+      <div class="o"><div class="av" style="background:var(--c6)">C</div><div style="flex:1;color:var(--text)">Casa</div><span class="muted"><i data-lucide="lock"></i></span></div>
+      <hr>
+      <div class="o" style="color:var(--text-2)"><i data-lucide="plus"></i> Novo perfil</div>
+      <div class="o" style="color:var(--text-2)"><i data-lucide="lock"></i> Bloquear agora</div>
+    </div>
+    <div class="main" style="opacity:.35"><h2>Resumo</h2><div class="muted">…</div></div>
+  </div>
+  <p class="cap"><b>Troca pela sidebar</b>: o perfil fica no topo, abaixo do logo. Clicou → lista dos perfis; escolher um com PIN pede o PIN. "Bloquear agora" volta pra tela de escolha. No menu recolhido, vira só a bolinha com a inicial.</p>
+</div>
+
+<!-- ============ 2 · TOUR WIZARD ============ -->
+<div class="sec" id="tour">
+  <div class="frame">
+    <div class="wz">
+      <div class="wz-l">
+        <div class="logo" style="margin:0 0 22px">yield<b>.</b></div>
+        <div id="steps"></div>
+        <div class="muted" style="margin-top:auto;line-height:1.5">Tudo aqui dá pra mudar depois em Configurações.</div>
+      </div>
+      <div class="wz-r" id="wzbody"></div>
+    </div>
+  </div>
+  <p class="cap"><b>Wizard em tela cheia</b> na primeira abertura (e ao criar um perfil novo). 5 passos, qualquer um pode ser pulado. Substitui a pergunta solta de IA que aparece hoje por cima do app.</p>
+</div>
+
+<!-- ============ 2b · COACH MARKS ============ -->
+<div class="sec" id="coach">
+  <div class="frame">
+    <div class="sb" style="position:relative">
+      <div class="logo">yield<b>.</b></div>
+      <div class="prof"><div class="av" style="background:var(--accent)">G</div><div><div class="n">Gabriel</div><div class="s">trocar perfil <i data-lucide="chevron-down"></i></div></div></div>
+      <div class="hl" style="padding:2px 0;background:var(--sidebar)">
+        <div class="grp">Últimos gastos</div><div class="it">Resumo</div><div class="it">Lançamentos</div><div class="it">Assinaturas</div><div class="it">Categorias</div>
+      </div>
+      <div class="grp">Investimentos</div><div class="it">Resumo</div><div class="it">Carteira</div>
+      <div class="grp">Sistema</div><div class="it">Configurações</div>
+    </div>
+    <div class="main"><h2>Resumo</h2><div class="muted">Gastos de outubro</div>
+      <div class="card" style="margin-top:14px;height:180px"></div><div class="card" style="margin-top:12px;height:140px"></div></div>
+    <div class="shade"></div>
+    <div class="tour-tip" style="left:206px;top:120px">
+      <div class="muted">2 de 4</div>
+      <b>Seus gastos</b>
+      <p>Tudo que entra pelas contas conectadas cai em Lançamentos e já sai categorizado. O Resumo mostra o mês.</p>
+      <div class="row"><span class="btn ghost">Pular tour</span><span style="flex:1"></span><span class="btn">Voltar</span><span class="btn pri">Próximo</span></div>
+    </div>
+  </div>
+  <p class="cap"><b>Complemento opcional ao wizard</b>: depois do setup, 3–4 balões apontando pras áreas que a pessoa escolheu (sidebar, perfil, sincronização, olhinho). Dá pra fazer só o wizard e deixar isso pra depois.</p>
+</div>
+
+<!-- ============ 3A · CONFIG SEÇÕES ============ -->
+<div class="sec" id="cfgA">
+  <div class="frame">
+    <div class="sb">
+      <div class="logo">yield<b>.</b></div>
+      <div class="prof"><div class="av" style="background:var(--accent)">G</div><div><div class="n">Gabriel</div><div class="s">trocar perfil <i data-lucide="chevron-down"></i></div></div></div>
+      <div class="grp">Investimentos</div><div class="it">Resumo</div>
+      <div class="grp on">Sistema</div><div class="it on">Configurações</div>
+    </div>
+    <div class="set-nav">
+      <div class="search"><i data-lucide="search"></i> Buscar ajuste…</div>
+      <div class="h">Você</div>
+      <div class="i">Perfil e PIN</div><div class="i">Aparência</div><div class="i">Abas do menu</div>
+      <div class="h">Dados</div>
+      <div class="i on">Contas conectadas <span class="pill">3</span></div><div class="i">Importar arquivos</div><div class="i">Renda e orçamento</div><div class="i">Proventos</div>
+      <div class="h">Recursos</div>
+      <div class="i">Assistente (IA) <span class="pill off">off</span></div><div class="i">Cotações</div>
+      <div class="h">App</div>
+      <div class="i">Backup</div><div class="i">Atualizações</div><div class="i">Privacidade</div>
+    </div>
+    <div class="set-body">
+      <h3>Contas conectadas</h3>
+      <div class="muted">Bancos via Open Finance (Pluggy) e corretoras de cripto. Só leitura.</div>
+      <div class="lbl">Open Finance · Pluggy</div>
+      <div class="lst">
+        <div class="r"><div class="lg av" style="border-radius:8px;width:30px;height:30px;background:#8a05be;color:#fff">Nu</div><div class="tx"><b>Nubank</b><div>Conta + cartão · sincronizado há 12 min</div></div><span class="pill">ok</span><span class="btn ghost"><i data-lucide="ellipsis"></i></span></div>
+        <div class="r"><div class="av" style="border-radius:8px;width:30px;height:30px;background:#ec7000;color:#fff">it</div><div class="tx"><b>Itaú</b><div>Conta corrente · sincronizado há 12 min</div></div><span class="pill">ok</span><span class="btn ghost"><i data-lucide="ellipsis"></i></span></div>
+        <div class="r"><div class="av" style="border-radius:8px;width:30px;height:30px;background:#1f2a44;color:#fff">XP</div><div class="tx"><b>XP Investimentos</b><div>Investimentos · erro de login</div></div><span class="pill" style="color:var(--neg);background:#241514;border-color:#532b2a">reconectar</span><span class="btn ghost"><i data-lucide="ellipsis"></i></span></div>
+      </div>
+      <div style="margin-top:10px"><span class="btn pri"><i data-lucide="plus"></i> Conectar banco</span> <span class="btn ghost">Credenciais da Pluggy…</span></div>
+      <div class="lbl">Cripto</div>
+      <div class="lst"><div class="r"><div class="av" style="border-radius:8px;width:30px;height:30px;background:#f0b90b">B</div><div class="tx"><b>Binance</b><div>Não conectada</div></div><span class="btn">Conectar</span></div></div>
+      <div class="lbl">Transferências entre suas contas</div>
+      <div class="lst"><div class="r"><div class="tx"><b>Ignorar transferências entre contas próprias</b><div>Para não contar como gasto nem como ganho</div></div><div class="sw on"></div></div></div>
+    </div>
+  </div>
+  <p class="cap"><b>Opção A · menu lateral de seções</b> (estilo macOS/Linear). 12 seções em 4 grupos, cada uma uma tela curta. Busca filtra o menu. O que hoje são 14 cards num scroll só vira uma tela por assunto. Os links "Abrir Configurações" de outras telas passam a abrir direto na seção certa.</p>
+</div>
+
+<!-- ============ 3B · CONFIG HUB ============ -->
+<div class="sec" id="cfgB">
+  <div class="frame">
+    <div class="sb">
+      <div class="logo">yield<b>.</b></div>
+      <div class="prof"><div class="av" style="background:var(--accent)">G</div><div><div class="n">Gabriel</div><div class="s">trocar perfil <i data-lucide="chevron-down"></i></div></div></div>
+      <div class="grp">Investimentos</div><div class="it">Resumo</div>
+      <div class="grp on">Sistema</div><div class="it on">Configurações</div>
+    </div>
+    <div class="main">
+      <h2>Configurações</h2><div class="muted">Tudo fica neste computador.</div>
+      <div class="card" style="margin-top:14px;display:flex;align-items:center;gap:14px">
+        <div class="av" style="width:42px;height:42px;font-size:17px;background:var(--accent)">G</div>
+        <div style="flex:1"><b style="color:var(--strong)">Gabriel</b><div class="muted">PIN ligado · 3 contas conectadas · IA desligada · tema escuro</div></div>
+        <span class="btn">Refazer setup inicial</span>
+      </div>
+      <div class="hub">
+        <div class="card"><div class="ic"><i data-lucide="landmark"></i></div><b>Contas conectadas</b><div class="muted">Nubank, Itaú, XP · <span style="color:var(--neg)">1 com erro</span></div></div>
+        <div class="card"><div class="ic"><i data-lucide="file-input"></i></div><b>Importar arquivos</b><div class="muted">B3 (.xlsx), orçamento (.csv), notas de corretagem</div></div>
+        <div class="card"><div class="ic"><i data-lucide="briefcase-business"></i></div><b>Renda e orçamento</b><div class="muted">2 fontes de renda · proventos no resumo</div></div>
+        <div class="card"><div class="ic"><i data-lucide="panel-left"></i></div><b>Abas do menu</b><div class="muted">Gastos, Investimentos ligados · Orçamento desligado</div></div>
+        <div class="card"><div class="ic"><i data-lucide="sparkles"></i></div><b>Assistente (IA local)</b><div class="muted">Desligado · ligar baixa ~2 GB</div></div>
+        <div class="card"><div class="ic"><i data-lucide="palette"></i></div><b>Aparência</b><div class="muted">Tema escuro</div></div>
+        <div class="card"><div class="ic"><i data-lucide="database-backup"></i></div><b>Backup</b><div class="muted">Último: nunca</div></div>
+        <div class="card"><div class="ic"><i data-lucide="chart-line"></i></div><b>Cotações</b><div class="muted">Atualizado há 4 min</div></div>
+        <div class="card"><div class="ic"><i data-lucide="circle-arrow-up"></i></div><b>Atualizações</b><div class="muted">v0.8.0 · em dia</div></div>
+      </div>
+      <div class="muted" style="margin-top:12px">Clicar num card abre a seção (tela própria com "← Configurações").</div>
+    </div>
+  </div>
+  <p class="cap"><b>Opção B · painel de cards</b> (estilo iOS/Android). Primeiro um resumo do estado de tudo, cada card abre a tela da seção. Mais "amigável" pra quem está chegando, um clique a mais pra quem já sabe onde ir.</p>
+</div>
+
+<script>
+document.getElementById('tabs').onclick=e=>{const t=e.target.dataset.t;if(!t)return;document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.querySelectorAll('.sec').forEach(s=>s.classList.toggle('on',s.id===t))};
+const S=[
+ {t:'Seu perfil',d:'nome e PIN'},
+ {t:'Como você quer usar',d:'abas do menu'},
+ {t:'Conectar contas',d:'bancos e cripto'},
+ {t:'Assistente com IA',d:'opcional'},
+ {t:'Pronto',d:'resumo'}];
+let cur=0;const pick={uso:new Set(['gastos','investimentos']),ia:'nao'};
+const body=[
+()=>`<h3>Vamos começar</h3><p class="lead">Como a gente te chama? O PIN é opcional: serve pra quando mais alguém usa este computador.</p>
+ <div style="display:flex;gap:18px;align-items:center;max-width:560px">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px"><div class="av" style="width:72px;height:72px;font-size:26px;background:var(--accent);position:relative">G<span style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--raised);border:1px solid var(--border-strong);display:grid;place-items:center;color:var(--text)"><i data-lucide="camera"></i></span></div><span class="btn ghost" style="padding:3px 8px;font-size:11.5px">Escolher foto…</span></div>
+  <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+   <div style="background:var(--well);border:1px solid var(--border-strong);border-radius:8px;padding:9px 12px;color:var(--strong)">Gabriel</div>
+   <div class="row" style="gap:6px">${['var(--accent)','var(--c2)','var(--c3)','var(--c4)','var(--c6)','var(--warn)'].map((c,i)=>`<span style="width:18px;height:18px;border-radius:50%;background:${c};${i?'':'outline:2px solid #fff;outline-offset:2px'}"></span>`).join('')}<span class="muted" style="margin-left:6px">cor do perfil (sem foto, usa a inicial)</span></div>
+  </div></div>
+ <div class="card" style="margin-top:22px;max-width:560px;display:flex;align-items:center;gap:12px"><div style="flex:1"><b style="color:var(--strong)">Proteger com PIN de 4 dígitos</b><div class="muted">Pede o PIN ao abrir o app e ao trocar pra este perfil</div></div><div class="sw"></div></div>`,
+()=>`<h3>O que você quer acompanhar?</h3><p class="lead">Escolha um ou mais. Cada escolha liga as abas do menu correspondentes.</p>
+ <div style="display:flex;gap:22px"><div class="choice" style="flex:1">${[
+ ['gastos','<i data-lucide="receipt-text"></i>','Meus gastos','Ver pra onde vai o dinheiro, mês a mês',['Resumo','Lançamentos','Assinaturas','Categorias']],
+ ['orcamento','<i data-lucide="calendar-range"></i>','Orçamento','Planejar ganhos, custos, metas e reserva',['Mês atual']],
+ ['investimentos','<i data-lucide="chart-line"></i>','Investimentos','Carteira, proventos e imposto de renda',['Resumo','Carteira','Notas','Proventos','Imposto','Declaração IR']]
+ ].map(([k,i,t,p,l])=>`<div class="ch ${pick.uso.has(k)?'sel':''}" data-uso="${k}"><span class="tick"></span><div class="ic">${i}</div><b>${t}</b><p>${p}</p><ul>${l.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>
+ <div><div class="muted" style="margin-bottom:6px">Seu menu vai ficar assim</div><div class="preview-sb">${[['gastos','Últimos gastos'],['orcamento','Orçamento mensal'],['investimentos','Investimentos']].map(([k,t])=>`<div class="grp ${pick.uso.has(k)?'':'dim'}" style="margin-top:4px">${t}</div>`).join('')}${pick.ia==='sim'?'<div class="grp" style="margin-top:4px">Assistente</div>':''}<div class="grp" style="margin-top:4px">Sistema</div></div></div></div>`,
+()=>`<h3>Conectar suas contas</h3><p class="lead">Só leitura: o yield nunca movimenta dinheiro. Pode pular e importar arquivos depois.</p>
+ <div class="conn">
+  ${pick.uso.has('gastos')||pick.uso.has('orcamento')||pick.uso.has('investimentos')?`<div class="cn"><div class="lg" style="background:#5b3df5">P</div><div class="tx"><b>Bancos e corretoras · Open Finance</b><div>Via Pluggy + Meu Pluggy (grátis). Leva ~5 min, com passo a passo.</div></div><span class="btn pri">Conectar</span></div>`:''}
+  ${pick.uso.has('investimentos')?`<div class="cn"><div class="lg" style="background:#f0b90b;color:#000">B</div><div class="tx"><b>Binance</b><div>Saldos de cripto com uma chave só de leitura</div></div><span class="btn">Conectar</span></div>
+  <div class="cn"><div class="lg" style="background:#003b70">B3</div><div class="tx"><b>Arquivos da B3</b><div>Negociação, proventos e posição (.xlsx) da Área do Investidor</div></div><span class="btn">Importar…</span></div>`:''}
+  ${pick.uso.has('orcamento')?`<div class="cn"><div class="lg" style="background:var(--c6)">CSV</div><div class="tx"><b>Planilha de orçamento</b><div>Se você já tem um orçamento em planilha</div></div><span class="btn">Importar…</span></div>`:''}
+ </div><div class="muted" style="margin-top:10px">A lista muda conforme o que foi escolhido no passo anterior.</div>`,
+()=>`<h3>Quer usar o Assistente?</h3><p class="lead">Uma IA que roda 100% neste computador, responde perguntas sobre seus gastos e investimentos e gera insights. Nada sai daqui.</p>
+ <div class="choice" style="grid-template-columns:1fr 1fr;max-width:620px">
+  <div class="ch ${pick.ia==='sim'?'sel':''}" data-ia="sim"><span class="tick"></span><div class="ic"><i data-lucide="sparkles"></i></div><b>Sim, quero o Assistente</b><p>Baixa o modelo (~2 GB) em segundo plano. Seu Mac: M2, 16 GB, roda bem.</p></div>
+  <div class="ch ${pick.ia==='nao'?'sel':''}" data-ia="nao"><span class="tick"></span><div class="ic"><i data-lucide="circle-off"></i></div><b>Agora não</b><p>A aba some do menu. Dá pra ligar depois em Configurações.</p></div>
+ </div>`,
+()=>`<h3>Tudo pronto, Gabriel</h3><p class="lead">Seu yield ficou assim. Dá pra mudar qualquer coisa em Configurações.</p>
+ <div class="lst" style="max-width:560px">
+  <div class="r"><div class="tx"><b>Perfil</b><div>Gabriel · sem PIN</div></div></div>
+  <div class="r"><div class="tx"><b>Abas</b><div>${[...pick.uso].map(k=>({gastos:'Meus gastos',orcamento:'Orçamento',investimentos:'Investimentos'})[k]).join(', ')||'nenhuma'}</div></div></div>
+  <div class="r"><div class="tx"><b>Contas</b><div>Nubank conectado · Binance pulada</div></div></div>
+  <div class="r"><div class="tx"><b>Assistente</b><div>${pick.ia==='sim'?'Ligado · baixando modelo (34%)':'Desligado'}</div></div></div>
+ </div>
+ <label class="row muted" style="margin-top:16px"><span class="sw on"></span> Mostrar um tour rápido pelo app (aba 2b)</label>`];
+function render(){
+ document.getElementById('steps').innerHTML=S.map((s,i)=>`<div class="step ${i<cur?'done':i===cur?'cur':''}"><span class="k">${i<cur?'<i data-lucide="check"></i>':i+1}</span><div>${s.t}<small>${s.d}</small></div></div>`).join('');
+ document.getElementById('wzbody').innerHTML=body[cur]()+`<div class="foot">${cur?'<span class="btn" data-go="-1">Voltar</span>':''}<span class="sp"></span>${cur<4&&cur?'<span class="btn ghost" data-go="1">Pular</span>':''}<span class="btn pri" data-go="${cur<4?1:0}">${cur<4?'Continuar':'Abrir o yield'}</span></div>`;
+ lucide.createIcons();
+}
+document.getElementById('wzbody').onclick=e=>{
+ const c=e.target.closest('[data-uso]'),ia=e.target.closest('[data-ia]'),g=e.target.closest('[data-go]');
+ if(c){const k=c.dataset.uso;pick.uso.has(k)?pick.uso.delete(k):pick.uso.add(k)}
+ if(ia)pick.ia=ia.dataset.ia;
+ if(g)cur=Math.max(0,Math.min(4,cur+ +g.dataset.go));
+ render()};
+render();
+</script>
+</body></html>
