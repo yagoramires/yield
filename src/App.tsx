@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Sidebar } from './ui/Sidebar'
 import { Carteira } from './pages/Carteira'
 import { Notas } from './pages/Notas'
@@ -24,6 +24,9 @@ import { scoped } from './profiles/active'
 import { useProfiles } from './profiles/Gate'
 import { DEFAULT_NAME, firstName, LEGACY_ID } from './profiles/profiles'
 import { useData } from './state/DataProvider'
+import { setOnboarding, useOnboarding } from './onboarding/state'
+import { Wizard } from './onboarding/Wizard'
+import { Tour } from './onboarding/Tour'
 import type { SectionId } from './pages/configuracoes/secoes'
 
 const TITLES = Object.fromEntries(
@@ -60,6 +63,10 @@ export default function App() {
   useHideValues() // o olhinho vale para o app todo: ligar ou desligar redesenha as telas com os valores ocultos ou não
   const openSettings = (at?: SectionId) => { setSettingsAt(at); setRoute('configuracoes') }
   const navigate = (next: Route) => { setSettingsAt(undefined); setProvMonth(''); setCarteiraClass(null); setRoute(next); setMenuOpen(false) }
+  const ob = useOnboarding()
+  const endTour = useCallback(() => setOnboarding({ tour: false }), [])
+  // setup inicial no lugar do app (e da pergunta da IA, que vira um passo dele)
+  if (ob.setup !== null) return <Wizard step={ob.setup} />
   return (
     <div className="app">
       <header className="mobile-header">
@@ -70,6 +77,7 @@ export default function App() {
         <button className="b ghost" aria-controls="app-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? 'Fechar menu' : 'Menu'}</button>
       </header>
       <Sidebar route={route} onNavigate={navigate} open={menuOpen} />
+      {ob.tour && <Tour onDone={endTour} />}
       {ai.off === null && <AiPergunta onUse={() => navigate('assistente')} />}
       <main className="main">
         <UpdateBanner />

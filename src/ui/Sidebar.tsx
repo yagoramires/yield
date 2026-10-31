@@ -25,13 +25,14 @@ export function Sidebar({ route, onNavigate, open = false }: { route: Route; onN
       {/* aberto: yield. · tema · olho · recolher; recolhido (em coluna): y. · expandir · tema · olho — a ordem do Tab é a da tela */}
       <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div>{mini && collapse}<ThemeToggle /><EyeToggle />{!mini && collapse}</div>
       <ProfileSwitcher mini={mini} />
-      {ROUTES.filter(g => enabled(g.module) && (g.page !== 'Assistente' || ai.off === false)).map(({ page, items }) => (
+      {ROUTES.filter(g => enabled(g.module) && (g.page !== 'Assistente' || ai.off === false)).map(({ page, module, items }) => (
         <div key={page} style={{ display: 'contents' }}>
-          <div className={items.some(i => i.route === route) ? 'group on' : 'group'}>{page}</div>
+          <div className={items.some(i => i.route === route) ? 'group on' : 'group'} data-tour={module ? 'abas' : items[0]?.route === 'configuracoes' ? 'config' : undefined}>{page}</div>
           {items.map(({ route: r, label, disabled, icon: Icon }) => (
             <button
               key={label}
               className={r === route ? 'item on' : 'item'}
+              data-tour={module ? 'abas' : r === 'configuracoes' ? 'config' : undefined}
               aria-current={r === route ? 'page' : undefined}
               aria-label={mini ? `${page}: ${label}` : undefined}
               title={mini ? `${page} · ${label}` : undefined}
