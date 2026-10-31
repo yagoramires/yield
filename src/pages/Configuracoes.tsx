@@ -100,7 +100,7 @@ export function Configuracoes() {
       swap: () => invoke<string>('swap_database', { source: restore }),
       // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
       // (`sqlite:<banco do perfil>`); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
-      // backup de versão antiga: no `yield.db` o plugin migra no load; nos outros perfis, o `migrate`
+      // backup de versão antiga (ou de outro perfil) sobe para a versão do app pelo `migrate`, em qualquer perfil
       reopen: async () => { const d = await openDb(`sqlite:${dbFile}`); await migrateOnce(dbFile, d, MIGRATIONS); await renormalizeBrokers(d); await repairCryptoSymbols(d) },
       reload,
     })

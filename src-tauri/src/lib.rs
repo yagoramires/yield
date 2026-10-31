@@ -3,7 +3,6 @@ use tauri::Emitter;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
-use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod ai;
 
@@ -485,116 +484,6 @@ async fn binance_get(path: String, query: String) -> Result<HttpReply, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![
-        Migration {
-            version: 1,
-            description: "init",
-            sql: include_str!("../migrations/001_init.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 2,
-            description: "gastos",
-            sql: include_str!("../migrations/002_gastos.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 3,
-            description: "orcamento",
-            sql: include_str!("../migrations/003_orcamento.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 4,
-            description: "fontes de renda",
-            sql: include_str!("../migrations/004_fontes_renda.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 5,
-            description: "categoria da pluggy",
-            sql: include_str!("../migrations/005_categoria_pluggy.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 6,
-            description: "visual das categorias",
-            sql: include_str!("../migrations/006_categoria_visual.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 7,
-            description: "fonte de renda clt",
-            sql: include_str!("../migrations/007_fonte_clt.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 8,
-            description: "cadastro da declaracao de ir",
-            sql: include_str!("../migrations/008_cadastro_ir.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 9,
-            description: "renda fixa, exterior e cripto",
-            sql: include_str!("../migrations/009_renda_fixa_cripto.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 10,
-            description: "aportado dos ativos manuais",
-            sql: include_str!("../migrations/010_aportado_manual.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 11,
-            description: "etf de renda fixa",
-            sql: include_str!("../migrations/011_etf_renda_fixa.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 12,
-            description: "aportado da cripto calculado ou a mao",
-            sql: include_str!("../migrations/012_aportado_cripto.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 13,
-            description: "fonte de renda mei",
-            sql: include_str!("../migrations/013_fonte_mei.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 14,
-            description: "blocos do orcamento",
-            sql: include_str!("../migrations/014_orcamento_blocos.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 15,
-            description: "metas do orcamento",
-            sql: include_str!("../migrations/015_metas.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 16,
-            description: "saldo das contas",
-            sql: include_str!("../migrations/016_saldo_contas.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 17,
-            description: "investimentos do banco",
-            sql: include_str!("../migrations/017_investimentos_banco.sql"),
-            kind: MigrationKind::Up,
-        },
-        Migration {
-            version: 18,
-            description: "insights da ia",
-            sql: include_str!("../migrations/018_ai_insights.sql"),
-            kind: MigrationKind::Up,
-        },
-    ];
     let builder = tauri::Builder::default();
     // Menu da barra do macOS em português, com "Procurar atualizações…" (o front escuta o evento e mostra o resultado).
     #[cfg(target_os = "macos")]
@@ -618,11 +507,8 @@ pub fn run() {
             }
             Ok(())
         })
-        .plugin(
-            tauri_plugin_sql::Builder::default()
-                .add_migrations("sqlite:yield.db", migrations)
-                .build(),
-        )
+        // sem migrações no plugin: todo banco de perfil (o `yield.db` também) é migrado no JS pelo `meta.schema_version`
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

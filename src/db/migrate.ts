@@ -8,8 +8,15 @@ async function schemaVersion(db: Db): Promise<number> {
 
 /** Roda as migrações que faltam (cada arquivo grava a própria versão em `meta.schema_version`) e devolve a versão final. */
 export async function migrate(db: Db, migrations: string[]): Promise<number> {
-  // o plugin roda todos os comandos de um `execute` (sqlx prepara o resto do texto até acabar), então vai um arquivo por vez
-  for (const sql of migrations.slice(await schemaVersion(db))) await db.execute(sql)
+  // o plugin roda todos os comandos de um `execute` (sqlx prepara o resto do texto até acabar), então vai um arquivo por vez,
+  // numa transação: um arquivo que falha (ou o app fechado no meio) não deixa o banco pela metade
+  for (const sql of migrations.slice(await schemaVersion(db))) {
+    try { await db.execute(`BEGIN;\n${sql}\nCOMMIT;`) } catch (e) {
+      // a transação aberta ficaria numa conexão do pool; fechar o banco faz o SQLite desfazê-la
+      await db.close().catch(() => {})
+      throw e
+    }
+  }
   return schemaVersion(db)
 }
 

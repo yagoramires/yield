@@ -1,4 +1,4 @@
-// Os mesmos arquivos que o plugin roda no `yield.db`; os bancos dos outros perfis são migrados no JS (`migrate`).
+// As migrações de todo banco de perfil (o `yield.db` também), rodadas pelo `migrate` no JS.
 const files = import.meta.glob<string>('../../src-tauri/migrations/*.sql', { query: '?raw', import: 'default', eager: true })
 
 export const MIGRATIONS: string[] = Object.keys(files).sort().map(name => files[name])

@@ -180,7 +180,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     ;(async () => {
       try {
-        // no `yield.db` o plugin já migrou no primeiro Database.load; os outros perfis são migrados aqui
+        // todo banco de perfil é migrado aqui, pelo `meta.schema_version` (o plugin não migra nenhum)
         const d = await openDb(`sqlite:${dbFile}`)
         await migrateOnce(dbFile, d, MIGRATIONS)
         if (cancelled) return
