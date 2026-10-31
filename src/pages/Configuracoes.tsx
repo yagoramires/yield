@@ -2,8 +2,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { appDataDir, join } from '@tauri-apps/api/path'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
-import { BackupError, exportBackup, validateBackup } from '../db/backup'
-import { openDb, type Db } from '../db/client'
+import { BackupError, exportBackup, stageBackup } from '../db/backup'
+import { openDb } from '../db/client'
 import { migrateOnce } from '../db/migrate'
 import { MIGRATIONS } from '../db/migrations'
 import { renormalizeBrokers } from '../db/repo'
@@ -35,16 +35,16 @@ export function Configuracoes() {
   const { dbFile } = useProfiles().profile
   const b3 = useB3Import()
   const [busy, setBusy] = useState(false) // backup em troca
-  const [restore, setRestore] = useState<string | null>(null) // caminho do backup já validado, esperando confirmação
+  const [restore, setRestore] = useState(false) // backup já validado no restore.db, esperando confirmação
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
   const [exportPw, setExportPw] = useState<{ password: string; confirm: string } | null>(null) // pedindo a senha do novo backup
   const [importPw, setImportPw] = useState<{ path: string; password: string } | null>(null) // backup com senha escolhido
 
-  // restore.db é o backup com senha já aberto: não pode ficar no disco se a importação não for até o fim
+  // restore.db é o backup já aberto, sem senha: não pode ficar no disco se a importação não for até o fim
   const discardRestore = () => { invoke('discard_restore').catch(() => {}) }
   useEffect(() => () => discardRestore(), []) // saiu da tela com a importação pendente
-  const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(null); setExportPw(null); setImportPw(null); discardRestore() }
+  const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(false); setExportPw(null); setImportPw(null); discardRestore() }
 
   const exportar = async () => {
     if (!exportPw) return
@@ -64,11 +64,9 @@ export function Configuracoes() {
     setBusy(false)
   }
 
-  const validar = async (path: string) => {
-    let source: Db
-    try { source = await openDb(`sqlite:${path}`) } catch { throw new BackupError('Este arquivo não é um backup do Yield.') }
-    try { await validateBackup(source) } finally { await source.close() }
-    setRestore(path)
+  const validar = async (path: string, password: string | null) => {
+    await stageBackup(path, password)
+    setRestore(true)
   }
 
   const escolherBackup = async () => {
@@ -77,7 +75,7 @@ export function Configuracoes() {
       const path = await open({ multiple: false, directory: false, filters: BACKUP_FILTER })
       if (!path) return
       if (await invoke<boolean>('is_encrypted_backup', { path })) setImportPw({ path, password: '' })
-      else await validar(path)
+      else await validar(path, null)
     } catch (e) { setBackupError(e instanceof BackupError ? e.message : `Não foi possível ler o backup: ${errText(e)}`) }
   }
 
@@ -85,9 +83,9 @@ export function Configuracoes() {
     if (!importPw) return
     setBusy(true); setBackupError(null)
     try {
-      await validar(await invoke<string>('decrypt_backup', { from: importPw.path, password: importPw.password }))
+      await validar(importPw.path, importPw.password)
       setImportPw(null)
-    } catch (e) { setBackupError(e instanceof BackupError ? e.message : errText(e)); discardRestore() }
+    } catch (e) { setBackupError(e instanceof BackupError ? e.message : errText(e)) }
     setBusy(false)
   }
 
@@ -97,16 +95,16 @@ export function Configuracoes() {
     const r = await restoreBackup({
       checkpoint: async () => { await db.execute('PRAGMA wal_checkpoint(TRUNCATE)') },
       close: () => db.close(),
-      swap: () => invoke<string>('swap_database', { source: restore }),
-      // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
-      // (`sqlite:<banco do perfil>`); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
+      swap: () => invoke<string>('swap_database'),
+      // `db_load` cria um pool novo e o põe no mapa pelo nome do arquivo do perfil;
+      // o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
       // backup de versão antiga (ou de outro perfil) sobe para a versão do app pelo `migrate`, em qualquer perfil
-      reopen: async () => { const d = await openDb(`sqlite:${dbFile}`); await migrateOnce(dbFile, d, MIGRATIONS); await renormalizeBrokers(d); await repairCryptoSymbols(d) },
+      reopen: async () => { const d = await openDb(dbFile); await migrateOnce(dbFile, d, MIGRATIONS); await renormalizeBrokers(d); await repairCryptoSymbols(d) },
       reload,
     })
     if (r.ok) setBackupMsg(r.message)
     else { setBackupError(r.message); discardRestore() }
-    setRestore(null); setBusy(false)
+    setRestore(false); setBusy(false)
   }
 
   const yahooTimes = data.quotes.filter(q => q.source === 'yahoo').map(q => q.fetchedAt).sort()
@@ -165,7 +163,7 @@ export function Configuracoes() {
             <div className="note" style={{ marginTop: 10 }}>
               Isso substitui todos os dados atuais. Uma cópia de segurança será guardada.
               <div className="btns" style={{ marginTop: 8 }}>
-                <button className="b" disabled={busy} onClick={() => { setRestore(null); discardRestore() }}>Cancelar</button>
+                <button className="b" disabled={busy} onClick={() => { setRestore(false); discardRestore() }}>Cancelar</button>
                 <button className="b pri" disabled={busy} onClick={() => void substituir()}>{busy ? 'Substituindo…' : 'Substituir dados'}</button>
               </div>
             </div>

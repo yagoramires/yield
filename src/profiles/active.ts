@@ -25,7 +25,7 @@ export function markChosen(id: string): void {
 // A IA e o banco do perfil anterior não podem seguir abertos com a janela nova: o servidor de IA enxerga dados dele e o pool SQL fica preso no processo.
 async function releasePrevious(): Promise<void> {
   await invoke('ai_stop').catch(() => {})
-  await invoke('plugin:sql|close').catch(() => {})
+  await invoke('profile_lock').catch(() => {})
 }
 
 export async function switchTo(id: string): Promise<void> {

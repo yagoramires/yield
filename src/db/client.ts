@@ -1,4 +1,4 @@
-import Database from '@tauri-apps/plugin-sql'
+import { invoke } from '@tauri-apps/api/core'
 
 export interface Db {
   select<T>(sql: string, params?: unknown[]): Promise<T[]>
@@ -8,14 +8,16 @@ export interface Db {
 
 export const SCHEMA_VERSION = 18
 
-// Só abre o arquivo: quem abre o banco de um perfil roda o `migrateOnce`; um backup é aberto sem migrar.
-export async function openDb(path = 'sqlite:yield.db'): Promise<Db> {
-  const d = await Database.load(path)
-  await d.execute('PRAGMA foreign_keys = ON')
+// O backup em importação: o único arquivo fora do perfil aberto que o Rust deixa abrir.
+export const RESTORE_FILE = 'restore.db'
+
+// Só abre o arquivo (na pasta do app): quem abre o banco de um perfil roda o `migrateOnce`; um backup é aberto sem migrar.
+// O Rust guarda o pool pelo nome do arquivo, então este `Db` segue valendo se o mesmo arquivo for fechado e reaberto.
+export async function openDb(file: string): Promise<Db> {
+  await invoke('db_load', { file })
   return {
-    select: (sql, params) => d.select(sql, params),
-    execute: async (sql, params) => ({ rowsAffected: (await d.execute(sql, params)).rowsAffected }),
-    // sem o nome, o plugin fecha TODOS os pools (fechar o backup derrubaria o banco do app)
-    close: async () => { await d.close(d.path) },
+    select: (sql, params) => invoke('db_select', { file, sql, params: params ?? [] }),
+    execute: async (sql, params) => ({ rowsAffected: (await invoke<{ rowsAffected: number }>('db_execute', { file, sql, params: params ?? [] })).rowsAffected }),
+    close: () => invoke('db_close', { file }),
   }
 }

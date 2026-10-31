@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::Manager;
 
 mod ai;
+mod db;
 
 /// Troca o banco `db_name` em `dir` pelo conteúdo de `source`; devolve o caminho da cópia de segurança.
 fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, String> {
@@ -52,18 +53,16 @@ fn remove_if_exists(path: &Path) -> Result<(), String> {
     }
 }
 
+/// Troca o banco do perfil aberto pelo `restore.db` que o `backup_open` preparou e o JS já validou.
 #[tauri::command]
-fn swap_database(app: tauri::AppHandle, source: String) -> Result<String, String> {
+fn swap_database(app: tauri::AppHandle) -> Result<String, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let source = Path::new(&source);
-    // o caminho vem do webview: só aceita um banco SQLite
-    if !starts_with(source, SQLITE_MAGIC)? {
+    let source = dir.join(RESTORE_FILE);
+    if !starts_with(&source, SQLITE_MAGIC)? {
         return Err("Este arquivo não é um backup do Yield.".into());
     }
-    let backup = swap_in_dir(&dir, source, &active()?.1)?;
-    if source == dir.join(RESTORE_FILE) {
-        let _ = std::fs::remove_file(source); // cópia aberta do backup com senha: já está no banco
-    }
+    let backup = swap_in_dir(&dir, &source, &active()?.1)?;
+    let _ = std::fs::remove_file(&source); // o backup aberto, sem senha: já está no banco
     Ok(backup.to_string_lossy().into_owned())
 }
 
@@ -143,14 +142,21 @@ fn is_encrypted_backup(path: String) -> Result<bool, String> {
     starts_with(Path::new(&path), BACKUP_MAGIC)
 }
 
-/// Descriptografa para `restore.db` na pasta do app; `swap_database` apaga esse arquivo depois de usar.
-#[tauri::command]
-fn decrypt_backup(app: tauri::AppHandle, from: String, password: String) -> Result<String, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let plain = unseal(&std::fs::read(&from).map_err(|e| e.to_string())?, &password)?;
+/// Põe o backup escolhido em `restore.db` (o único arquivo fora do perfil que o `db_load` abre); `swap_database` apaga esse arquivo depois de usar.
+fn backup_open_in(dir: &Path, from: &Path, password: Option<&str>) -> Result<(), String> {
     let out = dir.join(RESTORE_FILE);
-    std::fs::write(&out, plain).map_err(|e| e.to_string())?;
-    Ok(out.to_string_lossy().into_owned())
+    match password {
+        Some(pw) => std::fs::write(&out, unseal(&std::fs::read(from).map_err(|e| e.to_string())?, pw)?),
+        // backup antigo `.db`, sem senha
+        None if starts_with(from, SQLITE_MAGIC)? => std::fs::copy(from, &out).map(|_| ()),
+        None => return Err("Este arquivo não é um backup do Yield.".into()),
+    }
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn backup_open(app: tauri::AppHandle, path: String, password: Option<String>) -> Result<(), String> {
+    backup_open_in(&app.path().app_config_dir().map_err(|e| e.to_string())?, Path::new(&path), password.as_deref())
 }
 
 const RESTORE_FILE: &str = "restore.db";
@@ -549,16 +555,17 @@ pub fn run() {
             }
             Ok(())
         })
-        // sem migrações no plugin: todo banco de perfil (o `yield.db` também) é migrado no JS pelo `meta.schema_version`
-        .plugin(tauri_plugin_sql::Builder::default().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(ai::State::default())
+        // todo banco de perfil (o `yield.db` também) é migrado no JS pelo `meta.schema_version`
+        .manage(db::Dbs::default())
         .invoke_handler(tauri::generate_handler![
-            swap_database, encrypt_backup, is_encrypted_backup, decrypt_backup, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
+            swap_database, encrypt_backup, is_encrypted_backup, backup_open, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
             profiles_read, profiles_write, profile_activate, profile_remove_files,
+            db::db_load, db::db_select, db::db_execute, db::db_close, db::profile_lock,
             ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
         ])
         .build(tauri::generate_context!())
@@ -566,6 +573,7 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 ai::shutdown(app); // o modelo ocupa gigas de memória: não fica rodando depois que o app fecha
+                tauri::async_runtime::block_on(db::close_all(&app.state::<db::Dbs>())); // como o plugin SQL fazia ao sair
             }
         });
 }
@@ -750,6 +758,22 @@ mod tests {
         discard_restore_in(&dir).unwrap();
         assert!(!dir.join(RESTORE_FILE).exists());
         discard_restore_in(&dir).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn backup_escolhido_vira_restore_db() {
+        let dir = tmp("backup-open");
+        let antigo = dir.join("antigo.db");
+        std::fs::write(&antigo, b"SQLite format 3\0antigo").unwrap();
+        backup_open_in(&dir, &antigo, None).unwrap();
+        assert_eq!(std::fs::read(dir.join(RESTORE_FILE)).unwrap(), b"SQLite format 3\0antigo");
+        let com_senha = dir.join("b.yield");
+        std::fs::write(&com_senha, seal(b"SQLite format 3\0com senha", "s").unwrap()).unwrap();
+        backup_open_in(&dir, &com_senha, Some("s")).unwrap();
+        assert_eq!(std::fs::read(dir.join(RESTORE_FILE)).unwrap(), b"SQLite format 3\0com senha");
+        assert_eq!(backup_open_in(&dir, &com_senha, Some("x")).unwrap_err(), "Senha errada ou arquivo corrompido.");
+        assert_eq!(backup_open_in(&dir, &com_senha, None).unwrap_err(), "Este arquivo não é um backup do Yield.");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
