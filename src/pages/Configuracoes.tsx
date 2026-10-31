@@ -19,6 +19,7 @@ import { Proventos } from './configuracoes/Proventos'
 import { Modulos } from './configuracoes/Modulos'
 import { Aparencia } from './configuracoes/Aparencia'
 import { IaLocal } from './configuracoes/IaLocal'
+import { Perfil } from './configuracoes/Perfil'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -115,6 +116,7 @@ export function Configuracoes() {
     <>
       <h1>Configurações</h1>
       <div className="muted">Tudo fica neste computador. O app só fala com o Yahoo Finance (cotações), o Banco Central em api.bcb.gov.br (CDI), a Pluggy em api.pluggy.ai (leitura dos seus bancos), a Binance em api.binance.com (saldos de cripto) e o GitHub (atualizações do app).</div>
+      <Perfil />
       <div className="grid2" style={{ marginTop: 14 }}>
         <ImportarOrcamento />
 

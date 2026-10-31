@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { LEGACY_ID, SCOPED_KEYS, newProfile, randomId, scopedKey, type Profile, type ProfilesFile } from './profiles'
 
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
 // Perfil ativo mora no localStorage; trocar de perfil recarrega a janela, então as stores já leem as chaves certas na importação.
 export const ACTIVE_KEY = 'yield.perfilAtivo'
 // sessionStorage: o perfil já escolhido nesta abertura do app (some ao fechar).
@@ -48,4 +50,35 @@ export function lockToPicker(nextActiveId?: string): void {
 
 export function clearScoped(id: string): void {
   for (const k of SCOPED_KEYS) { try { localStorage.removeItem(scopedKey(k, id)) } catch { /* sem storage: nada a limpar */ } }
+}
+
+export interface DeleteSteps {
+  save(f: ProfilesFile): Promise<void>
+  close(): Promise<void>
+  activate(p: Profile): Promise<void>
+  /** null: tudo apagado; texto: os arquivos foram, mas o item do cofre ficou. Lança se os arquivos ficaram. */
+  removeFiles(p: Profile): Promise<string | null>
+  folder(): Promise<string>
+}
+
+/** null: apagado. `listed`: o perfil ainda está na lista (dá para cancelar); senão só resta seguir para o próximo. */
+export type DeleteFailure = { listed: boolean; message: string } | null
+
+/** Apaga o perfil ativo; o próximo da lista vira o ativo. A lista vai primeiro: se algo falhar depois, nenhum outro perfil se perde. */
+export async function deleteActive(profiles: Profile[], target: Profile, s: DeleteSteps): Promise<DeleteFailure> {
+  const rest = profiles.filter(p => p.id !== target.id)
+  if (rest.length === 0) return { listed: true, message: 'Pelo menos um perfil fica.' }
+  try { await s.save({ version: 1, profiles: rest }) } catch (e) { return { listed: true, message: `Não foi possível apagar o perfil: ${errText(e)}` } }
+  let vaultError: string | null
+  try {
+    await s.close()
+    await s.activate(rest[0]) // o Rust recusa apagar o perfil ativo
+    vaultError = await s.removeFiles(target)
+  } catch (e) {
+    clearScoped(target.id)
+    const dir = await s.folder().catch(() => 'de dados do Yield')
+    return { listed: false, message: `O perfil saiu da lista, mas não deu para apagar os dados: o arquivo ${target.dbFile} continua na pasta ${dir}. ${errText(e)}` }
+  }
+  clearScoped(target.id)
+  return vaultError ? { listed: false, message: `Os dados do perfil foram apagados, mas não deu para limpar as credenciais salvas no Acesso às Chaves: ${vaultError}` } : null
 }

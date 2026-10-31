@@ -244,12 +244,14 @@ fn remove_profile_in(dir: &Path, id: &str, db_file: &str, active_id: &str) -> Re
     Ok(())
 }
 
+/// `Err`: algum arquivo ficou e o cofre nem foi tocado. `Ok(Some(erro))`: arquivos apagados, mas o item do cofre ficou.
 #[tauri::command]
-fn profile_remove_files(app: tauri::AppHandle, id: String, db_file: String) -> Result<(), String> {
+fn profile_remove_files(app: tauri::AppHandle, id: String, db_file: String) -> Result<Option<String>, String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     remove_profile_in(&dir, &id, &db_file, &active()?.0)?;
     // id já validado acima; entry_for só aceita o item do perfil ativo
-    delete_with(&keyring::Entry::new(SECRET_SERVICE, &vault_key(&id)).map_err(|e| e.to_string())?)
+    let entry = keyring::Entry::new(SECRET_SERVICE, &vault_key(&id)).map_err(|e| e.to_string());
+    Ok(entry.and_then(|e| delete_with(&e)).err())
 }
 
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
