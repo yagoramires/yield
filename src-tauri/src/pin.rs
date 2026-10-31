@@ -46,6 +46,8 @@ pub(crate) static UNLOCKED: Mutex<Option<(String, Keys)>> = Mutex::new(None);
 pub(crate) static RESTORE: Mutex<Option<Key>> = Mutex::new(None);
 // tentativas em paralelo contam uma a uma: ler, conferir e gravar o pins.json é uma coisa só
 static CHECKING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+// toda gravação do pins.json, e a reconstrução do ilegível, uma de cada vez (sem await dentro)
+static PINS_WRITE: Mutex<()> = Mutex::new(());
 
 fn err(e: impl ToString) -> String {
     e.to_string()
@@ -96,7 +98,6 @@ pub fn salt_copy(dir: &Path, db_file: &str) -> PathBuf {
     dir.join(format!("{db_file}.salt"))
 }
 
-#[cfg_attr(not(test), allow(dead_code))] // quem liga o PIN (Task 3) grava a cópia junto com o pins.json
 pub fn write_salt_copy(dir: &Path, db_file: &str, salt: &[u8; 16]) -> Result<(), String> {
     write_atomic(&salt_copy(dir, db_file), &hex(salt))
 }
@@ -107,19 +108,17 @@ pub fn read_salt_copy(dir: &Path, db_file: &str) -> Option<[u8; 16]> {
 
 /// Ausente → vazio. Ilegível → guarda uma cópia e refaz as entradas pelas cópias `<db>.salt` (sem a contagem de erros).
 pub fn read_pins(dir: &Path) -> Result<PinsFile, String> {
-    let empty = || PinsFile { version: 1, profiles: BTreeMap::new() };
-    let s = match std::fs::read_to_string(dir.join(PINS_FILE)) {
-        Ok(s) => s,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(empty()),
-        Err(e) if e.kind() != std::io::ErrorKind::InvalidData => return Err(err(e)),
-        Err(_) => String::new(), // não é UTF-8: ilegível também
-    };
-    if let Ok(f) = serde_json::from_str(&s) {
+    if let Some(f) = parse_pins(dir)? {
+        return Ok(f);
+    }
+    let _w = PINS_WRITE.lock().unwrap_or_else(|e| e.into_inner());
+    // outra chamada pode ter refeito (ou gravado uma contagem nova) enquanto esta esperava
+    if let Some(f) = parse_pins(dir)? {
         return Ok(f);
     }
     // a cópia antes de tudo: o pins.json refeito vai por cima do ilegível
     std::fs::copy(dir.join(PINS_FILE), dir.join(format!("{PINS_FILE}.ilegivel-{}", now()?))).map_err(err)?;
-    let mut f = empty();
+    let mut f = empty_pins();
     for entry in std::fs::read_dir(dir).map_err(err)?.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
         let Some(db_file) = name.strip_suffix(".salt") else { continue };
@@ -127,11 +126,30 @@ pub fn read_pins(dir: &Path) -> Result<PinsFile, String> {
             f.profiles.insert(id.into(), PinState { salt: hex(&salt), fails: 0, until: 0 });
         }
     }
-    write_pins(dir, &f)?;
+    save_pins(dir, &f)?;
     Ok(f)
 }
 
+fn empty_pins() -> PinsFile {
+    PinsFile { version: 1, profiles: BTreeMap::new() }
+}
+
+/// `None` = ilegível (JSON ruim ou não é UTF-8); ausente vale como vazio.
+fn parse_pins(dir: &Path) -> Result<Option<PinsFile>, String> {
+    match std::fs::read_to_string(dir.join(PINS_FILE)) {
+        Ok(s) => Ok(serde_json::from_str(&s).ok()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Some(empty_pins())),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Ok(None),
+        Err(e) => Err(err(e)),
+    }
+}
+
 pub fn write_pins(dir: &Path, f: &PinsFile) -> Result<(), String> {
+    let _w = PINS_WRITE.lock().unwrap_or_else(|e| e.into_inner());
+    save_pins(dir, f)
+}
+
+fn save_pins(dir: &Path, f: &PinsFile) -> Result<(), String> {
     write_atomic(&dir.join(PINS_FILE), &serde_json::to_string_pretty(f).map_err(err)?)
 }
 
@@ -159,13 +177,14 @@ pub async fn check_pin_in(dir: &Path, id: &str, db_file: &str, pin: &str, now: u
     }
     let _checking = CHECKING.lock().await;
     let mut pins = read_pins(dir)?;
-    let (mut state, salt) = match pins.profiles.get(id).and_then(|s| Some((s.clone(), salt_from_hex(&s.salt)?))) {
-        Some(found) => found,
-        None => {
-            let salt = read_salt_copy(dir, db_file).ok_or("Não encontrei o sal do PIN deste perfil em pins.json; sem ele o banco não abre.")?;
-            (PinState { salt: hex(&salt), fails: 0, until: 0 }, salt)
-        }
+    let entry = pins.profiles.get(id).cloned();
+    let salt = match entry.as_ref().and_then(|s| salt_from_hex(&s.salt)) {
+        Some(salt) => salt,
+        None => read_salt_copy(dir, db_file).ok_or("Não encontrei o sal do PIN deste perfil em pins.json; sem ele o banco não abre.")?,
     };
+    // entrada com sal estragado mantém a contagem de erros: só o sal vem da cópia
+    let mut state = entry.unwrap_or(PinState { salt: String::new(), fails: 0, until: 0 });
+    state.salt = hex(&salt);
     if let Some(until) = locked_until(&state, now) {
         return Ok((Unlock::Locked { until }, None));
     }
@@ -174,6 +193,9 @@ pub async fn check_pin_in(dir: &Path, id: &str, db_file: &str, pin: &str, now: u
     let (result, keys) = if key_opens(&dir.join(db_file), &keys.db).await? {
         state.fails = 0;
         state.until = 0;
+        if read_salt_copy(dir, db_file).is_none() {
+            write_salt_copy(dir, db_file, &salt)?;
+        }
         (Unlock::Ok, Some(keys))
     } else {
         (register_failure(&mut state, now), None)
@@ -200,7 +222,7 @@ pub fn key_for(dir: &Path, file: &str) -> Result<Option<Key>, String> {
         }
     }
     // sem sal em lugar nenhum não é um banco com PIN: é outra coisa ou está corrompido
-    let has_salt = read_pins(dir).is_ok_and(|p| p.profiles.contains_key(&id)) || read_salt_copy(dir, file).is_some();
+    let has_salt = read_salt_copy(dir, file).is_some() || read_pins(dir)?.profiles.contains_key(&id);
     Err(if has_salt { LOCKED } else { CORRUPT }.into())
 }
 
@@ -239,7 +261,8 @@ pub fn profiles_locks(app: tauri::AppHandle, profiles: Vec<ProfileRef>) -> Resul
     let now = now()?;
     let mut out = HashMap::new();
     for p in profiles.into_iter().filter(|p| valid_profile(&p.id, &p.db_file)) {
-        let has_pin = has_pin_file(&dir.join(&p.db_file))?;
+        // um arquivo ilegível não derruba a lista: o db_load dele é que vai dizer o erro
+        let Ok(has_pin) = has_pin_file(&dir.join(&p.db_file)) else { continue };
         let until = pins.profiles.get(&p.id).and_then(|s| locked_until(s, now));
         out.insert(p.id, PinInfo { has_pin, until });
     }
@@ -271,6 +294,12 @@ pub(crate) mod testutil {
     use std::sync::atomic::{AtomicU32, Ordering};
 
     pub const SALT: [u8; 16] = *b"sal-de-teste-16b";
+
+    // testes que mexem no perfil ativo ou no UNLOCKED (estado global) rodam um de cada vez
+    static GLOBALS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    pub fn globals() -> std::sync::MutexGuard<'static, ()> {
+        GLOBALS.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     // os testes rodam em paralelo no mesmo processo: cada banco ganha a sua pasta
     static N: AtomicU32 = AtomicU32::new(0);
@@ -403,9 +432,10 @@ mod tests {
 
     #[tokio::test]
     async fn chave_do_banco_ao_abrir() {
+        let _g = globals();
         let claro = em_claro("yield.db").await;
         assert_eq!(key_for(&claro, "yield.db").unwrap(), None);
-        // o perfil sem nenhum ativado é o `principal` (yield.db), e nenhum outro teste mexe no UNLOCKED
+        // sem nenhum perfil ativado vale o `principal` (yield.db)
         let dir = cifrado("yield.db", "1234").await;
         assert_eq!(key_for(&dir, "yield.db").unwrap_err(), "Perfil bloqueado: digite o PIN.");
         let keys = derive("1234", &SALT).unwrap();
@@ -417,5 +447,40 @@ mod tests {
         std::fs::remove_file(dir.join(PINS_FILE)).unwrap();
         std::fs::remove_file(salt_copy(&dir, "yield.db")).unwrap();
         assert_eq!(key_for(&dir, "yield.db").unwrap_err(), CORRUPT);
+        // erro de leitura do pins.json não vira "corrompido"
+        std::fs::create_dir(dir.join(PINS_FILE)).unwrap();
+        assert_ne!(key_for(&dir, "yield.db").unwrap_err(), CORRUPT);
+    }
+
+    #[tokio::test]
+    async fn tentativas_em_paralelo_contam_uma_a_uma() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let t = || check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "9999", 1000);
+        let r = tokio::join!(t(), t(), t(), t(), t());
+        let locked = [r.0, r.1, r.2, r.3, r.4].into_iter().filter(|r| matches!(r.as_ref().unwrap().0, Unlock::Locked { .. })).count();
+        assert_eq!(locked, 1);
+        assert_eq!(read_pins(&dir).unwrap().profiles["abcd1234"], PinState { salt: hex(&SALT), fails: 5, until: 1060 });
+    }
+
+    #[tokio::test]
+    async fn sal_estragado_volta_da_copia_sem_zerar_a_espera() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        for _ in 0..5 { check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "9999", 1000).await.unwrap(); }
+        let mut f = read_pins(&dir).unwrap();
+        f.profiles.get_mut("abcd1234").unwrap().salt = "zz".into();
+        write_pins(&dir, &f).unwrap();
+        assert_eq!(check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "1234", 1000).await.unwrap().0, Unlock::Locked { until: 1060 });
+        assert_eq!(check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "1234", 1060).await.unwrap().0, Unlock::Ok);
+        assert_eq!(read_pins(&dir).unwrap().profiles["abcd1234"].salt, hex(&SALT));
+    }
+
+    #[tokio::test]
+    async fn desbloquear_refaz_a_copia_do_sal() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        std::fs::remove_file(salt_copy(&dir, "perfil-abcd1234.db")).unwrap();
+        check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "9999", 1000).await.unwrap();
+        assert_eq!(read_salt_copy(&dir, "perfil-abcd1234.db"), None); // PIN errado não grava nada fora do pins.json
+        check_pin_in(&dir, "abcd1234", "perfil-abcd1234.db", "1234", 1000).await.unwrap();
+        assert_eq!(read_salt_copy(&dir, "perfil-abcd1234.db"), Some(SALT));
     }
 }

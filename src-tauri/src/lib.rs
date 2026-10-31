@@ -256,7 +256,17 @@ fn profiles_write(app: tauri::AppHandle, json: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn profile_activate(id: String, db_file: String) -> Result<(), String> {
+async fn profile_activate(state: tauri::State<'_, db::Dbs>, id: String, db_file: String) -> Result<(), String> {
+    activate_in(&state, id, db_file).await
+}
+
+async fn activate_in(dbs: &db::Dbs, id: String, db_file: String) -> Result<(), String> {
+    set_active(id, db_file.clone())?;
+    db::close_others(dbs, &db_file).await;
+    Ok(())
+}
+
+fn set_active(id: String, db_file: String) -> Result<(), String> {
     if !valid_profile(&id, &db_file) {
         return Err("Perfil inválido.".into());
     }
@@ -795,6 +805,7 @@ mod tests {
 
     #[test]
     fn cofre_rejeita_key_desconhecida_antes_de_tocar_no_cofre() {
+        let _g = pin::testutil::globals(); // depende do perfil ativo ser o `principal`
         assert!(entry_for("outra.coisa").is_err());
         assert!(entry_for("pluggy.clientId").is_ok());
         assert!(entry_for("yield.credentials").is_ok());
@@ -814,6 +825,27 @@ mod tests {
         for q in ["a=1#x", "a=1 b", "a=%2F", "a=1&signature=x", "@evil.example/"] {
             assert!(binance_url("/api/v3/account", q, secret).is_err(), "{q}");
         }
+    }
+
+    #[tokio::test]
+    async fn pool_aberto_nao_dispensa_o_pin_depois_da_troca() {
+        let _g = pin::testutil::globals();
+        let dir = pin::testutil::cifrado("yield.db", "1234").await;
+        let dbs = db::Dbs::default();
+        let keys = pin::derive("1234", &pin::testutil::SALT).unwrap();
+        *pin::UNLOCKED.lock().unwrap() = Some((LEGACY_ID.into(), keys));
+        activate_in(&dbs, LEGACY_ID.into(), LEGACY_DB.into()).await.unwrap();
+        db::load_in(&dbs, &dir, LEGACY_DB).await.unwrap();
+        db::load_in(&dbs, &dir, LEGACY_DB).await.unwrap(); // StrictMode: o segundo não reabre
+        let keys = pin::UNLOCKED.lock().unwrap().take();
+        assert!(db::load_in(&dbs, &dir, LEGACY_DB).await.is_err()); // pool aberto não dispensa a chave
+        *pin::UNLOCKED.lock().unwrap() = keys;
+        activate_in(&dbs, "abcd1234".into(), "perfil-abcd1234.db".into()).await.unwrap();
+        assert!(dbs.0.lock().await.is_empty()); // a troca fecha o pool do outro perfil
+        activate_in(&dbs, LEGACY_ID.into(), LEGACY_DB.into()).await.unwrap();
+        assert_eq!(db::load_in(&dbs, &dir, LEGACY_DB).await.unwrap_err(), "Perfil bloqueado: digite o PIN.");
+        assert!(dbs.0.lock().await.is_empty());
+        *ACTIVE.lock().unwrap() = None;
     }
 
     #[test]

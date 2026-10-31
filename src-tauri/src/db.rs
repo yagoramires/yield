@@ -165,6 +165,18 @@ pub async fn close_all(dbs: &Dbs) {
     }
 }
 
+/// Fecha os bancos que não são `keep`: na troca de perfil, nenhum pool sobrevive ao bloqueio do perfil dono dele.
+pub async fn close_others(dbs: &Dbs, keep: &str) {
+    let pools: Vec<SqlitePool> = {
+        let mut map = dbs.0.lock().await;
+        let others: Vec<String> = map.keys().filter(|f| *f != keep).cloned().collect();
+        others.iter().filter_map(|f| map.remove(f)).collect()
+    };
+    for p in pools {
+        p.close().await;
+    }
+}
+
 /// O nome vem do webview: só o banco do perfil aberto ou o backup em importação, sempre na pasta do app (como o plugin).
 fn db_dir(app: &tauri::AppHandle, file: &str) -> Result<PathBuf, String> {
     if file != crate::active()?.1 && file != crate::RESTORE_FILE {
@@ -181,14 +193,19 @@ async fn pool_of(dbs: &Dbs, file: &str) -> Result<SqlitePool, String> {
 
 #[tauri::command]
 pub async fn db_load(app: tauri::AppHandle, state: State<'_, Dbs>, file: String) -> Result<(), String> {
-    let dir = db_dir(&app, &file)?;
+    load_in(&state, &db_dir(&app, &file)?, &file).await
+}
+
+/// Abre `dir/file` com a chave do `pin::key_for`; já aberto, não reabre.
+pub async fn load_in(dbs: &Dbs, dir: &Path, file: &str) -> Result<(), String> {
+    // a chave antes do atalho: um pool que ficou aberto não dispensa o PIN
+    let key = crate::pin::key_for(dir, file)?;
     // o StrictMode do React carrega duas vezes: o segundo não fecha o pool que o primeiro já entregou
-    if state.0.lock().await.contains_key(&file) {
+    if dbs.0.lock().await.contains_key(file) {
         return Ok(());
     }
-    let key = crate::pin::key_for(&dir, &file)?;
-    let pool = open_pool(&dir.join(&file), key.as_ref()).await?;
-    let old = state.0.lock().await.insert(file, pool);
+    let pool = open_pool(&dir.join(file), key.as_ref()).await?;
+    let old = dbs.0.lock().await.insert(file.into(), pool);
     if let Some(old) = old {
         old.close().await;
     }
@@ -218,9 +235,10 @@ pub async fn db_close(state: State<'_, Dbs>, file: String) -> Result<(), String>
 #[tauri::command]
 pub async fn profile_lock(state: State<'_, Dbs>) -> Result<(), String> {
     close_all(&state).await;
-    *crate::pin::UNLOCKED.lock().map_err(err)? = None;
-    *crate::pin::RESTORE.lock().map_err(err)? = None;
-    *crate::VAULT.lock().map_err(err)? = None;
+    // trava envenenada não impede de esquecer as chaves
+    *crate::pin::UNLOCKED.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *crate::pin::RESTORE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    *crate::VAULT.lock().unwrap_or_else(|e| e.into_inner()) = None;
     Ok(())
 }
 
