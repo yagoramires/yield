@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, tmpPath, type Db } from './testDb'
-import { DEFAULT_PJ, FIXAS_PADRAO, applySource, saveFixedCategories, saveReservaLinks, saveReservas, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
+import { DEFAULT_PJ, FIXAS_PADRAO, addLines, applySource, deleteMonth, saveFixedCategories, saveReservaLinks, saveReservas, saveGoals, createMonth, deleteLine, deleteSource, dismissSuggestion, loadOrcamento, saveLine, saveSource } from './orcamentoRepo'
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
@@ -203,5 +203,23 @@ describe('migração', () => {
     expect((await loadOrcamento(db)).reservas).toEqual(['rdb'])
     await saveReservaLinks(db, { rdb: 'inv-1' })
     expect((await loadOrcamento(db)).reservaLinks).toEqual({ rdb: 'inv-1' })
+  })
+})
+
+describe('excluir mês e copiar para mês vazio', () => {
+  test('deleteMonth apaga o mês, as linhas e as sugestões descartadas dele; os outros meses ficam', async () => {
+    await createMonth(db, '2026-10', [linha('Aluguel')])
+    await createMonth(db, '2026-11', [linha('Luz'), linha('Água')])
+    await dismissSuggestion(db, '2026-11', 'sub:x@2026-11')
+    await deleteMonth(db, '2026-11')
+    const d = await loadOrcamento(db)
+    expect(d.months).toEqual(['2026-10'])
+    expect(d.lines.map(l => l.name)).toEqual(['Aluguel'])
+    expect(d.dismissed).toEqual([])
+  })
+  test('addLines põe as linhas num mês que já existe (vazio) sem recriar', async () => {
+    await createMonth(db, '2026-11', [])
+    await addLines(db, '2026-11', [linha('Luz'), linha('Água', { position: 1 })])
+    expect((await loadOrcamento(db)).lines.map(l => [l.month, l.name])).toEqual([['2026-11', 'Luz'], ['2026-11', 'Água']])
   })
 })

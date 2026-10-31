@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Insights } from './assistente/Insights'
 import type { Route } from '../ui/routes'
 import { ChevronRight, Plus } from 'lucide-react'
-import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
+import { addLines, createMonth, deleteLine, deleteMonth, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
 import { averageByCategory, blocoOf, outrasEntradas, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
@@ -48,6 +48,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const [metasOpen, setMetasOpen] = useState(false)
   const [openCats, setOpenCats] = useState<Set<string>>(new Set()) // categorias abertas no cartão de custos
   const [tab, setTab] = useState<'fixos' | 'variaveis'>('variaveis')
+  const [delMonth, setDelMonth] = useState(false) // confirmando a exclusão do mês
 
   // toda escrita passa por aqui: recarrega e mostra o erro em pt-BR na tela
   const run = async (what: string, fn: () => Promise<void>) => {
@@ -56,7 +57,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
     setBusy(false)
     return true
   }
-  const go = (m: Month) => { setForm(null); setDel(null); setError(null); setMetasOpen(false); setMonth(m) }
+  const go = (m: Month) => { setForm(null); setDel(null); setError(null); setMetasOpen(false); setDelMonth(false); setMonth(m) }
 
   const today = todayISO()
   const hasPlan = data.months.includes(month)
@@ -64,6 +65,9 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const lines = data.lines.filter(l => l.month === month)
   const categories = gastos.data.categories
   const catName = (id: string | null) => categories.find(c => c.id === id)?.name ?? null
+  // plano do mês anterior levado para este: recorrentes, a próxima parcela e as fontes de renda (o que já veio de sugestão some delas)
+  const prev = data.months.filter(m => m < month).at(-1)
+  const copy = prev ? copyLines(data.lines.filter(l => l.month === prev), data.sources, month) : []
 
   const header = (
     <div className="bar">
@@ -73,6 +77,11 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
       </div>
       {hasPlan && (
         <div className="btns">
+          {delMonth ? <>
+            <span className="muted" style={{ alignSelf: 'center' }}>Excluir {lower(month)}{lines.length ? ` e ${plural(lines.length, 'linha', 'linhas')}` : ''}?</span>
+            <button className="b danger" disabled={busy} onClick={() => void run(`Não foi possível excluir ${lower(month)}`, () => deleteMonth(db, month)).then(ok => ok && setDelMonth(false))}>Excluir</button>
+            <button className="b ghost" disabled={busy} onClick={() => setDelMonth(false)}>Cancelar</button>
+          </> : <button className="b ghost" disabled={busy} onClick={() => { setForm(null); setDel(null); setDelMonth(true) }}>Excluir mês</button>}
           <button className={metasOpen ? 'b' : 'b ghost'} disabled={busy} onClick={() => { setForm(null); setDel(null); setMetasOpen(!metasOpen) }}>Metas</button>
           {!data.months.includes(next) && <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível criar ${lower(next)}`, async () => {
             await createMonth(db, next, withSources(nextMonthLines(lines, data.sources), data.sources, next))
@@ -84,8 +93,6 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const errorBox = error && <div className="note" style={{ marginTop: 10 }}>{error}</div>
 
   if (!hasPlan) {
-    const prev = data.months.filter(m => m < month).at(-1)
-    const copy = prev ? copyLines(data.lines.filter(l => l.month === prev), data.sources, month) : []
     const fresh = withSources([], data.sources, month)
     return (
       <>
@@ -393,6 +400,12 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
     <>
       {header}
       {errorBox}
+      {lines.length === 0 && prev && copy.length > 0 && (
+        <div className="sem-alert" style={{ marginTop: 12 }}>
+          <span className="grow">{monthName(month)} está vazio. Trazer o plano de {lower(prev)}: o que se repete e a próxima parcela ({plural(copy.length, 'linha', 'linhas')}); depois só o que for novo aparece nas sugestões.</span>
+          <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível trazer ${lower(prev)}`, () => addLines(db, month, withSources(copy, data.sources, month)))}>Trazer {lower(prev)}</button>
+        </div>
+      )}
       <Insights area="orcamento" month={month} onNavigate={onNavigate} />
       <div className="kpis">
         <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(sum.entradasCents + outrasCents)}</div><div className="s muted">{plural(entradas.length, 'do plano', 'do plano')}{outras.length > 0 ? ` · ${formatBRL(outrasCents)} recebidos na conta` : ' · líquido'}</div></div>
