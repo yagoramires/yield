@@ -138,7 +138,7 @@ select:focus-visible { border-color: var(--accent-fg); }
 select:disabled { opacity: .5; cursor: default; }
 select option { background: var(--surface); color: var(--text); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip { display: inline-flex; align-items: center; min-height: 26px; border: 1px solid var(--border); background: none; border-radius: 20px; padding: 0 10px; font-size: 11px; color: var(--text-2); cursor: pointer; }
+.chip { display: inline-flex; align-items: center; min-height: 26px; border: 1px solid var(--border); background: none; border-radius: 8px; padding: 0 10px; font-size: 11px; color: var(--text-2); cursor: pointer; }
 .chip:hover:not(.on):not(:disabled) { color: var(--text); border-color: var(--border-strong); }
 .chip.on { color: var(--bg); background: var(--text); border-color: var(--text); }
 .link { border: 0; background: none; padding: 0; color: inherit; cursor: pointer; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
@@ -391,7 +391,7 @@ tr.hl td { background: var(--neg-bg); }
 .b.danger { background: var(--negative); border-color: var(--negative); color: var(--neg-ink); font-weight: 600; }
 
 /* Lançamentos */
-.icon-btn { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 50%; background: none; color: var(--text-2); cursor: pointer; padding: 0; }
+.icon-btn { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: none; color: var(--text-2); cursor: pointer; padding: 0; }
 .icon-btn:hover { color: var(--strong); }
 .b.with-ico { display: inline-flex; align-items: center; gap: 6px; }
 .lan-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -691,7 +691,7 @@ tr.hl td { background: var(--neg-bg); }
 .chat-composer { display: flex; align-items: flex-end; gap: 8px; background: var(--sidebar); border: 1px solid var(--border); border-radius: 18px; padding: 8px 8px 8px 16px; }
 .chat-composer:focus-within { border-color: var(--border-strong); }
 .chat-composer textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; line-height: 20px; padding: 6px 0; max-height: 140px; }
-.chat-send { flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); cursor: pointer; }
+.chat-send { flex-shrink: 0; width: 32px; height: 32px; border-radius: 8px; border: 0; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); cursor: pointer; }
 .chat-send:disabled { background: var(--border); color: var(--faint); cursor: default; }
 .chat-foot { margin: 8px 0 0; text-align: center; font-size: 10px; color: var(--faint); }
 @media (max-width: 640px) { .chat-sugs { grid-template-columns: minmax(0, 1fr); } .msg-user { max-width: 90%; } }
@@ -737,3 +737,15 @@ tr.hl td { background: var(--neg-bg); }
 }
 :root[data-theme="light"] :is(.cat-ico, .tk-av, .sub-av, .ico-bare) { color: color-mix(in oklab, var(--ico) 58%, #000); }
 :root[data-theme="light"] :is(.cat-ico, .tk-av, .sub-av) { background: color-mix(in srgb, var(--ico) 18%, transparent); }
+
+/* seletor de mês dos cabeçalhos: setas quadradas e o nome do mês abre a grade do ano */
+.month-nav { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+.month-btn { height: var(--ctl-sm); min-width: 136px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--strong); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.month-btn svg { color: var(--text-2); }
+.month-btn:hover:not(:disabled), .month-btn[aria-expanded="true"] { background: var(--hover); border-color: var(--border); }
+.month-pop { left: 50%; transform: translateX(-50%); width: 232px; }
+.month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.month-grid button { height: 34px; border: 0; border-radius: 8px; background: none; color: var(--text); font-size: 12.5px; text-transform: capitalize; cursor: pointer; }
+.month-grid button:hover { background: var(--hover-2); }
+.month-grid button.today { box-shadow: inset 0 0 0 1px var(--text-2); }
+.month-grid button.sel { background: var(--accent); color: var(--on-accent); font-weight: 600; }

@@ -18,6 +18,7 @@ import { Metas } from './orcamento/Metas'
 import { Select } from '../ui/Select'
 import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 import { TINT } from '../ui/palette'
+import { MonthNav } from '../ui/MonthNav'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
@@ -68,9 +69,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
     <div className="bar">
       <div className="row" style={{ alignItems: 'center', gap: 10 }}>
         <h1 style={{ margin: 0 }}>Orçamento</h1>
-        <button className="chip" aria-label="Mês anterior" disabled={busy} onClick={() => go(addMonths(month, -1))}>‹</button>
-        <b style={{ color: 'var(--strong)', fontSize: 13 }}>{monthName(month)} {month.slice(0, 4)}</b>
-        <button className="chip" aria-label="Próximo mês" disabled={busy} onClick={() => go(next)}>›</button>
+        <MonthNav month={month} onChange={go} disabled={busy} />
       </div>
       {hasPlan && (
         <div className="btns">
