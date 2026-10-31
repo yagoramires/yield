@@ -23,14 +23,8 @@ export async function stageBackup(path: string, password: string | null): Promis
     try { source = await openDb(RESTORE_FILE) } catch { throw new BackupError(NAO_E_BACKUP) }
     try { await validateBackup(source) } finally { await source.close() }
   } catch (e) {
-    // o restore.db é o backup sem senha: não fica no disco se a importação parou aqui
+    // o restore.db é o backup aberto: não fica no disco se a importação parou aqui
     await invoke('discard_restore').catch(() => {})
     throw e
   }
-}
-
-// tmpPath não pode existir (VACUUM INTO falha); dest pode, `move` sobrescreve.
-export async function exportBackup(db: Db, tmpPath: string, dest: string, move: (from: string, to: string) => Promise<void>): Promise<void> {
-  await db.execute('VACUUM INTO ?', [tmpPath])
-  await move(tmpPath, dest)
 }

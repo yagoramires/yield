@@ -1,8 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
-import { appDataDir, join } from '@tauri-apps/api/path'
-import { open, save } from '@tauri-apps/plugin-dialog'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
-import { BackupError, exportBackup, stageBackup } from '../db/backup'
+import { BackupError, stageBackup } from '../db/backup'
 import { openDb } from '../db/client'
 import { migrateOnce } from '../db/migrate'
 import { MIGRATIONS } from '../db/migrations'
@@ -10,7 +9,8 @@ import { renormalizeBrokers } from '../db/repo'
 import { repairCryptoSymbols } from '../quotes/yahoo'
 import { useData } from '../state/DataProvider'
 import { useProfiles } from '../profiles/Gate'
-import { backupPasswordError, refreshLine, restoreBackup } from './configuracoes/build'
+import { refreshLine, restoreBackup } from './configuracoes/build'
+import { BackupExport } from './configuracoes/BackupExport'
 import { AtualizacaoCard } from '../ui/Atualizacao'
 import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
 import { Contas, OpenFinance } from './configuracoes/OpenFinance'
@@ -23,10 +23,6 @@ import { Perfil } from './configuracoes/Perfil'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
-const today = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 const dayTime = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const BACKUP_FILTER = [{ name: 'Backup do Yield', extensions: ['yield', 'db'] }] // .db: backups antigos, sem senha
 
@@ -38,31 +34,13 @@ export function Configuracoes() {
   const [restore, setRestore] = useState(false) // backup já validado no restore.db, esperando confirmação
   const [backupMsg, setBackupMsg] = useState<string | null>(null)
   const [backupError, setBackupError] = useState<string | null>(null)
-  const [exportPw, setExportPw] = useState<{ password: string; confirm: string } | null>(null) // pedindo a senha do novo backup
+  const [exporting, setExporting] = useState(false) // pedindo a senha do novo backup
   const [importPw, setImportPw] = useState<{ path: string; password: string } | null>(null) // backup com senha escolhido
 
-  // restore.db é o backup já aberto, sem senha: não pode ficar no disco se a importação não for até o fim
+  // restore.db é o backup já aberto: não fica no disco se a importação não for até o fim
   const discardRestore = () => { invoke('discard_restore').catch(() => {}) }
   useEffect(() => () => discardRestore(), []) // saiu da tela com a importação pendente
-  const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(false); setExportPw(null); setImportPw(null); discardRestore() }
-
-  const exportar = async () => {
-    if (!exportPw) return
-    const bad = backupPasswordError(exportPw.password, exportPw.confirm)
-    if (bad) return setBackupError(bad)
-    setBackupError(null)
-    try {
-      const dest = await save({ defaultPath: `yield-backup-${today()}.yield`, filters: [{ name: 'Backup do Yield', extensions: ['yield'] }] })
-      if (!dest) return
-      setBusy(true)
-      // VACUUM INTO falha se o arquivo já existe: nome único por exportação
-      const tmp = await join(await appDataDir(), `export-${Date.now()}.db`)
-      await exportBackup(db, tmp, dest, (from, to) => invoke('encrypt_backup', { from, to, password: exportPw.password }))
-      setExportPw(null)
-      setBackupMsg(`Backup com senha salvo em ${dest}.`)
-    } catch (e) { setBackupError(`Não foi possível exportar o backup: ${errText(e)}`) }
-    setBusy(false)
-  }
+  const resetBackup = () => { setBackupMsg(null); setBackupError(null); setRestore(false); setExporting(false); setImportPw(null); discardRestore() }
 
   const validar = async (path: string, password: string | null) => {
     await stageBackup(path, password)
@@ -95,7 +73,7 @@ export function Configuracoes() {
     const r = await restoreBackup({
       checkpoint: async () => { await db.execute('PRAGMA wal_checkpoint(TRUNCATE)') },
       close: () => db.close(),
-      swap: () => invoke<string>('swap_database'),
+      swap: async () => (await invoke<string | null>('swap_database')) ?? '',
       // `db_load` cria um pool novo e o põe no mapa pelo nome do arquivo do perfil;
       // o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
       // backup de versão antiga (ou de outro perfil) sobe para a versão do app pelo `migrate`, em qualquer perfil
@@ -129,23 +107,10 @@ export function Configuracoes() {
           <b style={{ color: 'var(--strong)' }}>Backup</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Um arquivo .yield com todos os seus dados, criptografado com uma senha sua (AES-256)</div>
           <div className="btns">
-            <button className="b" disabled={busy} onClick={() => { resetBackup(); setExportPw({ password: '', confirm: '' }) }}>Exportar backup…</button>
+            <button className="b" disabled={busy} onClick={() => { resetBackup(); setExporting(true) }}>Exportar backup…</button>
             <button className="b" disabled={busy} onClick={() => void escolherBackup()}>Importar backup…</button>
           </div>
-          {exportPw && (
-            <div className="info" style={{ marginTop: 10 }}>
-              Escolha uma senha para o backup. <b>Sem ela não dá para abrir o arquivo</b>: nem o Yield consegue recuperar.
-              <div className="row" style={{ marginTop: 8 }}>
-                <input className="in" type="password" autoComplete="new-password" placeholder="senha" aria-label="Senha do backup" value={exportPw.password} onChange={e => setExportPw({ ...exportPw, password: e.target.value })} />
-                <input className="in" type="password" autoComplete="new-password" placeholder="repita a senha" aria-label="Repita a senha" value={exportPw.confirm} onChange={e => setExportPw({ ...exportPw, confirm: e.target.value })}
-                  onKeyDown={e => { if (e.key === 'Enter') void exportar() }} />
-              </div>
-              <div className="btns" style={{ marginTop: 8 }}>
-                <button className="b" disabled={busy} onClick={() => resetBackup()}>Cancelar</button>
-                <button className="b pri" disabled={busy} onClick={() => void exportar()}>{busy ? 'Salvando…' : 'Escolher onde salvar…'}</button>
-              </div>
-            </div>
-          )}
+          {exporting && <BackupExport onDone={m => { setExporting(false); setBackupMsg(m) }} onCancel={resetBackup} />}
           {importPw && (
             <div className="info" style={{ marginTop: 10 }}>
               Este backup tem senha.

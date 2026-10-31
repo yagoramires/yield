@@ -1,5 +1,5 @@
 use serde_json::{Map, Value};
-use sqlx::sqlite::{Sqlite, SqliteArguments, SqliteConnectOptions, SqlitePool, SqlitePoolOptions, SqliteValueRef};
+use sqlx::sqlite::{Sqlite, SqliteArguments, SqliteConnectOptions, SqliteOwnedBuf, SqlitePool, SqlitePoolOptions, SqliteValueRef};
 use sqlx::query::Query;
 use sqlx::{Column, Connection, Executor, Row, TypeInfo, Value as _, ValueRef};
 use std::collections::HashMap;
@@ -193,7 +193,7 @@ fn open_allowed(file: &str) -> Result<(), String> {
 }
 
 /// Pool de `file`, só do perfil aberto ou do backup em importação: um pool que sobrou de outro perfil não responde.
-async fn pool_of(dbs: &Dbs, file: &str) -> Result<SqlitePool, String> {
+pub(crate) async fn pool_of(dbs: &Dbs, file: &str) -> Result<SqlitePool, String> {
     open_allowed(file)?;
     dbs.0.lock().await.get(file).cloned().ok_or_else(|| "Banco não está aberto.".into())
 }
@@ -230,7 +230,7 @@ pub fn pin_tmp(dir: &Path, db_file: &str) -> PathBuf {
 
 const PIN_TMP_SUFFIXES: [&str; 4] = [".pin-tmp", ".pin-tmp-journal", ".pin-tmp-wal", ".pin-tmp-shm"];
 
-fn remove_tmp(to: &Path) -> Result<(), String> {
+pub(crate) fn remove_tmp(to: &Path) -> Result<(), String> {
     for ext in ["", "-journal", "-wal", "-shm"] {
         let mut p = to.as_os_str().to_owned();
         p.push(ext);
@@ -290,6 +290,35 @@ async fn export_into(from: &Path, from_key: Option<&Key>, to: &Path, to_key: Opt
     std::fs::OpenOptions::new().write(true).open(to).and_then(|f| f.sync_all()).map_err(err)
 }
 
+/// Grava em `to` (novo) o banco em claro `bytes`, cifrado com `to_key`: o texto claro só existe na memória.
+pub async fn stage_plain(mut bytes: Vec<u8>, to: &Path, to_key: &Key) -> Result<(), String> {
+    // banco em WAL (versões antigas): o deserialize recusa; o arquivo inteiro já está aqui, sem `-wal`
+    if bytes.len() > 19 && bytes.starts_with(crate::SQLITE_MAGIC) && bytes[18] == 2 {
+        (bytes[18], bytes[19]) = (1, 1);
+    }
+    remove_tmp(to)?;
+    // a conexão em memória não cria arquivo: o ATTACH abre um vazio
+    std::fs::File::create(to).map_err(err)?;
+    let r = async {
+        // ":memory:" direto: o "sqlite::memory:" do sqlx usa cache compartilhado, e lá o deserialize não vale
+        let mut conn = sqlx::SqliteConnection::connect_with(&SqliteConnectOptions::new().filename(":memory:")).await?;
+        let copied = async {
+            conn.deserialize(None, SqliteOwnedBuf::try_from(&bytes[..])?, false).await?;
+            sqlx::query(&format!("ATTACH DATABASE ? AS dst KEY {}", key_sql(Some(to_key)))).bind(to.to_string_lossy().into_owned()).execute(&mut conn).await?;
+            sqlx::query("SELECT sqlcipher_export('dst')").execute(&mut conn).await?;
+            sqlx::query("DETACH DATABASE dst").execute(&mut conn).await
+        }
+        .await;
+        let _ = conn.close().await;
+        copied
+    }
+    .await;
+    if r.is_err() {
+        let _ = remove_tmp(to);
+    }
+    r.map(|_| ()).map_err(err)
+}
+
 /// Põe `tmp` no lugar de `<dir>/<db_file>`: o rename é atômico, então um crash deixa o banco velho ou o novo, inteiro.
 pub fn commit_swap(dir: &Path, db_file: &str, tmp: &Path) -> Result<(), String> {
     for ext in ["-journal", "-wal"] {
@@ -337,12 +366,18 @@ pub async fn db_close(state: State<'_, Dbs>, file: String) -> Result<(), String>
 /// Fecha os bancos abertos e esquece as chaves antes de trocar de perfil ou voltar à escolha de perfil.
 #[tauri::command]
 pub async fn profile_lock(state: State<'_, Dbs>) -> Result<(), String> {
-    close_all(&state).await;
+    lock_in(&state).await;
+    Ok(())
+}
+
+pub async fn lock_in(dbs: &Dbs) {
+    // espera a troca de PIN em andamento: terminando depois, ela deixaria as chaves no UNLOCKED
+    let _op = crate::pin::PIN_OPS.lock().await;
+    close_all(dbs).await;
     // trava envenenada não impede de esquecer as chaves
     *crate::pin::UNLOCKED.lock().unwrap_or_else(|e| e.into_inner()) = None;
     *crate::pin::RESTORE.lock().unwrap_or_else(|e| e.into_inner()) = None;
     *crate::VAULT.lock().unwrap_or_else(|e| e.into_inner()) = None;
-    Ok(())
 }
 
 #[cfg(test)]
@@ -460,6 +495,39 @@ mod tests {
         assert!(refuse_plain(&dir.join("claro.db"), None).is_ok());
         std::fs::write(dir.join("cifrado.db"), [0xAB; 64]).unwrap();
         assert!(refuse_plain(&dir.join("cifrado.db"), Some(&[7u8; 32])).is_ok());
+    }
+
+    #[tokio::test]
+    async fn bloquear_espera_a_troca_do_pin() {
+        let _g = crate::pin::testutil::globals();
+        let troca = crate::pin::PIN_OPS.lock().await;
+        let dbs = Dbs::default();
+        let mut lock = Box::pin(lock_in(&dbs));
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(50), &mut lock).await.is_err());
+        // a troca termina deixando as chaves do PIN novo: o bloqueio que esperava as apaga
+        *crate::pin::UNLOCKED.lock().unwrap() = Some(("abcd1234".into(), crate::pin::derive("1234", &crate::pin::testutil::SALT).unwrap()));
+        drop(troca);
+        lock.await;
+        assert!(crate::pin::UNLOCKED.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn backup_em_wal_vira_banco_cifrado_sem_passar_pelo_disco() {
+        let dir = tmp("stage-wal");
+        let pool = open_pool(&dir.join("wal.db"), None).await.unwrap();
+        execute(&pool, "PRAGMA journal_mode = WAL", vec![]).await.unwrap();
+        execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        execute(&pool, "INSERT INTO t (v) VALUES (?)", vec![json!(MARKER)]).await.unwrap();
+        execute(&pool, "PRAGMA wal_checkpoint(TRUNCATE)", vec![]).await.unwrap(); // como o VACUUM INTO: tudo no arquivo
+        pool.close().await;
+        let bytes = std::fs::read(dir.join("wal.db")).unwrap();
+        assert_eq!((bytes[18], bytes[19]), (2, 2)); // o deserialize recusa banco em WAL
+        let key = [9u8; 32];
+        stage_plain(bytes, &dir.join("r.db"), &key).await.unwrap();
+        assert!(!is_plain_header(&dir.join("r.db")) && !file_has(&dir.join("r.db"), MARKER));
+        let pool = open_pool(&dir.join("r.db"), Some(&key)).await.unwrap();
+        assert_eq!(select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"], MARKER);
+        assert!(stage_plain(b"nao e banco".to_vec(), &dir.join("x.db"), &key).await.is_err() && !dir.join("x.db").exists());
     }
 
     #[tokio::test]

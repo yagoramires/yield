@@ -8,10 +8,13 @@ mod ai;
 mod db;
 mod pin;
 
-/// Troca o banco `db_name` em `dir` pelo conteúdo de `source`; devolve o caminho da cópia de segurança.
-fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, String> {
+/// Copia o banco `db_name` de `dir` (e o `-wal`) para `seguranca-<stem>-<secs>.db` e tira o `-wal`/`-shm` dele; sem banco, sem cópia.
+fn safety_copy(dir: &Path, db_name: &str) -> Result<Option<PathBuf>, String> {
     let err = |e: std::io::Error| e.to_string();
     let db = dir.join(db_name);
+    if !db.exists() {
+        return Ok(None);
+    }
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
     // com o nome do banco: apagar o perfil apaga também as cópias dele
     let backup = dir.join(format!("seguranca-{}-{secs}.db", db_stem(db_name)));
@@ -23,20 +26,17 @@ fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, Stri
         wal_copy.push("-wal");
         std::fs::copy(&wal, wal_copy).map_err(err)?;
     }
-    let tmp = dir.join(format!("{db_name}.novo"));
-    std::fs::copy(source, &tmp).map_err(err)?;
     for ext in ["-wal", "-shm"] {
         remove_if_exists(&dir.join(format!("{db_name}{ext}")))?;
     }
-    std::fs::rename(&tmp, &db).map_err(err)?;
-    Ok(backup)
+    Ok(Some(backup))
 }
 
 fn db_stem(db_file: &str) -> &str {
     db_file.strip_suffix(".db").unwrap_or(db_file)
 }
 
-/// Cópia do `swap_in_dir` para `db_file` (`seguranca-<stem>-<secs>.db*`); as sem stem, das versões antigas, eram sempre do `yield.db`.
+/// Cópia do `safety_copy` para `db_file` (`seguranca-<stem>-<secs>.db*`); as sem stem, das versões antigas, eram sempre do `yield.db`.
 fn is_safety_copy_of(name: &str, db_file: &str) -> bool {
     let rest = name.strip_prefix(&format!("seguranca-{}-", db_stem(db_file)));
     let rest = rest.or_else(|| if db_file == LEGACY_DB { name.strip_prefix("seguranca-") } else { None });
@@ -54,21 +54,47 @@ fn remove_if_exists(path: &Path) -> Result<(), String> {
     }
 }
 
-/// Troca o banco do perfil aberto pelo `restore.db` que o `backup_open` preparou e o JS já validou.
-#[tauri::command]
-fn swap_database(app: tauri::AppHandle) -> Result<String, String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let source = dir.join(RESTORE_FILE);
-    if !starts_with(&source, SQLITE_MAGIC)? {
-        return Err("Este arquivo não é um backup do Yield.".into());
+/// Troca `<dir>/<db_file>` pelo `restore.db` (cifrado com `restore_key`), gravado com `target_key`; devolve a cópia de segurança do banco anterior.
+async fn restore_into(dir: &Path, db_file: &str, restore_key: &db::Key, target_key: Option<&db::Key>) -> Result<Option<PathBuf>, String> {
+    let tmp = db::pin_tmp(dir, db_file);
+    // o banco novo pronto e conferido antes de tocar no atual
+    db::export_verified(&dir.join(RESTORE_FILE), Some(restore_key), &tmp, target_key).await?;
+    let swapped = safety_copy(dir, db_file).and_then(|backup| db::commit_swap(dir, db_file, &tmp).map(|_| backup));
+    if swapped.is_err() {
+        let _ = std::fs::remove_file(&tmp);
     }
-    let backup = swap_in_dir(&dir, &source, &active()?.1)?;
-    let _ = std::fs::remove_file(&source); // o backup aberto, sem senha: já está no banco
-    Ok(backup.to_string_lossy().into_owned())
+    let backup = swapped?;
+    // depois da troca o backup já está no banco: o restore.db que sobrar some no próximo startup
+    pin::after_swap(db::remove_tmp(&dir.join(RESTORE_FILE)));
+    Ok(backup)
 }
 
-// Backup com senha: "YIELDBK1" + sal (16) + nonce (12) + AES-256-GCM(banco), chave = Argon2id(senha, sal).
+/// Restaura o backup aberto no perfil ativo, que fica com o PIN que já tinha (ou sem PIN).
+async fn swap_in(dbs: &db::Dbs, dir: &Path) -> Result<Option<PathBuf>, String> {
+    // nenhuma troca de PIN, de perfil ou gravação do cofre no meio
+    let _op = pin::PIN_OPS.lock().await;
+    let restore_key = pin::RESTORE.lock().map_err(|e| e.to_string())?.take().ok_or("O backup não está mais aberto; escolha o arquivo de novo.")?;
+    let file = active()?.1;
+    let target_key = pin::key_for(dir, &file)?;
+    // a trava dos pools a troca toda: nenhum `db_load` abre o banco no meio
+    let mut map = dbs.0.lock().await;
+    if let Some(p) = map.remove(&file) {
+        p.close().await;
+    }
+    restore_into(dir, &file, &restore_key, target_key.as_ref()).await
+}
+
+/// Troca o banco do perfil aberto pelo `restore.db` que o `backup_open` preparou e o JS já validou.
+#[tauri::command]
+async fn swap_database(app: tauri::AppHandle, state: tauri::State<'_, db::Dbs>) -> Result<Option<String>, String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    Ok(swap_in(&state, &dir).await?.map(|b| b.to_string_lossy().into_owned()))
+}
+
+// Backup com senha: magic + sal (16) + nonce (12) + AES-256-GCM(payload), chave = Argon2id(senha, sal).
+// v1: payload = o banco em claro (perfil sem PIN; abre nas versões antigas). v2: chave efêmera (32) || o banco cifrado com ela.
 const BACKUP_MAGIC: &[u8; 8] = b"YIELDBK1";
+const BACKUP_MAGIC_V2: &[u8; 8] = b"YIELDBK2";
 const SQLITE_MAGIC: &[u8; 16] = b"SQLite format 3\0";
 
 fn starts_with(path: &Path, magic: &[u8]) -> Result<bool, String> {
@@ -85,86 +111,150 @@ fn backup_key(password: &str, salt: &[u8]) -> Result<aes_gcm::Key<aes_gcm::Aes25
     Ok(key.into())
 }
 
-fn seal(plain: &[u8], password: &str) -> Result<Vec<u8>, String> {
+fn random_key() -> db::Key {
+    use aes_gcm::aead::{rand_core::RngCore, OsRng};
+    let mut k = [0u8; 32];
+    OsRng.fill_bytes(&mut k);
+    k
+}
+
+fn seal(magic: &[u8; 8], plain: &[u8], password: &str) -> Result<Vec<u8>, String> {
     use aes_gcm::aead::{rand_core::RngCore, Aead, AeadCore, KeyInit, OsRng};
     let mut salt = [0u8; 16];
     OsRng.fill_bytes(&mut salt);
     let nonce = aes_gcm::Aes256Gcm::generate_nonce(&mut OsRng);
     let cipher = aes_gcm::Aes256Gcm::new(&backup_key(password, &salt)?);
     let body = cipher.encrypt(&nonce, plain).map_err(|_| "Não foi possível criptografar o backup".to_string())?;
-    Ok([BACKUP_MAGIC.as_slice(), &salt, nonce.as_slice(), &body].concat())
+    Ok([magic.as_slice(), &salt, nonce.as_slice(), &body].concat())
 }
 
-fn unseal(data: &[u8], password: &str) -> Result<Vec<u8>, String> {
+fn unseal(data: &[u8], password: &str) -> Result<(u8, Vec<u8>), String> {
     use aes_gcm::aead::{Aead, KeyInit};
-    if data.len() < 36 || !data.starts_with(BACKUP_MAGIC) {
+    let version = if data.starts_with(BACKUP_MAGIC) { 1 } else if data.starts_with(BACKUP_MAGIC_V2) { 2 } else { 0 };
+    if data.len() < 36 || version == 0 {
         return Err("Este arquivo não é um backup do Yield com senha.".into());
     }
     let (salt, rest) = data[8..].split_at(16);
     let (nonce, body) = rest.split_at(12);
     let cipher = aes_gcm::Aes256Gcm::new(&backup_key(password, salt)?);
-    cipher.decrypt(nonce.into(), body).map_err(|_| "Senha errada ou arquivo corrompido.".to_string())
+    let plain = cipher.decrypt(nonce.into(), body).map_err(|_| "Senha errada ou arquivo corrompido.".to_string())?;
+    Ok((version, plain))
 }
 
-/// O temporário do VACUUM INTO: `export-*.db` direto na pasta de dados do app.
-fn is_export_tmp(data_dir: &Path, path: &Path) -> bool {
-    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-    path.parent() == Some(data_dir) && name.starts_with("export-") && name.ends_with(".db")
+fn is_sealed(path: &Path) -> Result<bool, String> {
+    Ok(starts_with(path, BACKUP_MAGIC)? || starts_with(path, BACKUP_MAGIC_V2)?)
 }
 
-/// Os caminhos vêm do webview: `from` só pode ser o temporário (ele é apagado)
-/// e `to` só um `.yield` novo ou outro backup com senha (ele é sobrescrito).
-fn check_export(data_dir: &Path, from: &Path, to: &Path) -> Result<(), String> {
-    if !is_export_tmp(data_dir, from) {
-        return Err("Origem do backup fora da pasta do Yield.".into());
-    }
+/// O temporário da exportação (`export-<ms>.db` e o journal dele): num perfil sem PIN, o banco inteiro em claro.
+fn is_export_tmp(name: &str) -> bool {
+    name.starts_with("export-") && (name.ends_with(".db") || name.ends_with(".db-journal"))
+}
+
+/// O destino vem do webview: só um `.yield` novo ou outro backup com senha (ele é sobrescrito).
+fn check_dest(to: &Path) -> Result<(), String> {
     let yield_ext = to.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("yield"));
-    if !yield_ext || (to.exists() && !starts_with(to, BACKUP_MAGIC)?) {
-        // o temporário é o banco inteiro sem senha: não fica para trás
-        let _ = std::fs::remove_file(from);
+    if !yield_ext || (to.exists() && !is_sealed(to)?) {
         return Err("Escolha um arquivo .yield novo ou um backup do Yield para sobrescrever.".into());
     }
     Ok(())
 }
 
-/// Criptografa o banco exportado (`from`, temporário) em `to` e apaga o temporário.
+/// Copia o banco do `pool` para `tmp` com a chave `eph` (nenhuma = em claro) e devolve os bytes; `tmp` some sempre, também em erro.
+async fn export_bytes(pool: &sqlx::SqlitePool, tmp: &Path, eph: Option<&db::Key>) -> Result<Vec<u8>, String> {
+    let r = async {
+        db::remove_tmp(tmp)?;
+        let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+        let attach = format!("ATTACH DATABASE ? AS bk KEY {}", db::key_sql(eph));
+        sqlx::query(&attach).bind(tmp.to_string_lossy().into_owned()).execute(&mut *conn).await.map_err(|e| e.to_string())?;
+        let copied = sqlx::query("SELECT sqlcipher_export('bk')").execute(&mut *conn).await;
+        // a conexão volta para o pool: não pode ficar com o `bk` preso
+        let detached = sqlx::query("DETACH DATABASE bk").execute(&mut *conn).await;
+        if detached.is_err() {
+            let _ = conn.close().await;
+        }
+        copied.and(detached).map_err(|e| e.to_string())?;
+        std::fs::read(tmp).map_err(|e| e.to_string())
+    }
+    .await;
+    let removed = db::remove_tmp(tmp);
+    let bytes = r?;
+    removed?;
+    Ok(bytes)
+}
+
+/// Exporta o perfil aberto para `to`: com PIN, o banco segue cifrado (v2) e nada em claro passa pelo disco; sem PIN, v1 como antes.
 #[tauri::command]
-fn encrypt_backup(app: tauri::AppHandle, from: String, to: String, password: String) -> Result<(), String> {
-    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    check_export(&data_dir, Path::new(&from), Path::new(&to))?;
-    let plain = std::fs::read(&from).map_err(|e| e.to_string())?;
-    let sealed = seal(&plain, &password);
-    std::fs::remove_file(&from).map_err(|e| e.to_string())?;
-    std::fs::write(&to, sealed?).map_err(|e| e.to_string())
+async fn backup_export(app: tauri::AppHandle, state: tauri::State<'_, db::Dbs>, to: String, password: String) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let to = PathBuf::from(to);
+    check_dest(&to)?;
+    let (eph, bytes) = {
+        // a chave e o pool do mesmo estado: um PIN ligado no meio deixaria o temporário em claro
+        let _op = pin::PIN_OPS.lock().await;
+        let file = active()?.1;
+        let eph = pin::key_for(&dir, &file)?.map(|_| random_key());
+        let pool = db::pool_of(&state, &file).await?;
+        let ms = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis();
+        let bytes = export_bytes(&pool, &dir.join(format!("export-{ms}.db")), eph.as_ref()).await?;
+        (eph, bytes)
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let sealed = match eph {
+            Some(k) => seal(BACKUP_MAGIC_V2, &[k.as_slice(), &bytes].concat(), &password)?,
+            None => seal(BACKUP_MAGIC, &bytes, &password)?,
+        };
+        std::fs::write(&to, sealed).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
 fn is_encrypted_backup(path: String) -> Result<bool, String> {
-    starts_with(Path::new(&path), BACKUP_MAGIC)
+    is_sealed(Path::new(&path))
 }
 
-/// Põe o backup escolhido em `restore.db` (o único arquivo fora do perfil que o `db_load` abre); `swap_database` apaga esse arquivo depois de usar.
-fn backup_open_in(dir: &Path, from: &Path, password: Option<&str>) -> Result<(), String> {
+/// Grava o backup `data` em `<dir>/restore.db` sempre cifrado e devolve a chave: v2 já vem cifrado; v1 e `.db` antigo se cifram na memória.
+async fn stage_restore_in(dir: &Path, data: &[u8], password: Option<&str>) -> Result<db::Key, String> {
     let out = dir.join(RESTORE_FILE);
-    match password {
-        Some(pw) => std::fs::write(&out, unseal(&std::fs::read(from).map_err(|e| e.to_string())?, pw)?),
+    let sealed = data.starts_with(BACKUP_MAGIC) || data.starts_with(BACKUP_MAGIC_V2);
+    let plain = match password {
+        Some(pw) => match unseal(data, pw)? {
+            (2, payload) if payload.len() > 32 => {
+                let (key, file) = payload.split_at(32);
+                db::remove_tmp(&out)?;
+                std::fs::write(&out, file).map_err(|e| e.to_string())?;
+                return key.try_into().map_err(|_| "Este arquivo não é um backup do Yield.".to_string());
+            }
+            (1, plain) if plain.starts_with(SQLITE_MAGIC) => plain,
+            _ => return Err("Este arquivo não é um backup do Yield.".into()),
+        },
+        None if sealed => return Err("Este backup tem senha.".into()),
         // backup antigo `.db`, sem senha
-        None if starts_with(from, SQLITE_MAGIC)? => std::fs::copy(from, &out).map(|_| ()),
+        None if data.starts_with(SQLITE_MAGIC) => data.to_vec(),
         None => return Err("Este arquivo não é um backup do Yield.".into()),
-    }
-    .map_err(|e| e.to_string())
+    };
+    let key = random_key();
+    db::stage_plain(plain, &out, &key).await?;
+    Ok(key)
 }
 
+/// Põe o backup escolhido em `restore.db` (o único arquivo fora do perfil que o `db_load` abre), com a chave no `RESTORE`; `swap_database` apaga esse arquivo depois de usar.
 #[tauri::command]
-fn backup_open(app: tauri::AppHandle, path: String, password: Option<String>) -> Result<(), String> {
-    backup_open_in(&app.path().app_config_dir().map_err(|e| e.to_string())?, Path::new(&path), password.as_deref())
+async fn backup_open(app: tauri::AppHandle, path: String, password: Option<String>) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let data = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let key = stage_restore_in(&dir, &data, password.as_deref()).await?;
+    *pin::RESTORE.lock().map_err(|e| e.to_string())? = Some(key);
+    Ok(())
 }
 
 const RESTORE_FILE: &str = "restore.db";
 
-/// Apaga o `restore.db` (backup com senha já aberto, sem criptografia) quando a importação não vai até o fim.
+/// Apaga o `restore.db` e esquece a chave dele quando a importação não vai até o fim.
 fn discard_restore_in(dir: &Path) -> Result<(), String> {
-    remove_if_exists(&dir.join(RESTORE_FILE))
+    *pin::RESTORE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    db::remove_tmp(&dir.join(RESTORE_FILE))
 }
 
 #[tauri::command]
@@ -632,9 +722,10 @@ pub fn run() {
                 let _ = tauri::async_runtime::block_on(pin::forget_plain_pins(&dir));
                 pin::sweep_plain_copies(&dir);
             }
-            if let Ok(dir) = app.path().app_data_dir() {
+            // temporários da exportação: na pasta de config; nas versões anteriores, na de dados
+            for dir in [app.path().app_config_dir(), app.path().app_data_dir()].into_iter().flatten() {
                 for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
-                    if is_export_tmp(&dir, &entry.path()) {
+                    if is_export_tmp(&entry.file_name().to_string_lossy()) {
                         let _ = std::fs::remove_file(entry.path());
                     }
                 }
@@ -649,7 +740,7 @@ pub fn run() {
         // todo banco de perfil (o `yield.db` também) é migrado no JS pelo `meta.schema_version`
         .manage(db::Dbs::default())
         .invoke_handler(tauri::generate_handler![
-            swap_database, encrypt_backup, is_encrypted_backup, backup_open, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
+            swap_database, backup_export, is_encrypted_backup, backup_open, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
             profiles_read, profiles_write, profile_activate, profile_remove_files,
             db::db_load, db::db_select, db::db_execute, db::db_close, db::profile_lock,
             pin::pin_supported, pin::profiles_locks, pin::profile_unlocked, pin::profile_unlock, pin::profile_set_pin, pin::profile_change_pin, pin::profile_remove_pin,
@@ -669,60 +760,140 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    use db::testutil::{file_has, is_plain_header, tmp, MARKER};
+    use pin::testutil::{cifrado, em_claro, SALT};
+
     #[test]
     fn backup_com_senha_volta_so_com_a_senha_certa() {
-        let sealed = seal(b"SQLite format 3 ...", "senha boa").unwrap();
+        let sealed = seal(BACKUP_MAGIC, b"SQLite format 3 ...", "senha boa").unwrap();
         assert!(sealed.starts_with(BACKUP_MAGIC));
         assert!(!sealed.windows(6).any(|w| w == b"SQLite"));
-        assert_eq!(unseal(&sealed, "senha boa").unwrap(), b"SQLite format 3 ...");
+        assert_eq!(unseal(&sealed, "senha boa").unwrap(), (1, b"SQLite format 3 ...".to_vec()));
         assert_eq!(unseal(&sealed, "senha ruim").unwrap_err(), "Senha errada ou arquivo corrompido.");
         let mut bad = sealed.clone();
         *bad.last_mut().unwrap() ^= 1;
         assert!(unseal(&bad, "senha boa").is_err());
         assert_eq!(unseal(b"SQLite format 3", "x").unwrap_err(), "Este arquivo não é um backup do Yield com senha.");
-        assert_ne!(seal(b"a", "s").unwrap(), seal(b"a", "s").unwrap()); // sal e nonce novos a cada vez
+        assert_ne!(seal(BACKUP_MAGIC, b"a", "s").unwrap(), seal(BACKUP_MAGIC, b"a", "s").unwrap()); // sal e nonce novos a cada vez
+        let v2 = seal(BACKUP_MAGIC_V2, b"chave||banco", "s").unwrap();
+        assert!(v2.starts_with(BACKUP_MAGIC_V2));
+        assert_eq!(unseal(&v2, "s").unwrap(), (2, b"chave||banco".to_vec()));
     }
 
-    #[test]
-    fn swap_troca_o_banco_e_guarda_copia_de_seguranca() {
-        let dir = std::env::temp_dir().join(format!("yield-swap-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+    #[tokio::test]
+    async fn restore_troca_o_banco_e_guarda_copia_de_seguranca() {
+        let origem = em_claro("origem.db").await;
+        let bytes = std::fs::read(origem.join("origem.db")).unwrap();
+        let dir = tmp("swap");
         std::fs::write(dir.join("yield.db"), "antigo").unwrap();
         std::fs::write(dir.join("yield.db-wal"), "wal").unwrap();
         std::fs::write(dir.join("yield.db-shm"), "shm").unwrap();
-        let origem = dir.join("origem.db");
-        std::fs::write(&origem, "novo").unwrap();
 
-        let backup = swap_in_dir(&dir, &origem, "yield.db").unwrap();
+        let rk = stage_restore_in(&dir, &bytes, None).await.unwrap();
+        let backup = restore_into(&dir, "yield.db", &rk, None).await.unwrap().unwrap();
 
         assert!(is_safety_copy_of(backup.file_name().unwrap().to_str().unwrap(), "yield.db"));
         assert!(backup.file_name().unwrap().to_str().unwrap().starts_with("seguranca-yield-"));
-        assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
+        assert!(is_plain_header(&dir.join("yield.db")) && file_has(&dir.join("yield.db"), MARKER));
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), "antigo");
         assert_eq!(std::fs::read_to_string(backup.with_extension("db-wal")).unwrap(), "wal");
         assert!(!dir.join("yield.db-wal").exists() && !dir.join("yield.db-shm").exists());
-        assert!(!dir.join("yield.db.novo").exists());
+        assert!(!db::pin_tmp(&dir, "yield.db").exists() && !dir.join(RESTORE_FILE).exists());
 
         // restaurar em outro perfil troca só o banco dele
         std::fs::write(dir.join("perfil-abcd1234.db"), "do perfil").unwrap();
         std::fs::write(dir.join("perfil-abcd1234.db-wal"), "wal do perfil").unwrap();
-        std::fs::write(&origem, "restaurado").unwrap();
-        let do_perfil = swap_in_dir(&dir, &origem, "perfil-abcd1234.db").unwrap();
+        let rk = stage_restore_in(&dir, &bytes, None).await.unwrap();
+        let do_perfil = restore_into(&dir, "perfil-abcd1234.db", &rk, None).await.unwrap().unwrap();
         assert!(do_perfil.file_name().unwrap().to_str().unwrap().starts_with("seguranca-perfil-abcd1234-"));
         assert_eq!(std::fs::read_to_string(&do_perfil).unwrap(), "do perfil");
         assert_eq!(std::fs::read_to_string(do_perfil.with_extension("db-wal")).unwrap(), "wal do perfil");
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), "antigo"); // no mesmo segundo, uma não sobrescreve a outra
-        assert_eq!(std::fs::read_to_string(dir.join("perfil-abcd1234.db")).unwrap(), "restaurado");
-        assert!(!dir.join("perfil-abcd1234.db-wal").exists() && !dir.join("perfil-abcd1234.db.novo").exists());
-        assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
-        std::fs::remove_dir_all(&dir).unwrap();
+        assert!(file_has(&dir.join("perfil-abcd1234.db"), MARKER));
+        assert!(!dir.join("perfil-abcd1234.db-wal").exists() && !db::pin_tmp(&dir, "perfil-abcd1234.db").exists());
+        assert!(file_has(&dir.join("yield.db"), MARKER));
     }
 
-    fn tmp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("yield-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
+    #[tokio::test]
+    async fn backup_de_perfil_com_pin_nao_deixa_texto_claro() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let k = pin::derive("1234", &SALT).unwrap();
+        let pool = db::open_pool(&dir.join("perfil-abcd1234.db"), Some(&k.db)).await.unwrap();
+        let (eph, tmp) = ([3u8; 32], dir.join("export-1.db"));
+        let bytes = export_bytes(&pool, &tmp, Some(&eph)).await.unwrap();
+        assert!(!tmp.exists() && !bytes.windows(MARKER.len()).any(|w| w == MARKER.as_bytes()) && !bytes.starts_with(SQLITE_MAGIC));
+        let sealed = seal(BACKUP_MAGIC_V2, &[eph.as_slice(), &bytes].concat(), "senha").unwrap();
+        pool.close().await;
+        let rk = stage_restore_in(&dir, &sealed, Some("senha")).await.unwrap();
+        assert!(!is_plain_header(&dir.join(RESTORE_FILE)) && !file_has(&dir.join(RESTORE_FILE), MARKER));
+        restore_into(&dir, "perfil-abcd1234.db", &rk, Some(&k.db)).await.unwrap();
+        let db = dir.join("perfil-abcd1234.db");
+        assert!(!file_has(&db, MARKER) && db::key_opens(&db, &k.db).await.unwrap());
+        assert!(!dir.join(RESTORE_FILE).exists() && !db::pin_tmp(&dir, "perfil-abcd1234.db").exists());
+    }
+
+    #[tokio::test]
+    async fn backup_v1_restaura_em_perfil_com_pin_sem_texto_claro() {
+        let origem = em_claro("yield.db").await;
+        let v1 = seal(BACKUP_MAGIC, &std::fs::read(origem.join("yield.db")).unwrap(), "senha").unwrap(); // .yield das versões atuais
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let rk = stage_restore_in(&dir, &v1, Some("senha")).await.unwrap();
+        assert!(!is_plain_header(&dir.join(RESTORE_FILE)) && !file_has(&dir.join(RESTORE_FILE), MARKER));
+        let k = pin::derive("1234", &SALT).unwrap();
+        restore_into(&dir, "perfil-abcd1234.db", &rk, Some(&k.db)).await.unwrap();
+        let pool = db::open_pool(&dir.join("perfil-abcd1234.db"), Some(&k.db)).await.unwrap();
+        assert_eq!(db::select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"], MARKER);
+    }
+
+    #[tokio::test]
+    async fn backup_sem_pin_continua_v1_e_restaura_em_claro() {
+        let dir = em_claro("yield.db").await;
+        let pool = db::open_pool(&dir.join("yield.db"), None).await.unwrap();
+        let bytes = export_bytes(&pool, &dir.join("export-2.db"), None).await.unwrap();
+        pool.close().await;
+        assert!(bytes.starts_with(SQLITE_MAGIC));
+        let rk = stage_restore_in(&dir, &seal(BACKUP_MAGIC, &bytes, "s").unwrap(), Some("s")).await.unwrap();
+        assert!(restore_into(&dir, "yield.db", &rk, None).await.unwrap().is_some()); // cópia de segurança
+        assert!(is_plain_header(&dir.join("yield.db")) && file_has(&dir.join("yield.db"), MARKER));
+    }
+
+    #[tokio::test]
+    async fn restaurar_db_antigo_sem_senha_e_em_perfil_sem_arquivo() {
+        let origem = em_claro("velho.db").await;
+        let dir = tmp("restaura-novo");
+        let rk = stage_restore_in(&dir, &std::fs::read(origem.join("velho.db")).unwrap(), None).await.unwrap();
+        assert_eq!(restore_into(&dir, "perfil-novo12345.db", &rk, None).await.unwrap(), None);
+        assert!(file_has(&dir.join("perfil-novo12345.db"), MARKER));
+        assert_eq!(stage_restore_in(&dir, b"isto nao e banco nenhum......", None).await.unwrap_err(), "Este arquivo não é um backup do Yield.");
+        let v1 = seal(BACKUP_MAGIC, b"x", "boa").unwrap();
+        assert_eq!(stage_restore_in(&dir, &v1, Some("ruim")).await.unwrap_err(), "Senha errada ou arquivo corrompido.");
+        assert_eq!(stage_restore_in(&dir, &v1, None).await.unwrap_err(), "Este backup tem senha.");
+    }
+
+    #[tokio::test]
+    async fn restaurar_no_perfil_aberto_usa_a_chave_do_pin_e_espera_a_troca() {
+        let _g = pin::testutil::globals();
+        let (id, file) = ("abcd1234", "perfil-abcd1234.db");
+        let dir = cifrado(file, "1234").await;
+        let origem = em_claro("velho.db").await;
+        let dbs = db::Dbs::default();
+        set_active(id.into(), file.into()).unwrap();
+        let k = pin::derive("1234", &SALT).unwrap();
+        *pin::UNLOCKED.lock().unwrap() = Some((id.into(), k.clone()));
+        db::load_in(&dbs, &dir, file).await.unwrap();
+        let rk = stage_restore_in(&dir, &std::fs::read(origem.join("velho.db")).unwrap(), None).await.unwrap();
+        *pin::RESTORE.lock().unwrap() = Some(rk);
+        let troca = pin::PIN_OPS.lock().await;
+        let mut swap = Box::pin(swap_in(&dbs, &dir));
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(50), &mut swap).await.is_err());
+        drop(troca);
+        let copia = swap.await.unwrap().unwrap();
+        assert!(!file_has(&copia, MARKER) && dbs.0.lock().await.is_empty());
+        let db = dir.join(file);
+        assert!(!file_has(&db, MARKER) && db::key_opens(&db, &k.db).await.unwrap());
+        assert!(pin::RESTORE.lock().unwrap().is_none());
+        *pin::UNLOCKED.lock().unwrap() = None;
+        *ACTIVE.lock().unwrap() = None;
     }
 
     #[test]
@@ -816,53 +987,26 @@ mod tests {
     }
 
     #[test]
-    fn caminhos_do_webview_sao_conferidos() {
-        let dir = std::env::temp_dir().join(format!("yield-paths-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let tmp = dir.join("export-1.db");
-        let novo = dir.join("novo.yield");
-        assert!(check_export(&dir, &tmp, &novo).is_ok());
-        // origem fora da pasta do app, com outro nome ou escapando com ..
-        assert!(check_export(&dir, Path::new("/etc/hosts"), &novo).is_err());
-        assert!(check_export(&dir, &dir.join("yield.db"), &novo).is_err());
-        assert!(check_export(&dir, &dir.join("sub").join("..").join("export-1.db"), &novo).is_err());
-        assert!(check_export(&dir, &tmp, &dir.join("Novo.YIELD")).is_ok());
-        // destino: só .yield, e só sobrescreve outro backup com senha; recusado, o temporário sem senha some
-        std::fs::write(&tmp, "banco").unwrap();
-        assert!(check_export(&dir, &tmp, &dir.join("x.txt")).is_err());
-        assert!(!tmp.exists());
+    fn destino_do_backup_e_conferido() {
+        let _g = pin::testutil::globals(); // mexe no RESTORE
+        let dir = tmp("paths");
+        assert!(check_dest(&dir.join("novo.yield")).is_ok() && check_dest(&dir.join("Novo.YIELD")).is_ok());
+        // destino: só .yield, e só sobrescreve outro backup com senha
+        assert!(check_dest(&dir.join("x.txt")).is_err());
         let outro = dir.join("documento.yield");
         std::fs::write(&outro, "não é backup").unwrap();
-        assert!(check_export(&dir, &tmp, &outro).is_err());
-        std::fs::write(&outro, seal(b"x", "s").unwrap()).unwrap();
-        assert!(check_export(&dir, &tmp, &outro).is_ok());
-        assert!(!check_export(&dir, Path::new("/etc/hosts"), &dir.join("x.txt")).is_ok() && Path::new("/etc/hosts").exists());
-        // swap só aceita SQLite
-        std::fs::write(&tmp, b"SQLite format 3\0resto").unwrap();
-        assert!(starts_with(&tmp, SQLITE_MAGIC).unwrap());
-        assert!(!starts_with(&outro, SQLITE_MAGIC).unwrap());
-        // restore.db some; apagar de novo não é erro
+        assert!(check_dest(&outro).is_err());
+        std::fs::write(&outro, seal(BACKUP_MAGIC, b"x", "s").unwrap()).unwrap();
+        assert!(check_dest(&outro).is_ok() && is_encrypted_backup(outro.to_string_lossy().into()).unwrap());
+        std::fs::write(&outro, seal(BACKUP_MAGIC_V2, b"x", "s").unwrap()).unwrap();
+        assert!(check_dest(&outro).is_ok() && is_encrypted_backup(outro.to_string_lossy().into()).unwrap());
+        assert!(is_export_tmp("export-17.db") && is_export_tmp("export-17.db-journal") && !is_export_tmp("yield.db") && !is_export_tmp("export-17.yield"));
+        // restore.db some, com a chave dele; apagar de novo não é erro
         std::fs::write(dir.join(RESTORE_FILE), "banco aberto").unwrap();
+        *pin::RESTORE.lock().unwrap() = Some([1u8; 32]);
         discard_restore_in(&dir).unwrap();
-        assert!(!dir.join(RESTORE_FILE).exists());
+        assert!(!dir.join(RESTORE_FILE).exists() && pin::RESTORE.lock().unwrap().is_none());
         discard_restore_in(&dir).unwrap();
-        std::fs::remove_dir_all(&dir).unwrap();
-    }
-
-    #[test]
-    fn backup_escolhido_vira_restore_db() {
-        let dir = tmp("backup-open");
-        let antigo = dir.join("antigo.db");
-        std::fs::write(&antigo, b"SQLite format 3\0antigo").unwrap();
-        backup_open_in(&dir, &antigo, None).unwrap();
-        assert_eq!(std::fs::read(dir.join(RESTORE_FILE)).unwrap(), b"SQLite format 3\0antigo");
-        let com_senha = dir.join("b.yield");
-        std::fs::write(&com_senha, seal(b"SQLite format 3\0com senha", "s").unwrap()).unwrap();
-        backup_open_in(&dir, &com_senha, Some("s")).unwrap();
-        assert_eq!(std::fs::read(dir.join(RESTORE_FILE)).unwrap(), b"SQLite format 3\0com senha");
-        assert_eq!(backup_open_in(&dir, &com_senha, Some("x")).unwrap_err(), "Senha errada ou arquivo corrompido.");
-        assert_eq!(backup_open_in(&dir, &com_senha, None).unwrap_err(), "Este arquivo não é um backup do Yield.");
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

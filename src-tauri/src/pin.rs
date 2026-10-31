@@ -49,7 +49,7 @@ static CHECKING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 // toda gravação do pins.json, e a reconstrução do ilegível, uma de cada vez (sem await dentro)
 static PINS_WRITE: Mutex<()> = Mutex::new(());
 // ligar, trocar e tirar o PIN um de cada vez: duas trocas cruzadas deixariam o cofre com a chave de um PIN que já não abre o banco
-static PIN_OPS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+pub(crate) static PIN_OPS: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 fn err(e: impl ToString) -> String {
     e.to_string()
@@ -375,7 +375,7 @@ async fn reseal(id: &str, from: Option<Key>, to: Option<Key>) -> Result<(), Stri
 
 /// Depois da troca o PIN novo já vale: o que falhar daqui em diante não desfaz nada nem vira erro para quem chamou.
 /// O cofre se recifra na próxima leitura (o cache sai), o pins.json e as cópias se acertam no próximo startup.
-fn after_swap(r: Result<(), String>) {
+pub(crate) fn after_swap(r: Result<(), String>) {
     if let Err(e) = r {
         eprintln!("PIN: {e}");
         *crate::VAULT.lock().unwrap_or_else(|e| e.into_inner()) = None;

@@ -1,14 +1,7 @@
-import { renameSync, writeFileSync } from 'node:fs'
 import { invoke } from '@tauri-apps/api/core'
 import { describe, expect, test, vi } from 'vitest'
-import { BackupError, exportBackup, stageBackup, validateBackup } from './backup'
-import { loadAll, saveNote } from './repo'
-import { createRawDb, createTestDb, tmpPath } from './testDb'
-
-const nota = { number: '123', broker: 'CLEAR', tradeDate: '2024-01-05', settleDate: '2024-01-09', source: 'pdf' as const, sourceKey: null, label: null }
-const trades = [
-  { seq: 1, side: 'C' as const, assetType: 'Ação' as const, ticker: 'itsa4', qty: 100, priceCents: 1000, feesCents: 5, irrfCents: 0 },
-]
+import { BackupError, stageBackup, validateBackup } from './backup'
+import { createRawDb, createTestDb } from './testDb'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
@@ -50,14 +43,6 @@ describe('backup', () => {
     const db = createTestDb()
     await db.execute("UPDATE meta SET value = '99' WHERE key = 'schema_version'")
     await expect(validateBackup(db)).rejects.toThrow('Este backup é de outra versão do Yield (esquema 99) e não pode ser importado nesta versão.')
-  })
-  test('exportar sobre arquivo existente funciona e o backup é válido', async () => {
-    const db = createTestDb(); await saveNote(db, nota, trades)
-    const dest = tmpPath('b.db'); writeFileSync(dest, 'lixo')
-    await exportBackup(db, tmpPath('t.db'), dest, async (a, b) => renameSync(a, b))
-    const back = createTestDb(dest)
-    await validateBackup(back)
-    expect((await loadAll(back)).notes).toHaveLength(1)
   })
 })
 
