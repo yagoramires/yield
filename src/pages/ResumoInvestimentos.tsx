@@ -17,12 +17,13 @@ import { carteiraClasses } from './carteira/build'
 import { pct as pct1, sign, tone, when } from './carteira/fmt'
 import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 import { ico } from '../ui/palette'
+import type { SectionId } from './configuracoes/secoes'
 
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
 
 
 export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
-  onNavigate(r: Route): void; onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(): void
+  onNavigate(r: Route): void; onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(at?: SectionId): void
 }) {
   const { data, derived, refreshing, refreshQuotesNow, gastos } = useData()
   const { portfolio: p, darfs } = derived
@@ -47,7 +48,7 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
         <div className="card" style={{ marginTop: 12 }}>
           <b style={{ color: 'var(--strong)' }}>Ainda não há investimentos por aqui</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>Importe os relatórios da B3 em Configurações ou lance suas compras em Notas.</div>
-          <div className="btns"><button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button><button className="b ghost" onClick={onOpenNotas}>Abrir Notas</button></div>
+          <div className="btns"><button className="b pri" onClick={() => onOpenSettings('importar')}>Ir para Configurações</button><button className="b ghost" onClick={onOpenNotas}>Abrir Notas</button></div>
         </div>
       </>
     )

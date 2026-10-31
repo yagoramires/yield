@@ -63,7 +63,7 @@ export function Cadastro({ issuers, brokers, tickers, brokerCodes, pending, onCh
           <div className="day-h"><span>Empresas e fundos</span></div>
           {order(tickers.map(t => t.ticker), pending.tickers).map(t => row('issuer', t, issuers.get(t),
             <span className="tk-av" style={ico(classColor(cls.get(t) ?? ''))} aria-hidden>{t.slice(0, 4)}</span>, pending.tickers.includes(t)))}
-          <div className="muted cad-hint">Preenchido ao importar a Posição da B3 em Configurações › Importar da B3 (razão social e CNPJ de ações, ETFs e fundos). O que você editar aqui não é sobrescrito.</div>
+          <div className="muted cad-hint">Preenchido ao importar a Posição da B3 em Configurações › Importar arquivos (razão social e CNPJ de ações, ETFs e fundos). O que você editar aqui não é sobrescrito.</div>
         </div>
         <div className="day-card">
           <div className="day-h"><span>Corretoras</span><span className="muted">nomes como vêm das notas e da B3</span></div>

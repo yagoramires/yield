@@ -30,7 +30,7 @@ export function Assistente() {
   return (
     <div className="chat-page">
       {!(on && !error && hw && model) && <h1 style={{ margin: 0 }}>Assistente</h1> /* no chat, o título vem com o "Nova conversa" */}
-      {!on ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › IA local.</span></div>
+      {!on ? <div className="card" style={{ marginTop: 12 }}><span className="muted">O Assistente está desligado. Ligue de novo em Configurações › Assistente (IA).</span></div>
         : error ? <div className="alert-bad" style={{ marginTop: 12 }}><span>{error}</span></div>
         : !hw || !installed ? <div className="muted" style={{ marginTop: 12 }}>Verificando este computador…</div>
         : !model ? <Ativar hw={hw} target={chosen} onReady={() => void refresh()} />

@@ -4,9 +4,10 @@ import { formatCents } from '../../domain/money'
 import type { RfHolding } from '../../domain/rendaFixa'
 import { br, pct, signedCents, tone } from './fmt'
 import { PosRow } from './PosRow'
+import type { SectionId } from '../configuracoes/secoes'
 
 /** Títulos da B3 (Tesouro e CDB/LCI…): aplicado, valor de hoje e rendimento; os encerrados ficam recolhidos. */
-export function RendaFixa({ list, onOpenSettings }: { list: RfHolding[]; onOpenSettings(): void }) {
+export function RendaFixa({ list, onOpenSettings }: { list: RfHolding[]; onOpenSettings(at?: SectionId): void }) {
   const [showClosed, setShowClosed] = useState(false)
   const open = list.filter(h => !h.closed)
   const closed = list.filter(h => h.closed)
@@ -19,7 +20,7 @@ export function RendaFixa({ list, onOpenSettings }: { list: RfHolding[]; onOpenS
       gainSub={h.gainPct !== null && pct(h.gainPct)} gainTone={tone(h.gainCents)}
       cost={h.closed ? 'encerrado' : h.appliedCents === null ? 'aplicado desconhecido' : `aplicado ${formatCents(h.appliedCents)}`} />
   )
-  if (!list.length) return <div className="muted pos-empty">Nenhum título da B3 ainda. Importe a <b>Posição</b> e a <b>Movimentação</b> da Área do Investidor em <button className="link" onClick={onOpenSettings}>Configurações › B3</button>.</div>
+  if (!list.length) return <div className="muted pos-empty">Nenhum título da B3 ainda. Importe a <b>Posição</b> e a <b>Movimentação</b> da Área do Investidor em <button className="link" onClick={() => onOpenSettings('importar')}>Configurações › Importar arquivos</button>.</div>
   return (
     <>
       {open.map(row)}

@@ -97,6 +97,7 @@ As transações chegam de dois jeitos:
 - Importa da Área do Investidor da B3 os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição, vários de uma vez, sem duplicar.
 - Backup num arquivo `.yield` criptografado com uma senha sua (AES-256-GCM, chave derivada com Argon2id). O arquivo salvo é do perfil aberto quando você exporta; antes de importar um backup, o app guarda uma cópia de segurança do perfil atual.
 - Cotações automáticas a cada 15 minutos.
+- Configurações em seções (Você, Dados, Recursos, App) com busca por ajuste; a seção aberta por último fica lembrada em cada perfil.
 - Atualização automática: o app avisa quando sai versão nova no GitHub e se atualiza sozinho (pacotes assinados).
 
 ## 🔒 Privacidade e segurança

@@ -15,6 +15,7 @@ import { ClassList } from './carteira/ClassList'
 import { PosRow } from './carteira/PosRow'
 import { BOLSA, carteiraClasses, pickClass, type ClassKey } from './carteira/build'
 import { br, pct, qtyText, signedCents, sign, tone, when } from './carteira/fmt'
+import type { SectionId } from './configuracoes/secoes'
 
 const FORM_CLASSES: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior (US$)', outro: 'Outro' }
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -22,7 +23,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; cost: string; sourceKey: string | null }
 const emptyForm = (cls: ClassKey | null): Form => ({ name: '', assetClass: cls && cls in FORM_CLASSES ? (cls as ManualAsset['assetClass']) : 'exterior', quoteSymbol: cls === 'dolar' ? 'BRL=X' : '', quantity: '', value: '', cost: '', sourceKey: null })
 
-export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettings(): void; initialClass?: string | null }) {
+export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettings(at?: SectionId): void; initialClass?: string | null }) {
   const { data, db, derived, reload, refreshing, refreshQuotesNow, binance } = useData()
   const { portfolio: p } = derived
   const [wanted, setWanted] = useState<string | null>(initialClass)
@@ -143,7 +144,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         </div>
       </div>
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
-      {binance.error && !classes.some(c => c.key === 'cripto') && <div className="note" style={{ marginTop: 10 }}>{binance.error} <button className="link" onClick={onOpenSettings}>Configurações</button></div>}
+      {binance.error && !classes.some(c => c.key === 'cripto') && <div className="note" style={{ marginTop: 10 }}>{binance.error} <button className="link" onClick={() => onOpenSettings('contas')}>Configurações</button></div>}
 
       <div className="kpis">
         <div className="k"><div className="muted">Patrimônio</div><div className="v">{formatBRL(p.totalValueCents)}</div>
@@ -179,7 +180,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         <div className="card">
           <b style={{ color: 'var(--strong)' }}>{data.notes.length ? 'Nenhuma posição agora' : 'Comece importando da B3'}</b>
           <div className="muted" style={{ margin: '4px 0 10px' }}>{data.notes.length ? 'Tudo o que você tinha foi vendido. Lance compras em Notas, importe da B3 ou adicione um ativo em + Ativo. ' : ''}Baixe os relatórios de Negociação, Proventos Recebidos, Movimentação e Posição na Área do Investidor e importe em Configurações. Ações do exterior, dólar e cripto entram em + Ativo; cripto também pela Binance em Configurações.</div>
-          <button className="b pri" onClick={onOpenSettings}>Ir para Configurações</button>
+          <button className="b pri" onClick={() => onOpenSettings('importar')}>Ir para Configurações</button>
         </div>
       ) : (
         <div className="cart-cols">

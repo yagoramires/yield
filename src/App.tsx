@@ -24,6 +24,7 @@ import { scoped } from './profiles/active'
 import { useProfiles } from './profiles/Gate'
 import { DEFAULT_NAME, firstName, LEGACY_ID } from './profiles/profiles'
 import { useData } from './state/DataProvider'
+import type { SectionId } from './pages/configuracoes/secoes'
 
 const TITLES = Object.fromEntries(
   ROUTES.flatMap(p => p.items).flatMap(i => (i.route ? [[i.route, i.label]] : [])),
@@ -54,9 +55,11 @@ export default function App() {
   }, [profile, profiles, save, owner])
   const [provMonth, setProvMonth] = useState('') // mês clicado no Resumo, para Proventos abrir filtrado
   const [carteiraClass, setCarteiraClass] = useState<string | null>(null) // classe clicada no Resumo, para a Carteira abrir nela
+  const [settingsAt, setSettingsAt] = useState<SectionId>() // seção pedida por um link "Configurações" de outra tela
   const [menuOpen, setMenuOpen] = useState(false)
   useHideValues() // o olhinho vale para o app todo: ligar ou desligar redesenha as telas com os valores ocultos ou não
-  const navigate = (next: Route) => { setProvMonth(''); setCarteiraClass(null); setRoute(next); setMenuOpen(false) }
+  const openSettings = (at?: SectionId) => { setSettingsAt(at); setRoute('configuracoes') }
+  const navigate = (next: Route) => { setSettingsAt(undefined); setProvMonth(''); setCarteiraClass(null); setRoute(next); setMenuOpen(false) }
   return (
     <div className="app">
       <header className="mobile-header">
@@ -70,7 +73,7 @@ export default function App() {
       {ai.off === null && <AiPergunta onUse={() => navigate('assistente')} />}
       <main className="main">
         <UpdateBanner />
-        {route === 'investimentos-resumo' ? <ResumoInvestimentos onNavigate={navigate} onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={(cls?: string) => { setCarteiraClass(cls ?? null); setRoute('carteira') }} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'gastos-resumo' ? <ResumoGastos onNavigate={navigate} onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={() => setRoute('configuracoes')} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onNavigate={navigate} onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'carteira' ? <Carteira key={carteiraClass ?? ''} initialClass={carteiraClass} onOpenSettings={() => setRoute('configuracoes')} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} onNavigate={navigate} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'assistente' ? <Assistente /> : route === 'configuracoes' ? <Configuracoes /> : (
+        {route === 'investimentos-resumo' ? <ResumoInvestimentos onNavigate={navigate} onOpenProventos={m => { setProvMonth(m); setRoute('proventos') }} onOpenCarteira={(cls?: string) => { setCarteiraClass(cls ?? null); setRoute('carteira') }} onOpenImposto={() => setRoute('imposto')} onOpenNotas={() => setRoute('notas')} onOpenSettings={openSettings} /> : route === 'gastos-resumo' ? <ResumoGastos onNavigate={navigate} onOpenLancamentos={() => setRoute('lancamentos')} onOpenAssinaturas={() => setRoute('assinaturas')} onOpenSettings={openSettings} /> : route === 'lancamentos' ? <Lancamentos onOpenSettings={openSettings} /> : route === 'assinaturas' ? <Assinaturas onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'categorias' ? <Categorias onOpenLancamentos={() => setRoute('lancamentos')} /> : route === 'orcamento' ? <Orcamento onNavigate={navigate} onOpenGastos={() => setRoute('gastos-resumo')} onOpenSettings={openSettings} /> : route === 'carteira' ? <Carteira key={carteiraClass ?? ''} initialClass={carteiraClass} onOpenSettings={openSettings} /> : route === 'notas' ? <Notas /> : route === 'proventos' ? <Proventos key={provMonth} initialMonth={provMonth} onNavigate={navigate} /> : route === 'imposto' ? <Imposto /> : route === 'declaracao' ? <Declaracao /> : route === 'assistente' ? <Assistente /> : route === 'configuracoes' ? <Configuracoes key={settingsAt} at={settingsAt} /> : (
           <>
             <h1>{TITLES[route]}</h1>
             <div className="muted">Em construção.</div>

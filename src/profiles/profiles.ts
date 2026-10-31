@@ -19,7 +19,7 @@ export const DEFAULT_NAME = 'Meu perfil'
 export const PROFILE_COLORS: readonly string[] = ['#c6ff3d', '#3a91dc', '#dc5f52', '#956ed2', '#009f99', '#fbc959']
 
 /** Preferências guardadas por perfil (chave com sufixo `@id`, exceto no perfil de hoje). */
-export const SCOPED_KEYS: readonly string[] = ['yield.route', 'yield.modulosDesligados', 'yield.menuRecolhido', 'yield.tema', 'yield.ia', 'yield.ocultarValores', 'yield.dicaEmpresaDispensada']
+export const SCOPED_KEYS: readonly string[] = ['yield.route', 'yield.modulosDesligados', 'yield.menuRecolhido', 'yield.tema', 'yield.ia', 'yield.ocultarValores', 'yield.dicaEmpresaDispensada', 'yield.configSecao']
 
 const MAX_NAME = 30
 const ID_RE = /^(principal|[a-z0-9]{8,40})$/

@@ -117,8 +117,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       const auth = await getPluggyAuth()
       const items = (await loadGastos(d)).pluggyItems
-      if (!auth) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Open Finance.'))
-      else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Open Finance.'))
+      if (!auth) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Contas conectadas.'))
+      else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Contas conectadas.'))
       else setLastSyncResult(await syncPluggy(d, auth, tauriFetch as typeof fetch, todayISO()))
       const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)]) // compras e vendas da Pluggy mudam a carteira
       setData(ds); setGastosData(g)
@@ -135,7 +135,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setBinance(b => ({ ...b, syncing: true }))
     try {
       const send = await getBinanceSend()
-      if (!send) { binanceFailed.current = true; return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Binance.', earnSkipped: false }) }
+      if (!send) { binanceFailed.current = true; return setBinance({ syncing: false, error: 'Sem chave da Binance: configure em Configurações › Contas conectadas.', earnSkipped: false }) }
       const r = await fetchBinanceBalances(send)
       await saveCryptoBalances(d, r.balances, new Date().toISOString())
       setData(await loadAll(d))
@@ -151,7 +151,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setCostState({ loading: true, note: null, progress: null })
     try {
       const send = await getBinanceSend()
-      if (!send) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Binance.', progress: null })
+      if (!send) return setCostState({ loading: false, note: 'Sem chave da Binance: configure em Configurações › Contas conectadas.', progress: null })
       const r = await syncCryptoCosts(d, send, tauriFetch as typeof fetch, undefined, undefined, progress => setCostState(s => ({ ...s, progress })))
       setData(await loadAll(d))
       setCostState({ loading: false, note: costSummaryText(r), progress: null })

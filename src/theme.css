@@ -498,7 +498,7 @@ tr.hl td { background: var(--neg-bg); }
 .ic.on { color: var(--accent-fg); }
 .in[readonly] { color: var(--text-2); }
 
-/* Passo a passo da Pluggy (Configurações › Open Finance) */
+/* Passo a passo da Pluggy (Configurações › Contas conectadas) */
 .modal-bg { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
 .modal { background: var(--sidebar); border: 1px solid var(--border); border-radius: 12px; padding: 16px; width: min(760px, 100%); max-height: 100%; overflow: auto; }
 .guide { display: grid; grid-template-columns: 220px 1fr; gap: 16px; margin-top: 14px; }
@@ -832,3 +832,23 @@ tr.hl td { background: var(--neg-bg); }
 .sidebar.mini .prof-btn { width: auto; padding: 3px; border-radius: 50%; }
 .sidebar.mini .prof-pop { position: fixed; right: auto; width: 190px; } /* left e top vêm do botão */
 .pin-panel { margin-top: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--well); }
+
+/* Configurações: menu de seções com busca + a seção aberta; no celular, um ou outro */
+.cfg { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; align-items: start; margin-top: 12px; }
+.cfg-nav { position: sticky; top: 0; display: flex; flex-direction: column; gap: 2px; }
+.cfg-search { position: relative; display: flex; margin-bottom: 4px; }
+.cfg-search svg { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--faint); pointer-events: none; }
+.cfg-search .in { flex: 1; padding-left: 28px; }
+.cfg-nav .group { margin-top: 10px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); }
+.cfg-nav .item { justify-content: space-between; color: var(--text-2); }
+.cfg-nav .item:hover { color: var(--text); }
+.cfg-nav .item.on { color: var(--strong); }
+.cfg-body > .card:first-of-type { margin-top: 0 !important; } /* os cartões trazem margem de quando ficavam empilhados */
+.cfg-back { display: none; margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .cfg { grid-template-columns: minmax(0, 1fr); }
+  .cfg-nav { position: static; }
+  .cfg-nav .item { min-height: 40px; }
+  .cfg.open .cfg-nav, .cfg:not(.open) .cfg-body { display: none; }
+  .cfg-back { display: inline-flex; }
+}

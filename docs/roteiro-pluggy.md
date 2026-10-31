@@ -13,7 +13,7 @@ Tenha à mão o app de cada banco, para autorizar o compartilhamento.
 3. **Ligue o conector MeuPluggy:** no dashboard, **Dados Financeiros › Customização**, aba **Conectores**. Busque "MeuPluggy": ele fica em **Conectores Diretos**; deixe a chave ligada e clique em **Salvar**. Se ele não aparecer na Demo depois, desligue "Padrão para todos selecionados", ligue o MeuPluggy e salve de novo.
 4. **Conecte o MeuPluggy na Demo:** em **Visão Geral**, no item "Conecte um item demo", clique em **Conectar**; escolha MeuPluggy, entre com a conta do Meu Pluggy e autorize, uma vez por banco. Com o banco conectado, o menu **⋮** no canto superior direito da Demo tem **Copiar Item ID** (um UUID, parecido com `3f1a2b3c-4d5e-6f70-8192-a3b4c5d69c02`).
 5. **Copie o Client ID e o Client Secret** em **Aplicações**, na sua aplicação. Webhooks, acesso à produção, due diligence e o menu Pagamentos não são necessários.
-6. No Yield, abra **Configurações › Open Finance** e clique em **Conectar bancos** (o passo a passo do app repete estes passos):
+6. No Yield, abra **Configurações › Contas conectadas** e clique em **Conectar bancos** (o passo a passo do app repete estes passos):
    - cole o Client ID e o Client Secret e clique em **Salvar no cofre** (ficam no cofre do sistema, o Yield nunca os mostra de volta);
    - para cada banco, escreva um nome e cole o itemId, então **Adicionar**.
 7. Clique em **Testar conexão**: cada banco deve mostrar "n contas". Se aparecer erro, veja a seção "Se algo estiver estranho".
@@ -21,7 +21,7 @@ Tenha à mão o app de cada banco, para autorizar o compartilhamento.
 
 ## O que conferir depois da primeira sincronização
 
-Abra **Últimos gastos › Lançamentos** e **Configurações › Contas**.
+Abra **Últimos gastos › Lançamentos** e **Configurações › Contas conectadas**.
 
 - **Contas certas:** cada banco aparece com as contas e cartões que você tem, sem conta sobrando nem em dobro.
 - **Sinais:** compra no cartão é negativa; salário é positivo.
@@ -34,8 +34,8 @@ Abra **Últimos gastos › Lançamentos** e **Configurações › Contas**.
 
 ## Se algo estiver estranho
 
-- Anote o que esperava e o que apareceu, e mande um print da tela onde viu o problema: **Configurações › Open Finance** (mensagem de erro, situação de cada banco), **Configurações › Contas** (conta repetida ou faltando) ou **Lançamentos** (sinal, duplicado, pendente).
-- Conta em dobro (uma da Pluggy e outra de extrato): apague a repetida em **Configurações › Contas**. Os lançamentos dela também são apagados.
+- Anote o que esperava e o que apareceu, e mande um print da tela onde viu o problema: **Configurações › Contas conectadas** (mensagem de erro, situação de cada banco), **Configurações › Contas conectadas** (conta repetida ou faltando) ou **Lançamentos** (sinal, duplicado, pendente).
+- Conta em dobro (uma da Pluggy e outra de extrato): apague a repetida em **Configurações › Contas conectadas**. Os lançamentos dela também são apagados.
 - "Client ID ou Client Secret inválidos": confira os dois no dashboard e use **Trocar**.
 - Item não encontrado: o itemId está errado ou a conexão foi removida; tire o banco e adicione de novo.
 

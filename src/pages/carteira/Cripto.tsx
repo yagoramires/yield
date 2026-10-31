@@ -7,11 +7,12 @@ import { errText } from '../lancamentos/GastosHeader'
 import { parseMoney } from '../notas/build'
 import { pct, qtyText, signedCents, tone, when } from './fmt'
 import { PosRow } from './PosRow'
+import type { SectionId } from '../configuracoes/secoes'
 
 const PARTIAL = 'Parte do histórico não tem custo em real conhecido (paga com outra cripto ou moeda, ou uma fonte não foi lida). Informe à mão se souber.'
 
 /** Saldos da Binance com o aportado calculado do histórico (só quando o dono pede) ou informado à mão, que sempre vale. */
-export function Cripto({ rows, onOpenSettings }: { rows: CryptoRow[]; onOpenSettings(): void }) {
+export function Cripto({ rows, onOpenSettings }: { rows: CryptoRow[]; onOpenSettings(at?: SectionId): void }) {
   const { db, data, reload, binance, refreshQuotesNow } = useData()
   const [editing, setEditing] = useState<{ asset: string; text: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +37,7 @@ export function Cripto({ rows, onOpenSettings }: { rows: CryptoRow[]; onOpenSett
         <button className="link" disabled={binance.cost.loading} onClick={() => void binance.fetchCost()}>{binance.cost.loading ? 'lendo histórico…' : 'Buscar aportado na Binance'}</button>
       </div>
       {binance.cost.loading && <div className="muted" role="status" style={{ margin: '6px 0' }}>Lendo o histórico da Binance (leva alguns minutos): {binance.cost.progress ?? 'começando…'}</div>}
-      {binance.error && <div className="note" style={{ margin: '6px 0' }}>{binance.error} <button className="link" onClick={onOpenSettings}>Configurações</button></div>}
+      {binance.error && <div className="note" style={{ margin: '6px 0' }}>{binance.error} <button className="link" onClick={() => onOpenSettings('contas')}>Configurações</button></div>}
       {binance.earnSkipped && <div className="muted" style={{ margin: '6px 0' }}>Saldos do Earn não lidos: a chave não tem acesso a eles.</div>}
       {binance.cost.note && <div className="note" style={{ margin: '6px 0' }}>{binance.cost.note}</div>}
       {computed && <div className="muted" style={{ margin: '6px 0' }}>Aportado (Binance): custo médio do histórico; o pago em dólar digital (USDT e afins) usa o dólar do fechamento do mês.</div>}

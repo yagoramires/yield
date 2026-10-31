@@ -15,8 +15,9 @@ import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
 import { ico, TINT } from '../ui/palette'
+import type { SectionId } from './configuracoes/secoes'
 
-export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
+export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(at?: SectionId): void }) {
   const { gastos, orcamento } = useData()
   const { data, categorize: cat, month, setMonth, setFilter, subscriptions } = gastos
   const { brl, cents, short } = useHideValues()

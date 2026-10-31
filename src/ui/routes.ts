@@ -30,7 +30,7 @@ export const ROUTES: {
       { route: 'declaracao', label: 'Declaração IR', disabled: false, icon: FileCheck2 },
     ],
   },
-  // fora dos módulos: quem liga e desliga é a escolha de usar IA (primeira abertura ou Configurações › IA local)
+  // fora dos módulos: quem liga e desliga é a escolha de usar IA (primeira abertura ou Configurações › Assistente (IA))
   { page: 'Assistente', module: null, items: [{ route: 'assistente', label: 'Assistente', disabled: false, icon: Sparkles }] },
   { page: 'Sistema', module: null, items: [{ route: 'configuracoes', label: 'Configurações', disabled: false, icon: Settings }] },
 ]

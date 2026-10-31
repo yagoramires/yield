@@ -19,6 +19,7 @@ import { Select } from '../ui/Select'
 import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 import { TINT } from '../ui/palette'
 import { MonthNav } from '../ui/MonthNav'
+import type { SectionId } from './configuracoes/secoes'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
@@ -38,7 +39,7 @@ function Track({ real, planned, soft }: { real: number; planned: number; soft?: 
   return <div className="track" style={{ height: 6, marginTop: 4 }}><div className={`fill${soft ? ' soft' : ''}${real > planned ? ' over' : ''}`} style={{ width: `${pct(real, planned)}%` }} /></div>
 }
 
-export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavigate(r: Route): void; onOpenGastos(): void; onOpenSettings(): void }) {
+export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavigate(r: Route): void; onOpenGastos(): void; onOpenSettings(at?: SectionId): void }) {
   const { db, gastos, orcamento, data: carteira } = useData()
   const { data, month, setMonth, reload } = orcamento
   const [form, setForm] = useState<Form | null>(null)
@@ -108,7 +109,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
             {prev && copy.length > 0 && <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível copiar o mês', async () => { await createMonth(db, month, withSources(copy, data.sources, month)) })}>Copiar de {lower(prev)}</button>}
             <button className="b" disabled={busy} onClick={() => void run('Não foi possível criar o mês', async () => { await createMonth(db, month, fresh) })}>Começar do zero</button>
           </div>
-          <div className="muted" style={{ marginTop: 12 }}>Já tem o orçamento numa planilha? Salve como CSV (mes;tipo;nome;valor) e importe em <button className="link" onClick={onOpenSettings}>Configurações › Importar orçamento (CSV)</button>.</div>
+          <div className="muted" style={{ marginTop: 12 }}>Já tem o orçamento numa planilha? Salve como CSV (mes;tipo;nome;valor) e importe em <button className="link" onClick={() => onOpenSettings('importar')}>Configurações › Importar arquivos</button>.</div>
         </div>
       </>
     )
@@ -443,9 +444,9 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
       <div className="grid2" style={{ alignItems: 'start' }}>
         <div>
           {block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
-            empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Fontes de renda e eles entram sozinhos todo mês.',
+            empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Renda e orçamento e eles entram sozinhos todo mês.',
             add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
-            hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={onOpenSettings}>Cadastre seu nome e o da sua empresa</button> em Configurações › Open Finance: o que vier deles sai daqui.</>,
+            hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={() => onOpenSettings('contas')}>Cadastre seu nome e o da sua empresa</button> em Configurações › Contas conectadas: o que vier deles sai daqui.</>,
             extra: missing.length > 0 && missing.map(s => (
               <tr key={`fonte-${s.id}`}>
                 <td className="ell-cell"><div className="cat-line">
