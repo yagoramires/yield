@@ -38,10 +38,12 @@ export function SyncStatus({ mini = false }: { mini?: boolean }) {
   // popover: o foco entra nele ao abrir; fecha ao clicar fora ou com Esc (só ele)
   useEffect(() => {
     if (!open) return
-    box.current?.querySelector<HTMLButtonElement>('.sync-pop button')?.focus()
+    box.current?.querySelector<HTMLElement>('.sync-pop')?.focus() // o próprio popover, não o "Sincronizar tudo": um Enter solto não dispara nada
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); trigger.current?.focus() } }
     document.addEventListener('mousedown', down)
-    return () => document.removeEventListener('mousedown', down)
+    document.addEventListener('keydown', esc, true)
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc, true) }
   }, [open])
   const g = gastos.data
   const hasPluggy = g.pluggyItems.length > 0
@@ -73,9 +75,9 @@ export function SyncStatus({ mini = false }: { mini?: boolean }) {
   )
   // uma linha no menu; o detalhe de cada fonte abre num popover para cima
   return (
-    <div className="sync-status" ref={box} onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); trigger.current?.focus() } }}>
+    <div className="sync-status" ref={box} onBlur={e => { if (open && e.relatedTarget && !box.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
       {open && (
-        <div className="sync-pop" role="dialog" aria-label="Sincronização">
+        <div className="sync-pop" role="dialog" aria-label="Sincronização" tabIndex={-1}>
           {rows.map(r => (
             <div key={r.label} className="sync-row" title={r.error}>
               <span className={`dot${r.error ? ' bad' : ''}`} aria-hidden />{r.label}<span className="t">{r.error ? 'erro' : r.text}</span>

@@ -762,3 +762,4 @@ tr.hl td { background: var(--neg-bg); }
 /* respiro entre blocos que se encostavam */
 .main > .card + .card, .main > .card + .grid2 { margin-top: 12px; }
 .chart + .muted { margin-top: 8px; } /* legenda abaixo do gráfico não encosta nos rótulos do eixo */
+.sync-pop:focus { outline: none; } /* recebe o foco ao abrir só para o teclado entrar nele */

@@ -16,10 +16,14 @@ export function MonthNav({ month, onChange, disabled }: { month: Month; onChange
   useEffect(() => {
     if (!open) return
     // abriu: o foco vai para o mês escolhido, para seguir no teclado
-    box.current?.querySelector<HTMLButtonElement>('.month-grid .sel, .month-grid button')?.focus()
+    const grid = box.current?.querySelector('.month-grid')
+    ;(grid?.querySelector<HTMLButtonElement>('.sel') ?? grid?.querySelector<HTMLButtonElement>('button'))?.focus()
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
+    // Esc no documento, em captura: fecha mesmo com o foco fora (no macOS clicar não dá foco) e não chega à tela
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); trigger.current?.focus() } }
     document.addEventListener('mousedown', down)
-    return () => document.removeEventListener('mousedown', down)
+    document.addEventListener('keydown', esc, true)
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc, true) }
   }, [open])
   useEffect(() => { if (disabled) setOpen(false) }, [disabled]) // salvando: nada de trocar de mês pelo popover
   const close = () => { setOpen(false); trigger.current?.focus() }
@@ -27,8 +31,8 @@ export function MonthNav({ month, onChange, disabled }: { month: Month; onChange
   const now = thisMonth()
 
   return (
-    // Esc fecha só o popover (não chega aos atalhos da tela)
-    <div className="month-nav" ref={box} onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); close() } }}>
+    // saiu com Tab: fecha, senão o popover fica aberto sobre a tela
+    <div className="month-nav" ref={box} onBlur={e => { if (open && e.relatedTarget && !box.current?.contains(e.relatedTarget as Node)) setOpen(false) }}>
       <button className="icon-btn sq" aria-label="Mês anterior" disabled={disabled} onClick={() => onChange(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
       <button ref={trigger} className="month-btn" aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={() => { setYear(Number(month.slice(0, 4))); setOpen(!open) }}>
         {label(month)}<ChevronDown size={12} aria-hidden />

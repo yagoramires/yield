@@ -16,7 +16,7 @@ const apply = () => {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.theme = effectiveTheme(mode, !!media?.matches)
   // barra de título da janela no mesmo tema (null: segue o sistema); fora do Tauri (testes, navegador) não há janela
-  if ('__TAURI_INTERNALS__' in window) void getCurrentWindow().setTheme(mode === 'system' ? null : mode).catch(() => {})
+  if ('__TAURI_INTERNALS__' in window) void getCurrentWindow().setTheme(mode === 'system' ? null : mode).catch(e => console.warn('setTheme', e))
 }
 apply() // no import, antes da primeira tela: não pisca o tema errado
 media?.addEventListener('change', apply)
