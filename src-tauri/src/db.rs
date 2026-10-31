@@ -19,8 +19,15 @@ pub struct ExecResult {
     pub last_insert_id: i64,
 }
 
+pub const CORRUPT: &str = "O arquivo do banco não é um banco do Yield ou está corrompido.";
+
 fn err(e: impl ToString) -> String {
     e.to_string()
+}
+
+/// `SQLITE_NOTADB`: chave errada, ou o arquivo não é um banco.
+fn is_notadb(e: &sqlx::Error) -> bool {
+    matches!(e, sqlx::Error::Database(d) if d.code().as_deref() == Some("26"))
 }
 
 /// Banco cifrado pelo PIN: tem cabeçalho, mas não o do SQLite em claro.
@@ -36,7 +43,7 @@ pub fn has_pin_file(path: &Path) -> Result<bool, String> {
 /// Valor da chave para `PRAGMA key` e `ATTACH ... KEY`: chave "raw" (o SQLCipher não roda o PBKDF2 dele) ou nenhuma.
 pub(crate) fn key_sql(key: Option<&Key>) -> String {
     match key {
-        Some(k) => format!("\"x'{}'\"", k.iter().map(|b| format!("{b:02x}")).collect::<String>()),
+        Some(k) => format!("\"x'{}'\"", crate::pin::hex(k)),
         None => "''".into(),
     }
 }
@@ -46,7 +53,6 @@ async fn cipher_version_in<'e>(e: impl sqlx::SqliteExecutor<'e>) -> Option<Strin
 }
 
 /// Versão do SQLCipher linkado; `None` num SQLite comum (lá a `PRAGMA key` é ignorada e o banco ficaria em claro).
-#[cfg_attr(not(test), allow(dead_code))] // por ora só o teste confere; o desbloqueio com PIN passa a usar
 pub async fn cipher_version() -> Option<String> {
     let mut conn = sqlx::SqliteConnection::connect("sqlite::memory:").await.ok()?;
     let v = cipher_version_in(&mut conn).await;
@@ -60,9 +66,10 @@ pub async fn open_pool(path: &Path, key: Option<&Key>) -> Result<SqlitePool, Str
         // o sqlx manda a `key` antes de qualquer outra pragma, em toda conexão nova do pool
         opts = opts.pragma("key", key_sql(key));
     }
-    let pool = SqlitePoolOptions::new().connect_with(opts).await.map_err(err)?;
+    let pool = SqlitePoolOptions::new().connect_with(opts).await.map_err(|e| if is_notadb(&e) { CORRUPT.into() } else { err(e) })?;
     // PIN errado só falha na primeira leitura: lê aqui, e não na primeira tela
     let checked = match sqlx::query("SELECT count(*) FROM sqlite_master").fetch_one(&pool).await {
+        Err(e) if is_notadb(&e) => Err(CORRUPT.into()),
         Err(e) => Err(err(e)),
         Ok(_) if key.is_some() && cipher_version_in(&pool).await.is_none() => Err("Este Yield foi compilado sem criptografia de banco.".into()),
         Ok(_) => Ok(()),
@@ -74,7 +81,28 @@ pub async fn open_pool(path: &Path, key: Option<&Key>) -> Result<SqlitePool, Str
     Ok(pool)
 }
 
+/// A chave abre o banco? Uma conexão só, sem criar o arquivo nem gravar nada nele.
+pub async fn key_opens(path: &Path, key: &Key) -> Result<bool, String> {
+    let opts = SqliteConnectOptions::new().filename(path).pragma("key", key_sql(Some(key)));
+    let mut conn = match sqlx::SqliteConnection::connect_with(&opts).await {
+        Ok(c) => c,
+        Err(e) if is_notadb(&e) => return Ok(false),
+        Err(e) => return Err(err(e)),
+    };
+    let read = sqlx::query("SELECT count(*) FROM sqlite_master").fetch_one(&mut conn).await;
+    let cipher = cipher_version_in(&mut conn).await;
+    let _ = conn.close().await;
+    match read {
+        Err(e) if is_notadb(&e) => Ok(false),
+        Err(e) => Err(err(e)),
+        // num SQLite comum a chave é ignorada e qualquer PIN "abriria" um banco em claro
+        Ok(_) if cipher.is_none() => Err("Este Yield foi compilado sem criptografia de banco.".into()),
+        Ok(_) => Ok(true),
+    }
+}
+
 // Bind e leitura copiados do tauri-plugin-sql 2.6.0 (Apache-2.0 OR MIT): os mesmos tipos que o app já recebia do plugin.
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 fn bind_all(sql: &str, params: Vec<Value>) -> Query<'_, Sqlite, SqliteArguments<'_>> {
     let mut query = sqlx::query(sql);
     for value in params {
@@ -92,6 +120,7 @@ fn bind_all(sql: &str, params: Vec<Value>) -> Query<'_, Sqlite, SqliteArguments<
 }
 
 // Copiado do tauri-plugin-sql 2.6.0 (Apache-2.0 OR MIT), `decode/sqlite.rs`.
+// Copyright 2019-2023 Tauri Programme within The Commons Conservancy
 fn to_json(v: SqliteValueRef) -> Result<Value, String> {
     use sqlx::types::time::{Date, PrimitiveDateTime, Time};
     if v.is_null() {
@@ -137,13 +166,13 @@ pub async fn close_all(dbs: &Dbs) {
 }
 
 /// O nome vem do webview: só o banco do perfil aberto ou o backup em importação, sempre na pasta do app (como o plugin).
-fn db_path(app: &tauri::AppHandle, file: &str) -> Result<PathBuf, String> {
+fn db_dir(app: &tauri::AppHandle, file: &str) -> Result<PathBuf, String> {
     if file != crate::active()?.1 && file != crate::RESTORE_FILE {
         return Err("Banco fora do perfil aberto.".into());
     }
     let dir = app.path().app_config_dir().map_err(err)?;
     std::fs::create_dir_all(&dir).map_err(err)?;
-    Ok(dir.join(file))
+    Ok(dir)
 }
 
 async fn pool_of(dbs: &Dbs, file: &str) -> Result<SqlitePool, String> {
@@ -152,11 +181,13 @@ async fn pool_of(dbs: &Dbs, file: &str) -> Result<SqlitePool, String> {
 
 #[tauri::command]
 pub async fn db_load(app: tauri::AppHandle, state: State<'_, Dbs>, file: String) -> Result<(), String> {
-    let path = db_path(&app, &file)?;
-    if has_pin_file(&path)? {
-        return Err("Perfil bloqueado: digite o PIN.".into());
+    let dir = db_dir(&app, &file)?;
+    // o StrictMode do React carrega duas vezes: o segundo não fecha o pool que o primeiro já entregou
+    if state.0.lock().await.contains_key(&file) {
+        return Ok(());
     }
-    let pool = open_pool(&path, None).await?;
+    let key = crate::pin::key_for(&dir, &file)?;
+    let pool = open_pool(&dir.join(&file), key.as_ref()).await?;
     let old = state.0.lock().await.insert(file, pool);
     if let Some(old) = old {
         old.close().await;
@@ -183,10 +214,13 @@ pub async fn db_close(state: State<'_, Dbs>, file: String) -> Result<(), String>
     Ok(())
 }
 
-/// Fecha os bancos abertos antes de trocar de perfil ou voltar à escolha de perfil.
+/// Fecha os bancos abertos e esquece as chaves antes de trocar de perfil ou voltar à escolha de perfil.
 #[tauri::command]
 pub async fn profile_lock(state: State<'_, Dbs>) -> Result<(), String> {
     close_all(&state).await;
+    *crate::pin::UNLOCKED.lock().map_err(err)? = None;
+    *crate::pin::RESTORE.lock().map_err(err)? = None;
+    *crate::VAULT.lock().map_err(err)? = None;
     Ok(())
 }
 
@@ -204,7 +238,7 @@ pub(crate) mod testutil {
         dir.canonicalize().unwrap()
     }
 
-    #[allow(dead_code)] // para os testes do PIN: nada do banco cifrado pode aparecer em claro no arquivo
+    /// Nada do banco cifrado pode aparecer em claro no arquivo.
     pub fn file_has(path: &Path, needle: &str) -> bool {
         std::fs::read(path).unwrap().windows(needle.len()).any(|w| w == needle.as_bytes())
     }
@@ -260,5 +294,38 @@ mod tests {
         let r = execute(&pool, "INSERT INTO t VALUES (?, ?, ?, ?)", vec![json!(null), json!("t"), json!(1.5), json!(2)]).await.unwrap();
         assert_eq!((r.rows_affected, r.last_insert_id), (1, 1));
         assert_eq!(serde_json::to_value(select(&pool, "SELECT * FROM t", vec![]).await.unwrap()).unwrap(), json!([{ "a": null, "b": "t", "c": 1.5, "d": 2 }]));
+    }
+
+    #[tokio::test]
+    async fn tem_pin_pelo_cabecalho_do_arquivo() {
+        let dir = tmp("has-pin");
+        assert!(!has_pin_file(&dir.join("ausente.db")).unwrap());
+        std::fs::write(dir.join("curto.db"), b"SQLite").unwrap();
+        assert!(!has_pin_file(&dir.join("curto.db")).unwrap());
+        let pool = open_pool(&dir.join("claro.db"), None).await.unwrap();
+        execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        pool.close().await;
+        assert!(is_plain_header(&dir.join("claro.db")) && !has_pin_file(&dir.join("claro.db")).unwrap());
+        let key = [7u8; 32];
+        let pool = open_pool(&dir.join("cifrado.db"), Some(&key)).await.unwrap();
+        execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        pool.close().await;
+        assert!(has_pin_file(&dir.join("cifrado.db")).unwrap());
+    }
+
+    #[tokio::test]
+    async fn chave_abre_ou_nao_o_banco() {
+        let dir = tmp("key-opens");
+        let (key, other) = ([7u8; 32], [8u8; 32]);
+        let pool = open_pool(&dir.join("c.db"), Some(&key)).await.unwrap();
+        execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        pool.close().await;
+        assert!(key_opens(&dir.join("c.db"), &key).await.unwrap());
+        assert!(!key_opens(&dir.join("c.db"), &other).await.unwrap());
+        assert!(key_opens(&dir.join("ausente.db"), &key).await.is_err());
+        assert!(!dir.join("ausente.db").exists());
+        assert_eq!(open_pool(&dir.join("c.db"), Some(&other)).await.unwrap_err(), CORRUPT);
+        std::fs::write(dir.join("lixo.db"), [0xAB; 4096]).unwrap();
+        assert_eq!(open_pool(&dir.join("lixo.db"), None).await.unwrap_err(), CORRUPT);
     }
 }

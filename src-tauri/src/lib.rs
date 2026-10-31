@@ -6,6 +6,7 @@ use tauri::Manager;
 
 mod ai;
 mod db;
+mod pin;
 
 /// Troca o banco `db_name` em `dir` pelo conteúdo de `source`; devolve o caminho da cópia de segurança.
 fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, String> {
@@ -261,6 +262,11 @@ fn profile_activate(id: String, db_file: String) -> Result<(), String> {
     }
     // com o cofre travado: nenhuma leitura ou gravação do cofre fica no meio da troca de perfil
     let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
+    // as chaves de outro perfil não ficam na memória depois da troca
+    let mut unlocked = pin::UNLOCKED.lock().map_err(|e| e.to_string())?;
+    if unlocked.as_ref().is_some_and(|(u, _)| *u != id) {
+        *unlocked = None;
+    }
     *ACTIVE.lock().map_err(|e| e.to_string())? = Some((id, db_file));
     *cache = None;
     Ok(())
@@ -566,6 +572,7 @@ pub fn run() {
             swap_database, encrypt_backup, is_encrypted_backup, backup_open, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
             profiles_read, profiles_write, profile_activate, profile_remove_files,
             db::db_load, db::db_select, db::db_execute, db::db_close, db::profile_lock,
+            pin::pin_supported, pin::profiles_locks, pin::profile_unlocked, pin::profile_unlock,
             ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
         ])
         .build(tauri::generate_context!())
