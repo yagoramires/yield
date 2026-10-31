@@ -3,7 +3,7 @@ import { scoped } from '../../profiles/active'
 
 /** Seções de Configurações, na ordem do menu; `words` são ajustes de dentro da seção que a busca também acha. */
 export const SECTIONS = [
-  { id: 'perfil', group: 'Você', label: 'Perfil', words: 'nome cor foto avatar apagar perfil' },
+  { id: 'perfil', group: 'Você', label: 'Perfil e PIN', words: 'nome cor foto avatar pin senha criptografia bloquear apagar perfil' },
   { id: 'aparencia', group: 'Você', label: 'Aparência', words: 'tema claro escuro cores' },
   { id: 'abas', group: 'Você', label: 'Abas do menu', words: 'módulos telas sidebar gastos investimentos ligar desligar' },
   { id: 'contas', group: 'Dados', label: 'Contas conectadas', words: 'open finance pluggy meu pluggy bancos binance cripto contas cartões transferências seu nome empresa cnpj sincronizar' },
