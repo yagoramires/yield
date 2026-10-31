@@ -51,7 +51,7 @@ export function ImportarOrcamento() {
         <CopyButton text={ORCAMENTO_CSV_EXEMPLO} label="Copiar exemplo" what="exemplo de CSV" />
       </div>
       <input ref={input} type="file" accept=".csv,.txt" hidden onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void importFile(f) }} />
-      {busy && <span className="muted"> Importando…</span>}
+      {busy && <div className="muted" style={{ marginTop: 8 }}>Importando…</div>}
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
       {result && <div className="info" style={{ marginTop: 10 }}>Última importação<br />{result}</div>}
     </div>
@@ -120,7 +120,7 @@ export function FontesRenda() {
                 <td><span className="pill">{KIND_LABEL[s.kind]}</span></td>
                 <td className={`r${s.grossCents == null ? ' t2' : ''}`}>{s.grossCents == null ? '—' : brl(s.grossCents)}</td>
                 <td className="r">{brl(sourceNet(s, month))}</td>
-                <td><button className="b ghost" disabled={busy} onClick={() => open(s)}>editar</button> <button className="b ghost" disabled={busy} onClick={() => { setDel(s); setForm(null); setMsg(null) }}>apagar</button></td>
+                <td><span className="btns"><button className="b ghost" disabled={busy} onClick={() => open(s)}>editar</button><button className="b ghost" disabled={busy} onClick={() => { setDel(s); setForm(null); setMsg(null) }}>apagar</button></span></td>
               </tr>
             ))}
           </tbody>

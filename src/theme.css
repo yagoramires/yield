@@ -170,7 +170,7 @@ tr.hl td { background: var(--neg-bg); }
 .chart .pick:focus-visible rect { stroke: var(--accent-fg); }
 .chart .ax { fill: var(--faint); font-size: 9px; }
 .chart .vl { fill: var(--text); font-size: 9px; }
-.lg { display: flex; gap: 12px; justify-content: flex-end; font-size: 10px; color: var(--text-2); margin: 2px 0 4px; }
+.lg { display: flex; gap: 12px; justify-content: flex-end; font-size: 10px; color: var(--text-2); margin: 8px 0 4px; }
 .lg i, .tip i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 4px; border-radius: 1px; }
 .tip { position: absolute; top: 0; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 11px; white-space: nowrap; z-index: 1; }
 .tip b { color: var(--strong); font-weight: 600; }
@@ -468,7 +468,8 @@ tr.hl td { background: var(--neg-bg); }
 .lt.blk tr.acc > td:first-child { border-radius: 8px 0 0 8px; } .lt.blk tr.acc > td:last-child { border-radius: 0 8px 8px 0; }
 .lt.blk .chev { margin-left: 4px; vertical-align: -2px; transition: transform .15s; }
 .lt.blk tr.acc.open .chev { transform: rotate(90deg); }
-.lt.blk tr.sub td { padding: 0 5px 8px 52px; }
+.lt.blk tr.sub td { padding: 6px 5px 8px 52px; }
+.lt.blk tr:has(+ tr.sub) > td { border-bottom-color: transparent; } /* a linha de detalhe faz parte da de cima */
 .lt.blk .txn-list { border-left: 2px solid var(--border); padding: 0 0 0 12px; }
 .lt.blk .txn-list .it { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; padding: 5px 0; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .lt.blk .txn-list .it + .it { border-top: 1px solid var(--hover); }
@@ -478,7 +479,7 @@ tr.hl td { background: var(--neg-bg); }
 .lt.blk .cat-toggle { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lt.blk .ell-cell .nm > span:first-child, .lt.blk .ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .lt.blk .cat-line .muted { font-size: 10px; margin-left: 4px; }
-.lt.blk tr.secl td { color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; padding: 10px 5px 2px; }
+.lt.blk tr.secl td { color: var(--faint); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; padding: 12px 5px 6px; }
 .lt.blk tr.secl td.r { text-transform: none; letter-spacing: 0; }
 .costs-big { font-size: 22px; font-weight: 650; color: var(--strong); font-variant-numeric: tabular-nums; margin: 6px 0 2px; letter-spacing: -.01em; }
 .split { display: flex; height: 6px; border-radius: 4px; overflow: hidden; gap: 2px; margin: 8px 0 12px; background: var(--hover); }
@@ -492,7 +493,7 @@ tr.hl td { background: var(--neg-bg); }
 .cost-seg span { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .cost-seg .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 .lt.blk tr:hover .acts, .lt.blk tr:focus-within .acts { opacity: 1; }
-.lt tr.edit td { background: var(--well); border-bottom: 1px solid var(--border); }
+.lt tr.edit td { background: var(--well); border-bottom: 1px solid var(--border); padding: 10px; }
 .ic { color: var(--faint); font-size: 11px; }
 .ic.on { color: var(--accent-fg); }
 .in[readonly] { color: var(--text-2); }
@@ -757,3 +758,7 @@ tr.hl td { background: var(--neg-bg); }
 .sem-alert .grow { flex: 1; min-width: 0; }
 :root[data-theme="light"] .tile-bar i { background: color-mix(in oklab, var(--ico) 70%, #000); } /* o tom claro some no trilho claro */
 :root[data-theme="light"] .chart .ax { fill: var(--text-2); } /* 9px no branco: o --faint fica abaixo de 4,5:1 */
+
+/* respiro entre blocos que se encostavam */
+.main > .card + .card, .main > .card + .grid2 { margin-top: 12px; }
+.chart + .muted { margin-top: 8px; } /* legenda abaixo do gráfico não encosta nos rótulos do eixo */

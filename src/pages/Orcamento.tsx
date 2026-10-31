@@ -253,7 +253,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
             <button className="b ghost sq" aria-label={`Adicionar em ${title}`} disabled={busy} onClick={opts.add ?? (() => open(at))}><Plus size={14} aria-hidden /></button></span>
         </div>
         {opts.goal && <Track real={opts.goal.real} planned={opts.goal.goal} />}
-        {opts.hint && <div className="muted" style={{ marginTop: 2 }}>{opts.hint}</div>}
+        {opts.hint && <div className="muted" style={{ marginTop: 6 }}>{opts.hint}</div>}
         <table className="lt blk" style={{ marginTop: 6 }}>
           <tbody>
             {ls.length === 0 && !opts.extra && !opts.after && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
@@ -518,7 +518,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
           {reservaGroups.length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
-              <div className="muted" style={{ marginTop: 2 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
+              <div className="muted" style={{ marginTop: 4 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
               <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
             </div>
           )}
