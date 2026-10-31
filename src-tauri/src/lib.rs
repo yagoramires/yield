@@ -18,13 +18,15 @@ fn safety_copy(dir: &Path, db_name: &str) -> Result<Option<PathBuf>, String> {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
     // com o nome do banco: apagar o perfil apaga também as cópias dele
     let backup = dir.join(format!("seguranca-{}-{secs}.db", db_stem(db_name)));
-    std::fs::copy(&db, &backup).map_err(err)?;
+    // no disco antes do rename: uma queda logo depois não deixa a cópia vazia (no Windows o fsync pede escrita)
+    let copy = |from: &Path, to: &Path| std::fs::copy(from, to).and_then(|_| std::fs::OpenOptions::new().write(true).open(to)?.sync_all()).map_err(err);
+    copy(&db, &backup)?;
     // WAL não checkpointado: preserva ao lado da cópia para não perder transações recentes
     let wal = dir.join(format!("{db_name}-wal"));
     if wal.exists() {
         let mut wal_copy = backup.clone().into_os_string();
         wal_copy.push("-wal");
-        std::fs::copy(&wal, wal_copy).map_err(err)?;
+        copy(&wal, Path::new(&wal_copy))?;
     }
     for ext in ["-wal", "-shm"] {
         remove_if_exists(&dir.join(format!("{db_name}{ext}")))?;
@@ -64,8 +66,10 @@ async fn restore_into(dir: &Path, db_file: &str, restore_key: &db::Key, target_k
         let _ = std::fs::remove_file(&tmp);
     }
     let backup = swapped?;
-    // depois da troca o backup já está no banco: o restore.db que sobrar some no próximo startup
-    pin::after_swap(db::remove_tmp(&dir.join(RESTORE_FILE)));
+    // depois da troca o backup já está no banco: não vira erro, e o restore.db que sobrar some no próximo startup
+    if let Err(e) = db::remove_tmp(&dir.join(RESTORE_FILE)) {
+        eprintln!("restore: {e}");
+    }
     Ok(backup)
 }
 
@@ -166,13 +170,21 @@ async fn export_bytes(pool: &sqlx::SqlitePool, tmp: &Path, eph: Option<&db::Key>
         let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
         let attach = format!("ATTACH DATABASE ? AS bk KEY {}", db::key_sql(eph));
         sqlx::query(&attach).bind(tmp.to_string_lossy().into_owned()).execute(&mut *conn).await.map_err(|e| e.to_string())?;
-        let copied = sqlx::query("SELECT sqlcipher_export('bk')").execute(&mut *conn).await;
-        // a conexão volta para o pool: não pode ficar com o `bk` preso
-        let detached = sqlx::query("DETACH DATABASE bk").execute(&mut *conn).await;
-        if detached.is_err() {
+        let copied = async {
+            // uma leitura só do começo ao fim, como o VACUUM INTO: gravação de outra conexão no meio não entra pela metade
+            sqlx::query("BEGIN").execute(&mut *conn).await?;
+            sqlx::query("SELECT count(*) FROM main.sqlite_master").execute(&mut *conn).await?;
+            sqlx::query("SELECT sqlcipher_export('bk')").execute(&mut *conn).await?;
+            sqlx::query("COMMIT").execute(&mut *conn).await?;
+            sqlx::query("DETACH DATABASE bk").execute(&mut *conn).await
+        }
+        .await;
+        if copied.is_err() {
+            // a conexão não volta para o pool com a transação aberta ou o `bk` preso: fechar desfaz os dois
+            let _ = sqlx::query("ROLLBACK").execute(&mut *conn).await;
             let _ = conn.close().await;
         }
-        copied.and(detached).map_err(|e| e.to_string())?;
+        copied.map_err(|e| e.to_string())?;
         std::fs::read(tmp).map_err(|e| e.to_string())
     }
     .await;
@@ -185,15 +197,17 @@ async fn export_bytes(pool: &sqlx::SqlitePool, tmp: &Path, eph: Option<&db::Key>
 /// Exporta o perfil aberto para `to`: com PIN, o banco segue cifrado (v2) e nada em claro passa pelo disco; sem PIN, v1 como antes.
 #[tauri::command]
 async fn backup_export(app: tauri::AppHandle, state: tauri::State<'_, db::Dbs>, to: String, password: String) -> Result<(), String> {
-    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    let to = PathBuf::from(to);
+    backup_export_in(&state, &app.path().app_config_dir().map_err(|e| e.to_string())?, PathBuf::from(to), password).await
+}
+
+async fn backup_export_in(dbs: &db::Dbs, dir: &Path, to: PathBuf, password: String) -> Result<(), String> {
     check_dest(&to)?;
     let (eph, bytes) = {
         // a chave e o pool do mesmo estado: um PIN ligado no meio deixaria o temporário em claro
         let _op = pin::PIN_OPS.lock().await;
         let file = active()?.1;
-        let eph = pin::key_for(&dir, &file)?.map(|_| random_key());
-        let pool = db::pool_of(&state, &file).await?;
+        let eph = pin::key_for(dir, &file)?.map(|_| random_key());
+        let pool = db::pool_of(dbs, &file).await?;
         let ms = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_millis();
         let bytes = export_bytes(&pool, &dir.join(format!("export-{ms}.db")), eph.as_ref()).await?;
         (eph, bytes)
@@ -222,9 +236,10 @@ async fn stage_restore_in(dir: &Path, data: &[u8], password: Option<&str>) -> Re
         Some(pw) => match unseal(data, pw)? {
             (2, payload) if payload.len() > 32 => {
                 let (key, file) = payload.split_at(32);
+                let key: db::Key = key.try_into().map_err(|_| "Este arquivo não é um backup do Yield.".to_string())?;
                 db::remove_tmp(&out)?;
                 std::fs::write(&out, file).map_err(|e| e.to_string())?;
-                return key.try_into().map_err(|_| "Este arquivo não é um backup do Yield.".to_string());
+                return Ok(key);
             }
             (1, plain) if plain.starts_with(SQLITE_MAGIC) => plain,
             _ => return Err("Este arquivo não é um backup do Yield.".into()),
@@ -858,6 +873,92 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn exportar_pelo_comando_v1_sem_pin_e_v2_com_pin() {
+        let _g = pin::testutil::globals();
+        let (id, file) = ("abcd1234", "perfil-abcd1234.db");
+        let sem_pin = em_claro(file).await;
+        let dbs = db::Dbs::default();
+        set_active(id.into(), file.into()).unwrap();
+        db::load_in(&dbs, &sem_pin, file).await.unwrap();
+        backup_export_in(&dbs, &sem_pin, sem_pin.join("b.yield"), "senha".into()).await.unwrap();
+        let (v, plain) = unseal(&std::fs::read(sem_pin.join("b.yield")).unwrap(), "senha").unwrap();
+        assert!(v == 1 && plain.starts_with(SQLITE_MAGIC));
+
+        let com_pin = cifrado(file, "1234").await;
+        let k = pin::derive("1234", &SALT).unwrap();
+        *pin::UNLOCKED.lock().unwrap() = Some((id.into(), k));
+        let dbs = db::Dbs::default();
+        db::load_in(&dbs, &com_pin, file).await.unwrap();
+        backup_export_in(&dbs, &com_pin, com_pin.join("b.yield"), "senha".into()).await.unwrap();
+        let sealed = std::fs::read(com_pin.join("b.yield")).unwrap();
+        assert!(sealed.starts_with(BACKUP_MAGIC_V2));
+        assert!(std::fs::read_dir(&com_pin).unwrap().flatten().all(|e| !is_export_tmp(&e.file_name().to_string_lossy())));
+        assert_eq!(unseal(&sealed, "outra").unwrap_err(), "Senha errada ou arquivo corrompido.");
+        assert_eq!(stage_restore_in(&com_pin, &sealed, Some("outra")).await.unwrap_err(), "Senha errada ou arquivo corrompido.");
+        let rk = stage_restore_in(&com_pin, &sealed, Some("senha")).await.unwrap();
+        assert!(!file_has(&com_pin.join(RESTORE_FILE), MARKER));
+        assert!(db::key_opens(&com_pin.join(RESTORE_FILE), &rk).await.unwrap());
+        *pin::UNLOCKED.lock().unwrap() = None;
+        *ACTIVE.lock().unwrap() = None;
+    }
+
+    #[tokio::test]
+    async fn backup_v2_curto_demais_nao_e_backup() {
+        let dir = tmp("v2-curto");
+        let curto = seal(BACKUP_MAGIC_V2, &[1u8; 32], "s").unwrap(); // só a chave, sem banco
+        assert_eq!(stage_restore_in(&dir, &curto, Some("s")).await.unwrap_err(), "Este arquivo não é um backup do Yield.");
+        assert!(!dir.join(RESTORE_FILE).exists());
+    }
+
+    #[tokio::test]
+    async fn restore_que_falha_na_copia_nao_toca_no_banco_atual() {
+        let origem = em_claro("velho.db").await;
+        let dir = tmp("restore-falha");
+        std::fs::write(dir.join("yield.db"), "atual").unwrap();
+        std::fs::write(dir.join("yield.db-wal"), "wal atual").unwrap();
+        stage_restore_in(&dir, &std::fs::read(origem.join("velho.db")).unwrap(), None).await.unwrap();
+        assert!(restore_into(&dir, "yield.db", &[0u8; 32], None).await.is_err()); // chave errada do restore.db
+        assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "atual");
+        assert_eq!(std::fs::read_to_string(dir.join("yield.db-wal")).unwrap(), "wal atual");
+        let copias = std::fs::read_dir(&dir).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().starts_with("seguranca-")).count();
+        assert_eq!(copias, 0);
+        assert!(!db::pin_tmp(&dir, "yield.db").exists());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn exportar_le_um_momento_so_mesmo_com_gravacoes_no_meio() {
+        let dir = tmp("export-snapshot");
+        let pool = db::open_pool(&dir.join("yield.db"), None).await.unwrap();
+        let rows = "WITH RECURSIVE c(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM c WHERE n < 200000) SELECT 'x' FROM c";
+        db::execute(&pool, &format!("PRAGMA journal_mode = WAL; CREATE TABLE a (v TEXT); CREATE TABLE b (v TEXT); INSERT INTO a (v) {rows}; INSERT INTO b (v) {rows};"), vec![]).await.unwrap();
+        // gravações em par (uma linha em `a` e outra em `b`) enquanto exporta: a cópia não pode ter só metade delas
+        let writes = std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0));
+        let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let writer = tokio::spawn({
+            let (pool, writes, done) = (pool.clone(), writes.clone(), done.clone());
+            async move {
+                while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                    db::execute(&pool, "BEGIN; INSERT INTO a (v) VALUES ('y'); INSERT INTO b (v) VALUES ('y'); COMMIT;", vec![]).await.unwrap();
+                    writes.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+        });
+        while writes.load(std::sync::atomic::Ordering::Relaxed) == 0 {
+            tokio::task::yield_now().await;
+        }
+        let before = writes.load(std::sync::atomic::Ordering::Relaxed);
+        let bytes = export_bytes(&pool, &dir.join("export-3.db"), None).await.unwrap();
+        let during = writes.load(std::sync::atomic::Ordering::Relaxed) - before;
+        done.store(true, std::sync::atomic::Ordering::Relaxed);
+        writer.await.unwrap();
+        assert!(during > 0, "nenhuma gravação durante a exportação");
+        std::fs::write(dir.join("copia.db"), bytes).unwrap();
+        let copia = db::open_pool(&dir.join("copia.db"), None).await.unwrap();
+        let n = db::select(&copia, "SELECT (SELECT count(*) FROM a) AS a, (SELECT count(*) FROM b) AS b", vec![]).await.unwrap();
+        assert_eq!(n[0]["a"], n[0]["b"]);
+    }
+
+    #[tokio::test]
     async fn restaurar_db_antigo_sem_senha_e_em_perfil_sem_arquivo() {
         let origem = em_claro("velho.db").await;
         let dir = tmp("restaura-novo");
@@ -1096,7 +1197,7 @@ mod tests {
         // o perfil mudou no meio: o item de outro perfil não é recifrado com esta chave
         assert_eq!(reseal_vault("abcd1234", None, Some(&[7u8; 32])).unwrap_err(), "O perfil aberto mudou no meio da troca do PIN.");
         let troca = pin::pin_ops_idle().unwrap(); // uma troca de PIN em andamento
-        let espera = "Troca de PIN em andamento; tente de novo em instantes.";
+        let espera = "Operação no banco em andamento; tente de novo em instantes.";
         assert_eq!(update_vault(|v| v.binance = None).unwrap_err(), espera);
         assert_eq!(activate_in(&db::Dbs::default(), LEGACY_ID.into(), LEGACY_DB.into()).await.unwrap_err(), espera);
         assert_eq!(active().unwrap().0, "zzzz9999");

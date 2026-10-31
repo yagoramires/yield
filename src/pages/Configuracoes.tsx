@@ -73,7 +73,7 @@ export function Configuracoes() {
     const r = await restoreBackup({
       checkpoint: async () => { await db.execute('PRAGMA wal_checkpoint(TRUNCATE)') },
       close: () => db.close(),
-      swap: async () => (await invoke<string | null>('swap_database')) ?? '',
+      swap: () => invoke<string | null>('swap_database'),
       // `db_load` cria um pool novo e o põe no mapa pelo nome do arquivo do perfil;
       // o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
       // backup de versão antiga (ou de outro perfil) sobe para a versão do app pelo `migrate`, em qualquer perfil
@@ -110,7 +110,7 @@ export function Configuracoes() {
             <button className="b" disabled={busy} onClick={() => { resetBackup(); setExporting(true) }}>Exportar backup…</button>
             <button className="b" disabled={busy} onClick={() => void escolherBackup()}>Importar backup…</button>
           </div>
-          {exporting && <BackupExport onDone={m => { setExporting(false); setBackupMsg(m) }} onCancel={resetBackup} />}
+          {exporting && <BackupExport onBusy={setBusy} onDone={m => { setExporting(false); setBackupMsg(m) }} onCancel={resetBackup} />}
           {importPw && (
             <div className="info" style={{ marginTop: 10 }}>
               Este backup tem senha.

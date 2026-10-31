@@ -9,10 +9,11 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** Senha e destino do backup; o Rust exporta, criptografa e grava, sem o banco passar pelo webview. */
-export function BackupExport({ onDone, onCancel }: { onDone(message: string): void; onCancel(): void }) {
+/** Senha e destino do backup; o Rust exporta, criptografa e grava, sem o banco passar pelo webview. `onBusy`: a tela desabilita Exportar e Importar enquanto salva. */
+export function BackupExport({ onDone, onCancel, onBusy }: { onDone(message: string): void; onCancel(): void; onBusy(busy: boolean): void }) {
   const [pw, setPw] = useState({ password: '', confirm: '' })
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusyState] = useState(false)
+  const setBusy = (b: boolean) => { setBusyState(b); onBusy(b) }
   const [error, setError] = useState<string | null>(null)
 
   const exportar = async () => {
