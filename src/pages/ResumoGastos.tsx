@@ -14,7 +14,7 @@ import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulat
 import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
-import { TINT } from '../ui/palette'
+import { ico, TINT } from '../ui/palette'
 
 export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(): void }) {
   const { gastos, orcamento } = useData()
@@ -149,7 +149,7 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
                   <button key={b.categoryId ?? 'outras'} className="sum-row" disabled={!go} onClick={go}>
                     <CategoryIcon category={look} size={28} />
                     <span className="lmid"><span className="sum-name">{b.label}</span>
-                      <span className="tile-bar"><i style={{ width: `${info.pct}%`, background: info.over ? 'var(--negative)' : categoryLook(look).color }} /></span>
+                      <span className="tile-bar"><i style={{ width: `${info.pct}%`, ...ico(info.over ? 'var(--negative)' : categoryLook(look).color) }} /></span>
                       <span className={`sum-cap ${info.over ? 'dn' : ''}`}>{b.categoryId === 'sem' ? `${semCount} ${semCount === 1 ? 'compra' : 'compras'}` : info.caption}</span></span>
                     <span className="sum-val">{cents(b.cents)}</span>
                   </button>

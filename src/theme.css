@@ -314,7 +314,7 @@ tr.hl td { background: var(--neg-bg); }
 .tile-v { display: flex; align-items: baseline; gap: 8px; margin-top: 9px; }
 .tile-v b { color: var(--strong); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .tile-bar { display: block; height: 4px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 9px; }
-.tile-bar i { display: block; height: 100%; border-radius: 3px; }
+.tile-bar i { display: block; height: 100%; border-radius: 3px; background: var(--ico); }
 .tile-cap { color: var(--faint); font-size: 11px; margin-top: 5px; }
 .tile-cap.over { color: var(--negative); }
 .tile-edit { position: absolute; top: 9px; right: 9px; width: 24px; height: 24px; opacity: 0; transition: opacity .1s; }
@@ -750,3 +750,4 @@ tr.hl td { background: var(--neg-bg); }
 .month-grid button.today { box-shadow: inset 0 0 0 1px var(--text-2); }
 .month-grid button.sel { background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .sem-alert .grow { flex: 1; min-width: 0; }
+:root[data-theme="light"] .tile-bar i { background: color-mix(in oklab, var(--ico) 70%, #000); } /* o tom claro some no trilho claro */

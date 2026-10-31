@@ -21,7 +21,8 @@ const emptyForm = (): DividendForm => ({ ticker: '', kind: 'Dividendo', payDate:
 
 export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: string; onNavigate(r: Route): void }) {
   const { data, db, derived, reload } = useData()
-  const [filter, setFilter] = useState<Filter>({ ticker: '', kind: '', month: initialMonth })
+  // abre no mês mais recente com provento (o atual pode ainda não ter nenhum); "Todos os meses" continua no filtro
+  const [filter, setFilter] = useState<Filter>(() => ({ ticker: '', kind: '', month: initialMonth || data.dividends.map(d => d.payDate.slice(0, 7)).sort().at(-1) || '' }))
   const [period, setPeriod] = useState<Period>('12m')
   const [showAll, setShowAll] = useState(false)
   const [form, setForm] = useState<DividendForm | null>(null)

@@ -257,7 +257,8 @@ export function averageByCategory(txns: Txn[], cat: (t: Txn) => Category | null,
 /**
  * O que entrou na conta no mês vindo de terceiros (Pix e TED de outras pessoas, reembolso, venda avulsa): entrada de conta corrente
  * que conta como receita, sem transferência entre contas suas, sem Pix no nome do titular ou da empresa dele, sem resgate.
- * Cada entrada do plano leva o depósito de valor parecido (até 10% de diferença) para o salário não contar duas vezes.
+ * Cada entrada do plano leva o depósito de valor parecido (até 10% de diferença), ou os depósitos do mesmo pagador cuja soma
+ * dá esse valor, para o salário não contar duas vezes.
  */
 export function outrasEntradas(lines: BudgetLine[], txns: Txn[], accounts: Pick<Account, 'id' | 'kind'>[], cat: (t: Txn) => Category | null, month: Month,
   owner: { names: string[]; companies: string[] }): Txn[] {
@@ -273,7 +274,13 @@ export function outrasEntradas(lines: BudgetLine[], txns: Txn[], accounts: Pick<
       const d = Math.abs(t.amountCents - l.amountCents)
       if (d <= l.amountCents * 0.1 && (best < 0 || d < Math.abs(left[best].amountCents - l.amountCents))) best = i
     })
-    if (best >= 0) left.splice(best, 1)
+    if (best >= 0) { left.splice(best, 1); continue }
+    // salário em vários depósitos do mesmo pagador (adiantamento, pró-labore + distribuição): a soma deles cobre a linha
+    const byPayer = new Map<string, Txn[]>()
+    for (const t of left) { const k = normalizeDescription(t.description); byPayer.set(k, [...(byPayer.get(k) ?? []), t]) }
+    const group = [...byPayer.values()].filter(g => g.length > 1).map(g => ({ g, d: Math.abs(g.reduce((s, t) => s + t.amountCents, 0) - l.amountCents) }))
+      .filter(x => x.d <= l.amountCents * 0.1).sort((a, b) => a.d - b.d)[0]
+    if (group) for (const t of group.g) left.splice(left.indexOf(t), 1)
   }
   return left
 }

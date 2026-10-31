@@ -157,7 +157,7 @@ function allFacts(month: Month, input: AiInput): Fact[] {
     const prevYear = String(Number(sm.year) - 1)
     const diff = sm.ytdCents - sm.ytdPrevCents
     out.push({ id: 'proventos_ano', kind: 'proventos_ano', route: 'proventos',
-      text: `Proventos: ${plainBRL(sm.ytdCents)} em ${sm.year} até ${day(input.today)}, contra ${plainBRL(sm.ytdPrevCents)} no mesmo período de ${prevYear} (diferença de ${brlS(diff)}${sm.ytdPrevCents > 0 ? `, ${pctS((diff / sm.ytdPrevCents) * 100)}` : ''}).` })
+      text: `Proventos: ${plainBRL(sm.ytdCents)} em ${sm.year} até agora, contra ${plainBRL(sm.ytdPrevCents)} no mesmo período de ${prevYear} (diferença de ${brlS(diff)}${sm.ytdPrevCents > 0 ? `, ${pctS((diff / sm.ytdPrevCents) * 100)}` : ''}).` })
   }
   if (sm.last12Cents > 0) {
     const top = byTicker(sm.last12).slice(0, 3).map(t => `${t.ticker} ${plainBRL(t.totalCents)} (${pctU((t.totalCents / sm.last12Cents) * 100)})`)
@@ -175,7 +175,7 @@ function allFacts(month: Month, input: AiInput): Fact[] {
   const [nowCents, beforeCents] = [inMonth(thisMonth), inMonth(lastYearMonth)]
   if (nowCents > 0 || beforeCents > 0) {
     out.push({ id: 'proventos_mes', kind: 'proventos_mes', route: 'proventos',
-      text: `Proventos no mês: ${plainBRL(nowCents)} em ${mes} até ${day(input.today)} (o mês ainda não acabou), contra ${plainBRL(beforeCents)} em ${monthLabel(lastYearMonth)} inteiro.` })
+      text: `Proventos no mês: ${plainBRL(nowCents)} em ${mes} até agora (o mês ainda não acabou), contra ${plainBRL(beforeCents)} em ${monthLabel(lastYearMonth)} inteiro.` })
   }
 
   // saldo como a Pluggy informou, só de banco ainda conectado (como no Resumo); conta por arquivo não tem saldo

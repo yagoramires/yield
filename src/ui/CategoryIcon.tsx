@@ -22,6 +22,7 @@ export const COLOR_CHOICES: string[] = Object.values(TINT)
 const OLD: Record<string, string> = {
   '#ff9f5a': TINT.ambar, '#f5d76e': TINT.areia, '#6fdc8c': TINT.verde, '#4fd1a5': TINT.turquesa, '#7fd1d1': TINT.turquesa, '#5fb3ff': TINT.azul,
   '#9aa8ff': TINT.violeta, '#c79bff': TINT.violeta, '#ff8fd0': TINT.rosa, '#ff7a8a': TINT.coral, '#9a9da6': TINT.cinza,
+  '#e8b86d': TINT.areia, '#5fd4ff': TINT.azul, '#d9a066': TINT.ambar, // padrões antigos de moradia, viagem e impostos
 }
 
 // Categorias padrão (migração 002); as criadas pelo usuário, sem escolha, usam a etiqueta.

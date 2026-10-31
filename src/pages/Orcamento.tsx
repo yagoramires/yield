@@ -400,15 +400,15 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
     <>
       {header}
       {errorBox}
-      {lines.length === 0 && prev && copy.length > 0 && (
+      {lines.every(l => l.sourceId) && prev && copy.some(l => !l.sourceId) && ( /* só os salários ("Começar do zero" já os põe) conta como vazio */
         <div className="sem-alert" style={{ marginTop: 12 }}>
-          <span className="grow">{monthName(month)} está vazio. Trazer o plano de {lower(prev)}: o que se repete e a próxima parcela ({plural(copy.length, 'linha', 'linhas')}); depois só o que for novo aparece nas sugestões.</span>
-          <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível trazer ${lower(prev)}`, () => addLines(db, month, withSources(copy, data.sources, month)))}>Trazer {lower(prev)}</button>
+          <span className="grow">{monthName(month)} está vazio. Trazer o plano de {lower(prev)}: o que se repete e a próxima parcela ({plural(copy.filter(l => !l.sourceId).length, 'linha', 'linhas')}); depois só o que for novo aparece nas sugestões.</span>
+          <button className="b pri" disabled={busy} onClick={() => void run(`Não foi possível trazer ${lower(prev)}`, () => addLines(db, month, copy.filter(l => !lines.some(x => x.sourceId && x.sourceId === l.sourceId))))}>Trazer {lower(prev)}</button>
         </div>
       )}
       <Insights area="orcamento" month={month} onNavigate={onNavigate} />
       <div className="kpis">
-        <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(sum.entradasCents + outrasCents)}</div><div className="s muted">{plural(entradas.length, 'do plano', 'do plano')}{outras.length > 0 ? ` · ${formatBRL(outrasCents)} recebidos na conta` : ' · líquido'}</div></div>
+        <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(sum.entradasCents + outrasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada do plano', 'entradas do plano')}{outras.length > 0 ? ` · ${formatBRL(outrasCents)} recebidos na conta` : ' · líquido'}</div></div>
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
         <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
@@ -445,6 +445,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
           {block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
             empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Fontes de renda e eles entram sozinhos todo mês.',
             add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
+            hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={onOpenSettings}>Cadastre seu nome e o da sua empresa</button> em Configurações › Open Finance: o que vier deles sai daqui.</>,
             extra: missing.length > 0 && missing.map(s => (
               <tr key={`fonte-${s.id}`}>
                 <td className="ell-cell"><div className="cat-line">
