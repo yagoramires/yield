@@ -77,7 +77,7 @@ export function Wizard({ step }: { step: number }) {
         <ol className="wz-steps">
           {STEPS.map((s, i) => (
             <li key={s.t} className={i < step ? 'done' : i === step ? 'cur' : undefined} aria-current={i === step ? 'step' : undefined}>
-              <span className="k">{i < step ? <Check size={12} aria-hidden /> : i + 1}</span>
+              <span className="wz-n">{i < step ? <Check size={12} aria-hidden /> : i + 1}</span>
               <span>{s.t}<small>{s.d}</small></span>
             </li>
           ))}
