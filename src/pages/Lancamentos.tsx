@@ -11,6 +11,7 @@ import { categoryStrip, cleanDescription, filterTxns, groupByDay, NO_FILTER, rul
 import { CategoryPicker } from './lancamentos/CategoryPicker'
 import { errText, GastosHeader, GastosVazio } from './lancamentos/GastosHeader'
 import { scoped } from '../profiles/active'
+import type { SectionId } from './configuracoes/secoes'
 
 const signed = (c: number) => (c < 0 ? `−${formatCents(-c)}` : c > 0 ? `+${formatCents(c)}` : '—')
 const dayTitle = (iso: string) => {
@@ -20,7 +21,7 @@ const dayTitle = (iso: string) => {
 const HINT_KEY = scoped('yield.dicaEmpresaDispensada')
 const KINDS: [TxnFilter['accountKind'], string][] = [['todas', 'Tudo'], ['conta', 'Contas'], ['cartao', 'Cartões']]
 
-export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
+export function Lancamentos({ onOpenSettings }: { onOpenSettings(at?: SectionId): void }) {
   const { db, reload, gastos } = useData()
   const { data, categorize: cat, transfers, month, filter, setFilter } = gastos
   const [picking, setPicking] = useState<string | null>(null)
@@ -102,8 +103,8 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {
       {pjCredits.length > 0 && (
         <div className="note" style={{ marginBottom: 10 }}>
           {pjCredits.length === 1 ? '1 Pix/TED recebido de empresa está' : `${pjCredits.length} Pix/TED recebidos de empresa estão`} como Transferência (por exemplo, "{cleanDescription(pjCredits[0].description).name}").
-          {' '}Se for a sua empresa, informe o nome ou o CNPJ dela em Configurações › Transferências entre suas contas para contar como Receita.
-          {' '}<button className="link" onClick={onOpenSettings}>Abrir Configurações</button> · <button className="link" onClick={dismissHint}>dispensar</button>
+          {' '}Se for a sua empresa, informe o nome ou o CNPJ dela em Configurações › Contas conectadas para contar como Receita.
+          {' '}<button className="link" onClick={() => onOpenSettings('contas')}>Abrir Configurações</button> · <button className="link" onClick={dismissHint}>dispensar</button>
         </div>
       )}
       <div className="lan-tools">

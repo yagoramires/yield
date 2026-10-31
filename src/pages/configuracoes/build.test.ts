@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
-import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText, costSummaryText, investmentLine } from './build'
+import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText, costSummaryText, investmentLine, bankLine } from './build'
 import { BinanceError } from '../../cripto/binance'
 
 const div = (ticker: string, payDate: string, source: Dividend['source'], sourceKey: string | null): Dividend =>
@@ -243,5 +243,21 @@ describe('investmentLine', () => {
   })
   it('sem investimento de renda variável', () => {
     expect(investmentLine({ ...c, found: 0, inserted: 0, updated: 0, existing: 0 })).toBe('Corretora Azul: nenhum investimento de renda variável na Pluggy')
+  })
+})
+
+describe('bankLine', () => {
+  const acc = (itemId: string | null, lastSyncAt: string | null) => ({ itemId, lastSyncAt })
+  const ago = (iso: string) => `em ${iso}`
+  it('erro da última sincronização vence', () => {
+    expect(bankLine([acc('a', '2026-10-01')], 'a', { ok: false, text: 'Login expirou' }, ago)).toEqual({ state: 'erro', text: 'Login expirou' })
+  })
+  it('conta só as contas do banco e usa a sincronização mais recente', () => {
+    const r = bankLine([acc('a', '2026-10-01'), acc('a', '2026-10-03'), acc('b', '2026-10-09')], 'a', null, ago)
+    expect(r).toEqual({ state: 'ok', text: '2 contas · sincronizado em 2026-10-03' })
+  })
+  it('banco recém-adicionado', () => {
+    expect(bankLine([], 'a', null, ago).state).toBe('novo')
+    expect(bankLine([], 'a', { ok: true, text: '3 contas' }, ago)).toEqual({ state: 'ok', text: '3 contas' })
   })
 })

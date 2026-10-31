@@ -10,6 +10,7 @@ import { useData } from '../../state/DataProvider'
 import { Select } from '../../ui/Select'
 import { duplicateAccountWarning } from './build'
 import { MonthNav } from '../../ui/MonthNav'
+import type { SectionId } from '../configuracoes/secoes'
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 export const monthName = (m: Month) => MONTHS[Number(m.slice(5, 7)) - 1]
@@ -159,10 +160,10 @@ function CsvMapper({ m, busy, onChange, onCancel, onImport }: { m: Mapped; busy:
   )
 }
 
-export function GastosVazio({ onOpenSettings }: { onOpenSettings(): void }) {
+export function GastosVazio({ onOpenSettings }: { onOpenSettings(at?: SectionId): void }) {
   return (
     <div className="info" style={{ marginTop: 14 }}>
-      Nenhum lançamento ainda. Conecte seus bancos em <button className="link" onClick={onOpenSettings}>Configurações › Open Finance</button> ou
+      Nenhum lançamento ainda. Conecte seus bancos em <button className="link" onClick={() => onOpenSettings('contas')}>Configurações › Contas conectadas</button> ou
       use "Importar extrato…" acima (OFX, ou CSV de qualquer banco: você escolhe as colunas).
     </div>
   )
