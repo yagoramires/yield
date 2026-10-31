@@ -7,29 +7,33 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 mod ai;
 
-/// Troca `yield.db` em `dir` pelo conteúdo de `source`; devolve o caminho da cópia de segurança.
-fn swap_in_dir(dir: &Path, source: &Path) -> Result<PathBuf, String> {
+/// Troca o banco `db_name` em `dir` pelo conteúdo de `source`; devolve o caminho da cópia de segurança.
+fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, String> {
     let err = |e: std::io::Error| e.to_string();
-    let db = dir.join("yield.db");
+    let db = dir.join(db_name);
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
     let backup = dir.join(format!("seguranca-{secs}.db"));
     std::fs::copy(&db, &backup).map_err(err)?;
     // WAL não checkpointado: preserva ao lado da cópia para não perder transações recentes
-    let wal = dir.join("yield.db-wal");
+    let wal = dir.join(format!("{db_name}-wal"));
     if wal.exists() {
         std::fs::copy(&wal, dir.join(format!("seguranca-{secs}.db-wal"))).map_err(err)?;
     }
-    let tmp = dir.join("yield.db.novo");
+    let tmp = dir.join(format!("{db_name}.novo"));
     std::fs::copy(source, &tmp).map_err(err)?;
-    for ext in ["yield.db-wal", "yield.db-shm"] {
-        match std::fs::remove_file(dir.join(ext)) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e.to_string()),
-        }
+    for ext in ["-wal", "-shm"] {
+        remove_if_exists(&dir.join(format!("{db_name}{ext}")))?;
     }
     std::fs::rename(&tmp, &db).map_err(err)?;
     Ok(backup)
+}
+
+fn remove_if_exists(path: &Path) -> Result<(), String> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
 #[tauri::command]
@@ -40,7 +44,7 @@ fn swap_database(app: tauri::AppHandle, source: String) -> Result<String, String
     if !starts_with(source, SQLITE_MAGIC)? {
         return Err("Este arquivo não é um backup do Yield.".into());
     }
-    let backup = swap_in_dir(&dir, source)?;
+    let backup = swap_in_dir(&dir, source, &active()?.1)?;
     if source == dir.join(RESTORE_FILE) {
         let _ = std::fs::remove_file(source); // cópia aberta do backup com senha: já está no banco
     }
@@ -137,11 +141,7 @@ const RESTORE_FILE: &str = "restore.db";
 
 /// Apaga o `restore.db` (backup com senha já aberto, sem criptografia) quando a importação não vai até o fim.
 fn discard_restore_in(dir: &Path) -> Result<(), String> {
-    match std::fs::remove_file(dir.join(RESTORE_FILE)) {
-        Ok(()) => Ok(()),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+    remove_if_exists(&dir.join(RESTORE_FILE))
 }
 
 #[tauri::command]
@@ -170,12 +170,99 @@ fn menu_pt(app: &tauri::AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry
     Menu::with_items(app, &[&yield_menu, &edit, &window])
 }
 
+// O perfil de hoje mantém os nomes antigos (banco, item do cofre); os novos têm id e arquivo próprios.
+const LEGACY_ID: &str = "principal";
+const LEGACY_DB: &str = "yield.db";
+const PROFILES_FILE: &str = "perfis.json";
+
+/// Id e arquivo vêm do webview: só vale o par que o próprio id gera (as regras do profiles.ts), nunca um caminho.
+fn valid_profile(id: &str, db_file: &str) -> bool {
+    if id == LEGACY_ID {
+        return db_file == LEGACY_DB;
+    }
+    (8..=40).contains(&id.len())
+        && id.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && db_file == format!("perfil-{id}.db")
+}
+
+// (id, arquivo do banco) do perfil aberto; sem nenhum ativado vale o de hoje.
+static ACTIVE: std::sync::Mutex<Option<(String, String)>> = std::sync::Mutex::new(None);
+
+fn active() -> Result<(String, String), String> {
+    let a = ACTIVE.lock().map_err(|e| e.to_string())?;
+    Ok(a.clone().unwrap_or_else(|| (LEGACY_ID.into(), LEGACY_DB.into())))
+}
+
+fn write_atomic(path: &Path, contents: &str) -> Result<(), String> {
+    let mut tmp = path.as_os_str().to_owned();
+    tmp.push(".tmp");
+    std::fs::write(&tmp, contents).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn profiles_read(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let path = app.path().app_config_dir().map_err(|e| e.to_string())?.join(PROFILES_FILE);
+    match std::fs::read_to_string(path) {
+        Ok(s) => Ok(Some(s)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn profiles_write(app: tauri::AppHandle, json: String) -> Result<(), String> {
+    serde_json::from_str::<serde_json::Value>(&json).map_err(|_| "Lista de perfis inválida.".to_string())?;
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    write_atomic(&dir.join(PROFILES_FILE), &json)
+}
+
+#[tauri::command]
+fn profile_activate(id: String, db_file: String) -> Result<(), String> {
+    if !valid_profile(&id, &db_file) {
+        return Err("Perfil inválido.".into());
+    }
+    // com o cofre travado: nenhuma leitura ou gravação do cofre fica no meio da troca de perfil
+    let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
+    *ACTIVE.lock().map_err(|e| e.to_string())? = Some((id, db_file));
+    *cache = None;
+    Ok(())
+}
+
+/// Apaga o banco de um perfil que não está aberto (com `-wal` e `-shm`); arquivo ausente não é erro.
+fn remove_profile_in(dir: &Path, id: &str, db_file: &str, active_id: &str) -> Result<(), String> {
+    if !valid_profile(id, db_file) {
+        return Err("Perfil inválido.".into());
+    }
+    if id == active_id {
+        return Err("Não dá para apagar o perfil aberto.".into());
+    }
+    for ext in ["", "-wal", "-shm"] {
+        remove_if_exists(&dir.join(format!("{db_file}{ext}")))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn profile_remove_files(app: tauri::AppHandle, id: String, db_file: String) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    remove_profile_in(&dir, &id, &db_file, &active()?.0)?;
+    // id já validado acima; entry_for só aceita o item do perfil ativo
+    delete_with(&keyring::Entry::new(SECRET_SERVICE, &vault_key(&id)).map_err(|e| e.to_string())?)
+}
+
 const SECRET_SERVICE: &str = "com.yagoramires.yield";
-// "yield.credentials" guarda tudo num item só; os outros são os itens antigos, lidos uma vez para migrar.
-const SECRET_KEYS: [&str; 3] = ["yield.credentials", "pluggy.clientId", "pluggy.clientSecret"];
+// Itens antigos da Pluggy (até a 0.3), lidos uma vez para migrar para o item único do perfil de hoje.
+const OLD_PLUGGY_KEYS: [&str; 2] = ["pluggy.clientId", "pluggy.clientSecret"];
+
+/// Um item por perfil guarda todas as credenciais dele; o de hoje continua no "yield.credentials".
+fn vault_key(id: &str) -> String {
+    if id == LEGACY_ID { "yield.credentials".into() } else { format!("yield.credentials.{id}") }
+}
 
 fn entry_for(key: &str) -> Result<keyring::Entry, String> {
-    if !SECRET_KEYS.contains(&key) {
+    if !OLD_PLUGGY_KEYS.contains(&key) && key != vault_key(&active()?.0) {
         return Err("chave de credencial desconhecida".into());
     }
     keyring::Entry::new(SECRET_SERVICE, key).map_err(|e| e.to_string())
@@ -224,23 +311,30 @@ struct BinanceCreds {
 }
 
 // Cada leitura do Keychain pode abrir o pedido de senha do macOS: lê uma vez por sessão (só guarda se der certo).
+// É do perfil ativo: `profile_activate` zera.
 static VAULT: std::sync::Mutex<Option<Vault>> = std::sync::Mutex::new(None);
 
 fn load_vault() -> Result<Vault, String> {
-    let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
+    load_cached(&mut *VAULT.lock().map_err(|e| e.to_string())?)
+}
+
+/// Lê o cofre do perfil ativo; quem chama segura a trava do `VAULT`, então o perfil não muda no meio.
+fn load_cached(cache: &mut Option<Vault>) -> Result<Vault, String> {
     if let Some(v) = cache.as_ref() {
         return Ok(v.clone());
     }
-    let v = match get_with(&entry_for(SECRET_KEYS[0])?)? {
+    let profile = active()?.0;
+    let key = vault_key(&profile);
+    let v = match get_with(&entry_for(&key)?)? {
         // item ilegível não serve para nada: vale como vazio, e o próximo "Salvar" o sobrescreve
         Some(raw) => serde_json::from_str(&raw).unwrap_or_default(),
-        None => {
-            // versões até a 0.3: um item por credencial da Pluggy. Passa para o item único e apaga os antigos.
-            let (id, secret) = (entry_for(SECRET_KEYS[1])?, entry_for(SECRET_KEYS[2])?);
+        // versões até a 0.3: um item por credencial da Pluggy. Passa para o item único e apaga os antigos.
+        None if profile == LEGACY_ID => {
+            let (id, secret) = (entry_for(OLD_PLUGGY_KEYS[0])?, entry_for(OLD_PLUGGY_KEYS[1])?);
             match (get_with(&id)?, get_with(&secret)?) {
                 (Some(client_id), Some(client_secret)) => {
                     let v = Vault { pluggy: Some(PluggyCreds { client_id, client_secret }), binance: None };
-                    set_with(&entry_for(SECRET_KEYS[0])?, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
+                    set_with(&entry_for(&key)?, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
                     delete_with(&id)?;
                     delete_with(&secret)?;
                     v
@@ -248,21 +342,23 @@ fn load_vault() -> Result<Vault, String> {
                 _ => Vault::default(),
             }
         }
+        None => Vault::default(),
     };
     *cache = Some(v.clone());
     Ok(v)
 }
 
 fn update_vault(change: impl FnOnce(&mut Vault)) -> Result<(), String> {
-    let mut v = load_vault()?;
+    let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
+    let mut v = load_cached(&mut cache)?;
     change(&mut v);
-    let entry = entry_for(SECRET_KEYS[0])?;
+    let entry = entry_for(&vault_key(&active()?.0))?;
     if v == Vault::default() {
         delete_with(&entry)?;
     } else {
         set_with(&entry, &serde_json::to_string(&v).map_err(|e| e.to_string())?)?;
     }
-    *VAULT.lock().map_err(|e| e.to_string())? = Some(v);
+    *cache = Some(v);
     Ok(())
 }
 
@@ -532,6 +628,7 @@ pub fn run() {
         .manage(ai::State::default())
         .invoke_handler(tauri::generate_handler![
             swap_database, encrypt_backup, is_encrypted_backup, decrypt_backup, discard_restore, vault_status, vault_set_pluggy, vault_set_binance, vault_clear, pluggy_auth, binance_get,
+            profiles_read, profiles_write, profile_activate, profile_remove_files,
             ai::ai_hardware, ai::ai_installed, ai::ai_download, ai::ai_cancel_download, ai::ai_download_status, ai::ai_delete_model, ai::ai_start, ai::ai_stop, ai::ai_abort, ai::ai_post
         ])
         .build(tauri::generate_context!())
@@ -571,13 +668,81 @@ mod tests {
         let origem = dir.join("origem.db");
         std::fs::write(&origem, "novo").unwrap();
 
-        let backup = swap_in_dir(&dir, &origem).unwrap();
+        let backup = swap_in_dir(&dir, &origem, "yield.db").unwrap();
 
         assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), "antigo");
         assert_eq!(std::fs::read_to_string(backup.with_extension("db-wal")).unwrap(), "wal");
         assert!(!dir.join("yield.db-wal").exists() && !dir.join("yield.db-shm").exists());
         assert!(!dir.join("yield.db.novo").exists());
+
+        // restaurar em outro perfil troca só o banco dele
+        std::fs::write(dir.join("perfil-abcd1234.db"), "do perfil").unwrap();
+        std::fs::write(dir.join("perfil-abcd1234.db-wal"), "wal do perfil").unwrap();
+        std::fs::write(&origem, "restaurado").unwrap();
+        swap_in_dir(&dir, &origem, "perfil-abcd1234.db").unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join("perfil-abcd1234.db")).unwrap(), "restaurado");
+        assert!(!dir.join("perfil-abcd1234.db-wal").exists() && !dir.join("perfil-abcd1234.db.novo").exists());
+        assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn tmp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("yield-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn perfil_so_aceita_o_proprio_arquivo() {
+        assert!(valid_profile("principal", "yield.db"));
+        assert!(valid_profile("abcd1234", "perfil-abcd1234.db"));
+        assert!(!valid_profile("abcd1234", "yield.db"));
+        assert!(!valid_profile("abcd1234", "perfil-outro999.db"));
+        assert!(!valid_profile("abcd1234", "../perfil-abcd1234.db"));
+        assert!(!valid_profile("../x", "perfil-../x.db"));
+        assert!(!valid_profile("principal", "perfil-principal.db"));
+        // mesmas regras do profiles.ts: 8 a 40 de [a-z0-9]
+        assert!(valid_profile(&"a".repeat(40), &format!("perfil-{}.db", "a".repeat(40))));
+        assert!(!valid_profile(&"a".repeat(41), &format!("perfil-{}.db", "a".repeat(41))));
+        assert!(!valid_profile("abcd123", "perfil-abcd123.db"));
+        assert!(!valid_profile("ABCD1234", "perfil-ABCD1234.db"));
+        assert!(!valid_profile("", "perfil-.db"));
+    }
+
+    #[test]
+    fn cofre_do_perfil_de_hoje_e_o_item_antigo() {
+        assert_eq!(vault_key("principal"), "yield.credentials");
+        assert_eq!(vault_key("abcd1234"), "yield.credentials.abcd1234");
+    }
+
+    #[test]
+    fn gravacao_atomica_nao_deixa_temporario() {
+        let dir = tmp("perfis-atomico");
+        let f = dir.join("perfis.json");
+        write_atomic(&f, "{\"version\":1}").unwrap();
+        write_atomic(&f, "{\"version\":1,\"profiles\":[]}").unwrap();
+        assert_eq!(std::fs::read_to_string(&f).unwrap(), "{\"version\":1,\"profiles\":[]}");
+        assert!(!dir.join("perfis.json.tmp").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn remover_perfil_apaga_so_os_arquivos_dele() {
+        let dir = tmp("perfis-remover");
+        for f in ["yield.db", "yield.db-wal", "perfil-abcd1234.db", "perfil-abcd1234.db-wal", "perfil-abcd1234.db-shm"] {
+            std::fs::write(dir.join(f), "x").unwrap();
+        }
+        assert!(remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "abcd1234").is_err());
+        assert!(remove_profile_in(&dir, "abcd1234", "yield.db", "principal").is_err());
+        assert!(remove_profile_in(&dir, "../x", "perfil-../x.db", "principal").is_err());
+        assert!(dir.join("perfil-abcd1234.db").exists());
+        remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "principal").unwrap();
+        assert!(!dir.join("perfil-abcd1234.db").exists() && !dir.join("perfil-abcd1234.db-wal").exists() && !dir.join("perfil-abcd1234.db-shm").exists());
+        assert!(dir.join("yield.db").exists() && dir.join("yield.db-wal").exists());
+        // de novo, sem arquivos: não é erro
+        remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "principal").unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
