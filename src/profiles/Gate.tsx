@@ -5,7 +5,7 @@ import { DeleteProfileDialog } from './DeleteProfileDialog'
 import { ForgotPin } from './ForgotPin'
 import { Picker } from './Picker'
 import { PinPad } from './PinPad'
-import { profileLocks, unlock, unlockMessage, type PinInfo, type Unlock } from './pin'
+import { gateStep, profileLocks, unlock, unlockMessage, type PinInfo, type Unlock } from './pin'
 import { randomId, resolveActive, withFallback, type Profile, type ProfilesFile } from './profiles'
 import { loadProfiles, saveProfiles } from './store'
 
@@ -56,9 +56,10 @@ export function Gate({ children }: { children: ReactNode }) {
         const l = await profileLocks(file.profiles)
         if (cancelled) return
         setLocks(l)
-        if (file.profiles.length >= 2 && chosenThisSession() !== profile.id) { setState({ kind: 'pick', file }); return }
         // o desbloqueio vale enquanto o Rust guarda as chaves deste perfil; nada no JS dispensa o PIN
-        if (l[profile.id]?.hasPin && !(await invoke<boolean>('profile_unlocked', { id: profile.id }))) {
+        const step = await gateStep(file.profiles.length, chosenThisSession(), profile.id, !!l[profile.id]?.hasPin, () => invoke<boolean>('profile_unlocked', { id: profile.id }))
+        if (step === 'pick') { setState({ kind: 'pick', file }); return }
+        if (step === 'pin') {
           if (!cancelled) setState({ kind: 'pin', file, profile, until: l[profile.id].until })
           return
         }
@@ -128,6 +129,7 @@ export function Gate({ children }: { children: ReactNode }) {
       <main className="profile-pick">
         {forgot === null ? (
           <PinPad
+            heading
             title={profile.name}
             profile={profile}
             until={state.until}

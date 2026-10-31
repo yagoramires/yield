@@ -1,5 +1,5 @@
 import { Delete, Timer } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Avatar } from './ProfileAvatar'
 import { PIN_LEN, formatWait, nowSecs, pinKey } from './pin'
 import type { Profile } from './profiles'
@@ -13,11 +13,14 @@ interface Props {
   onComplete(pin: string): void | Promise<void>
   onBack?(): void
   footer?: ReactNode
+  /** Na tela do PIN o título é o h1 da página; dentro de Configurações fica um texto. */
+  heading?: boolean
 }
 
 const DIGITS = ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 
-export function PinPad({ title, profile, until = null, message = null, onComplete, onBack, footer }: Props) {
+export function PinPad({ title, profile, until = null, message = null, onComplete, onBack, footer, heading = false }: Props) {
+  const box = useRef<HTMLDivElement>(null)
   const [pin, setPin] = useState('')
   const [busy, setBusy] = useState(false)
   const [now, setNow] = useState(nowSecs)
@@ -32,6 +35,8 @@ export function PinPad({ title, profile, until = null, message = null, onComplet
     const t = setInterval(() => setNow(nowSecs()), 1000)
     return () => clearInterval(t)
   }, [locked])
+  // a tecla com foco fica desligada na espera: o foco vai para o que ainda funciona ("Esqueci o PIN" ou "Voltar")
+  useEffect(() => { if (locked) box.current?.querySelector<HTMLElement>('.pin-link, .pin-key.x:not(:disabled)')?.focus() }, [locked])
 
   function press(key: string) {
     if (off) return
@@ -52,14 +57,14 @@ export function PinPad({ title, profile, until = null, message = null, onComplet
     }
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
-  })
+  }, [pin, off, onComplete]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const waitAnnounce = until === null ? '' : `Muitas tentativas erradas. Tente de novo às ${new Date(until * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.`
 
   return (
-    <div className="pin-pad">
+    <div className="pin-pad" ref={box}>
       {profile && <Avatar profile={profile} size={64} />}
-      <div className="pin-title">{title}</div>
+      {heading ? <h1 className="pin-title">{title}</h1> : <div className="pin-title">{title}</div>}
       <div className="pin-dots">
         <span className="pin-sr" aria-live="polite">{pin.length} de {PIN_LEN} dígitos</span>
         {Array.from({ length: PIN_LEN }, (_, i) => <i key={i} aria-hidden className={i < pin.length ? 'f' : undefined} />)}

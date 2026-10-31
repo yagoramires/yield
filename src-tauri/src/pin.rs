@@ -259,13 +259,14 @@ pub struct PinInfo {
 #[tauri::command]
 pub fn profiles_locks(app: tauri::AppHandle, profiles: Vec<ProfileRef>) -> Result<HashMap<String, PinInfo>, String> {
     let dir = app.path().app_config_dir().map_err(err)?;
-    let pins = read_pins(&dir)?;
+    // pins.json ilegível não esconde os perfis: "tem PIN" vem do cabeçalho; só a espera fica sem saber
+    let pins = read_pins(&dir).ok();
     let now = now()?;
     let mut out = HashMap::new();
     for p in profiles.into_iter().filter(|p| valid_profile(&p.id, &p.db_file)) {
         // um arquivo ilegível não derruba a lista: o db_load dele é que vai dizer o erro
         let Ok(has_pin) = has_pin_file(&dir.join(&p.db_file)) else { continue };
-        let until = pins.profiles.get(&p.id).and_then(|s| locked_until(s, now));
+        let until = pins.as_ref().and_then(|f| f.profiles.get(&p.id)).and_then(|s| locked_until(s, now));
         out.insert(p.id, PinInfo { has_pin, until });
     }
     Ok(out)
