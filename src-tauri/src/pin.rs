@@ -280,6 +280,8 @@ pub fn profile_unlocked(id: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn profile_unlock(app: tauri::AppHandle, id: String, db_file: String, pin: String) -> Result<Unlock, String> {
     let dir = app.path().app_config_dir().map_err(err)?;
+    // uma troca de PIN no meio recifra o banco: as chaves conferidas antes dela não podem cair no UNLOCKED depois
+    let _op = PIN_OPS.lock().await;
     let (result, keys) = check_pin_in(&dir, &id, &db_file, &pin, now()?).await?;
     if let Some(keys) = keys {
         *UNLOCKED.lock().map_err(err)? = Some((id, keys));

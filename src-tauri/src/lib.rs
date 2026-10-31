@@ -61,7 +61,20 @@ async fn restore_into(dir: &Path, db_file: &str, restore_key: &db::Key, target_k
     let tmp = db::pin_tmp(dir, db_file);
     // o banco novo pronto e conferido antes de tocar no atual
     db::export_verified(&dir.join(RESTORE_FILE), Some(restore_key), &tmp, target_key).await?;
-    let swapped = safety_copy(dir, db_file).and_then(|backup| db::commit_swap(dir, db_file, &tmp).map(|_| backup));
+    let swapped = safety_copy(dir, db_file).and_then(|backup| match db::commit_swap(dir, db_file, &tmp) {
+        Ok(()) => Ok(backup),
+        Err(e) => {
+            // a troca não aconteceu: o -wal que a cópia de segurança tirou do banco atual volta, senão ele perde as transações mais recentes
+            if let Some(b) = &backup {
+                let mut wal = b.clone().into_os_string();
+                wal.push("-wal");
+                if Path::new(&wal).exists() {
+                    let _ = std::fs::copy(&wal, dir.join(format!("{db_file}-wal")));
+                }
+            }
+            Err(e)
+        }
+    });
     if swapped.is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
@@ -912,6 +925,19 @@ mod tests {
         let curto = seal(BACKUP_MAGIC_V2, &[1u8; 32], "s").unwrap(); // só a chave, sem banco
         assert_eq!(stage_restore_in(&dir, &curto, Some("s")).await.unwrap_err(), "Este arquivo não é um backup do Yield.");
         assert!(!dir.join(RESTORE_FILE).exists());
+    }
+
+    #[tokio::test]
+    async fn restore_que_falha_na_troca_devolve_o_wal_do_banco_atual() {
+        let origem = em_claro("velho2.db").await;
+        let dir = tmp("restore-falha-troca");
+        std::fs::write(dir.join("yield.db"), "atual").unwrap();
+        std::fs::write(dir.join("yield.db-wal"), "wal atual").unwrap();
+        std::fs::write(dir.join("yield.db-journal"), "journal").unwrap(); // commit_swap recusa
+        let rk = stage_restore_in(&dir, &std::fs::read(origem.join("velho2.db")).unwrap(), None).await.unwrap();
+        assert!(restore_into(&dir, "yield.db", &rk, None).await.is_err());
+        assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "atual");
+        assert_eq!(std::fs::read_to_string(dir.join("yield.db-wal")).unwrap(), "wal atual");
     }
 
     #[tokio::test]

@@ -57,8 +57,8 @@ export function PinConfig() {
         setDone(mode === 'set' ? 'PIN ligado.' : mode === 'change' ? 'PIN trocado.' : 'PIN desligado.')
       }
     } catch (e) { setStep(startPin(mode)); setMsg(`Não foi possível: ${errText(e)}`) }
-    // o Rust reabre o pool depois da troca; se a reabertura falhou, tenta de novo daqui para o app seguir lendo o banco
-    await openDb(profile.dbFile).catch(() => {})
+    // o Rust reabre o pool depois da troca; se a reabertura falhou, tenta de novo daqui e, falhando, avisa em vez de seguir sem banco
+    await openDb(profile.dbFile).catch(e => setDone(`O PIN foi alterado, mas o banco não reabriu: ${errText(e)}. Feche e abra o Yield.`))
     setBusy(null)
   }
 
