@@ -4,8 +4,9 @@ import type { Route } from '../ui/routes'
 import { ChevronRight, Plus } from 'lucide-react'
 import { createMonth, deleteLine, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
 import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
-import { averageByCategory, blocoOf, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
+import { averageByCategory, blocoOf, outrasEntradas, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
+import { cleanDescription } from './lancamentos/build'
 import { reservaInvestments } from '../domain/bancoInvest'
 import { ago } from '../ui/SyncStatus'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
@@ -116,6 +117,9 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const vars = custos(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.fixedCategories))
   const inv = investido(data.lines, gastos.data.txns, gastos.categorize, month, goals, new Set(data.reservas))
   const sum = monthSummary(lines)
+  // o que entrou na conta de terceiros (Pix, TED…), fora o salário do plano e o dinheiro que é seu
+  const outras = outrasEntradas(data.lines, gastos.data.txns, gastos.data.accounts, gastos.categorize, month, { names: gastos.data.ownerNames, companies: gastos.data.companyNames })
+  const outrasCents = outras.reduce((s, t) => s + t.amountCents, 0)
   const progress = monthProgress(month, today)
   const ritmo = pace(vars.realCents, progress)
   const hasTxns = gastos.data.accounts.length > 0
@@ -232,24 +236,25 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   }
 
   // um bloco da tela: linhas do bloco, formulário no lugar da linha editada e o de linha nova no fim
-  const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode; goal?: { real: number; goal: number } }) => {
+  const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode; after?: ReactNode /* depois das linhas */; goal?: { real: number; goal: number } }) => {
     const formRow = (f: Form) => (f.kind === 'entrada' ? entradaForm(f) : saidaForm(f))
     const inBlock = (l: BudgetLine) => (l.kind === 'entrada' ? 'entrada' : blocoOf(l)) === at
     return (
       <div className="card" style={{ marginBottom: 12 }}>
         <div className="bar">
           <h5 style={{ margin: 0 }}>{title}</h5>
-          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.goal) && <b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
+          <span className="row" style={{ alignItems: 'center', gap: 10 }}>{(ls.length > 0 || opts.extra || opts.after || opts.goal) && <b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{value}</b>}
             <button className="b ghost sq" aria-label={`Adicionar em ${title}`} disabled={busy} onClick={opts.add ?? (() => open(at))}><Plus size={14} aria-hidden /></button></span>
         </div>
         {opts.goal && <Track real={opts.goal.real} planned={opts.goal.goal} />}
         {opts.hint && <div className="muted" style={{ marginTop: 2 }}>{opts.hint}</div>}
         <table className="lt blk" style={{ marginTop: 6 }}>
           <tbody>
-            {ls.length === 0 && !opts.extra && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
+            {ls.length === 0 && !opts.extra && !opts.after && !(form?.at === at && !form.id) && <tr><td colSpan={2} className="muted">{opts.empty}</td></tr>}
             {opts.extra}
             {ls.map(l => (form?.id === l.id ? formRow(form) : <tr key={l.id}>{row(l)}</tr>))}
             {form?.at === at && !form.id && formRow(form)}
+            {opts.after}
           </tbody>
         </table>
         {del && inBlock(del) && confirmDel(del)}
@@ -380,7 +385,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const fatura = (l: BudgetLine) => hasTxns && l.categoryId === 'pagamento-de-fatura'
   const fixosCents = total(fixos.filter(l => !fatura(l))) + vars.fixasCents, custosCents = fixosCents + vars.realCents
   const share = (part: number) => (custosCents > 0 ? Math.round((part / custosCents) * 100) : 0)
-  const sobra = sum.entradasCents - fixosCents - total(parcelas) - vars.realCents - inv.realCents
+  const sobra = sum.entradasCents + outrasCents - fixosCents - total(parcelas) - vars.realCents - inv.realCents
   const section = (label: string, cents: number) => <tr className="secl"><td>{label}</td><td className="r">{formatCents(cents)}</td></tr>
   const formHere = (at: At) => form?.at === at && !form.id && saidaForm(form)
   const lineRows = (ls: BudgetLine[]) => ls.map(l => (form?.id === l.id ? saidaForm(form) : <tr key={l.id}>{plainRow(l)}</tr>))
@@ -391,7 +396,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
       {errorBox}
       <Insights area="orcamento" month={month} onNavigate={onNavigate} />
       <div className="kpis">
-        <div className="k"><div className="muted">O que entra</div><div className="v">{formatBRL(sum.entradasCents)}</div><div className="s muted">{plural(entradas.length, 'entrada', 'entradas')} · líquido</div></div>
+        <div className="k"><div className="muted">Entradas</div><div className="v">{formatBRL(sum.entradasCents + outrasCents)}</div><div className="s muted">{plural(entradas.length, 'do plano', 'do plano')}{outras.length > 0 ? ` · ${formatBRL(outrasCents)} recebidos na conta` : ' · líquido'}</div></div>
         <div className="k"><div className="muted">Fixos + parcelas</div><div className="v">{formatBRL(fixosCents + total(parcelas))}</div><div className="s muted">{vars.fixasCents > 0 ? `${formatBRL(vars.fixasCents)} fora do plano · ` : ''}{plural(parcelas.length, 'parcela', 'parcelas')}</div></div>
         <div className="k"><div className="muted">Variáveis</div><div className={`v ${vars.goalCents !== null && vars.realCents > vars.goalCents ? 'dn' : ''}`}>{formatBRL(vars.realCents)}</div><div className="s muted">{[vars.goalCents !== null && `meta ${formatBRL(vars.goalCents)}`, varNote].filter(Boolean).join(' · ')}</div></div>
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
@@ -425,7 +430,7 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
 
       <div className="grid2" style={{ alignItems: 'start' }}>
         <div>
-          {block('entrada', 'O que eu ganho', entradas, formatCents(sum.entradasCents), entradaRow, {
+          {block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
             empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Fontes de renda e eles entram sozinhos todo mês.',
             add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
             extra: missing.length > 0 && missing.map(s => (
@@ -435,6 +440,15 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
                   <div className="grow"><div className="nm"><span style={{ color: "var(--text-2)" }}>{s.name}</span></div><div className="d2">não está neste mês · {formatCents(sourceNet(s, month))}</div></div>
                 </div></td>
                 <td className="r"><button className="b" disabled={busy} onClick={() => include(s)}>Incluir</button></td>
+              </tr>
+            )),
+            after: outras.length > 0 && outras.map(t => (
+              <tr key={`recebido-${t.id}`}>
+                <td className="ell-cell"><div className="cat-line">
+                  <IconGlyph name="arrow-left-right" color={TINT.verde} size={28} />
+                  <div className="grow"><div className="nm">{cleanDescription(t.description).name}</div><div className="d2">recebido na conta em {brDay(t.date)}</div></div>
+                </div></td>
+                <td className="r">{formatCents(t.amountCents)}</td>
               </tr>
             )),
           })}

@@ -1,7 +1,8 @@
-import type { Category, Txn } from '../db/gastosRepo'
+import type { Account, Category, Txn } from '../db/gastosRepo'
 import type { BudgetLine, Goal, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
 import { fold, monthTotals, normalizeDescription, shortName } from './gastos'
 import { addMonths, monthsBetween } from './money'
+import { ownerMention } from './transferencias'
 import type { Cents, Month } from './types'
 
 export interface PjBreakdown { grossCents: Cents; proLaboreCents: Cents; irpjCents: Cents; inssCents: Cents; contabilidadeCents: Cents; outrosCents: Cents; dasCents: Cents; netCents: Cents }
@@ -251,4 +252,28 @@ export function averageByCategory(txns: Txn[], cat: (t: Txn) => Category | null,
   const sum = new Map<string, Cents>()
   for (let i = 1; i <= n; i++) for (const b of monthTotals(txns, [], cat, addMonths(month, -i)).byCategory) if (b.category) sum.set(b.category.id, (sum.get(b.category.id) ?? 0) + b.cents)
   return new Map([...sum].map(([k, v]) => [k, Math.round(v / n)]))
+}
+
+/**
+ * O que entrou na conta no mês vindo de terceiros (Pix e TED de outras pessoas, reembolso, venda avulsa): entrada de conta corrente
+ * que conta como receita, sem transferência entre contas suas, sem Pix no nome do titular ou da empresa dele, sem resgate.
+ * Cada entrada do plano leva o depósito de valor parecido (até 10% de diferença) para o salário não contar duas vezes.
+ */
+export function outrasEntradas(lines: BudgetLine[], txns: Txn[], accounts: Pick<Account, 'id' | 'kind'>[], cat: (t: Txn) => Category | null, month: Month,
+  owner: { names: string[]; companies: string[] }): Txn[] {
+  const contas = new Set(accounts.filter(a => a.kind === 'conta').map(a => a.id))
+  const left = txns.filter(t => {
+    if (t.amountCents <= 0 || t.date.slice(0, 7) !== month || !contas.has(t.accountId) || ownerMention(t.description, owner.names, owner.companies)) return false
+    const c = cat(t)
+    return c === null || c.countsAsSpending || c.id === 'receita' // o mesmo critério de entrada do Resumo de gastos
+  }).sort((a, b) => a.date.localeCompare(b.date))
+  for (const l of lines.filter(l => l.month === month && l.kind === 'entrada')) {
+    let best = -1
+    left.forEach((t, i) => {
+      const d = Math.abs(t.amountCents - l.amountCents)
+      if (d <= l.amountCents * 0.1 && (best < 0 || d < Math.abs(left[best].amountCents - l.amountCents))) best = i
+    })
+    if (best >= 0) left.splice(best, 1)
+  }
+  return left
 }
