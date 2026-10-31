@@ -11,12 +11,15 @@ fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, Stri
     let err = |e: std::io::Error| e.to_string();
     let db = dir.join(db_name);
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
-    let backup = dir.join(format!("seguranca-{secs}.db"));
+    // com o nome do banco: apagar o perfil apaga também as cópias dele
+    let backup = dir.join(format!("seguranca-{}-{secs}.db", db_stem(db_name)));
     std::fs::copy(&db, &backup).map_err(err)?;
     // WAL não checkpointado: preserva ao lado da cópia para não perder transações recentes
     let wal = dir.join(format!("{db_name}-wal"));
     if wal.exists() {
-        std::fs::copy(&wal, dir.join(format!("seguranca-{secs}.db-wal"))).map_err(err)?;
+        let mut wal_copy = backup.clone().into_os_string();
+        wal_copy.push("-wal");
+        std::fs::copy(&wal, wal_copy).map_err(err)?;
     }
     let tmp = dir.join(format!("{db_name}.novo"));
     std::fs::copy(source, &tmp).map_err(err)?;
@@ -25,6 +28,20 @@ fn swap_in_dir(dir: &Path, source: &Path, db_name: &str) -> Result<PathBuf, Stri
     }
     std::fs::rename(&tmp, &db).map_err(err)?;
     Ok(backup)
+}
+
+fn db_stem(db_file: &str) -> &str {
+    db_file.strip_suffix(".db").unwrap_or(db_file)
+}
+
+/// Cópia do `swap_in_dir` para `db_file` (`seguranca-<stem>-<secs>.db*`); as sem stem, das versões antigas, eram sempre do `yield.db`.
+fn is_safety_copy_of(name: &str, db_file: &str) -> bool {
+    let rest = name.strip_prefix(&format!("seguranca-{}-", db_stem(db_file)));
+    let rest = rest.or_else(|| if db_file == LEGACY_DB { name.strip_prefix("seguranca-") } else { None });
+    match rest.and_then(|r| r.split_once('.')) {
+        Some((secs, ext)) => !secs.is_empty() && secs.bytes().all(|b| b.is_ascii_digit()) && matches!(ext, "db" | "db-wal" | "db-shm"),
+        None => false,
+    }
 }
 
 fn remove_if_exists(path: &Path) -> Result<(), String> {
@@ -193,20 +210,34 @@ fn active() -> Result<(String, String), String> {
 }
 
 fn write_atomic(path: &Path, contents: &str) -> Result<(), String> {
+    use std::io::Write;
+    let err = |e: std::io::Error| e.to_string();
     let mut tmp = path.as_os_str().to_owned();
     tmp.push(".tmp");
-    std::fs::write(&tmp, contents).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    let mut f = std::fs::File::create(&tmp).map_err(err)?;
+    f.write_all(contents.as_bytes()).map_err(err)?;
+    // sem o fsync, uma queda de energia logo depois do rename pode deixar o arquivo vazio
+    f.sync_all().map_err(err)?;
+    std::fs::rename(&tmp, path).map_err(err)
+}
+
+/// Lê o `perfis.json` de `dir`. Ilegível, o JS regrava só com o `principal`: antes guarda uma cópia para os outros perfis não se perderem.
+fn read_profiles_in(dir: &Path) -> Result<Option<String>, String> {
+    let s = match std::fs::read_to_string(dir.join(PROFILES_FILE)) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(e.to_string()),
+    };
+    if !s.trim().is_empty() && serde_json::from_str::<serde_json::Value>(&s).is_err() {
+        let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
+        std::fs::write(dir.join(format!("{PROFILES_FILE}.ilegivel-{secs}")), &s).map_err(|e| e.to_string())?;
+    }
+    Ok(Some(s))
 }
 
 #[tauri::command]
 fn profiles_read(app: tauri::AppHandle) -> Result<Option<String>, String> {
-    let path = app.path().app_config_dir().map_err(|e| e.to_string())?.join(PROFILES_FILE);
-    match std::fs::read_to_string(path) {
-        Ok(s) => Ok(Some(s)),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
+    read_profiles_in(&app.path().app_config_dir().map_err(|e| e.to_string())?)
 }
 
 #[tauri::command]
@@ -229,7 +260,7 @@ fn profile_activate(id: String, db_file: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Apaga o banco de um perfil que não está aberto (com `-wal` e `-shm`); arquivo ausente não é erro.
+/// Apaga o banco de um perfil que não está aberto (com `-wal`, `-shm` e as cópias de segurança do restore); arquivo ausente não é erro.
 fn remove_profile_in(dir: &Path, id: &str, db_file: &str, active_id: &str) -> Result<(), String> {
     if !valid_profile(id, db_file) {
         return Err("Perfil inválido.".into());
@@ -239,6 +270,12 @@ fn remove_profile_in(dir: &Path, id: &str, db_file: &str, active_id: &str) -> Re
     }
     for ext in ["", "-wal", "-shm"] {
         remove_if_exists(&dir.join(format!("{db_file}{ext}")))?;
+    }
+    for entry in std::fs::read_dir(dir).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| is_safety_copy_of(n, db_file)) {
+            remove_if_exists(&path)?;
+        }
     }
     Ok(())
 }
@@ -262,8 +299,13 @@ fn vault_key(id: &str) -> String {
     if id == LEGACY_ID { "yield.credentials".into() } else { format!("yield.credentials.{id}") }
 }
 
+/// O perfil aberto só alcança o próprio item (e os antigos da Pluggy, que só o de hoje lê para migrar).
+fn allowed_key(key: &str, active_id: &str) -> bool {
+    OLD_PLUGGY_KEYS.contains(&key) || key == vault_key(active_id)
+}
+
 fn entry_for(key: &str) -> Result<keyring::Entry, String> {
-    if !OLD_PLUGGY_KEYS.contains(&key) && key != vault_key(&active()?.0) {
+    if !allowed_key(key, &active()?.0) {
         return Err("chave de credencial desconhecida".into());
     }
     keyring::Entry::new(SECRET_SERVICE, key).map_err(|e| e.to_string())
@@ -558,6 +600,8 @@ mod tests {
 
         let backup = swap_in_dir(&dir, &origem, "yield.db").unwrap();
 
+        assert!(is_safety_copy_of(backup.file_name().unwrap().to_str().unwrap(), "yield.db"));
+        assert!(backup.file_name().unwrap().to_str().unwrap().starts_with("seguranca-yield-"));
         assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), "antigo");
         assert_eq!(std::fs::read_to_string(backup.with_extension("db-wal")).unwrap(), "wal");
@@ -568,7 +612,11 @@ mod tests {
         std::fs::write(dir.join("perfil-abcd1234.db"), "do perfil").unwrap();
         std::fs::write(dir.join("perfil-abcd1234.db-wal"), "wal do perfil").unwrap();
         std::fs::write(&origem, "restaurado").unwrap();
-        swap_in_dir(&dir, &origem, "perfil-abcd1234.db").unwrap();
+        let do_perfil = swap_in_dir(&dir, &origem, "perfil-abcd1234.db").unwrap();
+        assert!(do_perfil.file_name().unwrap().to_str().unwrap().starts_with("seguranca-perfil-abcd1234-"));
+        assert_eq!(std::fs::read_to_string(&do_perfil).unwrap(), "do perfil");
+        assert_eq!(std::fs::read_to_string(do_perfil.with_extension("db-wal")).unwrap(), "wal do perfil");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), "antigo"); // no mesmo segundo, uma não sobrescreve a outra
         assert_eq!(std::fs::read_to_string(dir.join("perfil-abcd1234.db")).unwrap(), "restaurado");
         assert!(!dir.join("perfil-abcd1234.db-wal").exists() && !dir.join("perfil-abcd1234.db.novo").exists());
         assert_eq!(std::fs::read_to_string(dir.join("yield.db")).unwrap(), "novo");
@@ -635,6 +683,43 @@ mod tests {
     }
 
     #[test]
+    fn remover_perfil_apaga_as_copias_de_seguranca_dele() {
+        let dir = tmp("perfis-copias");
+        let do_perfil = ["seguranca-perfil-abcd1234-1793000000.db", "seguranca-perfil-abcd1234-1793000000.db-wal"];
+        let do_principal = ["seguranca-yield-1793000000.db", "seguranca-yield-1793000000.db-wal", "seguranca-1700000000.db", "seguranca-1700000000.db-wal"];
+        let ficam = ["seguranca-perfil-abcd12345-1793000000.db", "seguranca-perfil-zzzz9999-1793000000.db", "seguranca-yield-x.db", "seguranca-perfil-abcd1234-1793.txt", "perfis.json"];
+        for f in do_perfil.iter().chain(&do_principal).chain(&ficam) {
+            std::fs::write(dir.join(f), "x").unwrap();
+        }
+        remove_profile_in(&dir, "abcd1234", "perfil-abcd1234.db", "principal").unwrap();
+        assert!(do_perfil.iter().all(|f| !dir.join(f).exists()));
+        assert!(do_principal.iter().chain(&ficam).all(|f| dir.join(f).exists()));
+        // o `principal` leva também as cópias sem stem das versões antigas, que eram todas dele
+        remove_profile_in(&dir, "principal", "yield.db", "abcd1234").unwrap();
+        assert!(do_principal.iter().all(|f| !dir.join(f).exists()));
+        assert!(ficam.iter().all(|f| dir.join(f).exists()));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn perfis_ilegivel_ganha_copia_antes_de_ser_regravado() {
+        let dir = tmp("perfis-ilegivel");
+        assert_eq!(read_profiles_in(&dir).unwrap(), None);
+        let copias = |d: &Path| std::fs::read_dir(d).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().starts_with("perfis.json.ilegivel-")).map(|e| e.path()).collect::<Vec<_>>();
+        std::fs::write(dir.join("perfis.json"), "{\"version\":1,\"profiles\":[]}").unwrap();
+        read_profiles_in(&dir).unwrap();
+        std::fs::write(dir.join("perfis.json"), "").unwrap();
+        read_profiles_in(&dir).unwrap();
+        assert!(copias(&dir).is_empty());
+        std::fs::write(dir.join("perfis.json"), "{\"profiles\":[{\"id\":\"abcd1234\"").unwrap();
+        assert_eq!(read_profiles_in(&dir).unwrap().as_deref(), Some("{\"profiles\":[{\"id\":\"abcd1234\""));
+        let c = copias(&dir);
+        assert_eq!(c.len(), 1);
+        assert_eq!(std::fs::read_to_string(&c[0]).unwrap(), "{\"profiles\":[{\"id\":\"abcd1234\"");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
     fn caminhos_do_webview_sao_conferidos() {
         let dir = std::env::temp_dir().join(format!("yield-paths-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
@@ -666,6 +751,15 @@ mod tests {
         assert!(!dir.join(RESTORE_FILE).exists());
         discard_restore_in(&dir).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn perfil_aberto_so_alcanca_o_proprio_item_do_cofre() {
+        assert!(!allowed_key("yield.credentials", "abcd1234"));
+        assert!(allowed_key("yield.credentials.abcd1234", "abcd1234"));
+        assert!(!allowed_key("yield.credentials.zzzz9999", "abcd1234"));
+        assert!(allowed_key("yield.credentials", "principal"));
+        assert!(!allowed_key("yield.credentials.abcd1234", "principal"));
     }
 
     #[test]
