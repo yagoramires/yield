@@ -795,6 +795,25 @@ tr.hl td { background: var(--neg-bg); }
 .profile-err { color: var(--negative); font-size: 11.5px; }
 .profile-form-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 
+/* teclado do PIN, espera e "Esqueci o PIN" (só tokens, valem nos dois temas) */
+.pin-pad { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.pin-title { color: var(--strong); font-weight: 600; font-size: 15px; }
+.pin-dots { display: flex; gap: 14px; }
+.pin-dots i { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--border-strong); box-sizing: border-box; }
+.pin-dots i.f { background: var(--accent); border-color: var(--accent); }
+.pin-msg { color: var(--negative); font-size: 12px; text-align: center; max-width: 330px; }
+.pin-wait { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 330px; padding: 12px 16px; background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; color: var(--warn); text-align: center; line-height: 1.5; }
+.pin-keys { display: grid; grid-template-columns: repeat(3, 58px); gap: 10px; }
+.pin-key { height: 58px; border-radius: 50%; background: var(--surface); border: 1px solid var(--border); color: var(--strong); font-size: 20px; cursor: pointer; }
+.pin-key:hover:not(:disabled) { border-color: var(--border-strong); }
+.pin-key:focus-visible { outline: none; border-color: var(--accent-fg); box-shadow: 0 0 0 3px var(--focus-ring); }
+.pin-key:disabled { opacity: .3; cursor: default; }
+.pin-key.x { display: grid; place-items: center; background: none; border-color: transparent; font-size: 12px; color: var(--text-2); }
+.pin-link { font-size: 12px; color: var(--text-2); }
+.pin-forgot { max-width: 380px; margin: 0; text-align: center; line-height: 1.5; }
+.pin-lock { color: var(--faint); flex-shrink: 0; }
+.pin-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
 /* perfil no topo do menu: botão com avatar e popover para baixo */
 .prof-box { position: relative; margin: -4px 0 12px; }
 .prof-btn { width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: inherit; text-align: left; cursor: pointer; }

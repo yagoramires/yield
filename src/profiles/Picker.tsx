@@ -1,20 +1,22 @@
-import { Plus } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { createAndSwitch, markChosen, switchTo } from './active'
 import { Avatar } from './ProfileAvatar'
 import { ProfileForm } from './ProfileForm'
+import type { PinInfo } from './pin'
 import type { Profile } from './profiles'
 import { saveProfiles } from './store'
 
 interface Props {
   profiles: Profile[]
+  locks: Record<string, PinInfo>
   activeId: string
   onCreated(p: Profile): void
   /** O perfil ativo foi escolhido: o Gate segue para o app sem recarregar. */
   onEnter(): void
 }
 
-export function Picker({ profiles, activeId, onCreated, onEnter }: Props) {
+export function Picker({ profiles, locks, activeId, onCreated, onEnter }: Props) {
   const [creating, setCreating] = useState(false)
 
   function choose(p: Profile) {
@@ -32,6 +34,7 @@ export function Picker({ profiles, activeId, onCreated, onEnter }: Props) {
           <button key={p.id} type="button" className="profile-tile" onClick={() => choose(p)}>
             <Avatar profile={p} size={76} />
             <span className="profile-name">{p.name}</span>
+            {locks[p.id]?.hasPin && <Lock className="pin-lock" size={13} role="img" aria-label="com PIN" />}
           </button>
         ))}
         <button type="button" className="profile-tile add" onClick={() => setCreating(true)}>

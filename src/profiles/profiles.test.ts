@@ -1,4 +1,4 @@
-import { deleteConfirmed, ensureLegacy, firstName, initial, legacyProfile, newProfile, parseProfiles, resolveActive, scopedKey, validateProfileName } from './profiles'
+import { deleteConfirmed, ensureLegacy, firstName, initial, legacyProfile, newProfile, parseProfiles, resolveActive, scopedKey, validateProfileName, withFallback } from './profiles'
 
 const NOW = '2026-10-30T12:00:00.000Z'
 const ana = newProfile({ name: '  Ana ', color: '#3a91dc', avatar: null }, NOW, () => 'abcd1234')
@@ -50,4 +50,11 @@ test('inicial, primeiro nome e confirmação de apagar', () => {
   expect(firstName('GABRIEL S SALVADOR')).toBe('Gabriel')
   expect(deleteConfirmed('  ANA ', ana)).toBe(true)
   expect(deleteConfirmed('An', ana)).toBe(false)
+})
+
+test('esquecer o PIN do único perfil deixa um perfil novo e vazio no lugar', () => {
+  const [, novo] = withFallback([ana], NOW, () => 'novo1234')
+  expect(novo).toEqual({ id: 'novo1234', name: 'Meu perfil', color: '#c6ff3d', avatar: null, dbFile: 'perfil-novo1234.db', createdAt: NOW })
+  const dois = [legacyProfile('Gabriel', NOW), ana]
+  expect(withFallback(dois, NOW, () => 'x')).toBe(dois)
 })

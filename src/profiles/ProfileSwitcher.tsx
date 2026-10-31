@@ -7,7 +7,7 @@ import { ProfileForm } from './ProfileForm'
 
 /** O perfil ativo no topo do menu; abre a lista para trocar, criar um perfil novo ou voltar à tela de escolha. */
 export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
-  const { profile, profiles, save } = useProfiles()
+  const { profile, profiles, save, locks, hasPin } = useProfiles()
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const box = useRef<HTMLDivElement>(null)
@@ -41,12 +41,13 @@ export function ProfileSwitcher({ mini = false }: { mini?: boolean }) {
               <button key={p.id} className="prof-opt" aria-current={p.id === profile.id ? 'true' : undefined}
                 onClick={() => { if (p.id === profile.id) setOpen(false); else void switchTo(p.id) }}>
                 <Avatar profile={p} size={24} /><span className="prof-optn">{p.name}</span>
+                {locks[p.id]?.hasPin && <Lock className="pin-lock" size={12} role="img" aria-label="com PIN" />}
                 {p.id === profile.id && <Check size={14} aria-hidden />}
               </button>
             ))}
             <hr />
             <button className="prof-opt sub" onClick={() => { setOpen(false); setCreating(true) }}><Plus size={14} aria-hidden />Novo perfil</button>
-            {profiles.length >= 2 && <button className="prof-opt sub" onClick={() => lockToPicker()}><Lock size={14} aria-hidden />Bloquear agora</button>}
+            {(hasPin || profiles.length >= 2) && <button className="prof-opt sub" onClick={() => lockToPicker()}><Lock size={14} aria-hidden />Bloquear agora</button>}
           </div>
         )}
       </div>

@@ -61,6 +61,10 @@ export function newProfile(input: { name: string; color: string; avatar: string 
   return { id, name: input.name.trim(), color: input.color, avatar: input.avatar, dbFile: `perfil-${id}.db`, createdAt: now }
 }
 
+/** Apagar o único perfil (PIN esquecido) deixa um perfil novo e vazio no lugar; com 2+ devolve a mesma lista. */
+export const withFallback = (profiles: Profile[], now: string, randomId: () => string): Profile[] =>
+  profiles.length === 1 ? [...profiles, newProfile({ name: DEFAULT_NAME, color: PROFILE_COLORS[0], avatar: null }, now, randomId)] : profiles
+
 const norm = (s: string) => s.trim().toLocaleLowerCase('pt-BR')
 
 export function validateProfileName(name: string, others: Profile[]): string | null {
