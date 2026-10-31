@@ -205,10 +205,10 @@ pub async fn db_load(app: tauri::AppHandle, state: State<'_, Dbs>, file: String)
 
 /// Abre `dir/file` com a chave do `pin::key_for`; já aberto, não reabre.
 pub async fn load_in(dbs: &Dbs, dir: &Path, file: &str) -> Result<(), String> {
-    // a chave antes do atalho: um pool que ficou aberto não dispensa o PIN
-    let key = crate::pin::key_for(dir, file)?;
     // a trava durante a abertura toda: a troca do PIN (que também a segura) não acontece no meio
     let mut map = dbs.0.lock().await;
+    // a chave antes do atalho: um pool que ficou aberto não dispensa o PIN
+    let key = crate::pin::key_for(dir, file)?;
     // o StrictMode do React carrega duas vezes: o segundo não fecha o pool que o primeiro já entregou
     if map.contains_key(file) {
         return Ok(());
@@ -286,7 +286,8 @@ async fn export_into(from: &Path, from_key: Option<&Key>, to: &Path, to_key: Opt
     if check.map_err(err)? != "ok" {
         return Err(CORRUPT.into());
     }
-    std::fs::File::open(to).and_then(|f| f.sync_all()).map_err(err)
+    // no Windows o FlushFileBuffers precisa do arquivo aberto para escrita
+    std::fs::OpenOptions::new().write(true).open(to).and_then(|f| f.sync_all()).map_err(err)
 }
 
 /// Põe `tmp` no lugar de `<dir>/<db_file>`: o rename é atômico, então um crash deixa o banco velho ou o novo, inteiro.

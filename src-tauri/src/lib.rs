@@ -261,6 +261,8 @@ async fn profile_activate(state: tauri::State<'_, db::Dbs>, id: String, db_file:
 }
 
 async fn activate_in(dbs: &db::Dbs, id: String, db_file: String) -> Result<(), String> {
+    // no meio de uma troca de PIN o cofre e o banco ainda são do perfil aberto
+    let _op = pin::pin_ops_idle()?;
     set_active(id, db_file.clone())?;
     db::close_others(dbs, &db_file).await;
     Ok(())
@@ -294,7 +296,7 @@ fn remove_profile_in(dir: &Path, id: &str, db_file: &str, active_id: &str) -> Re
     for ext in ["", "-wal", "-shm", "-journal", ".pin-tmp", ".pin-tmp-journal", ".pin-tmp-wal", ".pin-tmp-shm", ".salt"] {
         remove_if_exists(&dir.join(format!("{db_file}{ext}")))?;
     }
-    pin::remove_plain_safety_copies(dir, db_file)
+    pin::remove_safety_copies(dir, db_file, false)
 }
 
 /// `Err`: algum arquivo ficou e o cofre nem foi tocado. `Ok(Some(erro))`: arquivos apagados, mas o item do cofre (ou a entrada no `pins.json`) ficou.
@@ -405,10 +407,14 @@ fn store_vault(entry: &keyring::Entry, v: &Vault, key: Option<&db::Key>) -> Resu
     })
 }
 
-/// Regrava o item do perfil ativo de `from` para `to` e atualiza o cache; sem item, só migra os antigos da Pluggy (já com `to`).
-fn reseal_vault(from: Option<&db::Key>, to: Option<&db::Key>) -> Result<(), String> {
+/// Regrava o item de `id` (tem de ser o perfil ativo) de `from` para `to` e atualiza o cache; sem item, só migra os antigos da Pluggy (já com `to`).
+fn reseal_vault(id: &str, from: Option<&db::Key>, to: Option<&db::Key>) -> Result<(), String> {
     let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
-    let entry = entry_for(&vault_key(&active()?.0))?;
+    // com a trava do cofre: o perfil não muda entre esta conferência e a gravação
+    if active()?.0 != id {
+        return Err("O perfil aberto mudou no meio da troca do PIN.".into());
+    }
+    let entry = entry_for(&vault_key(id))?;
     let v = match get_with(&entry)? {
         Some(raw) => {
             let v = open_vault(&raw, from)?;
@@ -472,6 +478,8 @@ fn read_vault(key: Option<&db::Key>) -> Result<Vault, String> {
 }
 
 fn update_vault(change: impl FnOnce(&mut Vault)) -> Result<(), String> {
+    // no meio de uma troca de PIN o cofre está em claro e a chave na memória é a do PIN antigo
+    let _op = pin::pin_ops_idle()?;
     let mut cache = VAULT.lock().map_err(|e| e.to_string())?;
     let mut v = load_cached(&mut cache)?;
     change(&mut v);
@@ -622,6 +630,7 @@ pub fn run() {
                 let _ = discard_restore_in(&dir);
                 db::cleanup_pin_tmp(&dir);
                 let _ = tauri::async_runtime::block_on(pin::forget_plain_pins(&dir));
+                pin::sweep_plain_copies(&dir);
             }
             if let Ok(dir) = app.path().app_data_dir() {
                 for entry in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
@@ -868,6 +877,7 @@ mod tests {
     #[test]
     fn cofre_rejeita_key_desconhecida_antes_de_tocar_no_cofre() {
         let _g = pin::testutil::globals(); // depende do perfil ativo ser o `principal`
+        pin::testutil::keychain(true);
         assert!(entry_for("outra.coisa").is_err());
         assert!(entry_for("pluggy.clientId").is_ok());
         assert!(entry_for("yield.credentials").is_ok());
@@ -934,9 +944,27 @@ mod tests {
         assert!(open_vault("pin1:zz", Some(&k)).is_err() && open_vault("pin1:", Some(&k)).is_err());
     }
 
+    #[tokio::test]
+    async fn cofre_e_troca_de_perfil_esperam_a_troca_do_pin() {
+        let _g = pin::testutil::globals();
+        pin::testutil::keychain(true);
+        *ACTIVE.lock().unwrap() = Some(("zzzz9999".into(), "perfil-zzzz9999.db".into()));
+        // o perfil mudou no meio: o item de outro perfil não é recifrado com esta chave
+        assert_eq!(reseal_vault("abcd1234", None, Some(&[7u8; 32])).unwrap_err(), "O perfil aberto mudou no meio da troca do PIN.");
+        let troca = pin::pin_ops_idle().unwrap(); // uma troca de PIN em andamento
+        let espera = "Troca de PIN em andamento; tente de novo em instantes.";
+        assert_eq!(update_vault(|v| v.binance = None).unwrap_err(), espera);
+        assert_eq!(activate_in(&db::Dbs::default(), LEGACY_ID.into(), LEGACY_DB.into()).await.unwrap_err(), espera);
+        assert_eq!(active().unwrap().0, "zzzz9999");
+        drop(troca);
+        activate_in(&db::Dbs::default(), LEGACY_ID.into(), LEGACY_DB.into()).await.unwrap();
+        *ACTIVE.lock().unwrap() = None;
+    }
+
     #[test]
     fn cofre_set_get_delete() {
-        keyring::set_default_credential_builder(keyring::mock::default_credential_builder());
+        let _g = pin::testutil::globals(); // o construtor do cofre é global: outro teste pode trocá-lo
+        pin::testutil::keychain(true);
         let e = entry_for("pluggy.clientSecret").unwrap();
         assert_eq!(get_with(&e).unwrap(), None);
         set_with(&e, "valor").unwrap();

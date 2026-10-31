@@ -321,15 +321,38 @@ pub async fn rekey_in(dir: &Path, db_file: &str, from: Option<&Key>, to: Option<
     })
 }
 
-/// As cópias de segurança do restore (`seguranca-*`) de `db_file`; com o PIN ligado, as em claro não ficam no disco.
-pub fn remove_plain_safety_copies(dir: &Path, db_file: &str) -> Result<(), String> {
+/// Apaga as cópias de segurança do restore (`seguranca-*`) de `db_file`; com `only_plain`, só as que não estão cifradas pelo PIN.
+pub(crate) fn remove_safety_copies(dir: &Path, db_file: &str, only_plain: bool) -> Result<(), String> {
     for entry in std::fs::read_dir(dir).map_err(err)? {
         let path = entry.map_err(err)?.path();
-        if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| is_safety_copy_of(n, db_file)) {
+        let Some(name) = path.file_name().and_then(|n| n.to_str()).filter(|n| is_safety_copy_of(n, db_file)) else { continue };
+        // o `-wal`/`-shm` segue o `.db` da cópia: cifrado junto com ele, ou em claro
+        let base = dir.join(name.trim_end_matches("-wal").trim_end_matches("-shm"));
+        if !only_plain || !has_pin_file(&base).unwrap_or(true) {
             remove_if_exists(&path)?;
         }
     }
     Ok(())
+}
+
+/// Com o PIN ligado, as cópias em claro do banco não ficam no disco (as cifradas, de um restore com PIN, ficam).
+pub fn remove_plain_safety_copies(dir: &Path, db_file: &str) -> Result<(), String> {
+    remove_safety_copies(dir, db_file, true)
+}
+
+/// No startup: cópia em claro de perfil com PIN é sobra de um ligar que caiu ou falhou antes de apagá-las.
+pub fn sweep_plain_copies(dir: &Path) {
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if id_of(&name).is_some() && has_pin_file(&entry.path()).unwrap_or(false) {
+            let _ = remove_plain_safety_copies(dir, &name);
+        }
+    }
+}
+
+/// Trava das operações de PIN para quem não pode esperar (gravar o cofre, trocar de perfil): no meio de uma troca, recusa.
+pub(crate) fn pin_ops_idle() -> Result<tokio::sync::MutexGuard<'static, ()>, String> {
+    PIN_OPS.try_lock().map_err(|_| "Troca de PIN em andamento; tente de novo em instantes.".to_string())
 }
 
 /// O PIN só muda no perfil aberto.
@@ -345,8 +368,18 @@ async fn derive_async(pin: &str, salt: [u8; 16]) -> Result<Keys, String> {
     tauri::async_runtime::spawn_blocking(move || derive(&pin, &salt)).await.map_err(err)?
 }
 
-async fn reseal(from: Option<Key>, to: Option<Key>) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || crate::reseal_vault(from.as_ref(), to.as_ref())).await.map_err(err)?
+async fn reseal(id: &str, from: Option<Key>, to: Option<Key>) -> Result<(), String> {
+    let id = id.to_owned();
+    tauri::async_runtime::spawn_blocking(move || crate::reseal_vault(&id, from.as_ref(), to.as_ref())).await.map_err(err)?
+}
+
+/// Depois da troca o PIN novo já vale: o que falhar daqui em diante não desfaz nada nem vira erro para quem chamou.
+/// O cofre se recifra na próxima leitura (o cache sai), o pins.json e as cópias se acertam no próximo startup.
+fn after_swap(r: Result<(), String>) {
+    if let Err(e) = r {
+        eprintln!("PIN: {e}");
+        *crate::VAULT.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    }
 }
 
 fn set_unlocked(v: Option<(String, Keys)>) {
@@ -414,9 +447,11 @@ pub async fn set_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, pin: &st
         let _ = update_pins(dir, |f| f.profiles.remove(id).is_some()).await;
         return Err(e);
     }
-    reseal(None, Some(keys.vault)).await?;
-    remove_plain_safety_copies(dir, db_file)?;
-    reopened
+    // as cópias em claro antes do cofre: um cofre que falhe (Keychain negado) não as deixa no disco
+    after_swap(remove_plain_safety_copies(dir, db_file));
+    after_swap(reseal(id, None, Some(keys.vault)).await);
+    after_swap(reopened);
+    Ok(())
 }
 
 /// Confere o PIN atual (conta no limite) e deixa as chaves dele como as do perfil desbloqueado; `Err(resultado)` se não abriu.
@@ -444,7 +479,7 @@ pub async fn change_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, curre
     let salt = read_pins(dir)?.profiles.get(id).and_then(|s| salt_from_hex(&s.salt)).ok_or(CORRUPT)?;
     let next = derive_async(next, salt).await?;
     // o cofre em claro durante a troca: um crash no meio não o deixa cifrado com uma chave que nenhum PIN gera
-    reseal(Some(old.vault), None).await?;
+    reseal(id, Some(old.vault), None).await?;
     let (swapped, reopened) = with_pool_closed(dbs, dir, db_file, async {
         rekey_in(dir, db_file, Some(&old.db), Some(&next.db)).await?;
         set_unlocked(Some((id.into(), next.clone())));
@@ -453,11 +488,12 @@ pub async fn change_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, curre
     .await;
     if let Err(e) = swapped {
         // o banco segue com o PIN atual: o cofre volta a ser dele
-        let _ = reseal(None, Some(old.vault)).await;
+        let _ = reseal(id, None, Some(old.vault)).await;
         return Err(e);
     }
-    reseal(None, Some(next.vault)).await?;
-    reopened.map(|_| Unlock::Ok)
+    after_swap(reseal(id, None, Some(next.vault)).await);
+    after_swap(reopened);
+    Ok(Unlock::Ok)
 }
 
 pub async fn remove_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, current: &str, now: u64) -> Result<Unlock, String> {
@@ -466,7 +502,7 @@ pub async fn remove_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, curre
         Ok(keys) => keys,
         Err(result) => return Ok(result),
     };
-    reseal(Some(old.vault), None).await?;
+    reseal(id, Some(old.vault), None).await?;
     let (swapped, reopened) = with_pool_closed(dbs, dir, db_file, async {
         rekey_in(dir, db_file, Some(&old.db), None).await?;
         set_unlocked(None);
@@ -474,12 +510,13 @@ pub async fn remove_pin_in(dbs: &Dbs, dir: &Path, id: &str, db_file: &str, curre
     })
     .await;
     if let Err(e) = swapped {
-        let _ = reseal(None, Some(old.vault)).await;
+        let _ = reseal(id, None, Some(old.vault)).await;
         return Err(e);
     }
-    update_pins(dir, |f| f.profiles.remove(id).is_some()).await?;
-    remove_if_exists(&salt_copy(dir, db_file))?;
-    reopened.map(|_| Unlock::Ok)
+    after_swap(update_pins(dir, |f| f.profiles.remove(id).is_some()).await);
+    after_swap(remove_if_exists(&salt_copy(dir, db_file)));
+    after_swap(reopened);
+    Ok(Unlock::Ok)
 }
 
 #[tauri::command]
@@ -512,6 +549,20 @@ pub(crate) mod testutil {
     static GLOBALS: std::sync::Mutex<()> = std::sync::Mutex::new(());
     pub fn globals() -> std::sync::MutexGuard<'static, ()> {
         GLOBALS.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Nunca o Keychain de verdade: o mock, ou um cofre que sempre falha (como o pedido de senha do macOS negado).
+    pub fn keychain(works: bool) {
+        struct Negado;
+        impl keyring::credential::CredentialBuilderApi for Negado {
+            fn build(&self, _: Option<&str>, _: &str, _: &str) -> keyring::Result<Box<keyring::credential::Credential>> {
+                Err(keyring::Error::NoStorageAccess("negado".into()))
+            }
+            fn as_any(&self) -> &dyn std::any::Any {
+                self
+            }
+        }
+        keyring::set_default_credential_builder(if works { keyring::mock::default_credential_builder() } else { Box::new(Negado) });
     }
 
     // os testes rodam em paralelo no mesmo processo: cada banco ganha a sua pasta
@@ -809,7 +860,7 @@ mod tests {
     #[tokio::test]
     async fn ligar_trocar_e_tirar_pelo_comando() {
         let _g = globals();
-        keyring::set_default_credential_builder(keyring::mock::default_credential_builder()); // nunca o Keychain de verdade
+        keychain(true);
         let (id, file) = ("abcd1234", "perfil-abcd1234.db");
         let dir = em_claro(file).await;
         let db = dir.join(file);
@@ -844,6 +895,72 @@ mod tests {
         assert!(UNLOCKED.lock().unwrap().is_none());
         assert_eq!(marker(&dbs).await, MARKER);
         assert_eq!(remove_pin_in(&dbs, &dir, id, file, "5678", 1000).await.unwrap_err(), "Este perfil não tem PIN.");
+        *crate::ACTIVE.lock().unwrap() = None;
+    }
+
+    #[tokio::test]
+    async fn keychain_negado_nao_deixa_copias_em_claro_e_o_pin_vale() {
+        let _g = globals();
+        keychain(false);
+        let (id, file) = ("abcd1234", "perfil-abcd1234.db");
+        let dir = em_claro(file).await;
+        std::fs::write(dir.join("seguranca-perfil-abcd1234-1793000000.db"), "x").unwrap();
+        crate::set_active(id.into(), file.into()).unwrap();
+        *crate::VAULT.lock().unwrap() = Some(crate::Vault::default());
+        set_pin_in(&Dbs::default(), &dir, id, file, "1234").await.unwrap();
+        assert!(has_pin_file(&dir.join(file)).unwrap() && !dir.join("seguranca-perfil-abcd1234-1793000000.db").exists());
+        assert!(crate::VAULT.lock().unwrap().is_none()); // a próxima leitura do cofre recifra
+        keychain(true);
+        set_unlocked(None);
+        *crate::ACTIVE.lock().unwrap() = None;
+    }
+
+    #[tokio::test]
+    async fn startup_apaga_copias_em_claro_de_perfil_com_pin() {
+        let dir = cifrado("perfil-abcd1234.db", "1234").await;
+        let cifrada = "seguranca-perfil-abcd1234-1793000001.db"; // de um restore com PIN: fica
+        std::fs::copy(dir.join("perfil-abcd1234.db"), dir.join(cifrada)).unwrap();
+        let claras = ["seguranca-perfil-abcd1234-1793000000.db", "seguranca-perfil-abcd1234-1793000000.db-wal"];
+        for f in claras { std::fs::write(dir.join(f), "x").unwrap(); }
+        let pool = open_pool(&dir.join("perfil-zzzz9999.db"), None).await.unwrap(); // perfil sem PIN: as cópias dele ficam
+        crate::db::execute(&pool, "CREATE TABLE t (v TEXT)", vec![]).await.unwrap();
+        pool.close().await;
+        std::fs::write(dir.join("seguranca-perfil-zzzz9999-1793000000.db"), "x").unwrap();
+        sweep_plain_copies(&dir);
+        assert!(claras.iter().all(|f| !dir.join(f).exists()));
+        assert!(dir.join(cifrada).exists() && dir.join("seguranca-perfil-zzzz9999-1793000000.db").exists());
+    }
+
+    #[tokio::test]
+    async fn troca_que_falha_deixa_tudo_como_estava() {
+        let _g = globals();
+        keychain(true);
+        let (id, file) = ("abcd1234", "perfil-abcd1234.db");
+        let dir = em_claro(file).await;
+        let db = dir.join(file);
+        let dbs = Dbs::default();
+        crate::set_active(id.into(), file.into()).unwrap();
+        crate::db::load_in(&dbs, &dir, file).await.unwrap();
+        let marker = |dbs: &Dbs| {
+            let pool = dbs.0.try_lock().unwrap().get(file).cloned().unwrap();
+            async move { select(&pool, "SELECT v FROM t", vec![]).await.unwrap()[0]["v"].clone() }
+        };
+        let trava = pin_tmp(&dir, file);
+        std::fs::create_dir(&trava).unwrap(); // o temporário não sai: a cópia falha
+        assert!(set_pin_in(&dbs, &dir, id, file, "1234").await.is_err());
+        assert!(is_plain_header(&db) && !read_pins(&dir).unwrap().profiles.contains_key(id) && UNLOCKED.lock().unwrap().is_none());
+        assert_eq!(marker(&dbs).await, MARKER);
+
+        std::fs::remove_dir(&trava).unwrap();
+        set_pin_in(&dbs, &dir, id, file, "1234").await.unwrap();
+        let old = derive("1234", &salt_from_hex(&read_pins(&dir).unwrap().profiles[id].salt).unwrap()).unwrap();
+        std::fs::create_dir(&trava).unwrap();
+        assert!(change_pin_in(&dbs, &dir, id, file, "1234", "5678", 1000).await.is_err());
+        assert!(key_opens(&db, &old.db).await.unwrap());
+        assert_eq!(vault_key_for(id), Some(old.vault)); // as chaves na memória seguem as do PIN que abre o banco
+        assert_eq!(marker(&dbs).await, MARKER);
+        std::fs::remove_dir(&trava).unwrap();
+        set_unlocked(None);
         *crate::ACTIVE.lock().unwrap() = None;
     }
 }
