@@ -1,4 +1,5 @@
 import { Monitor, Moon, Sun } from 'lucide-react'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSyncExternalStore } from 'react'
 
 export type ThemeMode = 'system' | 'light' | 'dark'
@@ -11,7 +12,12 @@ const KEY = 'yield.tema'
 let mode: ThemeMode = (() => { try { const v = localStorage.getItem(KEY); return v === 'light' || v === 'system' ? v : 'dark' } catch { return 'dark' } })()
 const listeners = new Set<() => void>()
 const media = typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: light)') : null
-const apply = () => { if (typeof document !== 'undefined') document.documentElement.dataset.theme = effectiveTheme(mode, !!media?.matches) }
+const apply = () => {
+  if (typeof document === 'undefined') return
+  document.documentElement.dataset.theme = effectiveTheme(mode, !!media?.matches)
+  // barra de título da janela no mesmo tema (null: segue o sistema); fora do Tauri (testes, navegador) não há janela
+  if ('__TAURI_INTERNALS__' in window) void getCurrentWindow().setTheme(mode === 'system' ? null : mode).catch(() => {})
+}
 apply() // no import, antes da primeira tela: não pisca o tema errado
 media?.addEventListener('change', apply)
 

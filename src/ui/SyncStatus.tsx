@@ -34,13 +34,14 @@ export function SyncStatus({ mini = false }: { mini?: boolean }) {
   const { data, gastos, binance, lastRefresh, refreshing, refreshQuotesNow } = useData()
   const [open, setOpen] = useState(false)
   const box = useRef<HTMLDivElement>(null)
-  // popover: fecha ao clicar fora ou com Esc
+  const trigger = useRef<HTMLButtonElement>(null)
+  // popover: o foco entra nele ao abrir; fecha ao clicar fora ou com Esc (só ele)
   useEffect(() => {
     if (!open) return
+    box.current?.querySelector<HTMLButtonElement>('.sync-pop button')?.focus()
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', down); document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', esc) }
+    document.addEventListener('mousedown', down)
+    return () => document.removeEventListener('mousedown', down)
   }, [open])
   const g = gastos.data
   const hasPluggy = g.pluggyItems.length > 0
@@ -72,7 +73,7 @@ export function SyncStatus({ mini = false }: { mini?: boolean }) {
   )
   // uma linha no menu; o detalhe de cada fonte abre num popover para cima
   return (
-    <div className="sync-status" ref={box}>
+    <div className="sync-status" ref={box} onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); trigger.current?.focus() } }}>
       {open && (
         <div className="sync-pop" role="dialog" aria-label="Sincronização">
           {rows.map(r => (
@@ -85,7 +86,7 @@ export function SyncStatus({ mini = false }: { mini?: boolean }) {
         </div>
       )}
       <div className="sync-line">
-        <button className="sync-sum" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>
+        <button ref={trigger} className="sync-sum" aria-expanded={open} aria-haspopup="dialog" onClick={() => setOpen(!open)}>
           <span className={`dot${err ? ' bad' : ''}`} aria-hidden /><span className="lbl">{syncSummary(rows, busy)}</span>
         </button>
         <button className="icon-btn sq" aria-label="Sincronizar tudo" title="Sincronizar tudo" disabled={busy} onClick={syncAll}><RefreshCw size={13} aria-hidden className={busy ? 'spin' : undefined} /></button>

@@ -12,21 +12,25 @@ export function MonthNav({ month, onChange, disabled }: { month: Month; onChange
   const [open, setOpen] = useState(false)
   const [year, setYear] = useState(Number(month.slice(0, 4)))
   const box = useRef<HTMLDivElement>(null)
+  const trigger = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open) return
+    // abriu: o foco vai para o mês escolhido, para seguir no teclado
+    box.current?.querySelector<HTMLButtonElement>('.month-grid .sel, .month-grid button')?.focus()
     const down = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false) }
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', down)
-    window.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('mousedown', down); window.removeEventListener('keydown', esc) }
+    return () => document.removeEventListener('mousedown', down)
   }, [open])
-  const pick = (m: Month) => { setOpen(false); if (m !== month) onChange(m) }
+  useEffect(() => { if (disabled) setOpen(false) }, [disabled]) // salvando: nada de trocar de mês pelo popover
+  const close = () => { setOpen(false); trigger.current?.focus() }
+  const pick = (m: Month) => { close(); if (m !== month) onChange(m) }
   const now = thisMonth()
 
   return (
-    <div className="month-nav" ref={box}>
+    // Esc fecha só o popover (não chega aos atalhos da tela)
+    <div className="month-nav" ref={box} onKeyDown={e => { if (e.key === 'Escape' && open) { e.stopPropagation(); close() } }}>
       <button className="icon-btn sq" aria-label="Mês anterior" disabled={disabled} onClick={() => onChange(addMonths(month, -1))}><ChevronLeft size={14} aria-hidden /></button>
-      <button className="month-btn" aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={() => { setYear(Number(month.slice(0, 4))); setOpen(!open) }}>
+      <button ref={trigger} className="month-btn" aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={() => { setYear(Number(month.slice(0, 4))); setOpen(!open) }}>
         {label(month)}<ChevronDown size={12} aria-hidden />
       </button>
       <button className="icon-btn sq" aria-label="Próximo mês" disabled={disabled} onClick={() => onChange(addMonths(month, 1))}><ChevronRight size={14} aria-hidden /></button>

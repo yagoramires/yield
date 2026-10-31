@@ -11,12 +11,13 @@ export function Sidebar({ route, onNavigate, open = false }: { route: Route; onN
   const ai = useAiSettings() // Assistente só aparece para quem escolheu usar IA
   const { mini: saved, toggle } = useSidebarMini()
   const mini = saved && !open // o menu aberto no celular é sempre o completo
+  const collapse = <button className="icon-btn sq menu-collapse" aria-label={mini ? 'Expandir menu' : 'Recolher menu'} title={mini ? 'Expandir menu' : 'Recolher menu'} onClick={toggle}>
+        {mini ? <PanelLeftOpen size={14} aria-hidden /> : <PanelLeftClose size={14} aria-hidden />}
+      </button>
   return (
     <nav id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}${mini ? ' mini' : ''}`}>
-      {/* aberto: recolher ao lado do olho; recolhido: o botão de expandir fica no topo (order no CSS) */}
-      <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div><ThemeToggle /><EyeToggle /><button className="icon-btn sq menu-collapse" aria-label={mini ? 'Expandir menu' : 'Recolher menu'} title={mini ? 'Expandir menu' : 'Recolher menu'} onClick={toggle}>
-        {mini ? <PanelLeftOpen size={14} aria-hidden /> : <PanelLeftClose size={14} aria-hidden />}
-      </button></div>
+      {/* aberto: yield. · tema · olho · recolher; recolhido (em coluna): y. · expandir · tema · olho — a ordem do Tab é a da tela */}
+      <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div>{mini && collapse}<ThemeToggle /><EyeToggle />{!mini && collapse}</div>
       {ROUTES.filter(g => enabled(g.module) && (g.page !== 'Assistente' || ai.off === false)).map(({ page, items }) => (
         <div key={page} style={{ display: 'contents' }}>
           <div className={items.some(i => i.route === route) ? 'group on' : 'group'}>{page}</div>

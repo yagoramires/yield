@@ -57,11 +57,15 @@ export async function addLines(db: Db, month: Month, lines: Omit<BudgetLine, 'id
   for (const l of lines) await insertLine(db, crypto.randomUUID(), { ...l, month })
 }
 
-/** Apaga o mês com as linhas (cascata) e as sugestões descartadas dele; as metas ficam, porque os meses seguintes as herdam. */
+/**
+ * Apaga o mês com as linhas e as sugestões descartadas dele; as metas ficam, porque os meses seguintes as herdam.
+ * Sem transação (o plugin usa um pool de conexões, e BEGIN numa não vale para a próxima): a ordem é a que, se parar no meio,
+ * não deixa um mês visível pela metade — primeiro o que some sem ninguém ver, por último as linhas, já sem mês.
+ */
 export async function deleteMonth(db: Db, month: Month): Promise<void> {
-  await db.execute('DELETE FROM budget_lines WHERE month = ?', [month]) // sem depender do PRAGMA foreign_keys da conexão
   await db.execute('DELETE FROM budget_dismissals WHERE month = ?', [month])
-  await db.execute('DELETE FROM budget_months WHERE month = ?', [month])
+  await db.execute('DELETE FROM budget_months WHERE month = ?', [month]) // com foreign_keys ligado, já leva as linhas
+  await db.execute('DELETE FROM budget_lines WHERE month = ?', [month]) // sem depender do PRAGMA da conexão
 }
 
 export async function saveLine(db: Db, line: Omit<BudgetLine, 'id'> & { id?: string }): Promise<string> {
