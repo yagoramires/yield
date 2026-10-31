@@ -8,7 +8,7 @@ export interface Db {
 
 export const SCHEMA_VERSION = 18
 
-// Com `path` abre outro arquivo (backup), sem rodar a migração do app.
+// Só abre o arquivo: quem abre o banco de um perfil roda o `migrateOnce`; um backup é aberto sem migrar.
 export async function openDb(path = 'sqlite:yield.db'): Promise<Db> {
   const d = await Database.load(path)
   await d.execute('PRAGMA foreign_keys = ON')

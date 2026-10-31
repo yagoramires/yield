@@ -1,10 +1,11 @@
 import { useSyncExternalStore } from 'react'
+import { scoped } from '../profiles/active'
 
-/** Escolhas da IA local. São desta máquina (o modelo baixado mora nela), por isso ficam fora do banco e do backup. */
+/** Escolhas da IA local. São de cada perfil, nesta máquina (o modelo baixado mora nela), por isso ficam fora do banco e do backup. */
 /** `off`: null enquanto a pessoa não respondeu se quer usar IA (o app pergunta na abertura). */
 export interface AiSettings { modelId: string | null; tokS: number | null; off: boolean | null }
 
-const KEY = 'yield.ia'
+const KEY = scoped('yield.ia')
 const DEFAULT: AiSettings = { modelId: null, tokS: null, off: null }
 let current: AiSettings = (() => { try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') } } catch { return DEFAULT } })()
 const listeners = new Set<() => void>()

@@ -10,13 +10,14 @@ import { CategoryIcon } from '../ui/CategoryIcon'
 import { categoryStrip, cleanDescription, filterTxns, groupByDay, NO_FILTER, ruleFor, shortAccountLabel, suggestRulePattern, type TxnFilter } from './lancamentos/build'
 import { CategoryPicker } from './lancamentos/CategoryPicker'
 import { errText, GastosHeader, GastosVazio } from './lancamentos/GastosHeader'
+import { scoped } from '../profiles/active'
 
 const signed = (c: number) => (c < 0 ? `−${formatCents(-c)}` : c > 0 ? `+${formatCents(c)}` : '—')
 const dayTitle = (iso: string) => {
   const s = new Date(`${iso}T12:00:00`).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
   return s[0].toUpperCase() + s.slice(1)
 }
-const HINT_KEY = 'yield.dicaEmpresaDispensada'
+const HINT_KEY = scoped('yield.dicaEmpresaDispensada')
 const KINDS: [TxnFilter['accountKind'], string][] = [['todas', 'Tudo'], ['conta', 'Contas'], ['cartao', 'Cartões']]
 
 export function Lancamentos({ onOpenSettings }: { onOpenSettings(): void }) {

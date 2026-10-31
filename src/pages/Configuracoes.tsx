@@ -4,9 +4,12 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { useEffect, useState } from 'react'
 import { BackupError, exportBackup, validateBackup } from '../db/backup'
 import { openDb, type Db } from '../db/client'
+import { migrateOnce } from '../db/migrate'
+import { MIGRATIONS } from '../db/migrations'
 import { renormalizeBrokers } from '../db/repo'
 import { repairCryptoSymbols } from '../quotes/yahoo'
 import { useData } from '../state/DataProvider'
+import { useProfiles } from '../profiles/Gate'
 import { backupPasswordError, refreshLine, restoreBackup } from './configuracoes/build'
 import { AtualizacaoCard } from '../ui/Atualizacao'
 import { FontesRenda, ImportarOrcamento } from './configuracoes/OrcamentoConfig'
@@ -16,6 +19,7 @@ import { Proventos } from './configuracoes/Proventos'
 import { Modulos } from './configuracoes/Modulos'
 import { Aparencia } from './configuracoes/Aparencia'
 import { IaLocal } from './configuracoes/IaLocal'
+import { Perfil } from './configuracoes/Perfil'
 import { useB3Import } from './configuracoes/useB3Import'
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -28,6 +32,7 @@ const BACKUP_FILTER = [{ name: 'Backup do Yield', extensions: ['yield', 'db'] }]
 
 export function Configuracoes() {
   const { data, db, reload, refreshing, refreshQuotesNow, lastRefresh } = useData()
+  const { dbFile } = useProfiles().profile
   const b3 = useB3Import()
   const [busy, setBusy] = useState(false) // backup em troca
   const [restore, setRestore] = useState<string | null>(null) // caminho do backup já validado, esperando confirmação
@@ -94,8 +99,9 @@ export function Configuracoes() {
       close: () => db.close(),
       swap: () => invoke<string>('swap_database', { source: restore }),
       // `load` do plugin sempre cria um pool novo e substitui o fechado no mapa pelo mesmo nome
-      // ('sqlite:yield.db'); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
-      reopen: async () => { const d = await openDb(); await renormalizeBrokers(d); await repairCryptoSymbols(d) }, // backup de versão antiga
+      // (`sqlite:<banco do perfil>`); o `db` do DataProvider resolve o pool por esse nome, então passa a ler o arquivo novo.
+      // backup de versão antiga (ou de outro perfil) sobe para a versão do app pelo `migrate`, em qualquer perfil
+      reopen: async () => { const d = await openDb(`sqlite:${dbFile}`); await migrateOnce(dbFile, d, MIGRATIONS); await renormalizeBrokers(d); await repairCryptoSymbols(d) },
       reload,
     })
     if (r.ok) setBackupMsg(r.message)
@@ -110,6 +116,7 @@ export function Configuracoes() {
     <>
       <h1>Configurações</h1>
       <div className="muted">Tudo fica neste computador. O app só fala com o Yahoo Finance (cotações), o Banco Central em api.bcb.gov.br (CDI), a Pluggy em api.pluggy.ai (leitura dos seus bancos), a Binance em api.binance.com (saldos de cripto) e o GitHub (atualizações do app).</div>
+      <Perfil />
       <div className="grid2" style={{ marginTop: 14 }}>
         <ImportarOrcamento />
 

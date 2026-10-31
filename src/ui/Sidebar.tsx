@@ -4,6 +4,7 @@ import { EyeToggle } from './HideValues'
 import { ThemeToggle } from './theme'
 import { useModules, useSidebarMini } from './prefs'
 import { SyncStatus } from './SyncStatus'
+import { ProfileSwitcher } from '../profiles/ProfileSwitcher'
 import { ROUTES, type Route } from './routes'
 import { useEffect, useRef } from 'react'
 
@@ -23,6 +24,7 @@ export function Sidebar({ route, onNavigate, open = false }: { route: Route; onN
     <nav ref={nav} id="app-navigation" aria-label="Navegação principal" className={`sidebar${open ? ' is-open' : ''}${mini ? ' mini' : ''}`}>
       {/* aberto: yield. · tema · olho · recolher; recolhido (em coluna): y. · expandir · tema · olho — a ordem do Tab é a da tela */}
       <div className="logo-row"><div className="logo">{mini ? 'y' : 'yield'}<b>.</b></div>{mini && collapse}<ThemeToggle /><EyeToggle />{!mini && collapse}</div>
+      <ProfileSwitcher mini={mini} />
       {ROUTES.filter(g => enabled(g.module) && (g.page !== 'Assistente' || ai.off === false)).map(({ page, items }) => (
         <div key={page} style={{ display: 'contents' }}>
           <div className={items.some(i => i.route === route) ? 'group on' : 'group'}>{page}</div>

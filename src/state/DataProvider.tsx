@@ -1,6 +1,9 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { openDb, type Db } from '../db/client'
+import { migrateOnce } from '../db/migrate'
+import { MIGRATIONS } from '../db/migrations'
+import { useProfiles } from '../profiles/Gate'
 import { loadAll, renormalizeBrokers, type Dataset, type ManualAsset } from '../db/repo'
 import { computeDarfs, type DarfResult } from '../domain/darf'
 import { replay, type ReplayResult } from '../domain/ledger'
@@ -76,6 +79,7 @@ export const todayISO = () => {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const { dbFile } = useProfiles().profile
   const [db, setDb] = useState<Db | null>(null)
   const [data, setData] = useState<Dataset | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -176,7 +180,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     ;(async () => {
       try {
-        const d = await openDb() // a migração só roda aqui, no primeiro Database.load
+        // todo banco de perfil é migrado aqui, pelo `meta.schema_version` (o plugin não migra nenhum)
+        const d = await openDb(`sqlite:${dbFile}`)
+        await migrateOnce(dbFile, d, MIGRATIONS)
         if (cancelled) return
         dbRef.current = d
         setDb(d)
@@ -206,11 +212,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }
         }, REFRESH_MS)
       } catch (e) {
-        setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
+        if (!cancelled) setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
       }
     })()
     return () => { cancelled = true; if (timer) clearInterval(timer) }
-  }, [refreshQuotesNow, syncNow, syncBinance])
+  }, [dbFile, refreshQuotesNow, syncNow, syncBinance])
 
   // replay, imposto e DARF só dependem da carteira: editar o orçamento não refaz essas contas
   const core = useMemo(() => {

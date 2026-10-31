@@ -1,13 +1,14 @@
 import { useSyncExternalStore } from 'react'
 import type { Module } from './routes'
+import { scoped } from '../profiles/active'
 
 // Preferências de tela guardadas no aparelho (módulos desligados, menu recolhido); storage pode falhar e aí vale o padrão.
 function store<T>(key: string, fallback: T) {
-  let value: T = (() => { try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v) as T } catch { return fallback } })()
+  let value: T = (() => { try { const v = localStorage.getItem(scoped(key)); return v === null ? fallback : JSON.parse(v) as T } catch { return fallback } })()
   const listeners = new Set<() => void>()
   return {
     get: () => value,
-    set: (v: T) => { value = v; try { localStorage.setItem(key, JSON.stringify(v)) } catch { /* sem storage: vale até fechar */ } listeners.forEach(l => l()) },
+    set: (v: T) => { value = v; try { localStorage.setItem(scoped(key), JSON.stringify(v)) } catch { /* sem storage: vale até fechar */ } listeners.forEach(l => l()) },
     subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } },
   }
 }
