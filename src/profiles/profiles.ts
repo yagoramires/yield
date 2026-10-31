@@ -54,6 +54,8 @@ export const legacyProfile = (name: string, now: string): Profile =>
 export const ensureLegacy = (f: ProfilesFile, now: string): ProfilesFile =>
   f.profiles.length === 0 ? { version: 1, profiles: [legacyProfile(DEFAULT_NAME, now)] } : f
 
+export const randomId = (): string => crypto.randomUUID().replace(/-/g, '').toLowerCase()
+
 export function newProfile(input: { name: string; color: string; avatar: string | null }, now: string, randomId: () => string): Profile {
   const id = randomId()
   return { id, name: input.name.trim(), color: input.color, avatar: input.avatar, dbFile: `perfil-${id}.db`, createdAt: now }

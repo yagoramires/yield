@@ -811,4 +811,4 @@ tr.hl td { background: var(--neg-bg); }
 .prof-optn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar.mini .prof-box { margin: 0 0 10px; }
 .sidebar.mini .prof-btn { width: auto; padding: 3px; border-radius: 50%; }
-.sidebar.mini .prof-pop { left: 0; right: auto; width: 190px; }
+.sidebar.mini .prof-pop { position: fixed; right: auto; width: 190px; } /* left e top vêm do botão */

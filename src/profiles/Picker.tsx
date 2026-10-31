@@ -1,9 +1,9 @@
 import { Plus } from 'lucide-react'
 import { useState } from 'react'
-import { markChosen, switchTo } from './active'
+import { createAndSwitch, markChosen, switchTo } from './active'
 import { Avatar } from './ProfileAvatar'
 import { ProfileForm } from './ProfileForm'
-import { newProfile, type Profile } from './profiles'
+import type { Profile } from './profiles'
 import { saveProfiles } from './store'
 
 interface Props {
@@ -14,8 +14,6 @@ interface Props {
   onEnter(): void
 }
 
-export const randomId = () => crypto.randomUUID().replace(/-/g, '').toLowerCase()
-
 export function Picker({ profiles, activeId, onCreated, onEnter }: Props) {
   const [creating, setCreating] = useState(false)
 
@@ -23,12 +21,8 @@ export function Picker({ profiles, activeId, onCreated, onEnter }: Props) {
     if (p.id === activeId) { markChosen(p.id); onEnter() } else void switchTo(p.id)
   }
 
-  async function create(v: { name: string; color: string; avatar: string | null }) {
-    const p = newProfile(v, new Date().toISOString(), randomId)
-    await saveProfiles({ version: 1, profiles: [...profiles, p] })
-    onCreated(p)
-    await switchTo(p.id)
-  }
+  const create = (v: { name: string; color: string; avatar: string | null }) =>
+    createAndSwitch(profiles, v, async next => { await saveProfiles(next); onCreated(next.profiles[next.profiles.length - 1]) })
 
   return (
     <main className="profile-pick">
