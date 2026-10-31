@@ -20,7 +20,7 @@ export function Perfil() {
     <div className="card" style={{ marginTop: 14 }}>
       <b style={{ color: 'var(--strong)' }}>Perfil</b>
       <div className="muted" style={{ margin: '4px 0 12px' }}>Nome, cor e foto deste perfil</div>
-      <ProfileForm key={formKey} initial={profile} others={others} submitLabel="Salvar" onSubmit={salvar} onCancel={() => setFormKey(k => k + 1)} />
+      <ProfileForm key={formKey} initial={profile} others={others} submitLabel="Salvar" autoFocus={false} onSubmit={salvar} onCancel={() => setFormKey(k => k + 1)} />
       <div className="btns" style={{ marginTop: 14 }}>
         <button className="b danger" disabled={others.length === 0} title={others.length === 0 ? 'Pelo menos um perfil fica' : undefined} onClick={() => setDeleting(true)}>Apagar perfil…</button>
       </div>

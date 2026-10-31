@@ -16,6 +16,9 @@ export async function cropAvatar(file: File, size = 256): Promise<string> {
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error(UNREADABLE)
     const { sx, sy, side } = centerSquare(bitmap.width, bitmap.height)
+    // o JPEG não tem transparência: sem o fundo branco, o transparente do PNG vira preto
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, size, size)
     ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, size, size)
     return canvas.toDataURL('image/jpeg', 0.85)
   } finally { bitmap.close() }

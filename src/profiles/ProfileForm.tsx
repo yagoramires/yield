@@ -12,9 +12,11 @@ interface Props {
   submitLabel: string
   onSubmit(v: { name: string; color: string; avatar: string | null }): Promise<void>
   onCancel(): void
+  /** Falso onde o formulário já aparece aberto na tela (Configurações), para não roubar o foco ao entrar nela. */
+  autoFocus?: boolean
 }
 
-export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel }: Props) {
+export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, autoFocus = true }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
   const [color, setColor] = useState(initial?.color ?? PROFILE_COLORS[0])
   const [avatar, setAvatar] = useState<string | null>(initial?.avatar ?? null)
@@ -53,7 +55,7 @@ export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel }
       <div className="profile-form-fields">
         <label className="field">
           <span>Nome</span>
-          <input className="in" autoFocus maxLength={30} value={name} aria-invalid={nameError !== null} aria-describedby={nameError ? 'profile-name-err' : undefined}
+          <input className="in" autoFocus={autoFocus} maxLength={30} value={name} aria-invalid={nameError !== null} aria-describedby={nameError ? 'profile-name-err' : undefined}
             onChange={e => { setName(e.target.value); setNameError(null) }} />
         </label>
         {nameError && <div id="profile-name-err" className="profile-err" role="alert">{nameError}</div>}
