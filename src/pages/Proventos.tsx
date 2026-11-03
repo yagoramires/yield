@@ -95,11 +95,12 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
       {all.length === 0 ? <div className="info" style={{ marginTop: 14 }}>Nenhum provento ainda. Lance um provento ou importe os Proventos Recebidos da B3.</div> : (<>
         <Insights area="proventos" month={thisMonth} onNavigate={onNavigate} />
         <div className="kpis">
+          <div className="k"><div className="muted">{monthName(thisMonth)}</div><div className="v">{formatBRL(total(months[months.length - 1], months.length - 1))}</div>
+            <div className="s muted">até hoje · {monthName(months[months.length - 2].month).toLowerCase()} {formatBRL(total(months[months.length - 2], months.length - 2))}</div></div>
           <div className="k"><div className="muted">Últimos 12 meses</div><div className="v">{formatBRL(sm.last12Cents)}</div><div className="s muted">média {formatBRL(sm.avg12Cents)}/mês</div></div>
           <div className="k"><div className="muted">{sm.year} até hoje</div><div className="v">{formatBRL(sm.ytdCents)}</div>
             <div className={`s ${ytdDiff === null ? 'muted' : ytdDiff >= 0 ? 'up' : 'dn'}`}>{ytdDiff === null ? 'sem dados do ano passado' : `${signedPct(ytdDiff)} sobre ${Number(sm.year) - 1} no mesmo período`}</div></div>
           <div className="k"><div className="muted">Rendimento sobre o custo</div><div className="v">{yoc.total === null ? '—' : pct(yoc.total)}</div><div className="s muted">12 meses ÷ custo da carteira atual</div></div>
-          <div className="k"><div className="muted">Maior pagador (12 meses)</div><div className="v">{sm.top?.ticker ?? '—'}</div><div className="s muted">{sm.top ? `${formatBRL(sm.top.totalCents)} · ${pct(sm.top.totalCents / sm.last12Cents)} do total` : ''}</div></div>
         </div>
         <Sections page="proventos" items={[
           { id: 'por-mes', label: 'Proventos por mês', wide: true, node: (
