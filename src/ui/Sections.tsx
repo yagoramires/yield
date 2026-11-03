@@ -15,13 +15,16 @@ export function Sections({ page, items }: { page: string; items: Item[] }) {
   const [flipped, saveFlipped] = useSectionOrder(`${page}.largura`) // ids com a largura trocada em relação à de fábrica
   const [drag, setDrag] = useState<string | null>(null)
   const [over, setOver] = useState<string | null>(null) // o bloco que cede o lugar
+  const overRef = useRef<string | null>(null) // o pointerup pode chegar antes do render do último pointermove
   const root = useRef<HTMLDivElement>(null)
   const refocus = useRef<string | null>(null)
   // a ordem vale para todos os ids; some da tela quem não tem o que mostrar (bloco condicional), mas guarda o lugar
   const order = orderIds(items.map(i => i.id), saved)
   const byId = new Map(items.map(i => [i.id, i]))
   const seq = order.filter(id => byId.get(id)?.node)
-  const reset = () => { setDrag(null); setOver(null) }
+  const reset = () => { setDrag(null); setOver(null); overRef.current = null }
+  // bloco cujo componente não desenhou nada fica escondido pelo CSS: as setas pulam ele
+  const shown = () => seq.filter(x => root.current?.querySelector<HTMLElement>(`[data-sec="${x}"]`)?.offsetParent != null)
   // o bloco troca de lugar no DOM e a alça perde o foco: devolve a quem usa o teclado
   useEffect(() => { if (refocus.current) { root.current?.querySelector<HTMLElement>(`[data-grip="${refocus.current}"]`)?.focus(); refocus.current = null } })
 
@@ -33,19 +36,20 @@ export function Sections({ page, items }: { page: string; items: Item[] }) {
   const card = (id: string) => {
     const { label, node, wide } = byId.get(id)!
     const isWide = !!wide !== flipped.includes(id)
-    const i = seq.indexOf(id)
     return (
       <div key={id} data-sec={id} className={`sec${isWide ? ' wide' : ''}${drag === id ? ' dragging' : ''}${drag && drag !== id && over === id ? ' drop' : ''}`}>
         <div className="sec-tools">
           <button
             className="sec-grip" data-grip={id}
             aria-label={`Mover ${label}`} title="Arraste para mudar de lugar (ou use as setas)"
-            onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); setDrag(id) }}
-            onPointerMove={e => { if (drag) setOver(pick(e.clientX, e.clientY)) }}
-            onPointerUp={() => { if (drag && over) save(moveId(order, drag, over)); reset() }}
+            onPointerDown={e => { if (e.button !== 0) return; e.currentTarget.setPointerCapture(e.pointerId); setDrag(id) }}
+            onPointerMove={e => { if (drag) setOver(overRef.current = pick(e.clientX, e.clientY)) }}
+            onPointerUp={() => { if (drag && overRef.current) save(moveId(order, drag, overRef.current)); reset() }}
             onPointerCancel={reset}
+            onLostPointerCapture={reset}
             onKeyDown={e => {
-              const t = seq[i + ({ ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key] ?? NaN)]
+              const vis = shown()
+              const t = vis[vis.indexOf(id) + ({ ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1 }[e.key] ?? NaN)]
               if (!t) return
               e.preventDefault(); refocus.current = id; save(moveId(order, id, t))
             }}

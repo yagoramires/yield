@@ -173,8 +173,8 @@ tr.hl td { background: var(--neg-bg); }
 .sec:not(:has(> :not(.sec-tools))) { display: none; }
 /* os blocos traziam margem de quando ficavam empilhados: o espaço agora é o gap do grid */
 .sec > :not(.sec-tools) { flex: 1 1 auto; margin: 0 !important; }
-.sec-tools { position: absolute; left: 50%; top: 1px; z-index: 1; transform: translateX(-50%); display: flex; gap: 2px; opacity: 0; }
-.sec:hover > .sec-tools, .sec-tools:focus-within, .sec.dragging > .sec-tools { opacity: 1; }
+.sec-tools { position: absolute; left: 50%; top: 1px; z-index: 1; transform: translateX(-50%); display: flex; gap: 2px; opacity: 0; pointer-events: none; }
+.sec:hover > .sec-tools, .sec-tools:focus-within, .sec.dragging > .sec-tools { opacity: 1; pointer-events: auto; }
 .sec-tools button { padding: 0 6px; line-height: 0; border: 0; border-radius: 4px; background: none; color: var(--faint); cursor: pointer; }
 .sec-tools button:hover { color: var(--text); }
 .sec-grip { cursor: grab !important; touch-action: none; }
@@ -401,7 +401,7 @@ tr.hl td { background: var(--neg-bg); }
 .share span { color: var(--faint); font-size: 11px; width: 30px; }
 .sact { display: flex; gap: 4px; opacity: 0; transition: opacity .1s; }
 .srow:hover .sact, .srow:focus-within .sact { opacity: 1; }
-@media (hover: none) { .sact, .tile-edit, .off-edit { opacity: 1; } }
+@media (hover: none) { .sact, .tile-edit, .off-edit, .sec-tools { opacity: 1; } .sec-tools { pointer-events: auto; } }
 .icon-btn.sq { width: var(--ctl-sm); height: var(--ctl-sm); border-radius: 8px; background: var(--sidebar); }
 .icon-btn.del:hover { color: var(--negative); border-color: var(--neg-line); }
 .srow .lval small { display: block; color: var(--faint); font-size: 11px; font-weight: 400; }
@@ -639,8 +639,6 @@ tr.hl td { background: var(--neg-bg); }
 }
 
 /* Proventos: "Por ano" estreito ao lado da lista */
-.prov-grid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2.4fr); gap: 12px; margin-top: 12px; align-items: start; }
-@media (max-width: 900px) { .prov-grid { grid-template-columns: 1fr; } }
 
 /* saldo nas contas (Orçamento), um bloco por banco */
 .bal-total { font-size: 20px; font-weight: 650; color: var(--strong); font-variant-numeric: tabular-nums; margin: 6px 0 8px; }
