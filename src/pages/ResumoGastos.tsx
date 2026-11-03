@@ -1,4 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, CircleHelp, PiggyBank, Target } from 'lucide-react'
+import { Sections } from '../ui/Sections'
 import { Insights } from './assistente/Insights'
 import type { Route } from '../ui/routes'
 import { goalsFor } from '../domain/orcamento'
@@ -85,8 +86,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
           </>}
         </div>
       </div>
-
-      {(() => {
+      <Sections page="gastos-resumo" items={[
+        { id: 'saldo', label: 'Saldo nas contas', wide: true, node: (() => {
         // saldo como a Pluggy informou na última sincronização; conta importada por arquivo não tem saldo
         // só contas de bancos ainda conectados: as de um banco removido ficam no banco de dados com o saldo antigo
         const live = data.accounts.filter(a => a.source !== 'pluggy' || data.pluggyItems.some(i => i.itemId === a.itemId))
@@ -108,9 +109,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
             <div className="bal-list">{contas.map(a => row(a, false))}{cartoes.map(a => row(a, true))}</div>
           </div>
         )
-      })()}
-
-      {changes.length > 0 && (
+      })() },
+        { id: 'mudancas', label: 'O que mais mudou', wide: true, node: changes.length > 0 && (
         <div className="card changes">
           <div className="bar"><h5 style={{ margin: 0 }}>O que mais mudou vs {prevName}{isCurrent ? ` até o dia ${cmp.day}` : ''}</h5><span className="muted">clique para ver os lançamentos</span></div>
           <div className="change-chips">
@@ -126,9 +126,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
             })}
           </div>
         </div>
-      )}
-
-      <div className="grid2">
+      ) },
+        { id: 'acumulado', label: 'Gasto acumulado no mês', node: (
         <div className="card stretch">
           <div className="bar"><h5 style={{ margin: 0 }}>Gasto acumulado no mês</h5><span className="muted">tracejado = {prevName}</span></div>
           <LineChart fill
@@ -136,7 +135,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
             xLabels={Array.from({ length: n }, (_, i) => String(i + 1))} xTicks={[0, 10, 20, n - 1]} tipTitle={i => `dia ${i + 1}`}
             marker={isCurrent ? cmp.day - 1 : undefined} format={cents} tickFormat={short}
             ariaLabel={`Gasto acumulado: ${cur} ${brl(cmp.currentCents)} até o dia ${cmp.day}; ${prevName} ${brl(cmp.previousSameDayCents)} no mesmo dia e ${brl(prevLine[prevLine.length - 1])} no fim do mês`} />
-        </div>
+        </div>) },
+        { id: 'categorias', label: 'Por categoria', node: (
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Por categoria</h5><span className="muted">clique para ver os lançamentos</span></div>
           {totals.byCategory.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum gasto neste mês.</div> : (
@@ -158,10 +158,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
               })}
             </div>
           )}
-        </div>
-      </div>
-
-      <div className="grid2" style={{ marginTop: 12 }}>
+        </div>) },
+        { id: 'por-mes', label: 'Gasto por mês', node: (
         <div className="card stretch">
           <div className="bar"><h5 style={{ margin: 0 }}>Gasto por mês</h5><span className="muted">clique num mês para ver o resumo dele{months.some(m => plannedFor(m.month) > 0) ? ' · traço = orçamento' : ''}{months.some(m => m.month === thisMonth) ? ` · ${monthName(thisMonth).toLowerCase()} até hoje (listrado)` : ''}</span></div>
           <BarChart fill format={brl} valueLabel={short} selected={months.some(m => m.month === month) ? months.findIndex(m => m.month === month) : null} onSelect={i => setMonth(months[i].month)} ariaLabel={`Gasto por mês: ${months.map(m => `${monthName(m.month).toLowerCase()} ${brl(m.cents)}`).join('; ')}`}
@@ -170,7 +168,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
               const target = plannedFor(m.month) || undefined
               return { label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.cents], partial, target, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${partial ? ' até hoje' : ''}` }
             })} />
-        </div>
+        </div>) },
+        { id: 'maiores', label: 'Maiores gastos do mês', node: (
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Maiores gastos do mês</h5><span className="muted">clique para ver em Lançamentos</span></div>
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum gasto neste mês.</div> : (
@@ -191,8 +190,8 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
             <div className="bar" style={{ marginTop: 12 }}><h5 style={{ margin: 0 }}>Próximas cobranças</h5><button className="link muted" onClick={onOpenAssinaturas}>assinaturas</button></div>
             <NextCharges list={soon} today={today} three format={cents} />
           </>}
-        </div>
-      </div>
+        </div>) },
+      ]} />
       <div className="muted" style={{ marginTop: 8 }}>Pagamento de fatura, transferências e investimentos não entram no gasto.</div>
     </>
   )

@@ -31,6 +31,16 @@ export function useModules() {
   }
 }
 
+// ordem das seções de cada tela (ids), por perfil; vazio = ordem de fábrica
+const sections = store<Record<string, string[]>>('yield.ordemSecoes', {})
+
+export function useSectionOrder(page: string) {
+  const raw = useSyncExternalStore(sections.subscribe, sections.get)
+  const all = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const saved = Array.isArray(all[page]) ? all[page].filter(s => typeof s === 'string') : []
+  return [saved, (order: string[]) => sections.set({ ...all, [page]: order })] as const
+}
+
 export function useSidebarMini() {
   const v = useSyncExternalStore(mini.subscribe, mini.get)
   return { mini: v, toggle: () => mini.set(!v) }

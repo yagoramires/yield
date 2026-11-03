@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react'
+import { Sections } from '../ui/Sections'
 import { Insights } from './assistente/Insights'
 import type { Route } from '../ui/routes'
 import { ChevronRight, Plus } from 'lucide-react'
@@ -441,9 +442,8 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
         </div>
       )}
 
-      <div className="grid2" style={{ alignItems: 'start' }}>
-        <div>
-          {block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
+      <Sections page="orcamento" split={2} items={[
+          { id: 'entradas', label: 'Entradas', node: block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
             empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Renda e orçamento e eles entram sozinhos todo mês.',
             add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
             hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={() => onOpenSettings('contas')}>Cadastre seu nome e o da sua empresa</button> em Configurações › Contas conectadas: o que vier deles sai daqui.</>,
@@ -465,7 +465,8 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
                 <td className="r">{formatCents(t.amountCents)}</td>
               </tr>
             )),
-          })}
+          }) },
+          { id: 'custos', label: 'Custos', node: (
           <div className="card" style={{ marginBottom: 12 }}>
             <div className="bar">
               <h5 style={{ margin: 0 }}>Custos <span className="muted" style={{ fontWeight: 400 }}>{lower(month)}</span></h5>
@@ -507,25 +508,22 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
               </tbody>
             </table>
             {del && del.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel') && confirmDel(del)}
-          </div>
-        </div>
-        <div>
-          {block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
+          </div>) },
+          { id: 'investimentos', label: 'Investimentos', node: block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
             empty: 'Nada investido neste mês ainda.',
             goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
             hint: inv.groups.length > 0 && 'aplicado − resgatado no mês · caixinha que entra e sai: passe o mouse na linha e marque como reserva',
             extra: inv.groups.length > 0 && inv.groups.flatMap(g => groupRow(g, false)),
-          })}
-          {reservaGroups.length > 0 && (
+          }) },
+          { id: 'reserva', label: 'Reserva', node: reservaGroups.length > 0 && (
             <div className="card" style={{ marginBottom: 12 }}>
               <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
               <div className="muted" style={{ marginTop: 4 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
               <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
             </div>
-          )}
-          {block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' })}
-        </div>
-      </div>
+          ) },
+          { id: 'parcelas', label: 'Parcelas', node: block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' }) },
+        ]} />
     </>
   )
 }
