@@ -27,6 +27,9 @@ import { binanceErrorText, costSummaryText } from '../pages/configuracoes/build'
 import { SYNC_EVERY_MS, syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
+import { loadBens, type Possession } from '../db/bensRepo'
+import { purchases, type Purchase } from '../domain/parcelas'
+import { autoPlan } from './autoPlan'
 import { bankAssets, reservaInvestments } from '../domain/bancoInvest'
 import { defaultMonth } from '../pages/orcamento/build'
 
@@ -35,6 +38,7 @@ export interface Gastos {
   categorize(t: Txn): Category | null
   transfers: Map<string, TransferLink> // id do lançamento → o outro lado do par entre contas suas
   subscriptions: Subscription[]
+  purchases: Purchase[] // compras parceladas no cartão, calculadas uma vez por mudança nos lançamentos
   syncing: boolean
   lastSyncResult: SyncResult | null
   syncNow(): Promise<void>
@@ -46,6 +50,7 @@ export interface Gastos {
 
 export interface Orcamento {
   data: OrcamentoData
+  autoRemoved: string[] // parcelas que o plano automático tirou nesta sessão (quitadas ou repetidas)
   month: Month
   setMonth(m: Month): void
   reload(): Promise<void>
@@ -61,6 +66,7 @@ export interface AppData {
   lastRefresh: { at: string; ok: string[]; failed: string[] } | null
   gastos: Gastos
   orcamento: Orcamento
+  bens: { list: Possession[]; reload(): Promise<void> }
   binance: { syncing: boolean; error: string | null; earnSkipped: boolean; syncNow(): Promise<void>; reset(): void
     cost: { loading: boolean; note: string | null; progress: string | null }; fetchCost(): Promise<void> /* aportado pelo histórico: só quando o dono pede */ }
 }
@@ -94,18 +100,25 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [filter, setFilter] = useState<TxnFilter>(NO_FILTER)
   const [orcData, setOrcData] = useState<OrcamentoData | null>(null)
   const [orcMonth, setOrcMonth] = useState<Month | null>(null) // null: defaultMonth até o usuário navegar
+  const [bens, setBens] = useState<Possession[] | null>(null)
+  const [autoRemoved, setAutoRemoved] = useState<string[]>([])
+  const autoRuns = useRef({ running: false, again: false, streak: 0 })
   const dbRef = useRef<Db | null>(null)
   const syncingRef = useRef(false)
 
   const reload = useCallback(async () => {
     const d = dbRef.current
     if (!d) return
-    const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
-    setData(ds); setGastosData(g); setOrcData(o)
+    const [ds, g, o, b] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d), loadBens(d)])
+    setData(ds); setGastosData(g); setOrcData(o); setBens(b)
   }, [])
 
   const reloadOrcamento = useCallback(async () => {
     if (dbRef.current) setOrcData(await loadOrcamento(dbRef.current))
+  }, [])
+
+  const reloadBens = useCallback(async () => {
+    if (dbRef.current) setBens(await loadBens(dbRef.current))
   }, [])
 
   // Erros (inclusive credencial ausente) vão para lastSyncResult.errors e aparecem na linha de avisos.
@@ -188,8 +201,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         setDb(d)
         await renormalizeBrokers(d)
         await repairCryptoSymbols(d)
-        const [ds, g, o] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d)])
-        setData(ds); setGastosData(g); setOrcData(o)
+        const [ds, g, o, b] = await Promise.all([loadAll(d), loadGastos(d), loadOrcamento(d), loadBens(d)])
+        setData(ds); setGastosData(g); setOrcData(o); setBens(b)
         // a Binance só é lida na abertura de quem já salvou saldos (evita pedir o Keychain a quem não usa)
         void (ds.cryptoBalances.some(c => c.qty > 0) ? syncBinance().then(refreshQuotesNow) : refreshQuotesNow())
         if (needsSync(g, Date.now())) {
@@ -251,18 +264,35 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     const byId = new Map(gastosData.txns.map(t => [t.id, of(t)]))
     const cat = (t: Txn) => (byId.has(t.id) ? byId.get(t.id)! : of(t))
-    return { categorize: cat, transfers, subscriptions: detectSubscriptions(gastosData.txns, cat, gastosData.dismissed, todayISO()) }
+    return { categorize: cat, transfers, subscriptions: detectSubscriptions(gastosData.txns, cat, gastosData.dismissed, todayISO(), gastosData.canceledSubs), purchases: purchases(gastosData.txns, todayISO()) }
   }, [gastosData])
 
+  // o plano se mantém sozinho a cada mudança nos dados; `streak` corta um laço se uma rodada sempre achar o que mudar
+  useEffect(() => {
+    const d = dbRef.current, run = autoRuns.current
+    if (!d || !orcData || !gastosData || !gastosDerived || !bens || run.streak >= 3) return
+    if (run.running) { run.again = true; return } // dados mudaram no meio da rodada: roda de novo no fim
+    run.running = true
+    autoPlan(d, orcData, gastosData, gastosDerived.categorize, gastosDerived.subscriptions, bens, todayISO(), gastosDerived.purchases)
+      .then(async r => {
+        if (r.removed.length) setAutoRemoved(x => [...new Set([...x, ...r.removed])])
+        run.streak = r.changed ? run.streak + 1 : 0
+        if (r.changed) await reloadOrcamento()
+      })
+      .catch(() => { run.streak = 3 }) // falhou: o plano à mão continua funcionando, sem tentar de novo nesta sessão
+      .finally(() => { run.running = false; if (run.again) { run.again = false; void reloadOrcamento() } })
+  }, [orcData, gastosData, gastosDerived, bens, reloadOrcamento])
+
   const value = useMemo<AppData | null>(() => {
-    if (!db || !data || !derived || !gastosData || !gastosDerived || !orcData) return null
+    if (!db || !data || !derived || !gastosData || !gastosDerived || !orcData || !bens) return null
     return {
       data, db, reload, refreshing, refreshQuotesNow, lastRefresh, derived,
       gastos: { data: gastosData, ...gastosDerived, syncing, lastSyncResult, syncNow, month, setMonth, filter, setFilter },
-      orcamento: { data: orcData, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
+      orcamento: { data: orcData, autoRemoved, month: orcMonth ?? defaultMonth(orcData.months, todayISO()), setMonth: setOrcMonth, reload: reloadOrcamento },
+      bens: { list: bens, reload: reloadBens },
       binance: { ...binance, syncNow: syncBinance, reset: () => { setBinance({ syncing: false, error: null, earnSkipped: false }); setCostState({ loading: false, note: null, progress: null }) }, cost: costState, fetchCost: fetchCryptoCost },
     }
-  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, orcMonth, reloadOrcamento, binance, syncBinance, costState, fetchCryptoCost])
+  }, [db, data, derived, gastosData, gastosDerived, reload, refreshing, refreshQuotesNow, lastRefresh, syncing, lastSyncResult, syncNow, month, filter, orcData, autoRemoved, orcMonth, reloadOrcamento, bens, reloadBens, binance, syncBinance, costState, fetchCryptoCost])
 
   if (error) return <main className="main"><h1>Yield</h1><div className="note" style={{ marginTop: 10 }}>{error}</div></main>
   if (!value) return <main className="main"><div className="muted">Abrindo dados…</div></main>

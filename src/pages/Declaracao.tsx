@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loadCadastro, type Broker, type Issuer } from '../db/irRepo'
 import { BEM_CODES, bensDoAno, discriminacao, discriminacaoRf, LOCALIZACAO, lucroIsentoDoAno, pendencias, RF_CODES, rendaFixaDoAno, rendaVariavelDoAno, rendimentosDoAno, rendimentosRfDoAno, type Bem, type TipoRf } from '../domain/declaracao'
 import { rfInstitution } from '../domain/rendaFixa'
+import { irDiscriminacao, irSituacao, KIND } from '../domain/bens'
+import type { PossessionKind } from '../db/bensRepo'
 import { normalizeBroker } from '../import/parse'
 import { editCents, formatBRL, formatCents } from '../domain/money'
 import type { AssetType } from '../domain/types'
@@ -23,7 +25,7 @@ const Avatar = ({ b, size = 32 }: { b: Bem; size?: number }) => (
 )
 
 export function Declaracao() {
-  const { db, data, derived } = useData()
+  const { db, data, derived, bens: meusBens } = useData()
   const thisYear = Number(todayISO().slice(0, 4))
   const firstYear = Math.min(thisYear - 1, ...data.trades.map(t => Number(t.settleDate.slice(0, 4))), ...data.rfMoves.map(m => Number(m.date.slice(0, 4))))
   const [year, setYear] = useState(thisYear - 1)
@@ -53,15 +55,18 @@ export function Declaracao() {
   const pend = pendencias(bens, rendimentos, issuersEff, brokers)
   const pendCount = pend.tickers.length + pend.brokers.length
 
-  const total = bens.reduce((s, b) => s + b.costCents, 0) + rf.reduce((s, b) => s + b.appliedCents, 0)
-  const totalPrev = bens.reduce((s, b) => s + b.costPrevCents, 0) + rf.reduce((s, b) => s + b.appliedPrevCents, 0)
+  // bens cadastrados em Meus bens: situação em 31/12 pelo custo (financiado, pelo que já foi pago)
+  const fisicos = meusBens.list.flatMap(p => { const cur = irSituacao(p, year); return cur ? [{ p, cents: cur.cents, prevCents: irSituacao(p, year - 1)?.cents ?? 0 }] : [] })
+  const total = bens.reduce((s, b) => s + b.costCents, 0) + rf.reduce((s, b) => s + b.appliedCents, 0) + fisicos.reduce((s, b) => s + b.cents, 0)
+  const totalPrev = bens.reduce((s, b) => s + b.costPrevCents, 0) + rf.reduce((s, b) => s + b.appliedPrevCents, 0) + fisicos.reduce((s, b) => s + b.prevCents, 0)
   const isentos = [...rendimentos, ...rendimentosRf].filter(r => r.linha === '09' || r.linha === '26' || r.linha === '12').reduce((s, r) => s + r.cents, 0) + isento20
   const exclusiva = [...rendimentos, ...rendimentosRf].filter(r => r.linha === '10' || r.linha === '06')
   const darf = [...rv.comum, ...rv.fii].reduce((s, l) => s + l.darfPaidCents, 0)
   const sel = bens.find(b => b.ticker === picked) ?? bens[0]
   const cadTickers = useMemo(() => [...new Set([...data.trades.map(t => t.ticker), ...data.dividends.map(d => d.ticker)])].sort().map(ticker => ({ ticker, cls: types.get(ticker) ?? '' })), [data.trades, data.dividends, types])
 
-  const todas = bens.map(b => `${b.ticker} (${BEM_CODES[b.assetType].grupo}/${BEM_CODES[b.assetType].codigo})\n${discriminacao(b, year, issuerOf(b), brokers)}`).join('\n\n')
+  const todas = [...bens.map(b => `${b.ticker} (${BEM_CODES[b.assetType].grupo}/${BEM_CODES[b.assetType].codigo})\n${discriminacao(b, year, issuerOf(b), brokers)}`),
+    ...fisicos.map(({ p }) => `${p.name} (${KIND[p.kind].grupo}/${KIND[p.kind].codigo})\n${irDiscriminacao(p, year)}`)].join('\n\n')
   const tabs: [Tab, string][] = [['bens', 'Bens e Direitos'], ['rendimentos', 'Rendimentos'], ['rv', 'Renda variável'], ['cadastro', 'Cadastro']]
 
   return (
@@ -74,12 +79,12 @@ export function Declaracao() {
           <button className="icon-btn" aria-label="Próximo ano" disabled={year >= thisYear} onClick={() => { setYear(year + 1); setPicked(null) }}><ChevronRight size={14} aria-hidden /></button>
           <span className="muted">declaração entregue em {year + 1}</span>
         </div>
-        {bens.length > 0 && <CopyButton text={todas} label="Copiar todas as discriminações" what="todas as discriminações" />}
+        {(bens.length > 0 || fisicos.length > 0) && <CopyButton text={todas} label="Copiar todas as discriminações" what="todas as discriminações" />}
       </div>
 
       <div className="kpis">
         <div className="k"><div className="muted k-l"><Wallet size={12} aria-hidden />Bens em 31/12/{year}</div><div className="v">{formatBRL(total)}</div>
-          <div className="s muted">{bens.filter(b => b.qty > 0).length + rf.filter(b => b.qty > 0).length} ativos · era {formatBRL(totalPrev)} em {year - 1}</div></div>
+          <div className="s muted">{bens.filter(b => b.qty > 0).length + rf.filter(b => b.qty > 0).length + fisicos.length} {fisicos.length ? 'bens' : 'ativos'} · era {formatBRL(totalPrev)} em {year - 1}</div></div>
         <div className="k"><div className="muted k-l"><Coins size={12} aria-hidden />Rendimentos isentos</div><div className="v">{formatBRL(isentos)}</div>
           <div className="s muted">dividendos, FII, LCI/LCA e vendas até R$ 20 mil</div></div>
         <div className="k"><div className="muted k-l"><ReceiptText size={12} aria-hidden />Tributação exclusiva</div><div className="v">{formatBRL(exclusiva.reduce((s, r) => s + r.cents, 0))}</div>
@@ -89,7 +94,7 @@ export function Declaracao() {
       </div>
 
       <div className="info" style={{ marginBottom: 10 }}>
-        <b>O que entra aqui:</b> ações, FIIs, ETFs e BDRs na B3, e a renda fixa custodiada na B3 (Tesouro Direto, CDB, LCI/LCA, CRI/CRA, debêntures).{' '}
+        <b>O que entra aqui:</b> ações, FIIs, ETFs e BDRs na B3, a renda fixa custodiada na B3 (Tesouro Direto, CDB, LCI/LCA, CRI/CRA, debêntures) e os imóveis e veículos de Meus bens.{' '}
         <b>O que fica de fora:</b> conta corrente e poupança, renda fixa fora da B3 (CDB direto no banco, por exemplo), investimentos no exterior, cripto e previdência (PGBL/VGBL).
         Para esses, use o informe de rendimentos de cada instituição.
       </div>
@@ -105,7 +110,7 @@ export function Declaracao() {
         {tabs.map(([t, l]) => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{l}{t === 'cadastro' && pendCount > 0 && <i className="seg-n">{pendCount}</i>}</button>)}
       </div>
 
-      {tab === 'bens' && (bens.length === 0 && rf.length === 0 ? <div className="info">Nenhum ativo em bolsa em 31/12/{year - 1} nem em 31/12/{year}.</div> : (
+      {tab === 'bens' && (bens.length === 0 && rf.length === 0 && fisicos.length === 0 ? <div className="info">Nenhum ativo em bolsa nem bem cadastrado em 31/12/{year - 1} ou 31/12/{year}.</div> : (
         <div className="decl-cols picking">
           <div>
             {CLASSES.map(c => {
@@ -145,6 +150,27 @@ export function Declaracao() {
                 </div>
               )
             })}
+            {(Object.keys(KIND) as PossessionKind[]).map(k => {
+              const list = fisicos.filter(b => b.p.kind === k)
+              if (!list.length) return null
+              return (
+                <div key={k} className="day-card">
+                  <div className="day-h"><span>{KIND[k].label} · Grupo {KIND[k].grupo} · Código {KIND[k].codigo}</span><span>R$ {money(list.reduce((s, b) => s + b.cents, 0))}</span></div>
+                  {list.map(({ p, cents, prevCents }) => (
+                    <div key={p.id} className="srow bem-row">
+                      <span className="lmid"><span className="lname">{p.name}</span>
+                        <span className="lsub"><span>{p.installmentCents != null ? 'financiado: entrada e parcelas pagas até 31/12' : 'custo de aquisição'}</span></span></span>
+                      <span className="sum-val">{money(cents)}<small>era {money(prevCents)}</small></span>
+                      <CopyButton text={irDiscriminacao(p, year)} label="Discriminação" what={`discriminação de ${p.name}`} small />
+                    </div>
+                  ))}
+                </div>
+              )
+            })}
+            {fisicos.length > 0 && <div className="muted" style={{ marginBottom: 10 }}>
+              Bens de Meus bens pelo custo de aquisição, não pelo valor de mercado. Financiado entra pelo que foi pago até 31/12 (entrada + parcelas), e o financiamento do próprio bem não vai em Dívidas e Ônus.
+              Localização {LOCALIZACAO}. Confira grupo e código no programa da Receita.
+            </div>}
             {rf.length > 0 && <div className="muted" style={{ marginBottom: 10 }}>
               Renda fixa pelo valor aplicado ainda em aberto em 31/12 (custo de aquisição), só pelo que a Movimentação da B3 mostra. Localização {LOCALIZACAO}.
               CNPJ: o do emissor ou da instituição, como no informe de rendimentos; no Tesouro Direto pode ficar em branco.

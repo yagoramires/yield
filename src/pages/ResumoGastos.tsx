@@ -5,16 +5,15 @@ import { goalsFor } from '../domain/orcamento'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
-import { categoryLook, CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
+import { categoryLook, CategoryIcon } from '../ui/CategoryIcon'
 import { BarChart, LineChart } from '../ui/charts'
 import { useHideValues } from '../ui/HideValues'
-import { localStamp } from '../ui/SyncStatus'
 import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
 import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
 import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
-import { ico, TINT } from '../ui/palette'
+import { ico } from '../ui/palette'
 import type { SectionId } from './configuracoes/secoes'
 
 export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(at?: SectionId): void }) {
@@ -85,30 +84,6 @@ export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas,
           </>}
         </div>
       </div>
-
-      {(() => {
-        // saldo como a Pluggy informou na última sincronização; conta importada por arquivo não tem saldo
-        // só contas de bancos ainda conectados: as de um banco removido ficam no banco de dados com o saldo antigo
-        const live = data.accounts.filter(a => a.source !== 'pluggy' || data.pluggyItems.some(i => i.itemId === a.itemId))
-        const contas = live.filter(a => a.kind === 'conta'), cartoes = live.filter(a => a.kind === 'cartao' && a.balanceCents != null)
-        const withBal = contas.filter(a => a.balanceCents != null)
-        if (!withBal.length && !cartoes.length) return null
-        const at = withBal.map(a => a.balanceAt).filter(Boolean).sort().at(-1)
-        const row = (a: typeof data.accounts[number], cartao: boolean) => (
-          <div key={a.id} className="bal-row">
-            <IconGlyph name={cartao ? 'credit-card' : 'landmark'} color={cartao ? TINT.cinza : TINT.azul} size={26} />
-            <span className="grow"><b>{a.institution}</b><small>{a.name}{cartao ? ' · fatura em aberto' : ''}</small></span>
-            <span className={`r${cartao ? ' t2' : (a.balanceCents ?? 0) < 0 ? ' dn' : ''}`}>{a.balanceCents == null ? <span className="muted">sem saldo</span> : brl(cartao ? -a.balanceCents : a.balanceCents)}</span>
-          </div>
-        )
-        return (
-          <div className="card" style={{ marginTop: 12 }}>
-            <div className="bar"><h5 style={{ margin: 0 }}>Saldo nas contas</h5><span className="muted">{at ? `atualizado ${localStamp(at)}` : ''}</span></div>
-            <div className="bal-total">{brl(withBal.reduce((s, a) => s + (a.balanceCents ?? 0), 0))}<span className="muted"> em {withBal.length === 1 ? '1 conta' : `${withBal.length} contas`}</span></div>
-            <div className="bal-list">{contas.map(a => row(a, false))}{cartoes.map(a => row(a, true))}</div>
-          </div>
-        )
-      })()}
 
       {changes.length > 0 && (
         <div className="card changes">

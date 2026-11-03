@@ -119,10 +119,13 @@ export function OpenFinance() {
     <div className="conn-list">
       {data.pluggyItems.map(it => {
         const l = bankLine(data.accounts, it.itemId, status(it.itemId), ago)
+        // da última leitura: quando a Pluggy atualizou o banco e o que a conexão pede (login de novo, autorização vencendo)
+        const h = lastSyncResult?.items?.find(x => x.itemId === it.itemId)
         return (
           <div key={it.itemId} className="conn-row">
             <span className="conn-logo" aria-hidden>{initial(it.label)}</span>
-            <div className="grow"><b>{it.label}</b><div className={l.state === 'erro' ? 'conn-err' : 'muted'}>{l.text}</div></div>
+            <div className="grow"><b>{it.label}</b><div className={l.state === 'erro' ? 'conn-err' : 'muted'}>{l.text}{l.state !== 'erro' && h?.updatedAt ? ` · banco atualizado na Pluggy ${ago(h.updatedAt)}` : ''}</div>
+              {h?.problem && l.state !== 'erro' && <div className="warn-text" style={{ fontSize: 11 }}>{h.problem}</div>}</div>
             {l.state === 'erro'
               ? <button className="b sm" onClick={() => setGuide(true)} title="Abra o Meu Pluggy e entre de novo no banco">Reconectar</button>
               : l.state === 'ok' && <span className="pill ok">ok</span>}

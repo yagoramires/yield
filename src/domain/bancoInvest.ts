@@ -6,23 +6,24 @@ import { investDest } from './orcamento'
 const NA_B3 = /^(cdb|lci|lca|lc|lf|lig|treasury|tesouro|debenture|debentures|corporate_debt|cri|cra)$/i
 
 /**
- * Investimento do banco de cada reserva, um investimento para uma reserva só: primeiro os ligados à mão; depois, para quem não tem,
- * o único que tem o nome da reserva como palavra inteira ("rdb" → "RDB Banco Exemplo") e que ninguém pegou.
+ * Investimentos do banco de cada reserva (o saldo dela é a soma), cada investimento numa reserva só: primeiro os ligados à mão; depois,
+ * para quem não tem, os que têm o nome da reserva como palavra inteira ("rdb" → "RDB Banco Exemplo") e que ninguém pegou; sem nome que
+ * bata, os do tipo de produto com o nome da reserva (subtipo "RDB" da Pluggy em investimentos chamados "Caixinha").
  */
-export function reservaInvestments(keys: string[], invs: BankInvestmentRow[], links: Record<string, string>): Map<string, BankInvestmentRow[]> {
+export function reservaInvestments(keys: string[], invs: BankInvestmentRow[], links: Record<string, string[]>): Map<string, BankInvestmentRow[]> {
   const taken = new Set<string>()
   const out = new Map<string, BankInvestmentRow[]>(keys.map(k => [k, []]))
   for (const k of keys) {
-    const inv = links[k] ? invs.find(i => i.id === links[k] && !taken.has(i.id)) : undefined
-    if (inv) { out.set(k, [inv]); taken.add(inv.id) }
+    const mine = invs.filter(i => links[k]?.includes(i.id) && !taken.has(i.id))
+    mine.forEach(i => taken.add(i.id))
+    if (mine.length) out.set(k, mine)
   }
   for (const k of keys) {
-    if (links[k] || !k) continue
+    if (Object.hasOwn(links, k) || !k) continue // escolhida à mão, mesmo sem nenhum
     const word = new RegExp(`(^|\\s)${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`)
-    // só liga sozinho quando um investimento só bate: com dois CDBs, "cdb" fica para a pessoa escolher no seletor
-    const found = invs.filter(i => !taken.has(i.id) && (word.test(fold(i.name)) || investDest(i.name).key === k))
-    if (found.length !== 1) continue
-    taken.add(found[0].id)
+    const byName = invs.filter(i => !taken.has(i.id) && (word.test(fold(i.name)) || investDest(i.name).key === k))
+    const found = byName.length ? byName : invs.filter(i => !taken.has(i.id) && fold(i.subtype ?? '') === k)
+    found.forEach(i => taken.add(i.id))
     out.set(k, found)
   }
   return out

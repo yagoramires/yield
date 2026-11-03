@@ -106,6 +106,14 @@ describe('porta só-leitura', () => {
     expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/auth')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/v2/transactions?a=1')).not.toThrow()
   })
+  it('item: só GET de um id UUID (situação da conexão); atualizar, apagar ou listar itens não', () => {
+    const id = '33333333-3333-4333-8333-333333333333'
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/items/${id}`)).not.toThrow()
+    expect(() => pluggyRequest('PATCH', `https://api.pluggy.ai/items/${id}`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('DELETE', `https://api.pluggy.ai/items/${id}`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/items')).toThrow(/não permitida/)
+    expect(() => pluggyRequest('GET', `https://api.pluggy.ai/items/${id}/mfa`)).toThrow(/não permitida/)
+  })
   it('investimentos: só GET da lista e das operações de um id UUID', () => {
     const id = '33333333-3333-4333-8333-333333333333'
     expect(() => pluggyRequest('GET', `https://api.pluggy.ai/investments?itemId=${id}&page=1`)).not.toThrow()

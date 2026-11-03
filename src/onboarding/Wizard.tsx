@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { CalendarRange, ChartLine, Check, CircleOff, ReceiptText, Sparkles, type LucideIcon } from 'lucide-react'
+import { CalendarRange, Car, ChartLine, Check, CircleOff, ReceiptText, Sparkles, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { gb, machineLabel, pickModel, type Hardware } from '../ai/catalog'
 import { getHardware } from '../ai/server'
@@ -28,6 +28,7 @@ const USES: { key: Module; icon: LucideIcon; title: string; text: string }[] = [
   { key: 'gastos', icon: ReceiptText, title: 'Meus gastos', text: 'Ver para onde vai o dinheiro, mês a mês' },
   { key: 'orcamento', icon: CalendarRange, title: 'Orçamento', text: 'Planejar ganhos, custos, metas e reserva' },
   { key: 'investimentos', icon: ChartLine, title: 'Investimentos', text: 'Carteira, proventos e imposto de renda' },
+  { key: 'bens', icon: Car, title: 'Bens', text: 'Imóveis e veículos, financiamentos e patrimônio' },
 ]
 const tabsOf = (m: Module) => ROUTES.find(g => g.module === m)?.items.map(i => i.label) ?? []
 

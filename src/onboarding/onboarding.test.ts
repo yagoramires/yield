@@ -40,7 +40,7 @@ describe('tipPosition', () => {
 
 describe('disabledFrom', () => {
   it('desliga o que não foi marcado', () => {
-    expect(disabledFrom(['gastos'])).toEqual(['orcamento', 'investimentos'])
-    expect(disabledFrom(['gastos', 'orcamento', 'investimentos'])).toEqual([])
+    expect(disabledFrom(['gastos'])).toEqual(['orcamento', 'investimentos', 'bens'])
+    expect(disabledFrom(['gastos', 'orcamento', 'investimentos', 'bens'])).toEqual([])
   })
 })

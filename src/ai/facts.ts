@@ -39,10 +39,10 @@ const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
 export type Area = 'gastos' | 'investimentos' | 'orcamento' | 'proventos'
 const AREAS: Record<Area, FactKind[]> = {
-  gastos: ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas', 'saldo_parado'],
+  gastos: ['gasto_mes', 'vs_anterior', 'variacao_categoria', 'orcamento', 'maiores_gastos', 'cobrancas'],
   investimentos: ['carteira', 'rentabilidade', 'renda_passiva'],
   // sem o 'orcamento' (planejado do spendingPlan × gasto bruto): não é o número da tela do Orçamento e confundia com o plano
-  orcamento: ['plano_mes', 'metas'],
+  orcamento: ['plano_mes', 'metas', 'saldo_parado'], // o saldo nas contas fica no Orçamento
   proventos: ['proventos_ano', 'proventos_12m', 'proventos_custo', 'proventos_mes'],
 }
 
@@ -178,13 +178,13 @@ function allFacts(month: Month, input: AiInput): Fact[] {
       text: `Proventos no mês: ${plainBRL(nowCents)} em ${mes} até agora (o mês ainda não acabou), contra ${plainBRL(beforeCents)} em ${monthLabel(lastYearMonth)} inteiro.` })
   }
 
-  // saldo como a Pluggy informou, só de banco ainda conectado (como no Resumo); conta por arquivo não tem saldo
+  // saldo como a Pluggy informou, só de banco ainda conectado (como no Orçamento); conta por arquivo não tem saldo
   const contas = data.accounts.filter(a => a.source === 'pluggy' && data.pluggyItems.some(i => i.itemId === a.itemId) && a.kind === 'conta' && (a.balanceCents ?? 0) > 0)
   if (contas.length) {
     const total = contas.reduce((s, a) => s + a.balanceCents!, 0)
     const at = contas.map(a => a.balanceAt).filter(Boolean).sort().at(-1)
     const rende = r?.cdiMonthPct != null ? ` A 100% do CDI do último mês (${pctU(r.cdiMonthPct)}) esse valor renderia cerca de ${plainBRL(Math.round((total * r.cdiMonthPct) / 100))} por mês.` : ''
-    out.push({ id: 'saldo_parado', kind: 'saldo_parado', route: 'gastos-resumo',
+    out.push({ id: 'saldo_parado', kind: 'saldo_parado', route: 'orcamento',
       text: `Saldo em conta corrente: ${plainBRL(total)} (${[...new Set(contas.map(a => a.institution))].join(', ')}${at ? `, saldo de ${day(at.slice(0, 10))}` : ''}).${rende}` })
   }
   return out
