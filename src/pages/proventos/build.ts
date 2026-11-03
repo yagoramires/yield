@@ -48,8 +48,7 @@ export function summary(list: Dividend[], today: ISODate) {
   const year = today.slice(0, 4), prevYear = String(Number(year) - 1)
   const ytdCents = sum(list.filter(d => d.payDate >= `${year}-01-01` && d.payDate <= today))
   const ytdPrevCents = sum(list.filter(d => d.payDate >= `${prevYear}-01-01` && d.payDate <= `${prevYear}${today.slice(4)}`))
-  const top = byTicker(last12)[0] ?? null
-  return { last12, last12Cents: sum(last12), avg12Cents: Math.round(sum(last12) / 12), year, ytdCents, ytdPrevCents, top }
+  return { last12, last12Cents: sum(last12), avg12Cents: Math.round(sum(last12) / 12), year, ytdCents, ytdPrevCents }
 }
 
 /** Total por ativo, do maior para o menor. */

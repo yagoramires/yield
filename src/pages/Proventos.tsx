@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Sections } from '../ui/Sections'
 import { Insights } from './assistente/Insights'
 import type { Route } from '../ui/routes'
 import { deleteDividend, upsertDividends } from '../db/repo'
@@ -94,14 +95,15 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
       {all.length === 0 ? <div className="info" style={{ marginTop: 14 }}>Nenhum provento ainda. Lance um provento ou importe os Proventos Recebidos da B3.</div> : (<>
         <Insights area="proventos" month={thisMonth} onNavigate={onNavigate} />
         <div className="kpis">
+          <div className="k"><div className="muted">{monthName(thisMonth)}</div><div className="v">{formatBRL(total(months[months.length - 1], months.length - 1))}</div>
+            <div className="s muted">até hoje · {monthName(months[months.length - 2].month).toLowerCase()} {formatBRL(total(months[months.length - 2], months.length - 2))}</div></div>
           <div className="k"><div className="muted">Últimos 12 meses</div><div className="v">{formatBRL(sm.last12Cents)}</div><div className="s muted">média {formatBRL(sm.avg12Cents)}/mês</div></div>
           <div className="k"><div className="muted">{sm.year} até hoje</div><div className="v">{formatBRL(sm.ytdCents)}</div>
             <div className={`s ${ytdDiff === null ? 'muted' : ytdDiff >= 0 ? 'up' : 'dn'}`}>{ytdDiff === null ? 'sem dados do ano passado' : `${signedPct(ytdDiff)} sobre ${Number(sm.year) - 1} no mesmo período`}</div></div>
           <div className="k"><div className="muted">Rendimento sobre o custo</div><div className="v">{yoc.total === null ? '—' : pct(yoc.total)}</div><div className="s muted">12 meses ÷ custo da carteira atual</div></div>
-          <div className="k"><div className="muted">Maior pagador (12 meses)</div><div className="v">{sm.top?.ticker ?? '—'}</div><div className="s muted">{sm.top ? `${formatBRL(sm.top.totalCents)} · ${pct(sm.top.totalCents / sm.last12Cents)} do total` : ''}</div></div>
         </div>
-
-        <div className="grid2">
+        <Sections page="proventos" items={[
+          { id: 'por-mes', label: 'Proventos por mês', wide: true, node: (
           <div className="card stretch">
             <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para filtrar a lista</span></div>
             <BarChart fill height={170} series={['Rendimento', 'Dividendo', 'JCP', 'Juros RF']} format={formatBRL}
@@ -113,7 +115,8 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
                 values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP, juros[i].cents], partial: m.month === thisMonth,
                 tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${m.month === thisMonth ? ' até hoje' : ''}`,
               }))} valueLabel={() => ''} />
-          </div>
+          </div>) },
+          { id: 'por-ativo', label: 'Por ativo', node: (
           <div className="card">
             <div className="bar">
               <h5 style={{ margin: 0 }}>Por ativo</h5>
@@ -126,10 +129,8 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
                 cents: t.totalCents, selected: filter.ticker === t.ticker, onClick: () => pickTicker(t.ticker),
               }))} />
             {ranking.length > 10 && <div className="muted" style={{ marginTop: 6 }}>+ {ranking.length - 10} ativos com {formatBRL(ranking.slice(10).reduce((s, t) => s + t.totalCents, 0))}</div>}
-          </div>
-        </div>
-
-        <div className="prov-grid">
+          </div>) },
+          { id: 'por-ano', label: 'Por ano', node: (
           <div className="card">
             <h5 style={{ margin: '0 0 6px' }}>Por ano</h5>
             <table>
@@ -143,8 +144,8 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
                 ))}
               </tbody>
             </table>
-          </div>
-
+          </div>) },
+          { id: 'lancamentos', label: 'Lançamentos', wide: true, node: (
           <div className="card">
             <div className="row" style={{ alignItems: 'center', marginBottom: 8 }}>
               <h5 style={{ margin: 0, marginRight: 'auto' }}>Lançamentos</h5>
@@ -184,8 +185,8 @@ export function Proventos({ initialMonth = '', onNavigate }: { initialMonth?: st
                 ))}
               </tbody></table>
             </>}
-          </div>
-        </div>
+          </div>) },
+        ]} />
         {all.some(d => d.source === 'planilha') && <div className="muted" style={{ marginTop: 8 }}>Da planilha antiga só vem o total do mês (dia 01). Ao importar o extrato da B3, ele substitui o valor da planilha naquele mês e ticker.</div>}
       </>)}
     </>

@@ -1,4 +1,5 @@
 import { Coins, Landmark, RefreshCw, Sprout, TrendingUp, Wallet } from 'lucide-react'
+import { Sections } from '../ui/Sections'
 import { Insights } from './assistente/Insights'
 import type { Route } from '../ui/routes'
 import { DARF_CODE } from '../domain/darf'
@@ -118,8 +119,8 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
           <div className={`v ${dueTotal > 0 ? 'dn' : ''}`}>{dueTotal > 0 ? brl(dueTotal) : 'nada a pagar'}</div>
           <div className="s muted">{dueTotal > 0 ? (nextDue?.dueDate ? `DARF · vence ${brDay(nextDue.dueDate)}` : `DARF · código ${DARF_CODE}`) : 'nenhum DARF a vencer ou em aberto'}</div></div>
       </div>
-
-      {buckets.length > 1 && (
+      <Sections page="investimentos-resumo" items={[
+        { id: 'onde', label: 'Onde está seu dinheiro', wide: true, node: buckets.length > 1 && (
         <div className="buckets" role="group" aria-label="Onde está seu dinheiro">
           {buckets.map(b => (
             <button key={b.key} className="bk" onClick={() => onOpenCarteira(b.key)}>
@@ -131,9 +132,8 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
             </button>
           ))}
         </div>
-      )}
-
-      {coverage && (
+      ) },
+        { id: 'renda-passiva', label: 'Renda passiva', wide: true, node: coverage && (
         <div className="card coverage">
           <div className="bar"><h5 style={{ margin: 0 }} className="k-l"><Sprout size={14} aria-hidden style={{ color: 'var(--accent-fg)' }} />Renda passiva</h5><span className="muted">últimos 12 meses</span></div>
           <div className="coverage-v"><b>{Math.round(coverage.pct * 100)}%</b> <span className="muted">do seu gasto médio já é pago pelos proventos{juros12m > 0 ? ' e juros da renda fixa' : ''}</span></div>
@@ -143,11 +143,9 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
           </div>
           <div className="muted">proventos {brl(Math.round(p.dividends12mCents / 12))}/mês{juros12m > 0 && ` · juros da renda fixa ${brl(Math.round(juros12m / 12))}/mês`} · gasto {brl(coverage.avgSpentCents)}/mês · {coverage.gapCents > 0 ? `faltam ${brl(coverage.gapCents)}/mês para cobrir tudo` : 'a renda passiva já cobre todo o gasto'}</div>
         </div>
-      )}
-
-      <Rentabilidade trades={data.trades.filter(t => t.assetType !== 'ETF RF')} events={data.events} dividends={data.dividends} thisMonth={thisMonth} />
-
-      <div className="grid2">
+      ) },
+        { id: 'rentabilidade', label: 'Rentabilidade', wide: true, node: <Rentabilidade trades={data.trades.filter(t => t.assetType !== 'ETF RF')} events={data.events} dividends={data.dividends} thisMonth={thisMonth} /> },
+        { id: 'aportado', label: 'Aportado × valor de hoje', node: (
         <div className="card stretch">
           <h5 style={{ margin: 0 }}>Aportado × valor de hoje</h5>
           <LineChart fill
@@ -162,7 +160,8 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
             As linhas são o que está aportado na bolsa (ações, FIIs, ETFs e BDRs){data.proventos === 'reinvisto' ? ', sem os proventos reinvestidos, que não saíram do seu bolso' : ''}{hasRf ? ' e, somada, a renda fixa aplicada' : ''}, mês a mês. O ponto de hoje é o patrimônio inteiro, com exterior, cripto e dólar, que não têm histórico no Yield.
             {!allQuoted && p.missingQuotes.length > 0 && ` ${p.missingQuotes.length} ${p.missingQuotes.length === 1 ? 'ativo' : 'ativos'} sem cotação: o ponto de hoje não é mostrado.`}
           </div>
-        </div>
+        </div>) },
+        { id: 'classes', label: 'Por classe', node: (
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Por classe</h5><span className="muted">clique para abrir a Carteira</span></div>
           {classes.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhum ativo com valor ainda.</div> : <>
@@ -177,10 +176,8 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
               ))}
             </div>
           </>}
-        </div>
-      </div>
-
-      <div className="grid2" style={{ marginTop: 12 }}>
+        </div>) },
+        { id: 'proventos', label: 'Proventos por mês', node: (
         <div className="card stretch">
           <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para abrir em Proventos</span></div>
           <BarChart fill onSelect={i => onOpenProventos(divs[i].month)} selected={null} series={['Rendimento', 'Dividendo', 'JCP', 'Juros RF']} format={brl} valueLabel={short}
@@ -189,7 +186,8 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
               label: monthName(m.month).slice(0, 3).toLowerCase(), values: [m.byKind.Rendimento, m.byKind.Dividendo, m.byKind.JCP, juros[i].cents],
               partial: m.month === thisMonth, tip: `${monthName(m.month)} ${m.month.slice(0, 4)}${m.month === thisMonth ? ' até hoje' : ''}`,
             }))} />
-        </div>
+        </div>) },
+        { id: 'posicoes', label: 'Maiores posições', node: (
         <div className="card">
           <div className="bar"><h5 style={{ margin: 0 }}>Maiores posições</h5><span className="muted">clique para abrir a Carteira</span></div>
           {top.length === 0 ? <div className="muted" style={{ marginTop: 6 }}>Nenhuma posição com valor ainda.</div> : (
@@ -203,8 +201,8 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
               ))}
             </div>
           )}
-        </div>
-      </div>
+        </div>) },
+      ]} />
     </>
   )
 }

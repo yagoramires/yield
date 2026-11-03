@@ -51,7 +51,6 @@ describe('resumo de proventos', () => {
     expect(s.last12Cents).toBe(6000)
     expect(s.avg12Cents).toBe(500)
     expect([s.ytdCents, s.ytdPrevCents]).toEqual([5000, 500])
-    expect(s.top).toEqual({ ticker: 'AAAA11', totalCents: 3000 })
   })
   it('byTicker ordena do maior para o menor', () => {
     expect(byTicker(list).map(t => t.ticker)).toEqual(['AAAA11', 'BBBB11', 'CCCC3'])
