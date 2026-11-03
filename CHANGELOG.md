@@ -2,6 +2,29 @@
 
 O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando sai uma versão nova.
 
+## Não lançado
+
+### Novidades
+- **Meus bens** (módulo novo, liga e desliga em Configurações › Abas do menu): imóveis, veículos e outros bens com o valor da compra e quanto valem hoje; financiamento (parcela do mês, quando termina e quanto falta pagar); custo por mês pelas categorias que você escolhe; vencimentos do ano (IPVA, IPTU, seguro) com os próximos 60 dias no topo; e o **Patrimônio** somando investimentos, saldo nas contas e bens, menos as dívidas.
+- A parcela do financiamento de um bem entra no Orçamento.
+- Os bens entram na Declaração IR (Bens e Direitos) pelo custo de aquisição; financiado, pelo que foi pago até 31/12, com a discriminação pronta para copiar.
+- **Plano automático**: o mês que começa nasce sozinho do último planejado; assinaturas, parcelas em aberto e financiamentos de bens entram no plano sem precisar aceitar, e o que você apagar não volta.
+- **Situação de cada banco** em Contas conectadas, direto da Pluggy: quando ela atualizou o banco, se ele pede login de novo e quando vence a autorização do Meu Pluggy (aviso 30 dias antes; vencida, o app não tenta ler).
+
+### Melhorias
+- Leitura vazia da Pluggy (autorização vencida, banco fora do ar) não apaga mais contas nem lançamentos: o app mantém o que já tinha e avisa; e cartão de banco que devolve menos de um ano de histórico guarda os lançamentos mais antigos.
+- **Orçamento** é o primeiro item do menu.
+- **Saldo nas contas** saiu do Resumo de gastos e foi para o Orçamento, agrupado por banco (total de cada banco e as contas e cartões dele embaixo).
+- O insight "Dinheiro parado na conta" foi junto para o Orçamento; o Resumo de gastos fica só com os insights de gastos.
+- Orçamento numa coluna só: saldo nas contas, investimentos, reserva, entradas, custos (fixos × variáveis) e parcelas.
+- Parcela que veio dos lançamentos mostra em qual banco e cartão ela está (e avisa quando o banco foi desconectado).
+- **Parcelas só em aberto**: as parcelas do cartão viram uma compra só mesmo quando a 1ª vem com centavos diferentes ou a descrição muda no meio (Mercado Pago). Quitada (antecipada ou terminada) sai do plano sozinha, e linha repetida da mesma compra também. As sugestões só trazem compras ainda em aberto.
+- Cartão de crédito sincroniza o ano todo a cada vez: a XP manda as parcelas com a data da compra, e as de agora não chegavam.
+- Assinaturas acham também débito automático com a 1ª fatura proporcional, reajuste de preço ou um mês pago por fora (ex.: Pix no lugar do débito): o valor é conferido nas 3 últimas cobranças e um mês pulado não desfaz a assinatura.
+- **Assinatura cancelada**: botão "Cancelei" em Assinaturas e na sugestão do Orçamento. Ela sai das ativas, das próximas cobranças e das sugestões na hora, sem esperar 45 dias sem cobrança; se voltar a cobrar depois, conta como ativa de novo.
+- Custos com Fixos e Variáveis um embaixo do outro, cada um com o seu botão de adicionar, no lugar das abas.
+- Reserva soma o saldo de vários investimentos do banco: acha sozinha todos os que têm o nome dela ou, se nenhum tiver, todos do mesmo tipo de produto (ex.: todos os RDBs); e dá para marcar à mão quais entram.
+
 ## 0.9.0
 
 Assistente com IA que roda no seu computador, perfis com PIN, setup inicial e Configurações novas.

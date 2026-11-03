@@ -484,14 +484,19 @@ tr.hl td { background: var(--neg-bg); }
 .costs-big { font-size: 22px; font-weight: 650; color: var(--strong); font-variant-numeric: tabular-nums; margin: 6px 0 2px; letter-spacing: -.01em; }
 .split { display: flex; height: 6px; border-radius: 4px; overflow: hidden; gap: 2px; margin: 8px 0 12px; background: var(--hover); }
 .split i { display: block; height: 100%; flex-basis: 0; }
-.cost-seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--sidebar); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; margin-bottom: 8px; }
-.cost-seg button { all: unset; cursor: pointer; border-radius: 8px; padding: 7px 10px; }
-.cost-seg button.on { background: var(--hover-2); box-shadow: 0 1px 0 #ffffff0d inset; }
-.cost-seg button:focus-visible { outline: 1px solid var(--accent-fg); }
-.cost-seg b { display: block; color: var(--text-2); font-size: 12px; font-weight: 600; }
-.cost-seg button.on b { color: var(--strong); }
-.cost-seg span { font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.cost-seg .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+.cost-group + .cost-group { margin-top: 14px; }
+.rl-sum { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 11px; }
+.rl-names { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.rl-list { margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; padding: 4px 10px; max-height: 280px; overflow-y: auto; }
+.rl-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 11.5px; cursor: pointer; }
+.rl-row + .rl-row { border-top: 1px solid var(--border); }
+.rl-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--strong); }
+.rl-v { font-variant-numeric: tabular-nums; min-width: 80px; text-align: right; }
+.rl-foot { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 6px 0 4px; border-top: 1px solid var(--border); }
+.cost-h { display: flex; align-items: center; gap: 8px; padding-bottom: 4px; }
+.cost-h b { color: var(--strong); font-size: 12px; font-weight: 600; }
+.cost-h .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+.cost-h .muted { margin-right: auto; font-variant-numeric: tabular-nums; }
 .lt.blk tr:hover .acts, .lt.blk tr:focus-within .acts { opacity: 1; }
 .lt tr.edit td { background: var(--well); border-bottom: 1px solid var(--border); padding: 10px; }
 .ic { color: var(--faint); font-size: 11px; }
@@ -621,14 +626,22 @@ tr.hl td { background: var(--neg-bg); }
 .prov-grid { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2.4fr); gap: 12px; margin-top: 12px; align-items: start; }
 @media (max-width: 900px) { .prov-grid { grid-template-columns: 1fr; } }
 
-/* saldo nas contas (Resumo de gastos) */
+/* saldo nas contas (Orçamento), um bloco por banco */
 .bal-total { font-size: 20px; font-weight: 650; color: var(--strong); font-variant-numeric: tabular-nums; margin: 6px 0 8px; }
 .bal-total .muted { font-size: 11px; font-weight: 400; }
-.bal-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px 16px; }
+.bal-list { columns: 3 230px; column-gap: 16px; }
+.bal-group { break-inside: avoid; padding-bottom: 4px; }
 .bal-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 .bal-row .grow { flex: 1; min-width: 0; }
 .bal-row b { display: block; color: var(--strong); font-size: 12px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bal-row small { display: block; color: var(--faint); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bal-sub { display: flex; align-items: center; gap: 10px; padding: 2px 0 2px 36px; font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.bal-sub .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Meus bens */
+.bem-name { display: block; color: var(--strong); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bem-sub { display: block; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bem-card .lt.blk td:first-child { width: 1%; white-space: nowrap; padding-right: 16px; }
 
 /* interruptor (checkbox com role=switch) */
 .switch { appearance: none; -webkit-appearance: none; flex-shrink: 0; width: 34px; height: 20px; border-radius: 20px; background: var(--border); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
@@ -879,7 +892,7 @@ tr.hl td { background: var(--neg-bg); }
 .wz-r .lead { margin: 0 0 22px; max-width: 600px; color: var(--text-2); line-height: 1.5; }
 .wz-r .profile-form, .wz-cards { max-width: 760px; }
 .wz-count { display: none; margin-bottom: 8px; }
-.wz-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 860px; }
+.wz-choice { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; max-width: 980px; }
 .wz-choice.two { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; }
 .wz-ch { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; text-align: left; font: inherit; color: var(--text); background: var(--surface); border: 1.5px solid var(--border); border-radius: 12px; cursor: pointer; }
 .wz-ch b { color: var(--strong); }

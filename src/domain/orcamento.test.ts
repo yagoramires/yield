@@ -70,7 +70,7 @@ describe('nextMonthLines', () => {
     expect(out.map(l => l.sourceKey)).toEqual(['sub:c1|netflix@2026-04', 'parc:c1|loja|10|100@2026-04', null])
   })
   it('assinatura copiada esconde a sugestão no mês novo', () => {
-    const s: Subscription = { merchantKey: 'c1|netflix', name: 'NETFLIX', accountId: 'c1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-03-05', nextDate: '2026-04-05', active: true, charges: 3, previousAmountCents: null }
+    const s: Subscription = { merchantKey: 'c1|netflix', name: 'NETFLIX', accountId: 'c1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-03-05', nextDate: '2026-04-05', active: true, canceledAt: null, charges: 3, previousAmountCents: null }
     const [copied] = nextMonthLines([line({ sourceKey: suggestForMonth('2026-03', [s], [], () => null, [], [])[0].key })], [])
     expect(suggestForMonth('2026-04', [s], [], () => null, [{ ...copied, id: 'n', month: '2026-04' }], [])).toEqual([])
   })
@@ -91,8 +91,9 @@ describe('copyLines', () => {
       line({ name: 'a', installmentCurrent: 2, installmentTotal: 10, sourceKey: 'parc:k@2026-03' }),
       line({ name: 'b', installmentCurrent: 8, installmentTotal: 10 }),
       line({ name: 'c' }),
+      line({ name: 'carro', installmentCurrent: 7, installmentTotal: 48, sourceKey: 'bem:b1@2026-03' }), // parcela de um bem leva a chave junto
     ], [], '2026-06')
-    expect(out.map(l => [l.name, l.installmentCurrent, l.sourceKey])).toEqual([['a', 5, 'parc:k@2026-06'], ['c', null, null]])
+    expect(out.map(l => [l.name, l.installmentCurrent, l.sourceKey])).toEqual([['a', 5, 'parc:k@2026-06'], ['c', null, null], ['carro', 10, 'bem:b1@2026-06']])
   })
 })
 
@@ -304,3 +305,4 @@ describe('outrasEntradas', () => {
     expect(outrasEntradas([], txns, [conta('c1', 'conta')], cat, '2026-10', { names: ['Ana Titular'], companies: ['Ana Consultoria'] }).map(t => t.id)).toEqual(['sal', 'pix', 'ted'])
   })
 })
+

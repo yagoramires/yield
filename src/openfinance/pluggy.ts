@@ -10,6 +10,8 @@ export class PluggyError extends Error {
 }
 export interface PluggyAccount { id: string; type: 'BANK' | 'CREDIT'; subtype: string; name: string; marketingName?: string | null; number?: string | null; itemId: string; balance?: number | null /* em reais: saldo da conta ou fatura do cartão */ }
 export interface PluggyTxn { id: string; date: string; description: string; amount: number; type: 'DEBIT' | 'CREDIT'; status: 'PENDING' | 'POSTED'; operationType?: string | null; category?: string | null; creditCardMetadata?: { installmentNumber?: number; totalInstallments?: number } | null }
+// situação da conexão na Pluggy; consentExpiresAt: quando vence a autorização do Meu Pluggy (depois dela as listas voltam vazias)
+export interface PluggyItem { id: string; status?: string | null; executionStatus?: string | null; lastUpdatedAt?: string | null; consentExpiresAt?: string | null }
 export interface PluggyInvestment { id: string; code?: string | null; name: string; type: string; subtype?: string | null; balance?: number | null /* saldo hoje, em reais */; amountOriginal?: number | null /* aplicado */ }
 export interface PluggyInvestmentTxn { id: string; type: string; quantity?: number | null; value?: number | null; amount?: number | null; tradeDate?: string | null; date: string; expenses?: Record<string, number | null> | null }
 
@@ -21,6 +23,7 @@ const isDate = (v: unknown) => str(v) && !isNaN(Date.parse(v as string))
 
 const ALLOWED = new Set(['GET /accounts', 'GET /v2/transactions', 'GET /investments'])
 const INVESTMENT_TXNS = /^\/investments\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/transactions$/i
+const ITEM = /^\/items\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const PAGE_SIZE = 500
 const MAX_PAGES = 200
 
@@ -28,7 +31,7 @@ const MAX_PAGES = 200
 export function pluggyRequest(method: string, url: string): URL {
   let u: URL
   try { u = new URL(url, PLUGGY_BASE) } catch { throw new PluggyError('Chamada não permitida: o Yield só lê dados da Pluggy', 'resposta') }
-  const allowed = ALLOWED.has(`${method} ${u.pathname}`) || (method === 'GET' && INVESTMENT_TXNS.test(u.pathname))
+  const allowed = ALLOWED.has(`${method} ${u.pathname}`) || (method === 'GET' && (INVESTMENT_TXNS.test(u.pathname) || ITEM.test(u.pathname)))
   if (u.origin !== PLUGGY_BASE || !allowed) throw new PluggyError('Chamada não permitida: o Yield só lê dados da Pluggy', 'resposta')
   return u
 }
@@ -61,7 +64,7 @@ export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
     return apiKey
   }
 
-  async function get(path: string, notFound?: (status: number) => PluggyError): Promise<{ results: unknown[]; next?: unknown; totalPages?: unknown }> {
+  async function getJson(path: string, notFound?: (status: number) => PluggyError): Promise<unknown> {
     const cached = !!key && Date.now() - key.at < KEY_TTL_MS
     const call = async (k: string) => send(path, { headers: { 'X-API-KEY': k } })
     let res = await call(cached ? key!.value : await auth())
@@ -70,9 +73,13 @@ export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
     if (notFound && (res.status === 404 || res.status === 400)) throw notFound(res.status)
     if (res.status === 429) throw new PluggyError('A Pluggy pediu para esperar; tente mais tarde', 'limite')
     if (!res.ok) throw new PluggyError(`A Pluggy respondeu com erro (HTTP ${res.status})`, 'resposta')
-    const body = await res.json().catch(() => null)
+    return res.json().catch(() => null)
+  }
+
+  async function get(path: string, notFound?: (status: number) => PluggyError): Promise<{ results: unknown[]; next?: unknown; totalPages?: unknown }> {
+    const body = await getJson(path, notFound) as { results?: unknown } | null
     if (!body || !Array.isArray(body.results)) throw new PluggyError('Resposta inesperada da Pluggy', 'resposta')
-    return body
+    return body as { results: unknown[] }
   }
 
   async function allPages(path: string, notFound?: (status: number) => PluggyError): Promise<unknown[]> {
@@ -87,6 +94,11 @@ export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
   }
 
   return {
+    async getItem(itemId: string): Promise<PluggyItem> {
+      const body = await getJson(`/items/${encodeURIComponent(itemId)}`, () => new PluggyError(`Item ${itemId} não encontrado: confira o itemId`, 'item'))
+      if (!isObj(body) || !str(body.id)) throw FORMAT()
+      return body as unknown as PluggyItem
+    },
     async listAccounts(itemId: string): Promise<PluggyAccount[]> {
       const results = (await get(`/accounts?itemId=${encodeURIComponent(itemId)}`, () => new PluggyError(`Item ${itemId} não encontrado: confira o itemId`, 'item'))).results
       if (!results.every(a => isObj(a) && str(a.id) && (a.type === 'BANK' || a.type === 'CREDIT') && str(a.name))) throw FORMAT()

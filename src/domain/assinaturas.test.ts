@@ -11,6 +11,12 @@ describe('detectSubscriptions', () => {
     const [s] = detectSubscriptions(netflix, semCat, [], '2026-09-20')
     expect(s).toMatchObject({ merchantKey: 'c1|netflix', name: 'NETFLIX', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-05', active: true, charges: 3 })
   })
+  it('marcada "cancelei": para na hora, mesmo com a última cobrança recente; cobrou de novo depois, volta a ativa', () => {
+    const [s] = detectSubscriptions(netflix, semCat, [], '2026-09-20', { 'c1|netflix': '2026-09-10' })
+    expect(s).toMatchObject({ active: false, canceledAt: '2026-09-10' })
+    const [de] = detectSubscriptions([...netflix, txn({ date: '2026-10-05' })], semCat, [], '2026-10-20', { 'c1|netflix': '2026-09-10' })
+    expect(de).toMatchObject({ active: true, canceledAt: null })
+  })
   it('cobrança do mês ainda pendente no cartão: já cobrou, a próxima vai para o mês seguinte', () => {
     const t = [...netflix, txn({ date: '2026-10-05', pending: true }), txn({ date: '2026-10-02', amountCents: -8790, pending: true })]
     const [s] = detectSubscriptions(t, semCat, [], '2026-10-20')
@@ -23,6 +29,16 @@ describe('detectSubscriptions', () => {
   it('aumento de até 15% continua assinatura e usa a última cobrança', () => {
     const t = [netflix[0], netflix[1], txn({ date: '2026-09-05', amountCents: -4490 })]
     expect(detectSubscriptions(t, semCat, [], '2026-09-20')[0].amountCents).toBe(4490)
+  })
+  it('débito automático com 1ª fatura proporcional, reajuste e um mês pago por Pix continua assinatura', () => {
+    const v = [-23391, -30499, -30499, -33499, -33499, -33499]
+    const datas = ['2026-01-07', '2026-02-09', '2026-03-09', '2026-04-07', '2026-06-08', '2026-07-07'] // maio pago por fora
+    const [s] = detectSubscriptions(datas.map((date, i) => txn({ description: 'OPERADORA', date, amountCents: v[i] })), semCat, [], '2026-07-20')
+    expect(s).toMatchObject({ period: 'mensal', amountCents: 33499, active: true, nextDate: '2026-08-07' })
+  })
+  it('dois meses pulados seguidos ou só um mês normal não viram mensal', () => {
+    expect(detectSubscriptions(['2026-01-05', '2026-04-05', '2026-05-05'].map(date => txn({ date })), semCat, [], '2026-05-20')).toEqual([])
+    expect(detectSubscriptions(['2026-01-05', '2026-03-05', '2026-04-05'].map(date => txn({ date })), semCat, [], '2026-04-20')).toEqual([])
   })
   it('parcelas nunca viram assinatura', () => {
     const t = netflix.map((n, i) => ({ ...n, installment: `${i + 1}/3` }))

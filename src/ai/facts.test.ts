@@ -16,7 +16,7 @@ test('variação da categoria com o valor, o % e a diferença já calculados', (
 })
 
 test('dinheiro parado só das contas da Pluggy, com o rendimento a 100% do CDI', () => {
-  const t = text(buildFacts('2026-10', 'gastos', input()), 'saldo_parado')
+  const t = text(buildFacts('2026-10', 'orcamento', input()), 'saldo_parado')
   expect(t).toContain(plainBRL(500000))
   expect(t).toContain(plainBRL(5000))
   expect(t).not.toContain(plainBRL(600000))
@@ -25,7 +25,7 @@ test('dinheiro parado só das contas da Pluggy, com o rendimento a 100% do CDI',
 test('banco desconectado não entra no dinheiro parado', () => {
   const base = input()
   const semBanco = { ...base, gastos: { ...base.gastos, data: { ...base.gastos.data, pluggyItems: [] } } }
-  expect(buildFacts('2026-10', 'gastos', semBanco).map(f => f.kind)).not.toContain('saldo_parado')
+  expect(buildFacts('2026-10', 'orcamento', semBanco).map(f => f.kind)).not.toContain('saldo_parado')
 })
 
 test('sem gasto no mês anterior não compara (setembro contra um agosto vazio)', () => {
@@ -44,7 +44,7 @@ test('mês passado não leva os fatos de agora (carteira, rentabilidade, saldo)'
   const kinds = buildFacts('2026-09', 'gastos', input()).map(f => f.kind)
   expect(kinds).toContain('gasto_mes')
   expect(kinds).not.toContain('carteira')
-  expect(kinds).not.toContain('saldo_parado')
+  expect(buildFacts('2026-09', 'orcamento', input()).map(f => f.kind)).not.toContain('saldo_parado')
   expect(kinds).not.toContain('rentabilidade')
 })
 
@@ -76,7 +76,8 @@ test('cotação nova não muda o hash; gasto novo muda', async () => {
 
 test('cada Resumo leva os fatos da sua área', () => {
   const gastos = buildFacts('2026-10', 'gastos', input()).map(f => f.kind)
-  expect(gastos).toContain('saldo_parado')
+  expect(gastos).not.toContain('saldo_parado') // foi para o Orçamento, com o card do saldo
+  expect(buildFacts('2026-10', 'orcamento', input()).map(f => f.kind)).toContain('saldo_parado')
   expect(gastos.some(k => ['carteira', 'rentabilidade', 'renda_passiva'].includes(k))).toBe(false)
   expect(buildFacts('2026-10', 'investimentos', input()).map(f => f.kind)).toEqual(['carteira', 'rentabilidade'])
   expect(buildFacts('2026-09', 'investimentos', input())).toEqual([]) // investimento é o retrato de hoje
@@ -94,7 +95,7 @@ test('Orçamento: plano do mês e metas por categoria contra o gasto, com o quan
   const line = (id: string, kind: 'entrada' | 'saida', amountCents: number, grupo: 'fixo' | null) => ({ id, month: '2026-10', kind, name: id, amountCents, recurring: true, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, sourceKey: null, grupo })
   const inp = { ...base, orcamento: { ...base.orcamento, months: ['2026-10'], lines: [line('Salário', 'entrada', 500000, null), line('Aluguel', 'saida', 150000, 'fixo')], goals: [{ month: '2026-10', key: 'cat:delivery', amountCents: 30000 }] } }
   const f = buildFacts('2026-10', 'orcamento', inp)
-  expect(f.map(x => x.kind)).toEqual(['plano_mes', 'metas']) // o "planejado" do Resumo de gastos não é o da tela do Orçamento
+  expect(f.map(x => x.kind)).toEqual(['plano_mes', 'metas', 'saldo_parado']) // o "planejado" do Resumo de gastos não é o da tela do Orçamento
   expect(text(f, 'plano_mes')).toContain(plainBRL(500000))
   expect(text(f, 'plano_mes')).toContain(plainBRL(350000))
   expect(text(f, 'metas')).toContain(`Delivery ${plainBRL(39000)} de ${plainBRL(30000)} (130,0%, passou ${plainBRL(9000)})`)

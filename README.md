@@ -78,7 +78,7 @@ As transações chegam de dois jeitos:
 | **Metas** | Quanto investir, um limite para os variáveis e uma meta por categoria, com a média dos últimos 3 meses ao lado. Valem do mês em diante, sem mudar os anteriores. |
 | **Entradas e investido** | O salário das fontes de renda entra sozinho em todo mês novo; o que entrou de terceiros (Pix, TED) também aparece, sem as transferências entre contas suas. O investido sai dos lançamentos para a categoria Investimento ou uma reserva sua, e o cartão **Reserva** mostra o saldo dela no banco. |
 | **Meses** | Criar o mês seguinte com as linhas recorrentes e as parcelas avançando sozinhas (e sumindo depois da última), trazer o plano do mês anterior para um mês vazio e excluir um mês. |
-| **Sugestões** | Assinaturas e parcelas que faltam, vindas dos seus gastos reais. Nada entra no plano sem você aceitar. |
+| **Automático** | O mês novo nasce do anterior; assinaturas, parcelas em aberto e financiamentos detectados entram sozinhos, e a parcela quitada no cartão sai. O que você apagar não volta. |
 | **Fontes de renda** | Salário **CLT** (INSS e IRRF de 2026, com a isenção até R$ 5 mil, dependentes e outros descontos), **PJ** (pró-labore, IRPJ, INSS, contabilidade), **MEI** (DAS fixo) ou valor fixo; mudar uma fonte atualiza este mês e os próximos. |
 | **Importação** | Lê um CSV simples (`mes;tipo;nome;valor`, com exemplo na tela) com o orçamento de vários meses, sem duplicar ao reimportar. |
 
@@ -137,7 +137,7 @@ As transações chegam de dois jeitos:
 
 ## 🔒 Privacidade e segurança
 
-- **Open Finance somente leitura.** O cliente da Pluggy só consegue fazer `POST /auth` (no Rust), `GET /accounts`, `GET /v2/transactions` e `GET /investments` (com as operações de cada investimento). Qualquer outra rota é recusada antes de sair da máquina, e há um teste que garante isso. O app nunca move dinheiro nem inicia pagamentos.
+- **Open Finance somente leitura.** O cliente da Pluggy só consegue fazer `POST /auth` (no Rust), `GET /items/{id}` (a situação da conexão: quando a Pluggy atualizou, login pedido, autorização vencendo), `GET /accounts`, `GET /v2/transactions` e `GET /investments` (com as operações de cada investimento). Qualquer outra rota é recusada antes de sair da máquina, e há um teste que garante isso. O app nunca move dinheiro nem inicia pagamentos.
 - **Binance somente leitura.** O Rust assina só as leituras da lista (saldo da conta e do Simple Earn, compras por PIX/cartão, Converter e negociações à vista); qualquer outra chamada é recusada antes de sair da máquina, e a guia pede uma chave com só "Enable Reading".
 - **IA sem internet.** O `llama-server` escuta só em `127.0.0.1`, com porta e chave aleatórias a cada vez que sobe. O modelo vem de um endereço do Hugging Face fixado num commit e só é usado se o SHA-256 bater.
 - **Backup com senha.** O arquivo exportado só abre com a senha escolhida na hora; sem ela nem o Yield recupera os dados.

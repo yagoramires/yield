@@ -13,7 +13,7 @@ export function input(over: Partial<AiInput> = {}): AiInput {
   return {
     today: TODAY,
     gastos: {
-      data: { accounts: [conta('a1', 'pluggy', 500000), conta('a2', 'arquivo', 100000)], txns, categories: cats, rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'i1', label: 'Banco Laranja' }], ownerNames: [], companyNames: [], ruleSuggestionsDismissed: [] },
+      data: { accounts: [conta('a1', 'pluggy', 500000), conta('a2', 'arquivo', 100000)], txns, categories: cats, rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'i1', label: 'Banco Laranja' }], ownerNames: [], companyNames: [], ruleSuggestionsDismissed: [], canceledSubs: {} },
       categorize: t => (t.amountCents < 0 ? cats[0] : null),
       subscriptions: [],
     },

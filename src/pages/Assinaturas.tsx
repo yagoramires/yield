@@ -1,6 +1,6 @@
-import { List, Trash2 } from 'lucide-react'
+import { BellOff, List, Trash2, Undo2 } from 'lucide-react'
 import { useState } from 'react'
-import { dismissSubscription } from '../db/gastosRepo'
+import { dismissSubscription, setSubscriptionCanceled } from '../db/gastosRepo'
 import { formatBRL, formatCents, monthOf } from '../domain/money'
 import type { Subscription } from '../domain/assinaturas'
 import { todayISO, useData } from '../state/DataProvider'
@@ -32,6 +32,11 @@ export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }
     try { await dismissSubscription(db, s.merchantKey); await reload(); setConfirming(null); setError(null) } catch (e) { setError(`Não foi possível excluir "${cleanDescription(s.name).name}": ${errText(e)}`) }
     setBusy(false)
   }
+  const cancel = async (s: Subscription, day: string | null) => {
+    setBusy(true)
+    try { await setSubscriptionCanceled(db, data.canceledSubs, s.merchantKey, day); await reload(); setError(null) } catch (e) { setError(`Não foi possível mudar "${cleanDescription(s.name).name}": ${errText(e)}`) }
+    setBusy(false)
+  }
   const openTxns = (s: Subscription) => { setMonth(monthOf(s.lastDate)); setFilter({ ...NO_FILTER, search: s.name }); onOpenLancamentos() }
 
   const row = (s: Subscription) => {
@@ -58,11 +63,13 @@ export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }
           <div className="sname"><span className="lname">{name}</span>
             {s.previousAmountCents !== null && <span className="badge up-price">subiu de {formatCents(s.previousAmountCents)}</span>}
             {s.period === 'anual' && <span className="badge">anual</span>}</div>
-          <div className="lsub">{[s.period === 'mensal' ? 'Mensal' : 'Anual', shortAccountLabel(accounts.get(s.accountId)), s.active ? when(s.nextDate) : `última em ${date(s.lastDate)}`].join(' · ')}</div>
+          <div className="lsub">{[s.period === 'mensal' ? 'Mensal' : 'Anual', shortAccountLabel(accounts.get(s.accountId)), s.active ? when(s.nextDate) : s.canceledAt ? `cancelada em ${date(s.canceledAt)} · última cobrança ${date(s.lastDate)}` : `última em ${date(s.lastDate)}`].join(' · ')}</div>
           {share !== null && <div className="share" aria-label={`${share}% do total por mês`}><div><i style={{ width: `${share}%`, background: color }} /></div><span>{share}%</span></div>}
         </div>
         <div className="sact">
           <button className="icon-btn sq" title="Ver lançamentos" aria-label={`Ver lançamentos de ${name}`} onClick={() => openTxns(s)}><List size={14} aria-hidden /></button>
+          {s.active && <button className="icon-btn sq" title="Cancelei" aria-label={`Marcar ${name} como cancelada`} disabled={busy} onClick={() => void cancel(s, today)}><BellOff size={14} aria-hidden /></button>}
+          {s.canceledAt && <button className="icon-btn sq" title="Desfazer cancelamento" aria-label={`Desfazer cancelamento de ${name}`} disabled={busy} onClick={() => void cancel(s, null)}><Undo2 size={14} aria-hidden /></button>}
           <button className="icon-btn sq del" title="Excluir" aria-label={`Excluir ${name}`} onClick={() => { setConfirming(s.merchantKey); setError(null) }}><Trash2 size={14} aria-hidden /></button>
         </div>
         <div className="lval">{formatCents(s.amountCents)}<small>/ {s.period === 'mensal' ? 'mês' : 'ano'}</small></div>
@@ -75,6 +82,7 @@ export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }
     <>
       <h1>Assinaturas</h1>
       <div className="muted page-description">Cobranças que se repetem todo mês ou todo ano. Compras parceladas não entram.</div>
+      {error && !confirming && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
       {subs.length === 0 ? (
         <div className="info" style={{ marginTop: 14 }}>Nenhuma cobrança repetida encontrada ainda. Elas aparecem depois de 3 meses de lançamentos.</div>
       ) : (
@@ -91,7 +99,7 @@ export function Assinaturas({ onOpenLancamentos }: { onOpenLancamentos(): void }
             </>
           )}
           {active.length > 0 && <><div className="sec-h"><span>Ativas · {active.length}</span><span>mais caras primeiro</span></div><div className="day-card">{active.map(row)}</div></>}
-          {stopped.length > 0 && <><div className="sec-h"><span>Paradas · {stopped.length}</span><span>sem cobrança há mais de 45 dias (mensais) ou 400 dias (anuais)</span></div><div className="day-card stopped">{stopped.map(row)}</div></>}
+          {stopped.length > 0 && <><div className="sec-h"><span>Canceladas e paradas · {stopped.length}</span><span>marcadas "cancelei" ou sem cobrança há mais de 45 dias (mensais) ou 400 dias (anuais)</span></div><div className="day-card stopped">{stopped.map(row)}</div></>}
         </>
       )}
     </>
