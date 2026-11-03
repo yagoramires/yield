@@ -6,7 +6,7 @@ import { createTestDb } from '../db/testDb'
 import type { PluggyInvestment } from './pluggy'
 import type { Db } from '../db/client'
 import type { ISODate } from '../domain/types'
-import { syncPluggy } from './sync'
+import { itemProblem, syncPluggy } from './sync'
 
 const fx = (n: string) => JSON.parse(readFileSync(new URL(`../../tests/fixtures/pluggy/${n}.json`, import.meta.url), 'utf8'))
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -25,6 +25,7 @@ function fake(over: (url: URL) => Response | null = () => null) {
     if (o) return o
     if (url.pathname === '/auth') return json({ apiKey: 'K' })
     if (url.pathname === '/accounts') return json(fx('accounts'))
+    if (url.pathname.startsWith('/items/')) return json({ id: ITEM, status: 'UPDATED', executionStatus: 'SUCCESS', lastUpdatedAt: '2026-10-26T06:00:00.000Z', consentExpiresAt: '2027-06-01T00:00:00.000Z' })
     if (url.pathname.startsWith('/investments')) return json({ page: 1, total: 0, totalPages: 0, results: [] })
     return json(url.searchParams.get('accountId') === BANK ? fx('transactions-banco') : fx('transactions-cartao'))
   }) as typeof fetch
@@ -42,7 +43,7 @@ describe('syncPluggy', () => {
     const db = await setup(); const f = fake()
     const r = await sync(db, f.fn, today)
     expect(r).toMatchObject({ accounts: 2, inserted: 3, errors: [] })
-    expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || (c.method === 'GET' && /\/accounts\?itemId=|\/v2\/transactions\?|\/investments\?itemId=/.test(c.url)))).toBe(true)
+    expect(f.calls.every(c => (c.method === 'POST' && c.url.endsWith('/auth')) || (c.method === 'GET' && /\/items\/[0-9a-f-]{36}$|\/accounts\?itemId=|\/v2\/transactions\?|\/investments\?itemId=/.test(c.url)))).toBe(true)
     expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2025-10-26&dateTo=2026-11-26')
     const g = await loadGastos(db)
     expect(g.accounts.map(a => [a.externalId, a.kind, a.name, a.institution]).sort()).toEqual([
@@ -66,18 +67,54 @@ describe('syncPluggy', () => {
     await sync(db, invs(null).fn, today) // RDB resgatado: sem saldo, sai
     expect((await loadAll(db)).bankInvestments.map(b => b.id)).toEqual(['inv-fundo'])
   })
-  it('2ª sincronização não duplica e usa lastSyncAt − 35 dias, nunca além de hoje − 365', async () => {
+  it('2ª sincronização não duplica; conta usa lastSyncAt − 35 dias (nunca além de hoje − 365), cartão sempre o ano todo', async () => {
     const db = await setup()
     await sync(db, fake().fn, today, () => new Date('2026-09-01T12:00:00.000Z'))
     const before = (await loadGastos(db)).txns.length
     const f = fake()
     await sync(db, f.fn, today)
     expect((await loadGastos(db)).txns).toHaveLength(before)
-    expect(f.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2026-07-28')
+    expect(f.calls.find(c => c.url.includes(`accountId=${BANK}`))!.url).toContain('dateFrom=2026-07-28')
+    expect(f.calls.find(c => c.url.includes(`accountId=${CARD}`))!.url).toContain('dateFrom=2025-10-26') // parcela da XP vem com a data da compra
     for (const a of (await loadGastos(db)).accounts) await setLastSync(db, a.id, '2024-01-01T00:00:00.000Z')
     const g = fake()
     await sync(db, g.fn, today)
     expect(g.calls.find(c => c.url.includes('/v2/'))!.url).toContain('dateFrom=2025-10-26')
+  })
+
+  it('situação do banco vem junto; autorização do Meu Pluggy vencida não lê nada e não apaga nada', async () => {
+    const db = await setup()
+    const r = await sync(db, fake().fn, today)
+    expect(r.items).toEqual([{ itemId: ITEM, updatedAt: '2026-10-26T06:00:00.000Z', problem: null }])
+    const before = (await loadGastos(db)).txns.length
+    const vencida = fake(url => url.pathname.startsWith('/items/') ? json({ id: ITEM, status: 'UPDATED', consentExpiresAt: '2026-10-01T00:00:00.000Z' }) : null)
+    const r2 = await sync(db, vencida.fn, today)
+    expect(r2.errors[0].message).toMatch(/autorização do Meu Pluggy venceu em 01\/10\/2026/)
+    expect(vencida.calls.some(c => c.url.includes('/accounts') || c.url.includes('/v2/'))).toBe(false)
+    expect((await loadGastos(db)).txns).toHaveLength(before)
+  })
+
+  it('leitura vazia de banco ou conta que tinha dados mantém o que já estava', async () => {
+    const db = await setup()
+    await sync(db, fake().fn, today)
+    const before = (await loadGastos(db)).txns.length
+    const semContas = await sync(db, fake(url => url.pathname === '/accounts' ? json({ results: [] }) : null).fn, today)
+    expect(semContas.errors[0].message).toMatch(/não devolveu as contas/)
+    const semLanc = await sync(db, fake(url => url.pathname === '/v2/transactions' ? json({ results: [], next: null }) : null).fn, today)
+    expect(semLanc.errors.map(e => e.message).join(' ')).toMatch(/não devolveu lançamentos/)
+    expect((await loadGastos(db)).txns).toHaveLength(before)
+  })
+
+  it('cartão: banco que devolve menos histórico não apaga os lançamentos mais antigos que a leitura', async () => {
+    const db = await setup()
+    await sync(db, fake().fn, today)
+    const g = await loadGastos(db)
+    const card = g.accounts.find(a => a.kind === 'cartao')!
+    const before = g.txns.filter(t => t.accountId === card.id).length
+    // a mesma compra de antes, mais uma bem antiga só no Yield (o banco já não devolve)
+    await db.execute("INSERT INTO transactions (id, account_id, date, description, amount_cents, pending, installment, operation_type, fingerprint, source_key) VALUES ('velha', ?, '2026-01-10', 'LOJA ANTIGA', -1000, 0, NULL, NULL, 'fp-velha', 'pluggy:fp-velha')", [card.id])
+    await sync(db, fake().fn, today)
+    expect((await loadGastos(db)).txns.filter(t => t.accountId === card.id)).toHaveLength(before + 1)
   })
 
   it('compra de cartão reemitida com outro id continua uma linha e mantém o ajuste', async () => {
@@ -279,5 +316,17 @@ describe('syncPluggy — renda variável', () => {
     expect(r2.errors).toHaveLength(1)
     expect((await loadAll(db)).trades).toHaveLength(0) // erro no meio não grava parte do item
     expect((await sync(db, fake().fn, today)).investments).toEqual([{ itemId: ITEM, label: 'Banco Exemplo', found: 0, inserted: 0, updated: 0, existing: 0 }])
+  })
+})
+
+describe('itemProblem', () => {
+  const now = Date.parse('2026-11-03T12:00:00Z')
+  it('vencida bloqueia; vencendo em 30 dias, login pedido e falha na Pluggy só avisam; sem item ou tudo certo, nada', () => {
+    expect(itemProblem({ id: 'i', consentExpiresAt: '2026-11-01T00:00:00Z' }, now)).toMatchObject({ block: true })
+    expect(itemProblem({ id: 'i', consentExpiresAt: '2026-11-20T00:00:00Z' }, now)).toMatchObject({ block: false, text: expect.stringMatching(/vence em 20\/11\/2026/) })
+    expect(itemProblem({ id: 'i', status: 'LOGIN_ERROR' }, now)).toMatchObject({ block: false, text: expect.stringMatching(/login de novo/) })
+    expect(itemProblem({ id: 'i', status: 'OUTDATED' }, now)?.block).toBe(false)
+    expect(itemProblem({ id: 'i', status: 'UPDATED', consentExpiresAt: '2027-06-01T00:00:00Z' }, now)).toBeNull()
+    expect(itemProblem(null, now)).toBeNull()
   })
 })

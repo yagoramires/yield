@@ -5,7 +5,7 @@ import type { Subscription } from './assinaturas'
 import { suggestForMonth } from './sugestoes'
 
 const txn = (o: Partial<Txn>): Txn => ({ id: 't', accountId: 'c1', date: '2026-09-10', description: 'LOJA X', amountCents: -10000, pending: false, installment: null, operationType: null, fingerprint: 'fp', sourceKey: 's', ...o })
-const sub = (o: Partial<Subscription>): Subscription => ({ merchantKey: 'c1|netflix', name: 'Netflix', accountId: 'c1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-05', active: true, charges: 3, previousAmountCents: null, ...o })
+const sub = (o: Partial<Subscription>): Subscription => ({ merchantKey: 'c1|netflix', name: 'Netflix', accountId: 'c1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-09-05', nextDate: '2026-10-05', active: true, canceledAt: null, charges: 3, previousAmountCents: null, ...o })
 const line = (o: Partial<BudgetLine>): BudgetLine => ({ id: 'l', month: '2026-10', kind: 'saida', name: 'x', amountCents: 1, recurring: false, position: 0, categoryId: null, installmentCurrent: null, installmentTotal: null, sourceId: null, grupo: null, sourceKey: null, ...o })
 const semCat = () => null
 const cat = { id: 'lazer', name: 'Lazer', countsAsSpending: true, builtin: false } as Category
@@ -34,6 +34,13 @@ describe('suggestForMonth', () => {
     const key = 'parc:c1|loja x|10|10000@2026-10'
     expect(suggestForMonth('2026-10', [sub({})], t, semCat, [line({ sourceKey: key }), line({ sourceKey: 'sub:c1|netflix@2026-10' })], [])).toEqual([])
     expect(suggestForMonth('2026-10', [], t, semCat, [line({ month: '2026-09', sourceKey: key })], [])).toHaveLength(1)
+  })
+  it('financiamento de um bem sugere a parcela do mês; aceita, some; fora do prazo, nada', () => {
+    const carro = { id: 'b1', kind: 'veiculo', name: 'Onix', details: null, boughtAt: '2026-03-10', costCents: 1, valueCents: null, valueAt: null, downPaymentCents: null, installmentCents: 150000, installmentsTotal: 48, firstInstallment: '2026-04', debtCents: null, categoryIds: [], reminders: [] } as const
+    const bens = [{ ...carro, categoryIds: [], reminders: [] }]
+    expect(suggestForMonth('2026-10', [], [], semCat, [], [], bens)).toEqual([{ key: 'bem:b1@2026-10', reason: 'parcela', name: 'Onix', amountCents: 150000, categoryId: null, installmentCurrent: 7, installmentTotal: 48, recurring: true }])
+    expect(suggestForMonth('2026-10', [], [], semCat, [line({ sourceKey: 'bem:b1@2026-10' })], [], bens)).toEqual([])
+    expect(suggestForMonth('2026-03', [], [], semCat, [], [], bens)).toEqual([])
   })
   it('descartada não aparece', () => {
     expect(suggestForMonth('2026-10', [sub({})], [compra(3, '2026-09-10')], semCat, [], ['sub:c1|netflix@2026-10', 'parc:c1|loja x|10|10000@2026-10'])).toEqual([])

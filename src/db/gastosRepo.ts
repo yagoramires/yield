@@ -6,7 +6,7 @@ export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId:
 export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
 export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean; icon: string | null /* nome Lucide */; color: string | null }
 export interface CategoryRule { id: string; pattern: string; categoryId: string }
-export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */; companyNames: string[] /* nome ou CNPJ da empresa do titular: o que ela paga é Receita */; ruleSuggestionsDismissed: string[] /* padrões que o usuário não quer virar regra */ }
+export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */; companyNames: string[] /* nome ou CNPJ da empresa do titular: o que ela paga é Receita */; ruleSuggestionsDismissed: string[] /* padrões que o usuário não quer virar regra */; canceledSubs: Record<string, ISODate> /* merchantKey → dia em que a pessoa marcou "cancelei" */ }
 
 type TxnInput = Omit<Txn, 'id' | 'accountId'>
 
@@ -16,7 +16,7 @@ const TXN_COLS = `id, account_id AS accountId, date, description, amount_cents A
 const SUGGESTIONS_KEY = 'categorias.sugestoesRecusadas'
 
 export async function loadGastos(db: Db): Promise<GastosData> {
-  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner, company, refused] = await Promise.all([
+  const [accounts, txns, categories, rules, overrides, dismissed, pluggyItems, owner, company, refused, canceled] = await Promise.all([
     db.select<Account>('SELECT id, source, external_id AS externalId, institution, name, kind, number, item_id AS itemId, last_sync_at AS lastSyncAt, balance_cents AS balanceCents, balance_at AS balanceAt FROM accounts ORDER BY institution, name'),
     db.select<Txn>(`SELECT ${TXN_COLS} FROM transactions ORDER BY date, id`),
     db.select<Category>('SELECT id, name, counts_as_spending AS countsAsSpending, builtin, icon, color FROM categories ORDER BY builtin DESC, rowid'),
@@ -27,6 +27,7 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'gastos.titular'"),
     db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'gastos.empresa'"),
     db.select<{ value: string }>('SELECT value FROM meta WHERE key = ?', [SUGGESTIONS_KEY]),
+    db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'assinaturas.canceladas'"),
   ])
   return {
     accounts,
@@ -39,6 +40,7 @@ export async function loadGastos(db: Db): Promise<GastosData> {
     ownerNames: owner[0] ? JSON.parse(owner[0].value) as string[] : [],
     companyNames: company[0] ? JSON.parse(company[0].value) as string[] : [],
     ruleSuggestionsDismissed: refused[0] ? JSON.parse(refused[0].value) as string[] : [],
+    canceledSubs: canceled[0] ? JSON.parse(canceled[0].value) as Record<string, ISODate> : {},
   }
 }
 
@@ -156,6 +158,13 @@ export async function deleteRule(db: Db, id: string): Promise<void> {
 export async function setOverride(db: Db, fingerprint: string, categoryId: string | null): Promise<void> {
   if (categoryId === null) await db.execute('DELETE FROM category_overrides WHERE fingerprint = ?', [fingerprint])
   else await db.execute('INSERT OR REPLACE INTO category_overrides (fingerprint, category_id) VALUES (?, ?)', [fingerprint, categoryId])
+}
+
+/** "Cancelei" (com o dia) ou null para desfazer. */
+export async function setSubscriptionCanceled(db: Db, current: Record<string, ISODate>, merchantKey: string, day: ISODate | null): Promise<void> {
+  const next = { ...current }
+  if (day) next[merchantKey] = day; else delete next[merchantKey]
+  await db.execute("INSERT INTO meta (key, value) VALUES ('assinaturas.canceladas', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value", [JSON.stringify(next)])
 }
 
 export async function dismissSubscription(db: Db, merchantKey: string): Promise<void> {

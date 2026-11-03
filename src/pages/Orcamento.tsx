@@ -3,8 +3,10 @@ import { Sections } from '../ui/Sections'
 import { Insights } from './assistente/Insights'
 import type { Route } from '../ui/routes'
 import { ChevronRight, Plus } from 'lucide-react'
+import { setSubscriptionCanceled } from '../db/gastosRepo'
 import { addLines, createMonth, deleteLine, deleteMonth, dismissSuggestion, saveFixedCategories, saveGoals, saveLine, saveReservaLinks, saveReservas, type BudgetLine, type Grupo, type IncomeSource, type LineKind } from '../db/orcamentoRepo'
-import { addMonths, editCents, formatBRL, formatCents } from '../domain/money'
+import { addMonths, editCents, formatBRL, formatCents, monthOf } from '../domain/money'
+import { dismissedFor, MES_APAGADO } from '../state/autoPlan'
 import { averageByCategory, blocoOf, outrasEntradas, cltTabelaAno, copyLines, custos, goalsFor, investido, type InvGroup, missingSources, monthSummary, nextMonthLines, pjNet, sourceNet, withSources, type Bloco, type VarRow } from '../domain/orcamento'
 import { displayName } from '../domain/gastos'
 import { cleanDescription } from './lancamentos/build'
@@ -16,6 +18,8 @@ import { todayISO, useData } from '../state/DataProvider'
 import { accountLabel, brDay, errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
+import { ReservaLink } from './orcamento/ReservaLink'
+import { SaldoContas } from './orcamento/SaldoContas'
 import { Select } from '../ui/Select'
 import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 import { TINT } from '../ui/palette'
@@ -41,7 +45,7 @@ function Track({ real, planned, soft }: { real: number; planned: number; soft?: 
 }
 
 export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavigate(r: Route): void; onOpenGastos(): void; onOpenSettings(at?: SectionId): void }) {
-  const { db, gastos, orcamento, data: carteira } = useData()
+  const { db, gastos, orcamento, bens, data: carteira, reload: reloadAll } = useData()
   const { data, month, setMonth, reload } = orcamento
   const [form, setForm] = useState<Form | null>(null)
   const [del, setDel] = useState<BudgetLine | null>(null)
@@ -49,7 +53,6 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const [error, setError] = useState<string | null>(null)
   const [metasOpen, setMetasOpen] = useState(false)
   const [openCats, setOpenCats] = useState<Set<string>>(new Set()) // categorias abertas no cartão de custos
-  const [tab, setTab] = useState<'fixos' | 'variaveis'>('variaveis')
   const [delMonth, setDelMonth] = useState(false) // confirmando a exclusão do mês
 
   // toda escrita passa por aqui: recarrega e mostra o erro em pt-BR na tela
@@ -81,7 +84,10 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
         <div className="btns">
           {delMonth ? <>
             <span className="muted" style={{ alignSelf: 'center' }}>Excluir {lower(month)}{lines.length ? ` e ${plural(lines.length, 'linha', 'linhas')}` : ''}?</span>
-            <button className="b danger" disabled={busy} onClick={() => void run(`Não foi possível excluir ${lower(month)}`, () => deleteMonth(db, month)).then(ok => ok && setDelMonth(false))}>Excluir</button>
+            <button className="b danger" disabled={busy} onClick={() => void run(`Não foi possível excluir ${lower(month)}`, async () => {
+              await deleteMonth(db, month)
+              if (month === monthOf(today)) await dismissSuggestion(db, month, MES_APAGADO) // o plano automático não recria o mês atual
+            }).then(ok => ok && setDelMonth(false))}>Excluir</button>
             <button className="b ghost" disabled={busy} onClick={() => setDelMonth(false)}>Cancelar</button>
           </> : <button className="b ghost" disabled={busy} onClick={() => { setForm(null); setDel(null); setDelMonth(true) }}>Excluir mês</button>}
           <button className={metasOpen ? 'b' : 'b ghost'} disabled={busy} onClick={() => { setForm(null); setDel(null); setMetasOpen(!metasOpen) }}>Metas</button>
@@ -132,14 +138,13 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const ritmo = pace(vars.realCents, progress)
   const hasTxns = gastos.data.accounts.length > 0
   const missing = missingSources(lines, data.sources).filter(s => sourceNet(s, month) > 0)
-  const dismissed = data.dismissed.filter(d => d.month === month).map(d => d.key)
-  const suggestions = suggestForMonth(month, gastos.subscriptions, gastos.data.txns, gastos.categorize, data.lines, dismissed)
+  const dismissed = dismissedFor(data.dismissed, month)
+  const suggestions = suggestForMonth(month, gastos.subscriptions, gastos.data.txns, gastos.categorize, data.lines, dismissed, bens.list, today, gastos.purchases)
 
   const open = (at: At, f: Partial<Form> = {}) => {
     setDel(null); setError(null)
     // gasto ou aporte à mão é do mês: repetido no mês seguinte já nasceria como gasto feito
     const manual = at === 'variavel' || at === 'meta'
-    if (at === 'fixo' || at === 'variavel') setTab(at === 'fixo' ? 'fixos' : 'variaveis')
     setForm({ at, kind: at === 'entrada' ? 'entrada' : 'saida', grupo: manual ? at : 'fixo', name: '', amount: '', installment: '', categoryId: '', recurring: !manual, sourceId: '', sourceKey: null, position: 0, ...f })
   }
   const edit = (l: BudgetLine) => open(l.kind === 'entrada' ? 'entrada' : blocoOf(l), {
@@ -230,10 +235,14 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   )
   const confirmDel = (l: BudgetLine) => (
     <div className="note" style={{ marginTop: 8 }}>
-      Apagar "{l.name}" deste mês? Os outros meses não mudam.
+      Apagar "{l.name}" deste mês? {/^(sub|parc|bem):/.test(l.sourceKey ?? '') ? 'Ela entrou sozinha e não volta mais.' : 'Os outros meses não mudam.'}
       <span className="btns" style={{ marginTop: 8 }}>
         <button className="b" disabled={busy} onClick={() => setDel(null)}>Cancelar</button>
-        <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível apagar a linha', () => deleteLine(db, l.id)).then(ok => ok && setDel(null))}>Apagar</button>
+        <button className="b pri" disabled={busy} onClick={() => void run('Não foi possível apagar a linha', async () => {
+          await deleteLine(db, l.id)
+          // linha que entrou sozinha (assinatura, parcela, financiamento): apagada, não volta mais
+          if (/^(sub|parc|bem):/.test(l.sourceKey ?? '')) await dismissSuggestion(db, '*', l.sourceKey!.replace(/@\d{4}-\d{2}$/, ''))
+        }).then(ok => ok && setDel(null))}>Apagar</button>
       </span>
     </div>
   )
@@ -297,9 +306,14 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   )
   const parcelaRow = (l: BudgetLine) => {
     const n = l.installmentCurrent!, last = l.installmentTotal!
+    // parcela aceita dos lançamentos: a chave começa pela conta ("parc:<conta>|…"), então dá para dizer em qual cartão ela está
+    const fromTxns = l.sourceKey?.startsWith('parc:')
+    const acc = fromTxns ? gastos.data.accounts.find(a => a.id === l.sourceKey!.slice(5).split('|')[0]) : undefined
+    const gone = acc?.source === 'pluggy' && !gastos.data.pluggyItems.some(i => i.itemId === acc.itemId)
+    const where = acc ? `${acc.institution} · ${accountLabel(acc)}${gone ? ' (banco desconectado)' : ''}` : fromTxns ? 'conta que não existe mais' : null
     return (
       <>
-        {nameCell(l, [`${n} de ${last}`, n >= last ? 'última' : `acaba em ${lower(addMonths(month, last - n))}`])}
+        {nameCell(l, [`${n} de ${last}`, n >= last ? 'última' : `acaba em ${lower(addMonths(month, last - n))}`, where])}
         <td className="r">{formatCents(l.amountCents)}</td>
       </>
     )
@@ -347,11 +361,12 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
   const saldoOf = (k: string) => { const l = linked.get(k) ?? []; return l.length ? l.reduce((s, b) => s + b.balanceCents, 0) : null }
   // reserva sem movimento no mês continua aparecendo pelo saldo do banco
   const reservaGroups: InvGroup[] = [...inv.reservas, ...data.reservas.filter(k => !inv.reservas.some(g => g.key === k) && saldoOf(k) !== null)
-    .map(k => ({ key: k, name: linked.get(k)![0].name, inCents: 0, outCents: 0, netCents: 0, txns: [] }))]
+    .map(k => ({ key: k, name: [...new Set(linked.get(k)!.map(b => b.name))].join(' + '), inCents: 0, outCents: 0, netCents: 0, txns: [] }))]
   const reservaSaldo = reservaGroups.map(g => saldoOf(g.key)).filter((c): c is number => c !== null)
-  const linkReserva = (k: string, id: string) => void run('Não foi possível ligar a reserva', () => {
+  // a escolha à mão vale mesmo vazia (nenhum investimento); null volta ao automático
+  const linkReserva = (k: string, ids: string[] | null) => void run('Não foi possível ligar a reserva', () => {
     const links = { ...data.reservaLinks }
-    if (id) links[k] = id; else delete links[k]
+    if (ids) links[k] = ids; else delete links[k]
     return saveReservaLinks(db, links)
   })
   const groupRow = (g: InvGroup, reserva: boolean) => {
@@ -372,11 +387,9 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
           : <>{reserva && g.netCents > 0 ? '+' : ''}{formatCents(g.netCents)}{g.outCents > 0 && <div className="d2" style={{ textAlign: 'right' }}>{formatCents(g.inCents)} − {formatCents(g.outCents)}</div>}</>}</td>
       </tr>,
       ...(reserva && liveInv.length > 0 ? [
-        <tr key={`link-${key}`} className="sub"><td colSpan={2}><div className="row" style={{ alignItems: 'center', gap: 8 }}>
-          <span className="muted">{saldo === null ? 'Qual investimento do banco é esta reserva?' : 'Ligada a'}</span>
-          <Select small ariaLabel={`Investimento da reserva ${g.name}`} value={data.reservaLinks[g.key] ?? ''} onChange={v => linkReserva(g.key, v)}
-            options={[{ value: '', label: saldo === null ? 'escolha' : 'pelo nome' }, ...liveInv.map(b => ({ value: b.id, label: `${b.name} · ${formatCents(b.balanceCents)}` }))]} />
-        </div></td></tr>,
+        <tr key={`link-${key}`} className="sub"><td colSpan={2}>
+          <ReservaLink invs={liveInv} linked={(linked.get(g.key) ?? []).map(b => b.id)} manual={Object.hasOwn(data.reservaLinks, g.key)} busy={busy} onChange={ids => linkReserva(g.key, ids)} />
+        </td></tr>,
       ] : []),
       ...(opened ? [<tr key={`l-${key}`} className="sub"><td colSpan={2}><div className="txn-list">{g.txns.map(t => (
         <div key={t.id} className="it"><span className="muted">{brDay(t.date)}</span><span className="ell" title={`${t.description} · ${accountLabel(gastos.data.accounts.find(a => a.id === t.accountId))}`}>{displayName(t.description)}</span>
@@ -416,16 +429,53 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
         <div className="k"><div className="muted">Investido</div><div className="v">{formatBRL(inv.realCents)}</div><div className="s muted">{inv.goalCents === null ? 'sem meta' : `meta ${formatBRL(inv.goalCents)} · ${inv.realCents >= inv.goalCents ? 'batida' : `faltam ${formatBRL(inv.goalCents - inv.realCents)}`}`}</div></div>
         <div className="k"><div className="muted">Sobra</div><div className={`v ${sobra > 0 ? 'up' : sobra < 0 ? 'dn' : ''}`}>{sobra > 0 ? '+' : ''}{formatBRL(sobra)}</div><div className="s muted">{inv.reservaCents > 0 ? `inclui ${formatBRL(inv.reservaCents)} guardados na reserva` : inv.reservaCents < 0 ? `sem contar ${formatBRL(-inv.reservaCents)} tirados da reserva` : 'o que entra − o que já saiu'}</div></div>
       </div>
-
       {metasOpen && <Metas key={month} month={month} categories={categories} goals={goals} averages={avgs} fixed={data.fixedCategories} busy={busy}
         onClose={() => setMetasOpen(false)} onSave={(changes, fixed) => void run('Não foi possível salvar as metas', async () => {
           await saveGoals(db, month, changes)
           if (fixed) await saveFixedCategories(db, fixed)
         }).then(ok => ok && setMetasOpen(false))} />}
 
-      {suggestions.length > 0 && (
+      <Sections page="orcamento" items={[
+        { id: 'saldo', label: 'Saldo nas contas', wide: true, node: <SaldoContas /> },
+        { id: 'investimentos', label: 'Investimentos', wide: true, node: block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
+        empty: 'Nada investido neste mês ainda.',
+        goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
+        hint: inv.groups.length > 0 && 'aplicado − resgatado no mês · caixinha que entra e sai: passe o mouse na linha e marque como reserva',
+        extra: inv.groups.length > 0 && inv.groups.flatMap(g => groupRow(g, false)),
+      }) },
+        { id: 'reserva', label: 'Reserva', wide: true, node: reservaGroups.length > 0 && (
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
+          <div className="muted" style={{ marginTop: 4 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
+          <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
+        </div>
+      ) },
+        { id: 'entradas', label: 'Entradas', wide: true, node: block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
+        empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Renda e orçamento e eles entram sozinhos todo mês.',
+        add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
+        hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={() => onOpenSettings('contas')}>Cadastre seu nome e o da sua empresa</button> em Configurações › Contas conectadas: o que vier deles sai daqui.</>,
+        extra: missing.length > 0 && missing.map(s => (
+          <tr key={`fonte-${s.id}`}>
+            <td className="ell-cell"><div className="cat-line">
+              <SourceIcon kind={s.kind} dim />
+              <div className="grow"><div className="nm"><span style={{ color: "var(--text-2)" }}>{s.name}</span></div><div className="d2">não está neste mês · {formatCents(sourceNet(s, month))}</div></div>
+            </div></td>
+            <td className="r"><button className="b" disabled={busy} onClick={() => include(s)}>Incluir</button></td>
+          </tr>
+        )),
+        after: outras.length > 0 && outras.map(t => (
+          <tr key={`recebido-${t.id}`}>
+            <td className="ell-cell"><div className="cat-line">
+              <IconGlyph name="arrow-left-right" color={TINT.verde} size={28} />
+              <div className="grow"><div className="nm">{cleanDescription(t.description).name}</div><div className="d2">recebido na conta em {brDay(t.date)}</div></div>
+            </div></td>
+            <td className="r">{formatCents(t.amountCents)}</td>
+          </tr>
+        )),
+      }) },
+        { id: 'sugestoes', label: 'Sugestões dos seus gastos', wide: true, node: suggestions.length > 0 && (
         <div className="card" style={{ marginBottom: 12, borderColor: 'var(--accent-line)' }}>
-          <div className="bar"><h5 style={{ margin: 0 }}>Sugestões dos seus gastos <span className="muted">({suggestions.length})</span></h5><span className="muted">nada entra no plano sem você aceitar</span></div>
+          <div className="bar"><h5 style={{ margin: 0 }}>Sugestões dos seus gastos <span className="muted">({suggestions.length})</span></h5><span className="muted">as do mês atual e dos próximos entram sozinhas</span></div>
           {suggestions.map(s => (
             <div key={s.key} className="sug">
               <span className="pill">{s.reason}</span>
@@ -436,94 +486,59 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
                 name: s.name, amount: editCents(s.amountCents), categoryId: s.categoryId ?? '', recurring: s.recurring, sourceKey: s.key,
                 installment: s.installmentCurrent !== null ? `${s.installmentCurrent}/${s.installmentTotal}` : '',
               })}>Ajustar</button>
+              {s.reason === 'assinatura' && <button className="b ghost" disabled={busy} title="Não renova mais: sai das sugestões e das assinaturas ativas" onClick={() => void run('Não foi possível marcar como cancelada', async () => {
+                await setSubscriptionCanceled(db, gastos.data.canceledSubs, s.key.slice(4, s.key.lastIndexOf('@')), today)
+                await reloadAll()
+              })}>Cancelei</button>}
               <button className="b ghost" disabled={busy} onClick={() => void run('Não foi possível descartar a sugestão', () => dismissSuggestion(db, month, s.key))}>Descartar</button>
             </div>
           ))}
         </div>
-      )}
-
-      <Sections page="orcamento" split={2} items={[
-          { id: 'entradas', label: 'Entradas', node: block('entrada', 'Entradas', entradas, formatCents(sum.entradasCents + outrasCents), entradaRow, {
-            empty: data.sources.length ? 'Nenhuma entrada neste mês.' : 'Nenhuma entrada. Cadastre seus salários em Configurações › Renda e orçamento e eles entram sozinhos todo mês.',
-            add: () => open('entrada', missing[0] ? fromSource(missing[0]) : {}),
-            hint: outras.length > 0 && !gastos.data.ownerNames.length && !gastos.data.companyNames.length && <>Algum recebido é seu? <button className="link" onClick={() => onOpenSettings('contas')}>Cadastre seu nome e o da sua empresa</button> em Configurações › Contas conectadas: o que vier deles sai daqui.</>,
-            extra: missing.length > 0 && missing.map(s => (
-              <tr key={`fonte-${s.id}`}>
-                <td className="ell-cell"><div className="cat-line">
-                  <SourceIcon kind={s.kind} dim />
-                  <div className="grow"><div className="nm"><span style={{ color: "var(--text-2)" }}>{s.name}</span></div><div className="d2">não está neste mês · {formatCents(sourceNet(s, month))}</div></div>
-                </div></td>
-                <td className="r"><button className="b" disabled={busy} onClick={() => include(s)}>Incluir</button></td>
-              </tr>
-            )),
-            after: outras.length > 0 && outras.map(t => (
-              <tr key={`recebido-${t.id}`}>
-                <td className="ell-cell"><div className="cat-line">
-                  <IconGlyph name="arrow-left-right" color={TINT.verde} size={28} />
-                  <div className="grow"><div className="nm">{cleanDescription(t.description).name}</div><div className="d2">recebido na conta em {brDay(t.date)}</div></div>
-                </div></td>
-                <td className="r">{formatCents(t.amountCents)}</td>
-              </tr>
-            )),
-          }) },
-          { id: 'custos', label: 'Custos', node: (
-          <div className="card" style={{ marginBottom: 12 }}>
-            <div className="bar">
-              <h5 style={{ margin: 0 }}>Custos <span className="muted" style={{ fontWeight: 400 }}>{lower(month)}</span></h5>
-              <button className="b ghost sq" disabled={busy} aria-label={tab === 'fixos' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(tab === 'fixos' ? 'fixo' : 'variavel')}><Plus size={14} aria-hidden /></button>
+      ) },
+        { id: 'custos', label: 'Custos', wide: true, node: (
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="bar">
+          <h5 style={{ margin: 0 }}>Custos <span className="muted" style={{ fontWeight: 400 }}>{lower(month)}</span></h5>
+        </div>
+        <div className="costs-big">{formatBRL(custosCents)}</div>
+        <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: 'var(--faint)' }} /><i style={{ flexGrow: vars.realCents, background: 'var(--c2)' }} /></div>
+        {!hasTxns && <div className="muted" style={{ marginBottom: 6 }}>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</div>}
+        {(['fixo', 'variavel'] as const).map(t => {
+          const cents = t === 'fixo' ? fixosCents : vars.realCents
+          return (
+            <div key={t} className="cost-group">
+              <div className="cost-h">
+                <b><span className="dot" style={{ background: t === 'fixo' ? 'var(--faint)' : 'var(--c2)' }} />{t === 'fixo' ? 'Fixos' : 'Variáveis'}</b>
+                <span className="muted">{formatBRL(cents)} · {share(cents)}%</span>
+                <button className="b ghost sq" disabled={busy} aria-label={t === 'fixo' ? 'Novo custo fixo' : 'Novo gasto variável'} onClick={() => open(t)}><Plus size={14} aria-hidden /></button>
+              </div>
+              {t === 'variavel' && vars.goalCents !== null && (
+                <div style={{ marginBottom: 6 }}><div className="muted">limite dos variáveis: {formatCents(vars.realCents)} de {formatCents(vars.goalCents)}</div><Track real={vars.realCents} planned={vars.goalCents} /></div>
+              )}
+              <table className="lt blk">
+                <tbody>
+                  {t === 'fixo' ? <>
+                    {section('No plano', total(fixos.filter(l => !fatura(l))))}
+                    {fixos.length === 0 && !formHere('fixo') && <tr><td colSpan={2} className="muted">Assinaturas e contas que se repetem; as detectadas aparecem nas sugestões acima.</td></tr>}
+                    {lineRows(fixos)}
+                    {formHere('fixo')}
+                    {vars.fixas.length > 0 && <>{section('Fora do plano', vars.fixasCents)}{vars.fixas.flatMap(r => catRow(r, true))}</>}
+                  </> : <>
+                    {vars.variaveis.length === 0 && vars.manual.length === 0 && !formHere('variavel') && <tr><td colSpan={2} className="muted">Nenhum gasto variável neste mês ainda.</td></tr>}
+                    {vars.variaveis.flatMap(r => catRow(r))}
+                    {lineRows(vars.manual)}
+                    {formHere('variavel')}
+                  </>}
+                </tbody>
+              </table>
             </div>
-            <div className="costs-big">{formatBRL(custosCents)}</div>
-            <div className="split" aria-hidden><i style={{ flexGrow: fixosCents, background: 'var(--faint)' }} /><i style={{ flexGrow: vars.realCents, background: 'var(--c2)' }} /></div>
-            <div className="cost-seg" role="group" aria-label="Mostrar custos">
-              {(['fixos', 'variaveis'] as const).map(t => (
-                <button key={t} aria-pressed={tab === t} className={tab === t ? 'on' : ''} onClick={() => {
-                  // só o formulário e a confirmação deste cartão: os dos outros cartões continuam abertos
-                  if (form?.at === 'fixo' || form?.at === 'variavel') setForm(null)
-                  if (del?.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel')) setDel(null)
-                  setTab(t)
-                }}>
-                  <b><span className="dot" style={{ background: t === 'fixos' ? 'var(--faint)' : 'var(--c2)' }} />{t === 'fixos' ? 'Fixos' : 'Variáveis'}</b>
-                  <span>{formatBRL(t === 'fixos' ? fixosCents : vars.realCents)} · {share(t === 'fixos' ? fixosCents : vars.realCents)}%</span>
-                </button>
-              ))}
-            </div>
-            {!hasTxns && <div className="muted" style={{ marginBottom: 6 }}>Os gastos vêm dos lançamentos: conecte ou importe uma conta em <button className="link" onClick={onOpenGastos}>Últimos gastos</button>.</div>}
-            {tab === 'variaveis' && vars.goalCents !== null && (
-              <div style={{ marginBottom: 6 }}><div className="muted">limite dos variáveis: {formatCents(vars.realCents)} de {formatCents(vars.goalCents)}</div><Track real={vars.realCents} planned={vars.goalCents} /></div>
-            )}
-            <table className="lt blk">
-              <tbody>
-                {tab === 'fixos' ? <>
-                  {section('No plano', total(fixos.filter(l => !fatura(l))))}
-                  {fixos.length === 0 && !formHere('fixo') && <tr><td colSpan={2} className="muted">Assinaturas e contas que se repetem; as detectadas aparecem nas sugestões acima.</td></tr>}
-                  {lineRows(fixos)}
-                  {formHere('fixo')}
-                  {vars.fixas.length > 0 && <>{section('Fora do plano', vars.fixasCents)}{vars.fixas.flatMap(r => catRow(r, true))}</>}
-                </> : <>
-                  {vars.variaveis.length === 0 && vars.manual.length === 0 && !formHere('variavel') && <tr><td colSpan={2} className="muted">Nenhum gasto variável neste mês ainda.</td></tr>}
-                  {vars.variaveis.flatMap(r => catRow(r))}
-                  {lineRows(vars.manual)}
-                  {formHere('variavel')}
-                </>}
-              </tbody>
-            </table>
-            {del && del.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel') && confirmDel(del)}
-          </div>) },
-          { id: 'investimentos', label: 'Investimentos', node: block('meta', 'Investimentos', inv.manual, ofGoal(inv.realCents, inv.goalCents), plainRow, {
-            empty: 'Nada investido neste mês ainda.',
-            goal: inv.goalCents !== null ? { real: inv.realCents, goal: inv.goalCents } : undefined,
-            hint: inv.groups.length > 0 && 'aplicado − resgatado no mês · caixinha que entra e sai: passe o mouse na linha e marque como reserva',
-            extra: inv.groups.length > 0 && inv.groups.flatMap(g => groupRow(g, false)),
-          }) },
-          { id: 'reserva', label: 'Reserva', node: reservaGroups.length > 0 && (
-            <div className="card" style={{ marginBottom: 12 }}>
-              <div className="bar"><h5 style={{ margin: 0 }}>Reserva</h5><b style={{ color: 'var(--strong)', fontVariantNumeric: 'tabular-nums' }}>{reservaSaldo.length ? formatCents(reservaSaldo.reduce((s, c) => s + c, 0)) : `${inv.reservaCents > 0 ? '+' : ''}${formatCents(inv.reservaCents)}`}</b></div>
-              <div className="muted" style={{ marginTop: 4 }}>{reservaSaldo.length ? `saldo no banco ${ago(liveInv.map(b => b.fetchedAt).sort().at(-1))} · ${inv.reservaCents >= 0 ? '+' : ''}${formatCents(inv.reservaCents)} este mês; não conta como investimento nem como gasto` : 'dinheiro guardado que entra e sai: não conta como investimento nem como gasto'}</div>
-              <table className="lt blk" style={{ marginTop: 6 }}><tbody>{reservaGroups.flatMap(g => groupRow(g, true))}</tbody></table>
-            </div>
-          ) },
-          { id: 'parcelas', label: 'Parcelas', node: block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.' }) },
-        ]} />
+          )
+        })}
+        {del && del.kind === 'saida' && (blocoOf(del) === 'fixo' || blocoOf(del) === 'variavel') && confirmDel(del)}
+      </div>) },
+        { id: 'parcelas', label: 'Parcelas', wide: true, node: block('parcela', 'Parcelas', parcelas, formatCents(total(parcelas)), parcelaRow, { empty: 'Compras parceladas; somem sozinhas depois da última.',
+        hint: orcamento.autoRemoved.length > 0 && `Tirei do plano o que o cartão já mostra como quitado ou repetido: ${orcamento.autoRemoved.map(displayName).join(', ')}.` }) },
+      ]} />
     </>
   )
 }

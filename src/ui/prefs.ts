@@ -15,8 +15,8 @@ function store<T>(key: string, fallback: T) {
 
 const off = store<Module[]>('yield.modulosDesligados', [])
 // valor estranho no storage (editado à mão, versão antiga) não pode derrubar o app: fica só o que é módulo conhecido
-const known: Module[] = ['gastos', 'orcamento', 'investimentos']
-if (!Array.isArray(off.get()) || off.get().some(m => !known.includes(m))) off.set(Array.isArray(off.get()) ? off.get().filter(m => known.includes(m)).slice(0, 2) : [])
+const known: Module[] = ['gastos', 'orcamento', 'investimentos', 'bens']
+if (!Array.isArray(off.get()) || off.get().some(m => !known.includes(m))) off.set(Array.isArray(off.get()) ? off.get().filter(m => known.includes(m)).slice(0, known.length - 1) : [])
 const mini = store<boolean>('yield.menuRecolhido', false)
 
 export function useModules() {
@@ -24,7 +24,7 @@ export function useModules() {
   return {
     enabled: (m: Module | null) => m === null || !disabled.includes(m),
     // pelo menos um módulo fica ligado
-    toggle: (m: Module) => off.set(disabled.includes(m) ? disabled.filter(x => x !== m) : disabled.length >= 2 ? disabled : [...disabled, m]),
+    toggle: (m: Module) => off.set(disabled.includes(m) ? disabled.filter(x => x !== m) : disabled.length >= known.length - 1 ? disabled : [...disabled, m]),
     /** Setup inicial: as escolhas de uma vez; pelo menos um fica ligado. */
     set: (d: Module[]) => { if (d.length < known.length) off.set(d) },
     disabled,

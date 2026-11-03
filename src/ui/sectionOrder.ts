@@ -10,16 +10,3 @@ export function moveId(order: string[], id: string, target: string): string[] {
   rest.splice(to, 0, id)
   return rest
 }
-
-/** Na tela de duas colunas, marca na ordem onde termina a da esquerda. */
-export const SPLIT = '|'
-
-/** Tira `id` de onde está e põe logo antes de `target` (null = no fim). */
-export function insertBefore(order: string[], id: string, target: string | null): string[] {
-  if (id === target || !order.includes(id)) return order
-  const rest = order.filter(x => x !== id)
-  const at = target === null ? rest.length : rest.indexOf(target)
-  if (at < 0) return order
-  rest.splice(at, 0, id)
-  return rest
-}

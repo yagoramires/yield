@@ -23,7 +23,7 @@ const emptyPortfolio = () => buildPortfolio([], [], [], [], TODAY)
 function perfil(txns: Txn[], over: Partial<AiInput> = {}, balanceCents: number | null = null): AiInput {
   return {
     today: TODAY,
-    gastos: { data: { accounts: [conta(balanceCents)], txns, categories: CATS, rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'i1', label: 'Banco Laranja' }], ownerNames: [], companyNames: [], ruleSuggestionsDismissed: [] }, categorize, subscriptions: [] },
+    gastos: { data: { accounts: [conta(balanceCents)], txns, categories: CATS, rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'i1', label: 'Banco Laranja' }], ownerNames: [], companyNames: [], ruleSuggestionsDismissed: [], canceledSubs: {} }, categorize, subscriptions: [] },
     orcamento: emptyOrc, portfolio: emptyPortfolio(), dividends: [], rfMoves: [], rent: null, ...over,
   }
 }
@@ -38,7 +38,7 @@ const gastador = perfil([
   // limites por categoria são metas (cat:<id>); linha variável no app é gasto lançado à mão
   orcamento: { ...emptyOrc, months: ['2026-10'], goals: [goal('mercado', 900), goal('delivery', 300), goal('transporte', 250)] },
 })
-gastador.gastos.subscriptions = [{ merchantKey: 'streaming-azul', name: 'STREAMING AZUL', accountId: 'a1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-10-05', nextDate: '2026-11-05', active: true, charges: 6, previousAmountCents: null }]
+gastador.gastos.subscriptions = [{ merchantKey: 'streaming-azul', name: 'STREAMING AZUL', accountId: 'a1', period: 'mensal', amountCents: 3990, monthlyCents: 3990, yearlyCents: 47880, lastDate: '2026-10-05', nextDate: '2026-11-05', active: true, canceledAt: null, charges: 6, previousAmountCents: null }]
 
 const tr = (ticker: string, assetType: Trade['assetType'], qty: number, priceCents: number, date: string): Trade =>
   ({ id: ticker, noteId: `n-${ticker}`, seq: 1, broker: 'CORRETORA TESTE', tradeDate: date, settleDate: date, side: 'C', assetType, ticker, qty, priceCents, feesCents: 0, irrfCents: 0 })

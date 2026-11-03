@@ -92,7 +92,7 @@ export function copyLines(lines: BudgetLine[], sources: IncomeSource[], target: 
       amountCents: source ? sourceNet(source, target) : l.amountCents,
       sourceId: source ? l.sourceId : null,
       installmentCurrent: current,
-      sourceKey: l.sourceKey && /^(sub|parc):/.test(l.sourceKey) ? `${l.sourceKey.replace(/@\d{4}-\d{2}$/, '')}@${target}` : null,
+      sourceKey: l.sourceKey && /^(sub|parc|bem):/.test(l.sourceKey) ? `${l.sourceKey.replace(/@\d{4}-\d{2}$/, '')}@${target}` : null,
     }]
   })
 }

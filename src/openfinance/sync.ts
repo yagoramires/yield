@@ -6,19 +6,37 @@ import { withFingerprints } from '../domain/gastos'
 import type { AssetType, ISODate } from '../domain/types'
 import { assetTypeOf, settleDate } from '../import/b3'
 import { normalizeBroker } from '../import/parse'
-import { createPluggyClient, PluggyError, rendaVariavel, toTradeRow, toTxnRow, type PluggyAuth } from './pluggy'
+import { createPluggyClient, PluggyError, rendaVariavel, toTradeRow, toTxnRow, type PluggyAuth, type PluggyItem } from './pluggy'
 
 export const SYNC_EVERY_MS = 6 * 60 * 60 * 1000
 /** `found`: investimentos de renda variável do item; `existing`: operações que já estavam no Yield e ficaram como estavam. */
 export interface InvestmentCounts { itemId: string; label: string; found: number; inserted: number; updated: number; existing: number }
-export interface SyncResult { accounts: number; inserted: number; removed: number; errors: { itemId: string; label: string; message: string }[]; investments: InvestmentCounts[] }
+/** Situação de cada banco na Pluggy: quando ela atualizou e o que pede atenção (null: tudo certo). */
+export interface ItemHealth { itemId: string; updatedAt: string | null; problem: string | null }
+export interface SyncResult { accounts: number; inserted: number; removed: number; errors: { itemId: string; label: string; message: string }[]; investments: InvestmentCounts[]; items?: ItemHealth[] }
+
+const brDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
+/**
+ * O que a situação da conexão pede. `block`: autorização do Meu Pluggy vencida, as listas voltariam vazias e não há o que ler.
+ * O resto só avisa: os dados até a última atualização continuam valendo.
+ */
+export function itemProblem(item: PluggyItem | null, nowMs: number): { block: boolean; text: string } | null {
+  if (!item) return null
+  const exp = item.consentExpiresAt && !isNaN(Date.parse(item.consentExpiresAt)) ? Date.parse(item.consentExpiresAt) : null
+  if (exp !== null && exp <= nowMs) return { block: true, text: `a autorização do Meu Pluggy venceu em ${brDate(item.consentExpiresAt!)}: renove em meu.pluggy.ai (o mesmo passo de quando conectou)` }
+  if (item.status === 'LOGIN_ERROR') return { block: false, text: 'o banco pediu login de novo: reconecte ele no Meu Pluggy (os dados até a última atualização continuam aqui)' }
+  if (item.status === 'WAITING_USER_INPUT') return { block: false, text: 'o banco está esperando uma confirmação sua no Meu Pluggy' }
+  if (item.status === 'OUTDATED') return { block: false, text: 'a última atualização na Pluggy falhou; ela tenta de novo sozinha' }
+  if (exp !== null && exp - nowMs < 30 * 864e5) return { block: false, text: `a autorização do Meu Pluggy vence em ${brDate(item.consentExpiresAt!)}: renove em meu.pluggy.ai antes disso` }
+  return null
+}
 type PluggyTrade = NonNullable<ReturnType<typeof toTradeRow>> & { ticker: string; assetType: AssetType | null }
 
 const addDays = (d: ISODate, n: number): ISODate => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10)
 
 export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch, today: ISODate, now: () => Date = () => new Date()): Promise<SyncResult> {
   const client = createPluggyClient(auth, fetchFn)
-  const result: SyncResult = { accounts: 0, inserted: 0, removed: 0, errors: [], investments: [] }
+  const result: SyncResult = { accounts: 0, inserted: 0, removed: 0, errors: [], investments: [], items: [] }
   const items = (await loadGastos(db)).pluggyItems
   const dateTo = addDays(today, 31)
   let badCreds: string | null = null
@@ -26,14 +44,26 @@ export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch
   for (const item of items) {
     if (badCreds) { result.errors.push({ itemId: item.itemId, label: item.label, message: badCreds }); continue } // mesma credencial para todos os itens
     try {
+      // situação da conexão: sem ela (Pluggy fora, formato novo) a leitura segue como antes
+      let info: PluggyItem | null = null
+      try { info = await client.getItem(item.itemId) } catch (e) { if (e instanceof PluggyError && (e.kind === 'credenciais' || e.kind === 'item')) throw e }
+      const problem = itemProblem(info, now().getTime())
+      result.items!.push({ itemId: item.itemId, updatedAt: info?.lastUpdatedAt ?? null, problem: problem?.text ?? null })
+      if (problem?.block) { result.errors.push({ itemId: item.itemId, label: item.label, message: problem.text }); continue }
+      const stored = (await loadGastos(db)).accounts // nada é gravado antes de buscar tudo do item: uma leitura basta
+      const known = stored.filter(a => a.itemId === item.itemId)
       // Busca tudo do item antes de gravar: erro no meio não deixa o item pela metade.
       const fetched = []
-      for (const pa of await client.listAccounts(item.itemId)) {
+      const accounts = await client.listAccounts(item.itemId)
+      // lista vazia de um banco que tinha contas é a Pluggy sem dados (autorização vencida, banco fora): fica o que já estava
+      if (!accounts.length && known.length) { result.errors.push({ itemId: item.itemId, label: item.label, message: 'a Pluggy não devolveu as contas deste banco; mantive o que já estava' }); continue }
+      for (const pa of accounts) {
         const kind = pa.type === 'CREDIT' ? 'cartao' as const : 'conta' as const
         const externalId = `pluggy:${pa.id}`
-        const stored = (await loadGastos(db)).accounts.find(a => a.externalId === externalId)
+        const prev = stored.find(a => a.externalId === externalId)
         const floor = addDays(today, -365) // a Pluggy não devolve além disso; ir mais longe apagaria linhas que não voltam
-        const dateFrom = stored?.lastSyncAt ? [addDays(stored.lastSyncAt.slice(0, 10), -35), floor].sort()[1] : floor
+        // cartão sempre o ano todo: há banco (XP) que data as parcelas pela compra, e a parcela de agora chegaria com data de meses atrás
+        const dateFrom = prev?.lastSyncAt && kind === 'conta' ? [addDays(prev.lastSyncAt.slice(0, 10), -35), floor].sort()[1] : floor
         const txns = await client.listTransactions(pa.id, dateFrom, dateTo)
         fetched.push({ pa, kind, externalId, dateFrom, rows: txns.map(t => toTxnRow(t, kind)) })
       }
@@ -42,7 +72,14 @@ export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch
         const id = await upsertAccount(db, { source: 'pluggy', externalId: f.externalId, institution: item.label, name: f.pa.marketingName || f.pa.name, kind: f.kind, number: f.pa.number ?? null, itemId: item.itemId, lastSyncAt: null,
           balanceCents: balance, balanceAt: balance === null ? null : now().toISOString() })
         const rows = withFingerprints(id, f.rows).map(r => ({ ...r, sourceKey: `pluggy:${r.fingerprint}` }))
-        const { inserted, removed } = await replaceWindow(db, id, f.dateFrom, rows)
+        // nenhum lançamento onde antes havia: não apaga a janela inteira por uma leitura vazia
+        if (!rows.length && (await db.select<{ n: number }>('SELECT count(*) AS n FROM transactions WHERE account_id = ? AND date >= ?', [id, f.dateFrom]))[0].n > 0) {
+          result.errors.push({ itemId: item.itemId, label: item.label, message: `a Pluggy não devolveu lançamentos de ${f.pa.marketingName || f.pa.name}; mantive os que já estavam` })
+          continue
+        }
+        // cartão vem o ano todo: se o banco devolve menos histórico, o que é mais antigo que a leitura fica como estava
+        const from = f.kind === 'cartao' && rows.length ? [f.dateFrom, rows.reduce((m, r) => (r.date < m ? r.date : m), rows[0].date)].sort()[1] : f.dateFrom
+        const { inserted, removed } = await replaceWindow(db, id, from, rows)
         await setLastSync(db, id, now().toISOString())
         result.accounts++; result.inserted += inserted; result.removed += removed
       }
