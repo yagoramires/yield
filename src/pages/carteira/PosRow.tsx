@@ -3,15 +3,16 @@ import { classColor } from '../resumoInvestimentos/build'
 import { ico } from '../../ui/palette'
 
 /** Linha de posição igual para toda classe: avatar, nome + detalhe, valor de hoje, resultado e custo (com as ações embaixo). */
-export function PosRow({ cls, avatar, name, detail, value, valueSub, gain, gainSub, gainTone = '', cost, actions }: {
-  cls: string; avatar: string; name: ReactNode; detail?: ReactNode; value: ReactNode; valueSub?: ReactNode
+export function PosRow({ cls, avatar, name, detail, cols, value, valueSub, gain, gainSub, gainTone = '', cost, actions }: {
+  cls: string; avatar: string; name: ReactNode; detail?: ReactNode; cols?: ReactNode /* colunas extras antes do valor (bolsa: segmento, DY, último provento) */; value: ReactNode; valueSub?: ReactNode
   gain: ReactNode; gainSub?: ReactNode; gainTone?: string; cost?: ReactNode; actions?: ReactNode
 }) {
   const color = classColor(cls)
   return (
-    <div className="pos-row">
+    <div className={cols ? 'pos-row pos-row-x' : 'pos-row'}>
       <span className="tk-av" style={ico(color)} aria-hidden>{avatar.slice(0, 4).toUpperCase()}</span>
       <span className="pos-n"><span className="pos-name">{name}</span>{detail && <span className="t2">{detail}</span>}</span>
+      {cols}
       <span className="r">{value}{valueSub && <small className="t2">{valueSub}</small>}</span>
       <span className={`r ${gainTone}`}>{gain}{gainSub && <small>{gainSub}</small>}</span>
       <span className="r t2 pos-cost">{cost}{actions && <span className="pos-act">{actions}</span>}</span>

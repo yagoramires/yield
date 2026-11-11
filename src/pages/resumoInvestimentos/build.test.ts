@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Portfolio } from '../../domain/portfolio'
 import type { Dividend, Trade } from '../../domain/types'
-import { classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './build'
+import { classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, segmentSlices, topPositions } from './build'
 
 const trade = (o: Partial<Trade>): Trade => ({
   id: 't', noteId: 'n', seq: 1, broker: 'X', tradeDate: '2026-01-10', settleDate: '2026-01-12', side: 'C', assetType: 'Ação',
@@ -112,5 +112,25 @@ describe('moneyBuckets', () => {
   it('cripto da Binance mostra o horário do saldo', () => {
     const c = moneyBuckets({ ...p, crypto: [{ asset: 'BTC', qty: 0.1, valueCents: 5_000, costCents: null }] } as unknown as Portfolio, { cryptoAt: '2026-10-28T17:02:00Z', dollarCents: null })
     expect(c.find(x => x.key === 'cripto')?.note).toMatch(/^Binance, \d{2}:\d{2}$/)
+  })
+})
+
+describe('segmentSlices', () => {
+  const pos = (ticker: string, assetType: string, valueCents: number | null) => ({ ticker, assetType, valueCents })
+  const p = { rows: [pos('FIIA11', 'FII', 60_000), pos('FIIB11', 'FII', 30_000), pos('FIIC11', 'FII', 10_000), pos('FIID11', 'FII', null), pos('AAAA3', 'Ação', 99_000)] } as unknown as Portfolio
+  const segs = [{ symbol: 'FIIA11.SA', segment: 'Papel', source: 'manual' as const }, { symbol: 'FIIB11.SA', segment: 'Logística', source: 'yahoo' as const }, { symbol: 'FIIC11.SA', segment: null, source: 'yahoo' as const }]
+
+  it('reparte só a classe pedida, sem segmento por último e quem não tem cotação fora', () => {
+    expect(segmentSlices(p, 'FII', segs)).toEqual([
+      { segment: 'Papel', valueCents: 60_000, pct: 0.6, targetPct: null, gapCents: null },
+      { segment: 'Logística', valueCents: 30_000, pct: 0.3, targetPct: null, gapCents: null },
+      { segment: null, valueCents: 10_000, pct: 0.1, targetPct: null, gapCents: null },
+    ])
+  })
+
+  it('meta: quanto falta ou sobra no total de hoje; segmento só com meta entra com 0', () => {
+    const s = segmentSlices(p, 'FII', segs, { Papel: 40, Logística: 40, 'Renda urbana': 20 })
+    expect(s.map(x => [x.segment, x.gapCents])).toEqual([['Papel', -20_000], ['Logística', 10_000], ['Renda urbana', 20_000], [null, null]])
+    expect(s.find(x => x.segment === 'Renda urbana')).toMatchObject({ valueCents: 0, pct: 0, targetPct: 20 })
   })
 })

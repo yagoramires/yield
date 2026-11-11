@@ -6,7 +6,7 @@ export interface Db {
   close(): Promise<void>
 }
 
-export const SCHEMA_VERSION = 19
+export const SCHEMA_VERSION = 22
 
 // O backup em importação: o único arquivo fora do perfil aberto que o Rust deixa abrir.
 export const RESTORE_FILE = 'restore.db'

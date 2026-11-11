@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { deleteManualAsset, deleteQuote, saveManualAsset, upsertQuote, type ManualAsset } from '../db/repo'
+import { deleteManualAsset, deleteQuote, deleteSegment, saveManualAsset, saveSegment, upsertQuote, type ManualAsset } from '../db/repo'
 import { editCents, formatBRL, formatCents, monthOf } from '../domain/money'
 import type { Cents } from '../domain/types'
 import { portfolioResult, type ManualRow, type PortfolioRow } from '../domain/portfolio'
@@ -16,12 +16,24 @@ import { PosRow } from './carteira/PosRow'
 import { BOLSA, carteiraClasses, pickClass, type ClassKey } from './carteira/build'
 import { br, pct, qtyText, signedCents, sign, tone, when } from './carteira/fmt'
 import type { SectionId } from './configuracoes/secoes'
+import { SegmentOptions } from './resumoInvestimentos/Segmentos'
 
 const FORM_CLASSES: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior (US$)', outro: 'Outro' }
+// provento por cota tem frações de centavo (FII paga R$ 0,085); não é dinheiro da pessoa, então fica fora da máscara
+const perShare = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 })
+const pctPlain = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; cost: string; sourceKey: string | null }
 const emptyForm = (cls: ClassKey | null): Form => ({ name: '', assetClass: cls && cls in FORM_CLASSES ? (cls as ManualAsset['assetClass']) : 'exterior', quoteSymbol: cls === 'dolar' ? 'BRL=X' : '', quantity: '', value: '', cost: '', sourceKey: null })
+
+// cabeçalho das listas da bolsa: mesmo grid da linha com as colunas de proventos
+const BolsaHead = () => (
+  <div className="pos-row pos-row-x pos-head" aria-hidden>
+    <span /><span>Ativo</span><span className="r pos-x">Qtd</span><span className="r pos-x">Preço médio</span><span className="r pos-x">Preço atual</span><span className="pos-x">Segmento</span><span className="r pos-x">DY 12m</span><span className="r pos-x">Último provento · data ex</span>
+    <span className="r">Valor</span><span className="r">Resultado</span><span className="r pos-cost">Custo</span>
+  </div>
+)
 
 export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettings(at?: SectionId): void; initialClass?: string | null }) {
   const { data, db, derived, reload, refreshing, refreshQuotesNow, binance } = useData()
@@ -30,6 +42,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
   const [form, setForm] = useState<Form | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
   const [priceFor, setPriceFor] = useState<{ ticker: string; text: string } | null>(null)
+  const [segFor, setSegFor] = useState<{ symbol: string; text: string } | null>(null)
   const [confirm, setConfirm] = useState<string | null>(null) // 'asset:<id>' | 'price:<symbol>'
   const [error, setError] = useState<string | null>(null)
 
@@ -74,6 +87,14 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
     })
   }
 
+  // vazio volta ao do Yahoo (apaga; a próxima atualização busca de novo)
+  const saveSeg = () => {
+    if (!segFor) return
+    const { symbol, text } = segFor
+    setSegFor(null)
+    return run(() => (text.trim() ? saveSegment(db, { symbol, segment: text.trim(), source: 'manual' }) : deleteSegment(db, symbol)))
+  }
+
   const savePrice = async () => {
     if (!priceFor) return
     let cents: Cents
@@ -87,9 +108,25 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
   const stockRow = (r: PortfolioRow) => {
     const symbol = yahooSymbol(r.ticker)
     const manualPrice = quoteOf(symbol)?.source === 'manual'
+    const div = data.quoteDividends.find(d => d.symbol === symbol)
+    const seg = data.segments.find(x => x.symbol === symbol)
+    // só nas classes da bolsa: na renda fixa / outros a linha divide a lista com ativos sem essas colunas
+    const cols = BOLSA.includes(r.assetType as ClassKey) && <>
+      <span className="r pos-x">{qtyText(r.qty)}</span>
+      <span className="r pos-x">{formatCents(r.avgPriceCents)}</span>
+      <span className="r pos-x">{r.priceCents === null ? '—' : formatCents(r.priceCents)}{manualPrice && <small className="t2">à mão</small>}</span>
+      <span className="pos-x pos-seg" title={seg?.source === 'manual' ? 'Digitado à mão' : undefined}>{segFor?.symbol === symbol
+        ? <input className="in" autoFocus list="seg-opcoes" aria-label={`Segmento de ${r.ticker}`} placeholder="ex.: Logística" value={segFor.text} onChange={e => setSegFor({ symbol, text: e.target.value })}
+            onKeyDown={e => { if (e.key === 'Enter') void saveSeg(); if (e.key === 'Escape') setSegFor(null) }} onBlur={() => setSegFor(null)} />
+        : <button className="link" aria-label={`Editar segmento de ${r.ticker}`} onClick={() => setSegFor({ symbol, text: seg?.segment ?? '' })}>{seg?.segment ?? 'definir'}</button>}
+      </span>
+      <span className="r pos-x">{div && r.priceCents ? pctPlain(div.sum12m * 100 / r.priceCents) : '—'}</span>
+      <span className="r pos-x">{div ? perShare(div.lastAmount) : '—'}{div && <small className="t2">{br(div.lastDate)}</small>}</span>
+    </>
     return (
       <PosRow key={r.ticker} cls={r.assetType ?? 'outro'} avatar={r.ticker} name={r.ticker}
         detail={`${qtyText(r.qty)} × ${r.priceCents === null ? 'sem cotação' : formatCents(r.priceCents)}${manualPrice ? ' (à mão)' : ''} · médio ${formatCents(r.avgPriceCents)}`}
+        cols={cols || undefined}
         value={r.valueCents === null ? '—' : formatCents(r.valueCents)} valueSub={r.valueCents !== null && current?.valueCents ? `${Math.round((r.valueCents / current.valueCents) * 100)}% da classe` : null}
         gain={r.varCents === null ? '—' : signedCents(r.varCents)} gainSub={r.varPct !== null && pct(r.varPct)} gainTone={tone(r.varCents)}
         cost={`custo ${formatCents(r.costCents)}`}
@@ -125,7 +162,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
   const manualOf = (k: ClassKey) => [...data.manualAssets, ...derived.bank].filter(a => a.assetClass === k).map(manualRow)
   const panel = (k: ClassKey) => {
     if (BOLSA.includes(k) || (k === 'outro' && p.rows.some(r => !r.assetType)))
-      return <>{[...p.rows].filter(r => (r.assetType ?? 'outro') === k).sort((a, b) => (b.valueCents ?? -1) - (a.valueCents ?? -1)).map(stockRow)}{k === 'outro' && manualOf(k)}</>
+      return <>{BOLSA.includes(k) && <BolsaHead />}{[...p.rows].filter(r => (r.assetType ?? 'outro') === k).sort((a, b) => (b.valueCents ?? -1) - (a.valueCents ?? -1)).map(stockRow)}{k === 'outro' && manualOf(k)}</>
     if (k === 'renda_fixa') return <>{p.rows.filter(r => r.assetType === 'ETF RF').map(stockRow)}<RendaFixa list={p.rf} onOpenSettings={onOpenSettings} />{manualOf(k)}</>
     if (k === 'cripto') return <><Cripto rows={p.crypto} onOpenSettings={onOpenSettings} />{manualOf(k)}</>
     return <>{manualOf(k)}{k === 'exterior' && data.manualAssets.some(a => a.currency === 'USD' && a.costCents !== null) && <div className="muted pos-empty">O rendimento do exterior é em dólar; no patrimônio e no resultado em reais, o aportado em US$ é convertido pelo dólar de hoje (sem a variação do câmbio).</div>}</>
@@ -133,6 +170,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
 
   return (
     <>
+      <SegmentOptions id="seg-opcoes" segments={data.segments} />
       <div className="bar">
         <div>
           <h1>Carteira</h1>

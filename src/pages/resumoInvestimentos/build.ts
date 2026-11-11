@@ -4,6 +4,8 @@ import type { Portfolio } from '../../domain/portfolio'
 import type { Cents, CorporateEvent, Dividend, DividendKind, Month, Trade } from '../../domain/types'
 import { BOLSA, carteiraClasses } from '../carteira/build'
 import { SERIES, TINT } from '../../ui/palette'
+import type { AssetSegment } from '../../db/repo'
+import { yahooSymbol } from '../../quotes/yahoo'
 
 const CLASS_LABEL: Record<string, string> = { 'ETF RF': 'ETF de renda fixa', renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior', outro: 'Outros' }
 export const classLabel = (c: string) => CLASS_LABEL[c] ?? c
@@ -79,4 +81,25 @@ export function moneyBuckets(p: Portfolio, ctx: { cryptoAt: string | null; dolla
     const gainPct = key === 'exterior' ? list[0]?.gainPct ?? null : gainCents === null || !base ? null : gainCents / base
     return { key, label, valueCents, pct: p.totalValueCents > 0 ? valueCents / p.totalValueCents : 0, gainCents, gainPct, usdGain: key === 'exterior', note: notes[key] }
   }).filter(b => b.valueCents > 0)
+}
+
+// segmentos de FII que o Yahoo não sabe dizer; a lista do campo também traz os já usados (setores das ações etc.)
+export const FII_SEGMENTS = ['Papel', 'Logística', 'Shoppings', 'Lajes corporativas', 'Renda urbana', 'Híbrido', 'Fundo de fundos', 'Residencial', 'Agro', 'Hotéis', 'Hospitais']
+
+export interface SegmentSlice { segment: string | null /* null = sem segmento */; valueCents: Cents; pct: number; targetPct: number | null; gapCents: Cents | null /* + falta aportar, − acima da meta */ }
+
+/** A classe da bolsa repartida por segmento, com a meta em % e quanto falta (ou sobra) para ela no total de hoje. Segmento só com meta aparece com 0. */
+export function segmentSlices(p: Portfolio, cls: string, segments: AssetSegment[], targets: Record<string, number> = {}): SegmentSlice[] {
+  const seg = new Map(segments.map(s => [s.symbol, s.segment]))
+  const by = new Map<string | null, Cents>(Object.keys(targets).map(k => [k, 0]))
+  for (const r of p.rows) {
+    if (r.assetType !== cls || !r.valueCents || r.valueCents <= 0) continue
+    const k = seg.get(yahooSymbol(r.ticker)) ?? null
+    by.set(k, (by.get(k) ?? 0) + r.valueCents)
+  }
+  const total = [...by.values()].reduce((s, v) => s + v, 0)
+  return [...by].map(([segment, valueCents]) => {
+    const targetPct = segment !== null && targets[segment] !== undefined ? targets[segment] : null
+    return { segment, valueCents, pct: total > 0 ? valueCents / total : 0, targetPct, gapCents: targetPct === null ? null : Math.round((targetPct / 100) * total) - valueCents }
+  }).sort((a, b) => Number(a.segment === null) - Number(b.segment === null) || b.valueCents - a.valueCents || (b.targetPct ?? 0) - (a.targetPct ?? 0))
 }

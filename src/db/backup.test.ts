@@ -12,7 +12,7 @@ describe('stageBackup', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       calls.push(cmd)
       if (cmd === 'backup_open' && openError) throw openError
-      if (cmd === 'db_select') return [{ key: 'app', value: app }, { key: 'schema_version', value: '19' }]
+      if (cmd === 'db_select') return [{ key: 'app', value: app }, { key: 'schema_version', value: '22' }]
     })
     return calls
   }
@@ -49,7 +49,7 @@ describe('backup', () => {
 describe('backup schema 11', () => {
   test('banco novo é schema 11 e válido', async () => {
     const db = createTestDb()
-    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('19')
+    expect((await db.select<{ value: string }>("SELECT value FROM meta WHERE key = 'schema_version'"))[0].value).toBe('22')
     await validateBackup(db)
   })
   test('backup v7 é recusado', async () => {

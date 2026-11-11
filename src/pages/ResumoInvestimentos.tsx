@@ -12,6 +12,7 @@ import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
 import { brDay, monthName } from './lancamentos/GastosHeader'
 import { Rentabilidade } from './resumoInvestimentos/Rentabilidade'
+import { Segmentos } from './resumoInvestimentos/Segmentos'
 import { rfAppliedByMonth, rfJurosByMonth } from '../domain/rendaFixa'
 import { reinvested } from '../domain/reinvestimento'
 import { carteiraClasses } from './carteira/build'
@@ -177,6 +178,7 @@ export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto,
             </div>
           </>}
         </div>) },
+        { id: 'segmentos', label: 'Por segmento', node: <Segmentos onOpenCarteira={onOpenCarteira} /> },
         { id: 'proventos', label: 'Proventos por mês', node: (
         <div className="card stretch">
           <div className="bar"><h5 style={{ margin: 0 }}>Proventos por mês</h5><span className="muted">clique num mês para abrir em Proventos</span></div>

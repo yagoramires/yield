@@ -6,6 +6,9 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 
 ### Novidades
 - **Sincronizar agora** (Configurações › Contas conectadas) pede à Pluggy que releia os bancos antes de ler, para trazer na hora o que acabou de acontecer; se ela demorar ou recusar, o app mostra o que ela já tinha e avisa.
+- **Por segmento** no Resumo de investimentos: cada classe da bolsa (FIIs, ações, ETFs) repartida por segmento, com a barra de hoje e a da meta. Defina a % que quer em cada segmento e o card mostra quanto falta aportar (ou quanto passou) em cada um.
+- A Carteira mostra, para ações, FIIs e ETFs, o segmento, o DY dos últimos 12 meses e o último provento com a data ex (do Yahoo; o segmento dá para trocar à mão).
+- O campo de segmento da Carteira sugere os segmentos de FII (Papel, Logística, Shoppings, Lajes corporativas, Renda urbana…) e os que você já usa. O Yahoo não chuta mais "Híbrido" ou "Financeiro" para FII: o que ele não sabe fica para você escolher.
 - **Monte o seu layout** no Resumo de gastos, no Resumo de investimentos, no Orçamento e em Proventos: arraste cada card pela alça (no topo dele, ao passar o mouse) para o lugar que quiser e deixe-o em meia largura ou na largura toda. A arrumação fica salva no perfil; os indicadores do topo continuam fixos.
 - **Meus bens** (módulo novo, liga e desliga em Configurações › Abas do menu): imóveis, veículos e outros bens com o valor da compra e quanto valem hoje; financiamento (parcela do mês, quando termina e quanto falta pagar); custo por mês pelas categorias que você escolhe; vencimentos do ano (IPVA, IPTU, seguro) com os próximos 60 dias no topo; e o **Patrimônio** somando investimentos, saldo nas contas e bens, menos as dívidas.
 - A parcela do financiamento de um bem entra no Orçamento.
