@@ -76,7 +76,7 @@ const PAGAMENTO_NO_CARTAO = /pagamento|pgto|pag fatura|pagto/
 const APLICACAO_NA_CONTA = /aplica|caixinha|guardad|rdb|cdb|invest/
 
 /** `paired`: o lançamento casou com outro de uma conta sua (`pairTransfers`); `ownerNames`: variações do nome do titular; `companyNames`: nome ou CNPJ da empresa dele. */
-export function categorize(t: Txn, account: Account, rules: CategoryRule[], overrides: Record<string, string>, categories: Category[], ctx: { paired?: boolean; ownerNames?: string[]; companyNames?: string[] } = {}): Category | null {
+export function categorize(t: Txn, account: Account, rules: CategoryRule[], overrides: Record<string, string>, categories: Category[], ctx: { paired?: boolean; prepaid?: boolean; ownerNames?: string[]; companyNames?: string[] } = {}): Category | null {
   const byId = (id: string) => categories.find(c => c.id === id) ?? null
   const overridden = overrides[t.fingerprint] ? byId(overrides[t.fingerprint]) : null
   if (overridden) return overridden
@@ -88,6 +88,7 @@ export function categorize(t: Txn, account: Account, rules: CategoryRule[], over
   if (matched) return byId(matched.categoryId)
 
   if (ctx.paired) return byId('transferencia')
+  if (ctx.prepaid) return byId('pagamento-de-fatura') // parcela antecipada: já foi paga, não é gasto do mês
   const owner = account.kind === 'conta' ? ownerMention(t.description, ctx.ownerNames ?? [], ctx.companyNames) : null
   if (owner === 'pessoa') return byId('transferencia')
   if (owner === 'empresa') return byId(t.amountCents > 0 ? 'receita' : 'transferencia')

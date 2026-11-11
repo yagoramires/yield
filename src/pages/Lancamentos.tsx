@@ -23,7 +23,7 @@ const KINDS: [TxnFilter['accountKind'], string][] = [['todas', 'Tudo'], ['conta'
 
 export function Lancamentos({ onOpenSettings }: { onOpenSettings(at?: SectionId): void }) {
   const { db, reload, gastos } = useData()
-  const { data, categorize: cat, transfers, month, filter, setFilter } = gastos
+  const { data, categorize: cat, transfers, prepaid, month, filter, setFilter } = gastos
   const [picking, setPicking] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -69,7 +69,7 @@ export function Lancamentos({ onOpenSettings }: { onOpenSettings(at?: SectionId)
     const company = auto && c?.id === 'receita' && accounts.get(t.accountId)?.kind === 'conta' && ownerMention(t.description, data.ownerNames, data.companyNames) === 'empresa' && 'da sua empresa'
     const byPluggy = auto && !company && c && pluggyCategoryId(t.pluggyCategory, t.amountCents) === c.id
     const { name, via } = cleanDescription(t.description)
-    const meta = [via, shortAccountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
+    const meta = [via, shortAccountLabel(accounts.get(t.accountId)), t.installment && `parcela ${t.installment}${prepaid.has(t.id) ? ' antecipada' : ''}`, t.pending && 'pendente', rule && `regra "${rule.pattern}"`, between, company, byPluggy && 'categoria da Pluggy', off && 'não conta como gasto']
     const pattern = suggestRulePattern(t.description)
     return (
       <div key={t.id} className={`lrow ${off ? 'off' : ''}`}>

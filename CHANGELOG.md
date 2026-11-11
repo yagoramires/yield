@@ -5,6 +5,7 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 ## Não lançado
 
 ### Novidades
+- **Sincronizar agora** (Configurações › Contas conectadas) pede à Pluggy que releia os bancos antes de ler, para trazer na hora o que acabou de acontecer; se ela demorar ou recusar, o app mostra o que ela já tinha e avisa.
 - **Monte o seu layout** no Resumo de gastos, no Resumo de investimentos, no Orçamento e em Proventos: arraste cada card pela alça (no topo dele, ao passar o mouse) para o lugar que quiser e deixe-o em meia largura ou na largura toda. A arrumação fica salva no perfil; os indicadores do topo continuam fixos.
 - **Meus bens** (módulo novo, liga e desliga em Configurações › Abas do menu): imóveis, veículos e outros bens com o valor da compra e quanto valem hoje; financiamento (parcela do mês, quando termina e quanto falta pagar); custo por mês pelas categorias que você escolhe; vencimentos do ano (IPVA, IPTU, seguro) com os próximos 60 dias no topo; e o **Patrimônio** somando investimentos, saldo nas contas e bens, menos as dívidas.
 - A parcela do financiamento de um bem entra no Orçamento.
@@ -13,6 +14,7 @@ O que mudou em cada versão do yield. O app avisa e se atualiza sozinho quando s
 - **Situação de cada banco** em Contas conectadas, direto da Pluggy: quando ela atualizou o banco, se ele pede login de novo e quando vence a autorização do Meu Pluggy (aviso 30 dias antes; vencida, o app não tenta ler).
 
 ### Melhorias
+- Parcela antecipada (várias parcelas da mesma compra pagas no mesmo dia) não conta mais como gasto do mês: aparece como "antecipada" nos Lançamentos.
 - **Proventos** mostra o total do mês atual (com o do mês anterior para comparar) no lugar do maior pagador.
 - Leitura vazia da Pluggy (autorização vencida, banco fora do ar) não apaga mais contas nem lançamentos: o app mantém o que já tinha e avisa; e cartão de banco que devolve menos de um ano de histórico guarda os lançamentos mais antigos.
 - **Orçamento** é o primeiro item do menu.

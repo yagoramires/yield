@@ -62,6 +62,21 @@ function rawInstallment(p: Purchase, month: Month): number {
   return anchor.n + monthsBetween(monthOf(anchor.date), month).length - 1
 }
 
+/**
+ * Parcelas antecipadas: o banco manda as que faltam todas juntas, com a data da leitura (XP). Duas ou mais parcelas (todas da 2ª em diante)
+ * da mesma compra na mesma data não são cobrança do mês: o dinheiro já saiu quando a pessoa antecipou.
+ * Só no mês de `today`: a data é a da leitura, não a da antecipação, e os meses fechados ficam como o banco mandou.
+ */
+export function prepaidTxnIds(ps: Purchase[], today: ISODate): Set<string> {
+  const out = new Set<string>()
+  for (const p of ps) {
+    const byDate = new Map<ISODate, Purchase['members']>()
+    for (const m of p.members) if (m.n >= 2 && monthOf(m.date) === monthOf(today)) byDate.set(m.date, [...(byDate.get(m.date) ?? []), m])
+    for (const g of byDate.values()) if (g.length >= 2) for (const m of g) out.add(m.txnId)
+  }
+  return out
+}
+
 /** A compra de uma linha do plano aceita das sugestões (chave "parc:…@mês"); null para linha à mão ou compra que sumiu dos lançamentos. */
 export const purchaseOfKey = (ps: Purchase[], sourceKey: string | null): Purchase | null =>
   sourceKey?.startsWith('parc:') ? ps.find(p => p.keys.has(sourceKey.replace(/@\d{4}-\d{2}$/, ''))) ?? null : null

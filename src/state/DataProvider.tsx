@@ -28,7 +28,7 @@ import { SYNC_EVERY_MS, syncPluggy, type SyncResult } from '../openfinance/sync'
 import { needsSync, NO_FILTER, type TxnFilter } from '../pages/lancamentos/build'
 import { loadOrcamento, type OrcamentoData } from '../db/orcamentoRepo'
 import { loadBens, type Possession } from '../db/bensRepo'
-import { purchases, type Purchase } from '../domain/parcelas'
+import { prepaidTxnIds, purchases, type Purchase } from '../domain/parcelas'
 import { autoPlan } from './autoPlan'
 import { bankAssets, reservaInvestments } from '../domain/bancoInvest'
 import { defaultMonth } from '../pages/orcamento/build'
@@ -36,12 +36,13 @@ import { defaultMonth } from '../pages/orcamento/build'
 export interface Gastos {
   data: GastosData
   categorize(t: Txn): Category | null
+  prepaid: Set<string> // parcelas antecipadas (mesma compra, mesma data): já pagas, não contam como gasto
   transfers: Map<string, TransferLink> // id do lançamento → o outro lado do par entre contas suas
   subscriptions: Subscription[]
   purchases: Purchase[] // compras parceladas no cartão, calculadas uma vez por mudança nos lançamentos
   syncing: boolean
   lastSyncResult: SyncResult | null
-  syncNow(): Promise<void>
+  syncNow(refresh?: boolean): Promise<void>
   month: Month
   setMonth(m: Month): void
   filter: TxnFilter
@@ -122,7 +123,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Erros (inclusive credencial ausente) vão para lastSyncResult.errors e aparecem na linha de avisos.
-  const syncNow = useCallback(async () => {
+  const syncNow = useCallback(async (refresh = false) => {
     const d = dbRef.current
     if (!d || syncingRef.current) return
     syncingRef.current = true; setSyncing(true)
@@ -132,7 +133,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       const items = (await loadGastos(d)).pluggyItems
       if (!auth) setLastSyncResult(fail('Sem credenciais da Pluggy: configure em Configurações › Contas conectadas.'))
       else if (!items.length) setLastSyncResult(fail('Nenhum banco cadastrado em Configurações › Contas conectadas.'))
-      else setLastSyncResult(await syncPluggy(d, auth, tauriFetch as typeof fetch, todayISO()))
+      else setLastSyncResult(await syncPluggy(d, auth, tauriFetch as typeof fetch, todayISO(), undefined, { refresh }))
       const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)]) // compras e vendas da Pluggy mudam a carteira
       setData(ds); setGastosData(g)
     } catch (e) { setLastSyncResult(fail(`Não foi possível sincronizar: ${e instanceof Error ? e.message : String(e)}`)) }
@@ -258,13 +259,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!gastosData) return null
     const accounts = new Map(gastosData.accounts.map(a => [a.id, a]))
     const transfers = pairTransfers(gastosData.txns, gastosData.accounts, gastosData.overrides)
+    const ps = purchases(gastosData.txns, todayISO())
+    const prepaid = prepaidTxnIds(ps, todayISO())
     const of = (t: Txn) => {
       const a = accounts.get(t.accountId)
-      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), ownerNames: gastosData.ownerNames, companyNames: gastosData.companyNames }) : null
+      return a ? categorize(t, a, gastosData.rules, gastosData.overrides, gastosData.categories, { paired: transfers.has(t.id), prepaid: prepaid.has(t.id), ownerNames: gastosData.ownerNames, companyNames: gastosData.companyNames }) : null
     }
     const byId = new Map(gastosData.txns.map(t => [t.id, of(t)]))
     const cat = (t: Txn) => (byId.has(t.id) ? byId.get(t.id)! : of(t))
-    return { categorize: cat, transfers, subscriptions: detectSubscriptions(gastosData.txns, cat, gastosData.dismissed, todayISO(), gastosData.canceledSubs), purchases: purchases(gastosData.txns, todayISO()) }
+    return { categorize: cat, transfers, prepaid, subscriptions: detectSubscriptions(gastosData.txns, cat, gastosData.dismissed, todayISO(), gastosData.canceledSubs), purchases: ps }
   }, [gastosData])
 
   // o plano se mantém sozinho a cada mudança nos dados; `streak` corta um laço se uma rodada sempre achar o que mudar

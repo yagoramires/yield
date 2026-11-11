@@ -94,6 +94,31 @@ describe('syncPluggy', () => {
     expect((await loadGastos(db)).txns).toHaveLength(before)
   })
 
+  it('refresh: PATCH no item, espera sair de UPDATING e só então lê; recusa vira aviso e a leitura segue', async () => {
+    const db = await setup()
+    let polls = 0
+    const f = fake(url => {
+      if (!url.pathname.startsWith('/items/')) return null
+      const m = f.calls[f.calls.length - 1].method
+      return json({ id: ITEM, status: m === 'PATCH' || polls++ < 1 ? 'UPDATING' : 'UPDATED', lastUpdatedAt: '2026-10-26T06:00:00.000Z' })
+    })
+    const sleeps: number[] = []
+    const r = await syncPluggy(db, () => f.fn('https://api.pluggy.ai/auth', { method: 'POST' }), f.fn, today, undefined, { refresh: true, sleep: async ms => { sleeps.push(ms) } })
+    expect(r).toMatchObject({ accounts: 2, errors: [] })
+    expect(r.items![0].problem).toBeNull()
+    expect(f.calls.filter(c => c.method === 'PATCH')).toHaveLength(1)
+    expect(sleeps.length).toBeGreaterThan(0)
+    expect(f.calls.findIndex(c => c.method === 'PATCH')).toBeLessThan(f.calls.findIndex(c => c.url.includes('/accounts')))
+    // PATCH recusado (limite de 1 h): lê assim mesmo e avisa
+    const g = fake(url => (url.pathname.startsWith('/items/') && g.calls[g.calls.length - 1].method === 'PATCH' ? json({}, 429) : null))
+    const r2 = await syncPluggy(db, () => g.fn('https://api.pluggy.ai/auth', { method: 'POST' }), g.fn, today, undefined, { refresh: true, sleep: async () => {} })
+    expect(r2).toMatchObject({ accounts: 2, errors: [] })
+    expect(r2.items![0].problem).toMatch(/não consegui pedir a atualização/)
+    // sem refresh, nenhum PATCH
+    const h = fake(); await sync(db, h.fn, today)
+    expect(h.calls.some(c => c.method === 'PATCH')).toBe(false)
+  })
+
   it('leitura vazia de banco ou conta que tinha dados mantém o que já estava', async () => {
     const db = await setup()
     await sync(db, fake().fn, today)

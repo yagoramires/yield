@@ -163,7 +163,7 @@ export function OpenFinance() {
           {configured && <button className="b" onClick={() => setGuide(true)}>Passo a passo</button>}
         </div>
       </div>
-      <div className="info" style={{ marginTop: 8 }}><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele só lista contas, transações e investimentos.</div>
+      <div className="info" style={{ marginTop: 8 }}><b>O Yield só lê seus dados: não move dinheiro nem inicia pagamentos.</b> Ele lista contas, transações e investimentos, e só pede à Pluggy que releia o banco quando você escolhe "Pedir releitura aos bancos".</div>
       {!configured ? (
         <div style={{ marginTop: 10 }}>
           <div className="t2" style={{ marginBottom: 8 }}>Traga contas e cartões automaticamente, de graça, pelo Meu Pluggy. Leva uns 15 minutos, uma vez só.</div>
@@ -185,6 +185,7 @@ export function OpenFinance() {
             <button className="b ghost" onClick={() => setGuide(true)}>+ Adicionar banco</button>
             <button className="b" disabled={testing || busy} onClick={() => void test()}>{testing ? 'Testando…' : 'Testar conexão'}</button>
             <button className="b pri" disabled={syncing} onClick={() => void syncNow()}>{syncing ? 'Sincronizando…' : '↻ Sincronizar agora'}</button>
+            <button className="b" disabled={syncing} onClick={() => void syncNow(true)} title="Pede à Pluggy que releia os bancos antes de sincronizar (a Pluggy limita a 1 vez por hora; pode levar até 90 s)">Pedir releitura aos bancos</button>
             {saved && <button className="b ghost" aria-expanded={showCreds} onClick={() => setShowCreds(v => !v)}>Credenciais da Pluggy…</button>}
           </div>
           {(showCreds || saved === false) && <div style={{ marginTop: 10 }}>{credentials}</div>}

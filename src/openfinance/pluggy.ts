@@ -27,11 +27,11 @@ const ITEM = /^\/items\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]
 const PAGE_SIZE = 500
 const MAX_PAGES = 200
 
-// Única porta de saída: o Yield só lê da Pluggy. Lança antes de qualquer fetch.
+// Única porta de saída: o Yield só lê da Pluggy; a exceção é pedir que ela releia um banco (PATCH /items/{id}, sem credenciais). Lança antes de qualquer fetch.
 export function pluggyRequest(method: string, url: string): URL {
   let u: URL
   try { u = new URL(url, PLUGGY_BASE) } catch { throw new PluggyError('Chamada não permitida: o Yield só lê dados da Pluggy', 'resposta') }
-  const allowed = ALLOWED.has(`${method} ${u.pathname}`) || (method === 'GET' && (INVESTMENT_TXNS.test(u.pathname) || ITEM.test(u.pathname)))
+  const allowed = ALLOWED.has(`${method} ${u.pathname}`) || (method === 'GET' && (INVESTMENT_TXNS.test(u.pathname) || ITEM.test(u.pathname))) || (method === 'PATCH' && ITEM.test(u.pathname))
   if (u.origin !== PLUGGY_BASE || !allowed) throw new PluggyError('Chamada não permitida: o Yield só lê dados da Pluggy', 'resposta')
   return u
 }
@@ -51,7 +51,7 @@ export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
       throw new PluggyError(timedOut ? 'A Pluggy não respondeu a tempo; tente de novo' : 'Sem conexão com a Pluggy', 'rede')
     }
   }
-  const send = (url: string, init: RequestInit) => { const u = pluggyRequest('GET', url); return net(signal => fetchFn(u.toString(), { ...init, method: 'GET', signal })) }
+  const send = (url: string, init: RequestInit, method = 'GET') => { const u = pluggyRequest(method, url); return net(signal => fetchFn(u.toString(), { ...init, method, signal })) }
   const BAD_CREDS = () => new PluggyError('Client ID ou Client Secret inválidos', 'credenciais')
 
   async function auth(): Promise<string> {
@@ -64,9 +64,9 @@ export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
     return apiKey
   }
 
-  async function getJson(path: string, notFound?: (status: number) => PluggyError): Promise<unknown> {
+  async function getJson(path: string, notFound?: (status: number) => PluggyError, method = 'GET'): Promise<unknown> {
     const cached = !!key && Date.now() - key.at < KEY_TTL_MS
-    const call = async (k: string) => send(path, { headers: { 'X-API-KEY': k } })
+    const call = async (k: string) => send(path, method === 'PATCH' ? { headers: { 'X-API-KEY': k, 'Content-Type': 'application/json' }, body: '{}' } : { headers: { 'X-API-KEY': k } }, method)
     let res = await call(cached ? key!.value : await auth())
     if (res.status === 401 && cached) res = await call(await auth())
     if (res.status === 401 || res.status === 403) throw BAD_CREDS()
@@ -96,6 +96,12 @@ export function createPluggyClient(authFn: PluggyAuth, fetchFn: typeof fetch) {
   return {
     async getItem(itemId: string): Promise<PluggyItem> {
       const body = await getJson(`/items/${encodeURIComponent(itemId)}`, () => new PluggyError(`Item ${itemId} não encontrado: confira o itemId`, 'item'))
+      if (!isObj(body) || !str(body.id)) throw FORMAT()
+      return body as unknown as PluggyItem
+    },
+    /** Pede à Pluggy que releia o banco agora (PATCH sem credenciais); a leitura nova chega depois, com o status saindo de UPDATING. */
+    async refreshItem(itemId: string): Promise<PluggyItem> {
+      const body = await getJson(`/items/${encodeURIComponent(itemId)}`, s => new PluggyError(`a Pluggy não aceitou atualizar agora (HTTP ${s}): o banco pede login ou ela já atualizou há pouco`, 'item'), 'PATCH')
       if (!isObj(body) || !str(body.id)) throw FORMAT()
       return body as unknown as PluggyItem
     },

@@ -99,17 +99,19 @@ describe('toTradeRow', () => {
 
 describe('porta só-leitura', () => {
   it('recusa fora de GET de contas, transações e investimentos; /auth só pelo Rust', () => {
-    expect(() => pluggyRequest('PATCH', 'https://api.pluggy.ai/items/x')).toThrow(/não permitida/)
+    expect(() => pluggyRequest('PATCH', 'https://api.pluggy.ai/accounts')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/payments')).toThrow(/não permitida/)
     expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/accounts')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://evil.example/accounts')).toThrow(/não permitida/)
     expect(() => pluggyRequest('POST', 'https://api.pluggy.ai/auth')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/v2/transactions?a=1')).not.toThrow()
   })
-  it('item: só GET de um id UUID (situação da conexão); atualizar, apagar ou listar itens não', () => {
+  it('item: GET da situação e PATCH para pedir releitura, só de um id UUID; apagar, listar ou mexer em subrecursos não', () => {
     const id = '33333333-3333-4333-8333-333333333333'
     expect(() => pluggyRequest('GET', `https://api.pluggy.ai/items/${id}`)).not.toThrow()
-    expect(() => pluggyRequest('PATCH', `https://api.pluggy.ai/items/${id}`)).toThrow(/não permitida/)
+    expect(() => pluggyRequest('PATCH', `https://api.pluggy.ai/items/${id}`)).not.toThrow()
+    expect(() => pluggyRequest('PATCH', 'https://api.pluggy.ai/items/x')).toThrow(/não permitida/)
+    expect(() => pluggyRequest('PATCH', `https://api.pluggy.ai/items/${id}/mfa`)).toThrow(/não permitida/)
     expect(() => pluggyRequest('DELETE', `https://api.pluggy.ai/items/${id}`)).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', 'https://api.pluggy.ai/items')).toThrow(/não permitida/)
     expect(() => pluggyRequest('GET', `https://api.pluggy.ai/items/${id}/mfa`)).toThrow(/não permitida/)

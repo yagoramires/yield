@@ -30,16 +30,38 @@ export function itemProblem(item: PluggyItem | null, nowMs: number): { block: bo
   if (exp !== null && exp - nowMs < 30 * 864e5) return { block: false, text: `a autorização do Meu Pluggy vence em ${brDate(item.consentExpiresAt!)}: renove em meu.pluggy.ai antes disso` }
   return null
 }
+const REFRESH_POLL_MS = 3_000
+const REFRESH_WAIT_MS = 90_000
+/** Pede à Pluggy que releia o banco e espera ela terminar. Falha aqui nunca derruba a leitura: devolve o aviso e a leitura segue com o que a Pluggy já tinha. */
+async function refreshItem(client: ReturnType<typeof createPluggyClient>, itemId: string, sleep: (ms: number) => Promise<void>): Promise<string | null> {
+  try {
+    let it = await client.refreshItem(itemId)
+    for (let waited = 0; it.status === 'UPDATING' || it.status === 'LOGIN_IN_PROGRESS'; waited += REFRESH_POLL_MS) {
+      if (waited >= REFRESH_WAIT_MS) return 'a Pluggy ainda está lendo este banco; mostrei o que ela já tinha'
+      await sleep(REFRESH_POLL_MS)
+      it = await client.getItem(itemId)
+    }
+    return null
+  } catch (e) {
+    // 401/403 do PATCH vira "credenciais" no cliente, mas aqui é só a Pluggy recusando a atualização (as leituras seguintes dizem se a credencial é ruim)
+    const why = e instanceof PluggyError && e.kind !== 'credenciais' ? e.message : 'a Pluggy recusou'
+    return `não consegui pedir a atualização do banco (${why}); mostrei o que a Pluggy já tinha`
+  }
+}
 type PluggyTrade = NonNullable<ReturnType<typeof toTradeRow>> & { ticker: string; assetType: AssetType | null }
 
 const addDays = (d: ISODate, n: number): ISODate => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10)
 
-export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch, today: ISODate, now: () => Date = () => new Date()): Promise<SyncResult> {
+export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch, today: ISODate, now: () => Date = () => new Date(),
+  opts: { refresh?: boolean; sleep?: (ms: number) => Promise<void> } = {}): Promise<SyncResult> {
   const client = createPluggyClient(auth, fetchFn)
   const result: SyncResult = { accounts: 0, inserted: 0, removed: 0, errors: [], investments: [], items: [] }
   const items = (await loadGastos(db)).pluggyItems
   const dateTo = addDays(today, 31)
   let badCreds: string | null = null
+  // só no "Sincronizar agora": a Pluggy relê os bancos (em paralelo) antes de a gente ler
+  const sleep = opts.sleep ?? (ms => new Promise<void>(r => setTimeout(r, ms)))
+  const refreshNote = new Map<string, string | null>(opts.refresh ? await Promise.all(items.map(async it => [it.itemId, await refreshItem(client, it.itemId, sleep)] as const)) : [])
 
   for (const item of items) {
     if (badCreds) { result.errors.push({ itemId: item.itemId, label: item.label, message: badCreds }); continue } // mesma credencial para todos os itens
@@ -48,7 +70,7 @@ export async function syncPluggy(db: Db, auth: PluggyAuth, fetchFn: typeof fetch
       let info: PluggyItem | null = null
       try { info = await client.getItem(item.itemId) } catch (e) { if (e instanceof PluggyError && (e.kind === 'credenciais' || e.kind === 'item')) throw e }
       const problem = itemProblem(info, now().getTime())
-      result.items!.push({ itemId: item.itemId, updatedAt: info?.lastUpdatedAt ?? null, problem: problem?.text ?? null })
+      result.items!.push({ itemId: item.itemId, updatedAt: info?.lastUpdatedAt ?? null, problem: problem?.text ?? refreshNote.get(item.itemId) ?? null })
       if (problem?.block) { result.errors.push({ itemId: item.itemId, label: item.label, message: problem.text }); continue }
       const stored = (await loadGastos(db)).accounts // nada é gravado antes de buscar tudo do item: uma leitura basta
       const known = stored.filter(a => a.itemId === item.itemId)

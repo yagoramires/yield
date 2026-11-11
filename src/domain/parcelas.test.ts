@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest'
 import type { Txn } from '../db/gastosRepo'
 import type { BudgetLine } from '../db/orcamentoRepo'
-import { installmentIn, purchaseOfKey, purchases, staleInstallmentLines } from './parcelas'
+import { installmentIn, prepaidTxnIds, purchaseOfKey, purchases, staleInstallmentLines } from './parcelas'
 
 let seq = 0
 const t = (date: string, installment: string, amountCents: number, description: string, accountId = 'xp'): Txn =>
@@ -67,4 +67,12 @@ test('limpeza do plano: tira quitada e repetida, deixa a aberta e a última parc
     line('mao', '2026-11', 3, 6, null as unknown as string), line('passado', '2026-09', 2, 12, 'parc:xp|casa|12|29584@2026-09'),
   ]
   expect(staleInstallmentLines(lines, ps, '2026-10').map(l => l.id).sort()).toEqual(['azul5', 'casa'])
+})
+
+test('antecipada: parcelas 2+ da mesma compra na mesma data não são gasto do mês; a cobrança normal da XP (1ª + 2ª em dias seguidos) fica', () => {
+  const air = [t('2026-10-02', '1/6', 17335, 'AIRBNB'), t('2026-11-03', '2/6', 17333, 'AIRBNB'), ...[3, 4, 5, 6].map(n => t('2026-11-10', `${n}/6`, 17333, 'AIRBNB'))]
+  const normal = [t('2026-10-09', '1/3', 10401, 'CEA'), t('2026-10-10', '2/3', 10399, 'CEA')]
+  const ids = prepaidTxnIds(purchases([...air, ...normal], '2026-11-10'), '2026-11-10')
+  expect([...ids].sort()).toEqual(air.slice(2).map(x => x.id).sort())
+  expect(prepaidTxnIds(purchases(air, '2026-12-05'), '2026-12-05').size).toBe(0) // mês fechado: como o banco mandou
 })
