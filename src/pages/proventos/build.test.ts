@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Dividend } from '../../domain/types'
-import { buildDividend, byTicker, filterDividends, groupByMonth, summary, totalsByKind, totalsByYear, yearTable, yieldOnCost } from './build'
+import { buildDividend, byTicker, filterDividends, groupByMonth, summary, totalsByYear, yearTable, yieldOnCost } from './build'
 
 const d = (id: string, ticker: string, kind: Dividend['kind'], payDate: string, amountCents: number): Dividend =>
   ({ id, ticker, kind, payDate, amountCents, broker: 'CLEAR', source: 'b3', sourceKey: id })
@@ -24,9 +24,8 @@ describe('agrupamento e totais', () => {
     expect(g.map(x => [x.month, x.totalCents])).toEqual([['2026-10', 42240], ['2026-09', 25510], ['2025-12', 1000]])
     expect(g[0].items.map(x => x.id)).toEqual(['1', '2'])
   })
-  it('total por ano (desc) e por tipo', () => {
+  it('total por ano (desc)', () => {
     expect(totalsByYear(list)).toEqual([{ year: '2026', totalCents: 67750 }, { year: '2025', totalCents: 1000 }])
-    expect(totalsByKind(list)).toEqual({ Dividendo: 26510, JCP: 14740, Rendimento: 27500 })
   })
 })
 

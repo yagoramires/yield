@@ -28,9 +28,6 @@ export function totalsByYear(list: Dividend[]): { year: string; totalCents: Cent
   return [...by].map(([year, totalCents]) => ({ year, totalCents })).sort((a, b) => (a.year < b.year ? 1 : -1))
 }
 
-export const totalsByKind = (list: Dividend[]): Record<DividendKind, Cents> =>
-  list.reduce((t, d) => ({ ...t, [d.kind]: t[d.kind] + d.amountCents }), { Dividendo: 0, JCP: 0, Rendimento: 0 })
-
 export function buildDividend(f: DividendForm): Omit<Dividend, 'id'> {
   const ticker = normalizeTicker(f.ticker)
   if (!ticker) throw new Error('Ticker: informe o ativo.')
