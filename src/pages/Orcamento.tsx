@@ -34,7 +34,6 @@ const NET_ZERO = 'O líquido desta fonte está zerado ou negativo: confira a fon
 const GRUPOS: { value: Grupo; label: string }[] = [{ value: 'fixo', label: 'Custo fixo' }, { value: 'variavel', label: 'Gasto variável' }, { value: 'meta', label: 'Investimento' }]
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
-// ícone de cada tipo de fonte de renda (avulso = sem fonte)
 const SOURCE_LOOK: Record<string, [string, string]> = { clt: ['briefcase-business', '#c6ff3d'], pj: ['landmark', TINT.azul], mei: ['store', TINT.violeta], fixo: ['piggy-bank', TINT.turquesa], avulso: ['gift', TINT.areia] }
 const SourceIcon = ({ kind, dim }: { kind: string; dim?: boolean }) => <span style={dim ? { opacity: 0.45 } : undefined}><IconGlyph name={SOURCE_LOOK[kind][0]} color={SOURCE_LOOK[kind][1]} size={28} /></span>
 const total = (ls: BudgetLine[]) => ls.reduce((s, l) => s + l.amountCents, 0)
@@ -246,13 +245,11 @@ export function Orcamento({ onNavigate, onOpenGastos, onOpenSettings }: { onNavi
       </span>
     </div>
   )
-  // nome em cima, o resto numa linha só embaixo
   const nameCell = (l: BudgetLine, sub: (string | null | false | undefined)[]) => {
     const info = sub.filter(Boolean).join(' · ')
     return <td><div className="nm" title={l.name}><span>{shown(l)}</span>{actions(l)}</div>{info && <div className="d2">{info}</div>}</td>
   }
 
-  // um bloco da tela: linhas do bloco, formulário no lugar da linha editada e o de linha nova no fim
   const block = (at: At, title: string, ls: BudgetLine[], value: ReactNode, row: (l: BudgetLine) => ReactNode, opts: { empty: string; add?: () => void; hint?: ReactNode; extra?: ReactNode; after?: ReactNode /* depois das linhas */; goal?: { real: number; goal: number } }) => {
     const formRow = (f: Form) => (f.kind === 'entrada' ? entradaForm(f) : saidaForm(f))
     const inBlock = (l: BudgetLine) => (l.kind === 'entrada' ? 'entrada' : blocoOf(l)) === at
