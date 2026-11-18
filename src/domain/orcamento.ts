@@ -1,8 +1,8 @@
 import type { Account, BudgetLine, Category, Goal, Grupo, IncomeSource, PjConfig, Txn } from './records'
 import { fold, monthTotals, normalizeDescription, shortName } from './gastos'
-import { addMonths, monthsBetween } from './money'
+import { addMonths, monthOf, monthsBetween } from './money'
 import { ownerMention } from './transferencias'
-import type { Cents, Month } from './types'
+import type { Cents, ISODate, Month } from './types'
 
 export interface PjBreakdown { grossCents: Cents; proLaboreCents: Cents; irpjCents: Cents; inssCents: Cents; contabilidadeCents: Cents; outrosCents: Cents; dasCents: Cents; netCents: Cents }
 
@@ -282,4 +282,9 @@ export function outrasEntradas(lines: BudgetLine[], txns: Txn[], accounts: Pick<
     if (group) for (const t of group.g) left.splice(left.indexOf(t), 1)
   }
   return left
+}
+
+export function defaultMonth(months: Month[], today: ISODate): Month {
+  const cur = monthOf(today)
+  return months.includes(cur) ? cur : months.at(-1) ?? cur
 }

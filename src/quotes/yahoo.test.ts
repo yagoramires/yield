@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createTestDb, type Db } from '../db/testDb'
 import { loadAll, saveManualAsset, saveSegment, upsertQuote } from '../db/repo'
-import { cryptoSymbol, fetchYahooQuote, fetchYahooSegment, parseDividends, refreshQuotes, repairCryptoSymbols, yahooSymbol } from './yahoo'
+import { cryptoSymbol, fetchYahooQuote, fetchYahooSegment, parseDividends, refreshQuotes, repairCryptoSymbols } from './yahoo'
 
 const resp = (price: number, time = 1793030000, events?: unknown) =>
   new Response(JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, regularMarketTime: time }, events }] } }))
@@ -15,12 +15,6 @@ const fake: typeof fetch = async (url) => {
 
 let db: Db
 beforeEach(() => { db = createTestDb() })
-
-test('yahooSymbol', () => {
-  expect(yahooSymbol('itsa4')).toBe('ITSA4.SA')
-  expect(yahooSymbol('ITSA4.SA')).toBe('ITSA4.SA')
-  for (const s of ['BTC-BRL', 'ETH-BRL', 'BRL=X']) expect(yahooSymbol(s)).toBe(s)
-})
 
 test('repairCryptoSymbols: cripto manual antiga em -BRL / .SA passa ao par em dólar, uma vez só', async () => {
   const db = createTestDb()

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { normalizeBroker, parseBRDate, parseBRL, parseDecimal, parseQty } from './parse'
+import { parseBRDate, parseBRL, parseDecimal, parseQty } from './parse'
 
 describe('parseBRL', () => {
   test('formatos brasileiros', () => {
@@ -40,33 +40,6 @@ describe('parseBRDate', () => {
   })
   test('data inválida lança', () => {
     expect(() => parseBRDate('lixo')).toThrow()
-  })
-})
-
-describe('normalizeBroker', () => {
-  test.each([
-    ['CLEAR CORRETORA - GRUPO XP', 'CLEAR'],
-    ['INTER DTVM', 'INTER'],
-    ['BTG PACTUAL CTVM S/A', 'BTG'],
-    ['BANCO INTER S.A.', 'INTER'],
-    ['Banco BTG Pactual S.A.', 'BTG'],
-    ['XP INVESTIMENTOS CCTVM S/A', 'XP'],
-    ['xp', 'XP'],
-    ['RICO INVESTIMENTOS - GRUPO XP', 'RICO'],
-    ['  rico   investimentos ', 'RICO'],
-    ['NU INVEST CORRETORA DE VALORES S.A.', 'NU'],
-    ['ITAÚ CORRETORA DE VALORES S/A', 'ITAU'],
-    ['SAFRA CORRETORA DE VALORES E CÂMBIO LTDA', 'SAFRA'],
-    ['TORO CTVM LTDA', 'TORO'],
-    ['BB BANCO DE INVESTIMENTO S.A.', 'BB'],
-    ['GENIAL INSTITUCIONAL CCTVM S/A', 'GENIAL INSTITUCIONAL'],
-    ['ATIVA INVESTIMENTOS S.A. CORRETORA DE TÍTULOS, CÂMBIO E VALORES', 'ATIVA'],
-    ['BANCO INTER S.A', 'INTER'],
-    ['SEM NOTA', 'SEM NOTA'],
-    ['', ''],
-  ])('%s → %s', (raw, key) => {
-    expect(normalizeBroker(raw)).toBe(key)
-    expect(normalizeBroker(key)).toBe(key) // idempotente: chaves gravadas não mudam ao relê-las
   })
 })
 

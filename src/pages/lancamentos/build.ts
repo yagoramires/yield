@@ -1,14 +1,9 @@
-import type { GastosData } from '../../db/gastosRepo'
 import type { Account, Category, CategoryRule, Txn } from '../../domain/records'
-import { fold, normalizeDescription, type MonthTotals } from '../../domain/gastos'
+import { fold, normalizeDescription, type MonthTotals, type TxnFilter } from '../../domain/gastos'
 import { addMonths, monthOf } from '../../domain/money'
 import type { Cents, ISODate, Month } from '../../domain/types'
-import { SYNC_EVERY_MS } from '../../openfinance/sync'
 
 type Cat = (t: Txn) => Category | null
-
-export interface TxnFilter { accountKind: 'todas' | 'conta' | 'cartao'; categoryId: string | 'sem' | null; search: string }
-export const NO_FILTER: TxnFilter = { accountKind: 'todas', categoryId: null, search: '' }
 
 // Mesmo critério de monthTotals: sem categoria conta como gasto; entrada é o que conta como gasto ou é receita.
 const isSpending = (t: Txn, c: Category | null) => t.amountCents < 0 && (c === null || c.countsAsSpending)
@@ -111,15 +106,6 @@ export function ruleFor(t: Txn, rules: CategoryRule[], overrides: Record<string,
   if (overrides[t.fingerprint]) return null
   const desc = normalizeDescription(t.description)
   return rules.filter(r => r.pattern && desc.includes(r.pattern.toLowerCase())).sort((a, b) => b.pattern.length - a.pattern.length)[0] ?? null
-}
-
-/** Sincroniza ao abrir: algum item salvo sem conta, ou conta da Pluggy nunca sincronizada ou mais velha que SYNC_EVERY_MS. */
-export function needsSync(g: GastosData, nowMs: number): boolean {
-  if (!g.pluggyItems.length) return false
-  // contas de item removido ficam no banco; não podem disparar sincronização
-  const pluggy = g.accounts.filter(a => a.source === 'pluggy' && g.pluggyItems.some(i => i.itemId === a.itemId))
-  return g.pluggyItems.some(i => !pluggy.some(a => a.itemId === i.itemId))
-    || pluggy.some(a => !a.lastSyncAt || nowMs - Date.parse(a.lastSyncAt) > SYNC_EVERY_MS)
 }
 
 // Prefixos que os bancos põem antes do "|" ("Transferência enviada pelo Pix|LOJA"); um prefixo novo aparece como veio.

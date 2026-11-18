@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BudgetLine, Category } from '../../domain/records'
-import { defaultMonth, goalChanges, monthProgress, pace, spendingPlan, validateLine } from './build'
+import { goalChanges, monthProgress, pace, spendingPlan, validateLine } from './build'
 
 describe('validateLine', () => {
   it('exige nome', () => {
@@ -29,14 +29,6 @@ describe('monthProgress', () => {
   it('mês passado é 1 e futuro é 0', () => {
     expect(monthProgress('2026-08', '2026-09-15')).toBe(1)
     expect(monthProgress('2026-10', '2026-09-15')).toBe(0)
-  })
-})
-
-describe('defaultMonth', () => {
-  it('prefere o mês de hoje, senão o último criado, senão hoje', () => {
-    expect(defaultMonth(['2026-09', '2026-10', '2026-11'], '2026-10-27')).toBe('2026-10')
-    expect(defaultMonth(['2026-08', '2026-09'], '2026-10-27')).toBe('2026-09')
-    expect(defaultMonth([], '2026-10-27')).toBe('2026-10')
   })
 })
 

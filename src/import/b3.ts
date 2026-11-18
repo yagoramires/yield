@@ -8,7 +8,8 @@ import { isBusinessDay } from '../domain/calendar'
 import { normalizeTicker, replay } from '../domain/ledger'
 import { editCents } from '../domain/money'
 import type { AssetType, Cents, Dividend, DividendKind, ISODate, NewCorporateEvent, Side } from '../domain/types'
-import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
+import { parseBRDate, parseBRL, parseQty } from './parse'
+import { normalizeBroker } from '../domain/ledger'
 import { isPosicao, isRendaFixa, parsePosicao, parsePosicaoIssuers, posicaoDate, rfKey, rfMoveKind } from './b3RendaFixa'
 
 export interface B3Trade { date: ISODate; broker: string; side: Side; ticker: string; qty: number; priceCents: Cents; assetType?: AssetType /* só quando o relatório já diz o tipo */ }

@@ -1,7 +1,8 @@
 import { normalizeTicker } from '../domain/ledger'
 import type { NoteFees } from '../domain/fees'
 import type { AssetType, Cents, ISODate, Side } from '../domain/types'
-import { normalizeBroker, parseBRDate, parseBRL, parseQty } from './parse'
+import { parseBRDate, parseBRL, parseQty } from './parse'
+import { normalizeBroker } from '../domain/ledger'
 
 export interface NoteDraftItem { side: Side; spec: string; ticker: string | null; assetType: AssetType | null; qty: number; priceCents: Cents }
 // broker null: o cabeçalho não trouxe razão social reconhecível; a tela pede

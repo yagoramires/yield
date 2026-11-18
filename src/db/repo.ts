@@ -1,7 +1,7 @@
 import { normalizeTicker } from '../domain/ledger'
 import type { OpeningLoss } from '../domain/tax'
 import type { Cents, CorporateEvent, DarfPayment, Dividend, ISODate, Month, NewCorporateEvent, Trade } from '../domain/types'
-import { normalizeBroker } from '../import/parse'
+import { normalizeBroker } from '../domain/ledger'
 import type { Db } from './client'
 import { loadCryptoBalances, loadRfMoves, loadRfPositions } from './rendaFixaRepo'
 import type { BankInvestmentRow, CryptoBalance, ManualAsset, Quote, RfMove, RfPosition } from '../domain/records'

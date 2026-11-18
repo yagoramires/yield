@@ -1,6 +1,5 @@
 import type { Db } from '../db/client'
 import { saveQuoteDividends, saveSegment, upsertQuote, type QuoteDividends } from '../db/repo'
-import { normalizeTicker } from '../domain/ledger'
 import type { Cents } from '../domain/types'
 import { parseBRL } from '../import/parse'
 
@@ -8,11 +7,6 @@ export const REFRESH_MS = 15 * 60 * 1000
 
 // Sem o User-Agent de navegador o Yahoo às vezes responde 429.
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
-
-export function yahooSymbol(tickerOrSymbol: string): string {
-  const s = tickerOrSymbol.trim().toUpperCase()
-  return /[.\-=]/.test(s) ? s : `${normalizeTicker(s)}.SA`
-}
 
 // o Yahoo não tem mais os pares em real (BTC-BRL dá 404): cripto é cotada em dólar; .SA e -BRL vêm de ativos antigos
 export function cryptoSymbol(coinOrSymbol: string): string {

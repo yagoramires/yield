@@ -2,7 +2,7 @@
 import { normalizeTicker } from '../../domain/ledger'
 import { addMonths, monthOf } from '../../domain/money'
 import type { Cents, Dividend, DividendKind, ISODate, Month } from '../../domain/types'
-import { normalizeBroker } from '../../import/parse'
+import { normalizeBroker } from '../../domain/ledger'
 import { parseDate, parseMoney } from '../notas/build'
 
 export const KINDS: DividendKind[] = ['Dividendo', 'JCP', 'Rendimento']

@@ -5,7 +5,7 @@ import type { Cents, CorporateEvent, Dividend, DividendKind, Month, Trade } from
 import { BOLSA, carteiraClasses } from '../carteira/build'
 import { SERIES, TINT } from '../../ui/palette'
 import type { AssetSegment } from '../../db/repo'
-import { yahooSymbol } from '../../quotes/yahoo'
+import { yahooSymbol } from '../../domain/ledger'
 
 const CLASS_LABEL: Record<string, string> = { 'ETF RF': 'ETF de renda fixa', renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior', outro: 'Outros' }
 export const classLabel = (c: string) => CLASS_LABEL[c] ?? c

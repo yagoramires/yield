@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { defaultMonth } from './orcamento'
 import type { BudgetLine, Category, IncomeSource, Txn } from './records'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
 import type { Subscription } from './assinaturas'
@@ -305,3 +306,10 @@ describe('outrasEntradas', () => {
   })
 })
 
+describe('defaultMonth', () => {
+  it('prefere o mês de hoje, senão o último criado, senão hoje', () => {
+    expect(defaultMonth(['2026-09', '2026-10', '2026-11'], '2026-10-27')).toBe('2026-10')
+    expect(defaultMonth(['2026-08', '2026-09'], '2026-10-27')).toBe('2026-09')
+    expect(defaultMonth([], '2026-10-27')).toBe('2026-10')
+  })
+})

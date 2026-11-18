@@ -1,4 +1,5 @@
 import type { Db } from '../db/client'
+import type { GastosData } from '../db/gastosRepo'
 import { loadGastos, replaceWindow, setLastSync, upsertAccount } from '../db/gastosRepo'
 import { replaceBankInvestments } from '../db/repo'
 import type { BankInvestmentRow } from '../domain/records'
@@ -6,7 +7,7 @@ import { addTrades, saveNote } from '../db/repo'
 import { withFingerprints } from '../domain/gastos'
 import type { AssetType, ISODate } from '../domain/types'
 import { assetTypeOf, settleDate } from '../import/b3'
-import { normalizeBroker } from '../import/parse'
+import { normalizeBroker } from '../domain/ledger'
 import { createPluggyClient, PluggyError, rendaVariavel, toTradeRow, toTxnRow, type PluggyAuth, type PluggyItem } from './pluggy'
 
 export const SYNC_EVERY_MS = 6 * 60 * 60 * 1000
@@ -195,4 +196,13 @@ async function mergeTrades(db: Db, broker: string, trades: PluggyTrade[]) {
     inserted += list.length
   }
   return { inserted, updated, existing }
+}
+
+/** Sincroniza ao abrir: algum item salvo sem conta, ou conta da Pluggy nunca sincronizada ou mais velha que SYNC_EVERY_MS. */
+export function needsSync(g: GastosData, nowMs: number): boolean {
+  if (!g.pluggyItems.length) return false
+  // contas de item removido ficam no banco; não podem disparar sincronização
+  const pluggy = g.accounts.filter(a => a.source === 'pluggy' && g.pluggyItems.some(i => i.itemId === a.itemId))
+  return g.pluggyItems.some(i => !pluggy.some(a => a.itemId === i.itemId))
+    || pluggy.some(a => !a.lastSyncAt || nowMs - Date.parse(a.lastSyncAt) > SYNC_EVERY_MS)
 }

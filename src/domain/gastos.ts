@@ -122,3 +122,7 @@ export function monthTotals(txns: Txn[], _accounts: Account[], cat: (t: Txn) => 
   }
   return { spentCents, incomeCents, byCategory: [...by.values()].sort((a, b) => b.cents - a.cents) }
 }
+
+export interface TxnFilter { accountKind: 'todas' | 'conta' | 'cartao'; categoryId: string | 'sem' | null; search: string }
+
+export const NO_FILTER: TxnFilter = { accountKind: 'todas', categoryId: null, search: '' }

@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import type { Account } from '../domain/records'
+import type { GastosData } from '../db/gastosRepo'
 import { loadGastos, savePluggyItem, setLastSync, setOverride } from '../db/gastosRepo'
 import { loadAll, saveNote } from '../db/repo'
 import { createTestDb } from '../db/testDb'
 import type { PluggyInvestment } from './pluggy'
 import type { Db } from '../db/client'
 import type { ISODate } from '../domain/types'
-import { itemProblem, syncPluggy } from './sync'
+import { itemProblem, needsSync, syncPluggy } from './sync'
 
 const fx = (n: string) => JSON.parse(readFileSync(new URL(`../../tests/fixtures/pluggy/${n}.json`, import.meta.url), 'utf8'))
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -353,5 +355,24 @@ describe('itemProblem', () => {
     expect(itemProblem({ id: 'i', status: 'OUTDATED' }, now)?.block).toBe(false)
     expect(itemProblem({ id: 'i', status: 'UPDATED', consentExpiresAt: '2027-06-01T00:00:00Z' }, now)).toBeNull()
     expect(itemProblem(null, now)).toBeNull()
+  })
+})
+
+describe('needsSync', () => {
+  const now = Date.parse('2026-10-26T12:00:00Z')
+  const pluggy: Account = { id: 'p1', name: 'Conta', institution: 'Banco Laranja', kind: 'conta', number: null, source: 'pluggy', externalId: 'pluggy:1', itemId: 'it1', lastSyncAt: '2026-10-26T10:00:00Z' }
+  const g = (o: Partial<GastosData>): GastosData => ({ accounts: [pluggy], txns: [], categories: [], rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'it1', label: 'Banco' }], ownerNames: [], companyNames: [], ruleSuggestionsDismissed: [], canceledSubs: {}, ...o })
+  it('não sincroniza sem item salvo nem com tudo recente', () => {
+    expect(needsSync(g({ pluggyItems: [] }), now)).toBe(false)
+    expect(needsSync(g({}), now)).toBe(false)
+  })
+  it('sincroniza com conta velha, nunca sincronizada ou item sem conta', () => {
+    expect(needsSync(g({ accounts: [{ ...pluggy, lastSyncAt: '2026-10-26T05:00:00Z' }] }), now)).toBe(true)
+    expect(needsSync(g({ accounts: [{ ...pluggy, lastSyncAt: null }] }), now)).toBe(true)
+    expect(needsSync(g({ pluggyItems: [{ itemId: 'it1', label: 'Banco' }, { itemId: 'it2', label: 'Outro' }] }), now)).toBe(true)
+  })
+  it('ignora contas de item removido', () => {
+    const old: Account = { ...pluggy, id: 'p2', externalId: 'pluggy:2', itemId: 'removido', lastSyncAt: null }
+    expect(needsSync(g({ accounts: [pluggy, old] }), now)).toBe(false)
   })
 })

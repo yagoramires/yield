@@ -23,11 +23,6 @@ export function monthProgress(month: Month, today: ISODate): number {
   return Number(today.slice(8, 10)) / days
 }
 
-export function defaultMonth(months: Month[], today: ISODate): Month {
-  const cur = monthOf(today)
-  return months.includes(cur) ? cur : months.at(-1) ?? cur
-}
-
 /** Onde o gasto fecha no ritmo atual; null no primeiro instante do mês e fora do mês corrente. */
 export const pace = (realCents: Cents, progress: number): Cents | null => (progress > 0 && progress < 1 ? Math.round(realCents / progress) : null)
 

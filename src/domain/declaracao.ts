@@ -1,5 +1,5 @@
 import type { Broker, Issuer, RfMove, RfPosition } from './records'
-import { normalizeBroker } from '../import/parse'
+import { normalizeBroker } from './ledger'
 import { replay } from './ledger'
 import { nameOf, rfInstitution, rfOpenByKey } from './rendaFixa'
 import type { TaxMonth } from './tax'

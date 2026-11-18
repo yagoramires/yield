@@ -5,7 +5,7 @@ import { addMonths } from '../../domain/money'
 import { cdiIndex, closeIndex, portfolioIndex } from '../../domain/rentabilidade'
 import type { Cents, CorporateEvent, Dividend, Month, Trade } from '../../domain/types'
 import { fetchCdi, fetchMonthlyCloses } from '../../quotes/historico'
-import { yahooSymbol } from '../../quotes/yahoo'
+import { yahooSymbol } from '../../domain/ledger'
 import { LineChart } from '../../ui/charts'
 import { errText, monthName } from '../../domain/text'
 

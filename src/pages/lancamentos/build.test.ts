@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { GastosData } from '../../db/gastosRepo'
 import type { Account, Category, Txn } from '../../domain/records'
-import {
-  categoryBars, categoryStrip, cutToDay, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
-  shortAccountLabel, spentByMonth, suggestRulePattern, topSpending, type TxnFilter,
-} from './build'
+import { categoryBars, categoryStrip, cutToDay, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, ruleFor, shortAccountLabel, spentByMonth, suggestRulePattern, topSpending } from './build'
+import { type TxnFilter } from '../../domain/gastos'
 
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })
 const fatura = cat('pagamento-de-fatura', false)
@@ -150,25 +147,6 @@ it('ruleFor devolve a regra que categorizou, nunca quando há escolha manual', (
   expect(ruleFor(t, rules, {})?.pattern).toBe('uber eats')
   expect(ruleFor(t, rules, { [t.fingerprint]: 'mercado' })).toBeNull()
   expect(ruleFor(txn({ description: 'Padaria' }), rules, {})).toBeNull()
-})
-
-describe('needsSync', () => {
-  const now = Date.parse('2026-10-26T12:00:00Z')
-  const pluggy: Account = { ...conta, id: 'p1', source: 'pluggy', externalId: 'pluggy:1', itemId: 'it1', lastSyncAt: '2026-10-26T10:00:00Z' }
-  const g = (o: Partial<GastosData>): GastosData => ({ accounts: [pluggy], txns: [], categories: [], rules: [], overrides: {}, dismissed: [], pluggyItems: [{ itemId: 'it1', label: 'Banco' }], ownerNames: [], companyNames: [], ruleSuggestionsDismissed: [], canceledSubs: {}, ...o })
-  it('não sincroniza sem item salvo nem com tudo recente', () => {
-    expect(needsSync(g({ pluggyItems: [] }), now)).toBe(false)
-    expect(needsSync(g({}), now)).toBe(false)
-  })
-  it('sincroniza com conta velha, nunca sincronizada ou item sem conta', () => {
-    expect(needsSync(g({ accounts: [{ ...pluggy, lastSyncAt: '2026-10-26T05:00:00Z' }] }), now)).toBe(true)
-    expect(needsSync(g({ accounts: [{ ...pluggy, lastSyncAt: null }] }), now)).toBe(true)
-    expect(needsSync(g({ pluggyItems: [{ itemId: 'it1', label: 'Banco' }, { itemId: 'it2', label: 'Outro' }] }), now)).toBe(true)
-  })
-  it('ignora contas de item removido', () => {
-    const old: Account = { ...pluggy, id: 'p2', externalId: 'pluggy:2', itemId: 'removido', lastSyncAt: null }
-    expect(needsSync(g({ accounts: [pluggy, old] }), now)).toBe(false)
-  })
 })
 
 describe('cleanDescription', () => {

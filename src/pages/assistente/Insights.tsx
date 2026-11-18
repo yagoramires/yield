@@ -13,7 +13,7 @@ import { todayISO, useData } from '../../state/DataProvider'
 import { monthOf } from '../../domain/money'
 import { useHideValues } from '../../ui/HideValues'
 import type { Route } from '../../ui/routes'
-import { NO_FILTER } from '../lancamentos/build'
+import { NO_FILTER } from '../../domain/gastos'
 import { useAiInput } from './useAiInput'
 import { errText, monthName } from '../../domain/text'
 

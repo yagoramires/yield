@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { normalizeTicker, replay } from './ledger'
+import { normalizeBroker, normalizeTicker, replay, yahooSymbol } from './ledger'
 import { computeTax } from './tax'
 import type { CorporateEvent, Trade } from './types'
 
@@ -123,5 +123,38 @@ describe('replay', () => {
     const r = replay([t({ id: '1', ticker: 'HGLG11', assetType: 'FII' }), t({ id: '2', seq: 2, ticker: 'HGLG11', assetType: 'ETF' })], [])
     expect(r.positions[0].assetType).toBe('FII')
     expect(r.warnings.filter((w) => w.kind === 'tipo_inconsistente')).toHaveLength(1)
+  })
+})
+
+test('yahooSymbol', () => {
+  expect(yahooSymbol('itsa4')).toBe('ITSA4.SA')
+  expect(yahooSymbol('ITSA4.SA')).toBe('ITSA4.SA')
+  for (const s of ['BTC-BRL', 'ETH-BRL', 'BRL=X']) expect(yahooSymbol(s)).toBe(s)
+})
+
+describe('normalizeBroker', () => {
+  test.each([
+    ['CLEAR CORRETORA - GRUPO XP', 'CLEAR'],
+    ['INTER DTVM', 'INTER'],
+    ['BTG PACTUAL CTVM S/A', 'BTG'],
+    ['BANCO INTER S.A.', 'INTER'],
+    ['Banco BTG Pactual S.A.', 'BTG'],
+    ['XP INVESTIMENTOS CCTVM S/A', 'XP'],
+    ['xp', 'XP'],
+    ['RICO INVESTIMENTOS - GRUPO XP', 'RICO'],
+    ['  rico   investimentos ', 'RICO'],
+    ['NU INVEST CORRETORA DE VALORES S.A.', 'NU'],
+    ['ITAÚ CORRETORA DE VALORES S/A', 'ITAU'],
+    ['SAFRA CORRETORA DE VALORES E CÂMBIO LTDA', 'SAFRA'],
+    ['TORO CTVM LTDA', 'TORO'],
+    ['BB BANCO DE INVESTIMENTO S.A.', 'BB'],
+    ['GENIAL INSTITUCIONAL CCTVM S/A', 'GENIAL INSTITUCIONAL'],
+    ['ATIVA INVESTIMENTOS S.A. CORRETORA DE TÍTULOS, CÂMBIO E VALORES', 'ATIVA'],
+    ['BANCO INTER S.A', 'INTER'],
+    ['SEM NOTA', 'SEM NOTA'],
+    ['', ''],
+  ])('%s → %s', (raw, key) => {
+    expect(normalizeBroker(raw)).toBe(key)
+    expect(normalizeBroker(key)).toBe(key) // idempotente: chaves gravadas não mudam ao relê-las
   })
 })

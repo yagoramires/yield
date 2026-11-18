@@ -1,6 +1,6 @@
 import type { CryptoBalance, ManualAsset, Quote } from './records'
 import type { RfHolding } from './rendaFixa'
-import { yahooSymbol } from '../quotes/yahoo'
+import { yahooSymbol } from './ledger'
 import type { AssetType, Cents, Dividend, ISODate, Position } from './types'
 
 export interface PortfolioRow { ticker: string; assetType: AssetType; qty: number; avgPriceCents: Cents; costCents: Cents; priceCents: Cents | null; valueCents: Cents | null; varCents: Cents | null; varPct: number | null; quotedAt: string | null }

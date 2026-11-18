@@ -6,7 +6,8 @@ import { normalizeTicker } from '../../domain/ledger'
 import { editCents } from '../../domain/money'
 import type { AssetType, Cents, ISODate, NewCorporateEvent, Side, Trade } from '../../domain/types'
 import type { NoteDraft } from '../../import/sinacorPdf'
-import { normalizeBroker, parseBRL } from '../../import/parse'
+import { parseBRL } from '../../import/parse'
+import { normalizeBroker } from '../../domain/ledger'
 
 export const ASSET_TYPES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']
 export const FEE_FIELDS: [keyof NoteFees, string][] = [
