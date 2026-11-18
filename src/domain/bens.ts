@@ -1,3 +1,4 @@
+import { brDate } from './text'
 import type { Category, Possession, PossessionKind, Reminder, Txn } from './records'
 import { addMonths, monthOf, plainBRL } from './money'
 import type { Cents, ISODate, Month } from './types'
@@ -22,7 +23,6 @@ export const remindersGroup = (k: PossessionKind) => (KIND[k].imovel ? 'imovel' 
 
 const idx = (m: Month) => Number(m.slice(0, 4)) * 12 + Number(m.slice(5, 7)) - 1
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n))
-export const brDate = (d: ISODate) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`
 
 export const isFinanced = (p: Possession) => p.installmentCents != null && p.installmentsTotal != null && p.firstInstallment != null
 export const lastInstallment = (p: Possession): Month | null => (isFinanced(p) ? addMonths(p.firstInstallment!, p.installmentsTotal! - 1) : null)

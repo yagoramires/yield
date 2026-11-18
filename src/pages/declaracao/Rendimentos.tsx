@@ -5,13 +5,11 @@ import { CopyButton } from './Copy'
 import { ico, TINT } from '../../ui/palette'
 import { monthName } from '../../domain/text'
 
-const money = (c: number) => formatCents(c)
-
 function Grupo({ titulo, linhas }: { titulo: string; linhas: Rendimento[] }) {
   if (!linhas.length) return null
   return (
     <div className="day-card">
-      <div className="day-h"><span>{titulo}</span><span>R$ {money(linhas.reduce((s, r) => s + r.cents, 0))}</span></div>
+      <div className="day-h"><span>{titulo}</span><span>R$ {formatCents(linhas.reduce((s, r) => s + r.cents, 0))}</span></div>
       {linhas.map(r => (
         <div key={r.payerKey} className="srow">
           <span className="cat-ico" style={{ width: 30, height: 30, ...ico(TINT.azul) }} aria-hidden><Building2 size={14} /></span>
@@ -19,7 +17,7 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: Rendimento[] }) {
             <div className={`lname ${r.name ? '' : 'warn-text'}`}>{r.name ?? 'CNPJ não cadastrado'}</div>
             <div className="lsub">{r.cnpj && <span>{r.cnpj}</span>}<span>{r.cnpj ? '· ' : ''}{r.tickers.join(', ')}</span></div>
           </div>
-          <div className="lval">{money(r.cents)}</div>
+          <div className="lval">{formatCents(r.cents)}</div>
           {r.cnpj && <CopyButton text={r.cnpj} label="CNPJ" what={`CNPJ de ${r.name}`} small />}
           <CopyButton text={editCents(r.cents)} label="Valor" what={`valor de ${r.name ?? r.payerKey}`} small />
         </div>
@@ -45,7 +43,7 @@ export function Rendimentos({ rendimentos, isento20 }: { rendimentos: Rendimento
             <div className="srow">
               <span className="cat-ico" style={{ width: 30, height: 30, color: 'var(--accent-fg)', background: 'var(--accent-bg)' }} aria-hidden><Sprout size={14} /></span>
               <div className="lmid"><div className="lname">Lucro isento no ano</div><div className="lsub">soma dos meses em que as vendas de ações ficaram até R$ 20 mil</div></div>
-              <div className="lval">{money(isento20)}</div>
+              <div className="lval">{formatCents(isento20)}</div>
               <CopyButton text={editCents(isento20)} label="Valor" what="lucro isento" small />
             </div>
           </div>
@@ -83,11 +81,11 @@ function Tabela({ titulo, linhas, vazio }: { titulo: string; linhas: LinhaRV[]; 
               {linhas.map(l => (
                 <tr key={l.month}>
                   <td>{monthName(l.month)}</td>
-                  <td className={`r ${l.resultCents > 0 ? 'up' : l.resultCents < 0 ? 'dn' : ''}`}>{l.resultCents < 0 ? '−' : ''}{money(Math.abs(l.resultCents))}</td>
-                  <td className="r">{money(Math.abs(l.lossInCents))}</td>
-                  <td className="r">{money(l.irrfCents)}</td>
-                  <td className="r">{money(l.taxPayableCents)}</td>
-                  <td className="r">{money(l.darfPaidCents)}</td>
+                  <td className={`r ${l.resultCents > 0 ? 'up' : l.resultCents < 0 ? 'dn' : ''}`}>{l.resultCents < 0 ? '−' : ''}{formatCents(Math.abs(l.resultCents))}</td>
+                  <td className="r">{formatCents(Math.abs(l.lossInCents))}</td>
+                  <td className="r">{formatCents(l.irrfCents)}</td>
+                  <td className="r">{formatCents(l.taxPayableCents)}</td>
+                  <td className="r">{formatCents(l.darfPaidCents)}</td>
                 </tr>
               ))}
             </tbody>

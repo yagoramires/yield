@@ -16,10 +16,10 @@ import { Cripto } from './carteira/Cripto'
 import { ClassList } from './carteira/ClassList'
 import { PosRow } from './carteira/PosRow'
 import { BOLSA, carteiraClasses, pickClass, type ClassKey } from './carteira/build'
-import { br, pct, qtyText, signedCents, sign, tone, when } from './carteira/fmt'
+import { pct, qtyText, signedCents, sign, tone, when } from './carteira/fmt'
 import type { SectionId } from './configuracoes/secoes'
 import { SegmentOptions } from './resumoInvestimentos/Segmentos'
-import { errText } from '../domain/text'
+import { brDate, errText } from '../domain/text'
 
 const FORM_CLASSES: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior (US$)', outro: 'Outro' }
 // provento por cota tem frações de centavo (FII paga R$ 0,085); não é dinheiro da pessoa, então fica fora da máscara
@@ -123,7 +123,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
         : <button className="link" aria-label={`Editar segmento de ${r.ticker}`} onClick={() => setSegFor({ symbol, text: seg?.segment ?? '' })}>{seg?.segment ?? 'definir'}</button>}
       </span>
       <span className="r pos-x">{div && r.priceCents ? pctPlain(div.sum12m * 100 / r.priceCents) : '—'}</span>
-      <span className="r pos-x">{div ? perShare(div.lastAmount) : '—'}{div && <small className="t2">{br(div.lastDate)}</small>}</span>
+      <span className="r pos-x">{div ? perShare(div.lastAmount) : '—'}{div && <small className="t2">{brDate(div.lastDate)}</small>}</span>
     </>
     return (
       <PosRow key={r.ticker} cls={r.assetType ?? 'outro'} avatar={r.ticker} name={r.ticker}
@@ -148,7 +148,7 @@ export function Carteira({ onOpenSettings, initialClass = null }: { onOpenSettin
     const gain = usdGain === null && m?.valueCents != null && m.costCents !== null ? m.valueCents - m.costCents : null
     return (
       <PosRow key={a.id} cls={a.assetClass} avatar={a.quoteSymbol && a.assetClass === 'exterior' ? a.quoteSymbol : a.name} name={a.name}
-        detail={a.quantity !== null && quote ? `${qtyText(a.quantity)} × ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(quote.priceCents)} · ${quote.source === 'manual' ? 'à mão' : `Yahoo, ${when(quote.fetchedAt)}`}` : (a.sourceKey?.startsWith('pluggy:') ? `saldo no banco em ${br(a.updatedAt)}` : `valor informado em ${br(a.updatedAt)}`)}
+        detail={a.quantity !== null && quote ? `${qtyText(a.quantity)} × ${a.currency === 'USD' ? 'US$ ' : ''}${formatCents(quote.priceCents)} · ${quote.source === 'manual' ? 'à mão' : `Yahoo, ${when(quote.fetchedAt)}`}` : (a.sourceKey?.startsWith('pluggy:') ? `saldo no banco em ${brDate(a.updatedAt)}` : `valor informado em ${brDate(a.updatedAt)}`)}
         value={m?.valueCents == null ? <span className="t2">{a.currency === 'USD' && m?.usdCents != null ? 'sem dólar do dia' : 'sem cotação'}</span> : formatCents(m.valueCents)}
         valueSub={m?.usdCents != null && `US$ ${formatCents(m.usdCents)}`}
         gain={usdGain !== null ? sign(usdGain, `US$ ${formatCents(usdGain)}`) : gain !== null ? signedCents(gain) : '—'}

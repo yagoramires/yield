@@ -18,7 +18,6 @@ import { errText } from '../domain/text'
 
 type Tab = 'bens' | 'rendimentos' | 'rv' | 'cadastro'
 const CLASSES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']
-const money = (c: number) => formatCents(c)
 
 const Avatar = ({ b, size = 32 }: { b: Bem; size?: number }) => (
   <span className="tk-av" style={{ width: size, height: size, ...ico(classColor(b.assetType)) }} aria-hidden>{b.ticker.slice(0, 4)}</span>
@@ -118,7 +117,7 @@ export function Declaracao() {
               if (!list.length) return null
               return (
                 <div key={c} className="day-card">
-                  <div className="day-h"><span>{BEM_CODES[c].classe} · Grupo {BEM_CODES[c].grupo} · Código {BEM_CODES[c].codigo}</span><span>R$ {money(list.reduce((s, b) => s + b.costCents, 0))}</span></div>
+                  <div className="day-h"><span>{BEM_CODES[c].classe} · Grupo {BEM_CODES[c].grupo} · Código {BEM_CODES[c].codigo}</span><span>R$ {formatCents(list.reduce((s, b) => s + b.costCents, 0))}</span></div>
                   {list.map(b => {
                     const i = issuerOf(b)
                     return (
@@ -126,7 +125,7 @@ export function Declaracao() {
                         <Avatar b={b} />
                         <span className="lmid"><span className="lname">{b.ticker}{b.oldTickers.length > 0 && <span className="muted"> (antes {b.oldTickers.join(', ')})</span>}</span>
                           <span className="lsub">{i ? <span>{i.name}</span> : <span className="warn-text">CNPJ não cadastrado</span>}<span>· {b.qty > 0 ? `${String(b.qty).replace('.', ',')} ${c === 'Ação' ? 'ações' : 'cotas'}` : `vendida em ${year}`}</span></span></span>
-                        <span className="sum-val">{money(b.costCents)}<small>era {money(b.costPrevCents)}</small></span>
+                        <span className="sum-val">{formatCents(b.costCents)}<small>era {formatCents(b.costPrevCents)}</small></span>
                       </button>
                     )
                   })}
@@ -138,12 +137,12 @@ export function Declaracao() {
               if (!list.length) return null
               return (
                 <div key={t} className="day-card">
-                  <div className="day-h"><span>{RF_CODES[t].classe} · Grupo {RF_CODES[t].grupo} · Código {RF_CODES[t].codigo}</span><span>R$ {money(list.reduce((s, b) => s + b.appliedCents, 0))}</span></div>
+                  <div className="day-h"><span>{RF_CODES[t].classe} · Grupo {RF_CODES[t].grupo} · Código {RF_CODES[t].codigo}</span><span>R$ {formatCents(list.reduce((s, b) => s + b.appliedCents, 0))}</span></div>
                   {list.map(b => (
                     <div key={b.key} className="srow bem-row">
                       <span className="lmid"><span className="lname">{b.name}</span>
                         <span className="lsub"><span>{b.qty > 0 ? `${String(Math.round(b.qty * 100) / 100).replace('.', ',')} títulos` : `resgatado em ${year}`}</span>{b.partial && <span className="warn-text">· faltam compras antigas na Movimentação: confira o aplicado</span>}</span></span>
-                      <span className="sum-val">{money(b.appliedCents)}<small>era {money(b.appliedPrevCents)}</small></span>
+                      <span className="sum-val">{formatCents(b.appliedCents)}<small>era {formatCents(b.appliedPrevCents)}</small></span>
                       <CopyButton text={discriminacaoRf(b, year, brokers)} label="Discriminação" what={`discriminação de ${b.name}`} small />
                     </div>
                   ))}
@@ -155,12 +154,12 @@ export function Declaracao() {
               if (!list.length) return null
               return (
                 <div key={k} className="day-card">
-                  <div className="day-h"><span>{KIND[k].label} · Grupo {KIND[k].grupo} · Código {KIND[k].codigo}</span><span>R$ {money(list.reduce((s, b) => s + b.cents, 0))}</span></div>
+                  <div className="day-h"><span>{KIND[k].label} · Grupo {KIND[k].grupo} · Código {KIND[k].codigo}</span><span>R$ {formatCents(list.reduce((s, b) => s + b.cents, 0))}</span></div>
                   {list.map(({ p, cents, prevCents }) => (
                     <div key={p.id} className="srow bem-row">
                       <span className="lmid"><span className="lname">{p.name}</span>
                         <span className="lsub"><span>{p.installmentCents != null ? 'financiado: entrada e parcelas pagas até 31/12' : 'custo de aquisição'}</span></span></span>
-                      <span className="sum-val">{money(cents)}<small>era {money(prevCents)}</small></span>
+                      <span className="sum-val">{formatCents(cents)}<small>era {formatCents(prevCents)}</small></span>
                       <CopyButton text={irDiscriminacao(p, year)} label="Discriminação" what={`discriminação de ${p.name}`} small />
                     </div>
                   ))}
@@ -182,7 +181,7 @@ export function Declaracao() {
             const text = discriminacao(sel, year, i, brokers)
             // [rótulo, o que copia, o que aparece]: o valor copiado é sempre o real, mesmo com o olhinho ligado
             const fields: [string, string, string][] = [['Grupo / Código', BEM_CODES[sel.assetType].label, ''], ['Localização', LOCALIZACAO, ''], ['CNPJ', i?.cnpj ?? 'não cadastrado', ''], ['Código de negociação', sel.ticker, ''],
-              [`Situação 31/12/${year - 1}`, editCents(sel.costPrevCents), money(sel.costPrevCents)], [`Situação 31/12/${year}`, editCents(sel.costCents), money(sel.costCents)]]
+              [`Situação 31/12/${year - 1}`, editCents(sel.costPrevCents), formatCents(sel.costPrevCents)], [`Situação 31/12/${year}`, editCents(sel.costCents), formatCents(sel.costCents)]]
             return (
               <div className="side-card decl-panel">
                 <div className="side-h"><span className="row" style={{ alignItems: 'center', gap: 8 }}><Avatar b={sel} size={26} /><b>{sel.ticker}</b></span><span className="muted">copie campo a campo</span></div>

@@ -6,11 +6,10 @@ import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
 import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
 import type { InvestmentCounts } from '../../openfinance/sync'
 import { parseMoney } from '../notas/build'
-import { errText } from '../../domain/text'
+import { brDate, errText } from '../../domain/text'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
 
-const br = (iso: string) => iso.split('-').reverse().join('/')
 const n = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`
 const signed = (q: number) => `${q > 0 ? '+' : '−'}${String(Math.abs(q)).replace('.', ',')}`
 const KIND: Record<string, string> = { bonificacao: 'bonificação', desdobramento: 'desdobramento', grupamento: 'grupamento' }
@@ -77,8 +76,8 @@ export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>
   ]
   return {
     counts: counts.join(' · '),
-    applied: r.applied.map(e => (e.kind === 'mudanca_ticker' ? `${e.ticker} → ${e.newTicker} (${br(e.date)})` : `${e.ticker} ${KIND[e.kind]} ${signed(e.qtyDelta)} (${br(e.date)})`)),
-    toReview: [...p.toReview, ...r.review].map(t => `${t.movimentacao} ${t.produto.split(' - ')[0]} (${br(t.date)})${t.nota ? `: ${t.nota}` : ''}`),
+    applied: r.applied.map(e => (e.kind === 'mudanca_ticker' ? `${e.ticker} → ${e.newTicker} (${brDate(e.date)})` : `${e.ticker} ${KIND[e.kind]} ${signed(e.qtyDelta)} (${brDate(e.date)})`)),
+    toReview: [...p.toReview, ...r.review].map(t => `${t.movimentacao} ${t.produto.split(' - ')[0]} (${brDate(t.date)})${t.nota ? `: ${t.nota}` : ''}`),
   }
 }
 

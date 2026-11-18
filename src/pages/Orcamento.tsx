@@ -25,14 +25,13 @@ import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 import { TINT } from '../ui/palette'
 import { MonthNav } from '../ui/MonthNav'
 import type { SectionId } from './configuracoes/secoes'
-import { accountLabel, brDay, errText, monthName } from '../domain/text'
+import { accountLabel, brDay, errText, monthName, plural } from '../domain/text'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }
 
 const NET_ZERO = 'O líquido desta fonte está zerado ou negativo: confira a fonte em Configurações'
 const GRUPOS: { value: Grupo; label: string }[] = [{ value: 'fixo', label: 'Custo fixo' }, { value: 'variavel', label: 'Gasto variável' }, { value: 'meta', label: 'Investimento' }]
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 const pct = (part: number, whole: number) => (whole > 0 ? Math.min(100, (part / whole) * 100) : part > 0 ? 100 : 0)
 const lower = (m: Month) => monthName(m).toLowerCase()
 // ícone de cada tipo de fonte de renda (avulso = sem fonte)

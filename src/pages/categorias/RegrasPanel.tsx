@@ -9,9 +9,7 @@ import { CategoryIcon } from '../../ui/CategoryIcon'
 import { cleanDescription, suggestRulePattern } from '../lancamentos/build'
 import { CategoryPicker } from '../lancamentos/CategoryPicker'
 import { rulePreview, ruleSuggestions, ruleUsage } from './build'
-import { brDay, errText } from '../../domain/text'
-
-export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+import { brDay, errText, plural } from '../../domain/text'
 
 /** Linhas de regra; `showCategory` falso no painel de uma categoria (todas são dela). */
 export function RuleList({ rules, showCategory }: { rules: CategoryRule[]; showCategory: boolean }) {

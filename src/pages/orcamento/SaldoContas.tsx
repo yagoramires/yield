@@ -5,8 +5,8 @@ import { IconGlyph } from '../../ui/CategoryIcon'
 import { useHideValues } from '../../ui/HideValues'
 import { TINT } from '../../ui/palette'
 import { localStamp } from '../../ui/SyncStatus'
+import { plural } from '../../domain/text'
 
-const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
 const contasCents = (as: Account[]) => as.reduce((s, a) => s + (a.kind === 'conta' ? a.balanceCents ?? 0 : 0), 0)
 
 // saldo como a Pluggy informou na última sincronização; conta importada por arquivo não tem saldo

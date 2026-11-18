@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { deleteBem, saveBem } from '../db/bensRepo'
 import type { Possession, PossessionKind } from '../domain/records'
-import { brDate, costsOf, debtOf, installmentOf, irSituacao, isFinanced, KIND, lastInstallment, patrimonio, upcoming, valueOf } from '../domain/bens'
+import { costsOf, debtOf, installmentOf, irSituacao, isFinanced, KIND, lastInstallment, patrimonio, upcoming, valueOf } from '../domain/bens'
 import { monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { IconGlyph } from '../ui/CategoryIcon'
@@ -12,6 +12,7 @@ import { Select } from '../ui/Select'
 import { changeKind, newBemForm, toBemForm, validateBem, type BemForm } from './bens/build'
 import { liveAccounts } from './orcamento/SaldoContas'
 import { errText } from '../domain/text'
+import { brDate } from '../domain/text'
 
 const COLOR: Record<PossessionKind, string> = { apartamento: TINT.areia, casa: TINT.areia, terreno: TINT.verde, imovel: TINT.areia, veiculo: TINT.azul, outro: TINT.violeta }
 const mmYYYY = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`

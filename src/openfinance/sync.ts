@@ -9,6 +9,7 @@ import type { AssetType, ISODate } from '../domain/types'
 import { assetTypeOf, settleDate } from '../import/b3'
 import { normalizeBroker } from '../domain/ledger'
 import { createPluggyClient, PluggyError, rendaVariavel, toTradeRow, toTxnRow, type PluggyAuth, type PluggyItem } from './pluggy'
+import { brDate } from '../domain/text'
 
 export const SYNC_EVERY_MS = 6 * 60 * 60 * 1000
 /** `found`: investimentos de renda variável do item; `existing`: operações que já estavam no Yield e ficaram como estavam. */
@@ -17,7 +18,6 @@ export interface InvestmentCounts { itemId: string; label: string; found: number
 export interface ItemHealth { itemId: string; updatedAt: string | null; problem: string | null }
 export interface SyncResult { accounts: number; inserted: number; removed: number; errors: { itemId: string; label: string; message: string }[]; investments: InvestmentCounts[]; items?: ItemHealth[] }
 
-const brDate = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 /**
  * O que a situação da conexão pede. `block`: autorização do Meu Pluggy vencida, as listas voltariam vazias e não há o que ler.
  * O resto só avisa: os dados até a última atualização continuam valendo.

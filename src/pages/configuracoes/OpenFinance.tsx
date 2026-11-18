@@ -11,9 +11,7 @@ import { bankLine, investmentLine, parseItemId } from './build'
 import { ago } from '../../ui/SyncStatus'
 import { initial } from '../../profiles/profiles'
 import { PluggyGuia } from './PluggyGuia'
-import { errText } from '../../domain/text'
-
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+import { errText, plural } from '../../domain/text'
 
 type Status = { ok: boolean; text: string }
 

@@ -4,7 +4,6 @@ export const sign = (c: number, s: string) => (c > 0 ? `+${s}` : c < 0 ? `−${s
 export const tone = (c: number | null) => (c === null || c === 0 ? '' : c > 0 ? 'up' : 'dn')
 export const pct = (p: number) => sign(p, `${(p * 100).toFixed(1).replace('.', ',')}%`)
 export const signedCents = (c: number) => sign(c, formatCents(c))
-export const br = (iso: string) => iso.split('-').reverse().join('/')
 export const when = (iso: string) => {
   const d = new Date(iso)
   const p = (n: number) => String(n).padStart(2, '0')

@@ -5,12 +5,11 @@ import { formatBRL, formatCents, editCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { buildOpeningLoss, buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type OpeningLossForm, type PaymentForm } from './imposto/build'
 import { DateField } from '../ui/DateField'
-import { errText } from '../domain/text'
+import { brDate, errText } from '../domain/text'
 
 const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const monLabel = (m: string) => `${MON[Number(m.slice(5)) - 1]}/${m.slice(2, 4)}`
-const brDay = (iso: string) => iso.split('-').reverse().join('/')
 const NOTA_SEM_NOTA = 'Comprou antes do período do relatório da B3? Lance a compra em Notas › Operação sem nota (data, quantidade e preço médio) ou a nota da corretora, se tiver.'
 const dash = (c: number, f: (c: number) => string = formatCents) => (c === 0 ? '—' : f(c))
 const STATUS: Record<DarfStatus, { label: string; cls: string }> = {
@@ -123,7 +122,7 @@ export function Imposto() {
       </div>
       {darfs.orphanPayments.map(p => (
         <div className="note" key={p.month} style={{ marginBottom: 8 }}>
-          Pagamento sem DARF correspondente — revise: {monLabel(p.month)}, pago em {brDay(p.paidAt)}, principal {formatBRL(p.principalCents)}.{' '}
+          Pagamento sem DARF correspondente — revise: {monLabel(p.month)}, pago em {brDate(p.paidAt)}, principal {formatBRL(p.principalCents)}.{' '}
           {confirm === `o-${p.month}` ? (
             <span>Desfazer este pagamento? <button className="link dn" onClick={() => void undo(p.month)}>Desfazer</button> <button className="link" onClick={() => setConfirm(null)}>Cancelar</button></span>
           ) : <button className="link" onClick={() => setConfirm(`o-${p.month}`)}>desfazer</button>}
@@ -150,9 +149,9 @@ export function Imposto() {
                     <td className="r">{result(t.fii.resultCents)}</td><td className="r">{formatCents(t.fii.taxDueCents)}</td>
                     <td className="r">{formatCents(t.comum.irrfUsedCents + t.fii.irrfUsedCents)}</td>
                     <td className={`r ${urgent ? 'dn' : ''}`}>{d.darfCents > 0 ? formatCents(d.darfCents) : '—'}</td>
-                    <td className={urgent ? 'dn' : ''}>{d.dueDate ? brDay(d.dueDate) : '—'}</td>
+                    <td className={urgent ? 'dn' : ''}>{d.dueDate ? brDate(d.dueDate) : '—'}</td>
                     <td>
-                      <span className={`pill ${STATUS[d.status].cls}`}>{d.status === 'pago' && d.payment ? `pago ${brDay(d.payment.paidAt).slice(0, 5)}` : d.status === 'pago_a_menor' ? `pago a menor: falta ${formatCents(d.complementCents)}` : STATUS[d.status].label}</span>
+                      <span className={`pill ${STATUS[d.status].cls}`}>{d.status === 'pago' && d.payment ? `pago ${brDate(d.payment.paidAt).slice(0, 5)}` : d.status === 'pago_a_menor' ? `pago a menor: falta ${formatCents(d.complementCents)}` : STATUS[d.status].label}</span>
                       {t.incomplete && <> <span className="pill warn">incompleto</span></>}
                       {dtMonths.has(m) && <> <span className="pill warn">day trade</span></>}
                     </td>
@@ -166,10 +165,10 @@ export function Imposto() {
                   (t.incomplete || dtMonths.has(m)) && (
                     <tr key={`${m}-w`}><td colSpan={13}>
                       {t.incomplete && <div className="note">
-                        Posição insuficiente em {incompleteWarnings(replay.warnings, m).map(w => `${w.ticker} (${w.kind === 'evento_sem_posicao' ? 'evento sem posição, ' : ''}${brDay(w.date).slice(0, 5)})`).join(', ')}: faltam notas antes destas datas. {NOTA_SEM_NOTA}
+                        Posição insuficiente em {incompleteWarnings(replay.warnings, m).map(w => `${w.ticker} (${w.kind === 'evento_sem_posicao' ? 'evento sem posição, ' : ''}${brDate(w.date).slice(0, 5)})`).join(', ')}: faltam notas antes destas datas. {NOTA_SEM_NOTA}
                       </div>}
                       {dtMonths.has(m) && <div className="note" style={{ marginTop: t.incomplete ? 4 : 0 }}>
-                        Day trade em {replay.warnings.filter(w => w.kind === 'day_trade' && w.date.startsWith(m)).map(w => `${w.ticker} (${brDay(w.date).slice(0, 5)})`).join(', ')}: não apurado aqui, o imposto pode estar errado.
+                        Day trade em {replay.warnings.filter(w => w.kind === 'day_trade' && w.date.startsWith(m)).map(w => `${w.ticker} (${brDate(w.date).slice(0, 5)})`).join(', ')}: não apurado aqui, o imposto pode estar errado.
                       </div>}
                     </td></tr>
                   ),
@@ -178,7 +177,7 @@ export function Imposto() {
                       <div className="card">
                         <b style={{ color: 'var(--strong)' }}>DARF {monLabel(m)} · código {DARF_CODE}</b>
                         <div className="t2" style={{ margin: '6px 0' }}>
-                          Período de apuração {brDay(lastDayOfMonth(m))} · principal {formatBRL(d.darfCents)} · vencimento {d.dueDate ? brDay(d.dueDate) : '—'}
+                          Período de apuração {brDate(lastDayOfMonth(m))} · principal {formatBRL(d.darfCents)} · vencimento {d.dueDate ? brDate(d.dueDate) : '—'}
                           {d.status === 'em_aberto' && <><br />Pagamento em atraso: calcule multa e juros no SicalcWeb da Receita</>}
                         </div>
                         <div className="t2">SicalcWeb: <span style={{ userSelect: 'all' }}>{SICALC}</span> <button className="b" onClick={() => void copy()}>Copiar link</button> {copied && <span>{copied}</span>}</div>

@@ -7,10 +7,9 @@ import { parseSinacorNote, type NoteDraft } from '../../import/sinacorPdf'
 import { extractPdfText, PdfPasswordError } from '../../import/pdfText'
 import { ASSET_TYPES, DUP_MSG, draftToSave, FEE_FIELDS, noteNet, type Built } from './build'
 import { Select } from '../../ui/Select'
-import { errText } from '../../domain/text'
+import { brDate, errText } from '../../domain/text'
 
 interface Entry { draft: NoteDraft; askBroker: boolean; dup: boolean; resolved: { ticker: string; assetType: AssetType | '' }[]; remember: boolean[]; done: boolean }
-const br = (iso: string) => iso.split('-').reverse().join('/')
 
 interface Props { db: Db; notes: Note[]; onSave(built: Built): Promise<string | null>; onClose(): void }
 
@@ -82,7 +81,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
       {cur && (
         <>
           <div className="bar">
-            <b style={{ color: 'var(--strong)' }}>Nota {cur.draft.number} · {cur.askBroker ? <input className="in" style={{ width: 140 }} placeholder="corretora" aria-label="Corretora" value={cur.draft.broker ?? ''} onChange={e => upd(idx, x => ({ ...x, draft: { ...x.draft, broker: e.target.value } }))} /> : cur.draft.broker} · {br(cur.draft.tradeDate)}</b>
+            <b style={{ color: 'var(--strong)' }}>Nota {cur.draft.number} · {cur.askBroker ? <input className="in" style={{ width: 140 }} placeholder="corretora" aria-label="Corretora" value={cur.draft.broker ?? ''} onChange={e => upd(idx, x => ({ ...x, draft: { ...x.draft, broker: e.target.value } }))} /> : cur.draft.broker} · {brDate(cur.draft.tradeDate)}</b>
             <span className="muted">
               {entries.length > 1 && <><button className="link" disabled={idx === 0} onClick={() => setIdx(idx - 1)}>‹</button> {idx + 1} de {entries.length} <button className="link" disabled={idx === entries.length - 1} onClick={() => setIdx(idx + 1)}>›</button></>}
             </span>
@@ -115,7 +114,7 @@ export function PdfImport({ db, notes, onSave, onClose }: Props) {
           <h5>Taxas lidas</h5>
           <div className="t2">{FEE_FIELDS.map(([k, name]) => `${name} ${formatCents(cur.draft.fees[k])}`).join(' · ')}</div>
           <div className="bar" style={{ marginTop: 12 }}>
-            <span className="t2">{net !== null && <>Líquido calculado: <b className={net < 0 ? 'dn' : 'up'}>{formatCents(net)}</b>{cur.draft.settleDate && ` para ${br(cur.draft.settleDate)}`} · confira com o PDF</>}</span>
+            <span className="t2">{net !== null && <>Líquido calculado: <b className={net < 0 ? 'dn' : 'up'}>{formatCents(net)}</b>{cur.draft.settleDate && ` para ${brDate(cur.draft.settleDate)}`} · confira com o PDF</>}</span>
             <div className="btns">
               <button className="b" onClick={() => { const rest = entries.filter((_, n) => n !== idx); setEntries(rest); setIdx(Math.max(0, Math.min(idx, rest.length - 1))) }}>{cur.done ? 'Remover da lista' : 'Descartar'}</button>
               <button className="b pri" disabled={cur.dup || cur.done} onClick={() => void save()}>Salvar nota</button>

@@ -8,11 +8,10 @@ import { DUP_MSG, emptyForm, formFromNote, noteNet, parseMoney, type Built, type
 import { EVENT_LABEL, EventForm } from './notas/EventForm'
 import { NoteForm } from './notas/NoteForm'
 import { PdfImport } from './notas/PdfImport'
-import { errText } from '../domain/text'
+import { brDate, errText } from '../domain/text'
 
 type Panel = { t: 'nota'; mode: 'manual' | 'sem_nota'; editing: Note | null; initial: Form } | { t: 'pdf' } | { t: 'evento' } | null
 const ORIGIN: Record<Note['source'], string> = { pdf: 'PDF', manual: 'manual', planilha: 'planilha', sem_nota: 'sem nota' }
-const br = (iso: string) => iso.split('-').reverse().join('/')
 const sign = (c: number) => (c > 0 ? '+' : c < 0 ? '−' : '') + formatCents(Math.abs(c))
 
 export function Notas() {
@@ -78,7 +77,7 @@ export function Notas() {
       {error && <div className="note" style={{ marginTop: 10 }}>{error}</div>}
       {brokerDups.length > 0 && <div className="note" style={{ marginTop: 10 }}>
         {brokerDups.length === 1 ? 'Uma nota aparece' : `${brokerDups.length} notas aparecem`} duas vezes, com o nome da corretora por extenso e abreviado e operações diferentes
-        ({brokerDups.map(n => `nº ${n.number} de ${br(n.tradeDate)}`).join(', ')}). Confira e exclua a que estiver errada para as operações não contarem duas vezes.
+        ({brokerDups.map(n => `nº ${n.number} de ${brDate(n.tradeDate)}`).join(', ')}). Confira e exclua a que estiver errada para as operações não contarem duas vezes.
       </div>}
       <div className={`notes-layout${panel ? ' split' : ''}`}>
         <div>
@@ -96,7 +95,7 @@ export function Notas() {
                     const net = noteNet(ts)
                     return (
                       <tr key={n.id} style={panel?.t === 'nota' && panel.editing?.id === n.id ? { background: 'var(--surface)' } : undefined}>
-                        <td>{br(n.tradeDate)}</td>
+                        <td>{brDate(n.tradeDate)}</td>
                         <td>{n.source === 'sem_nota' ? '—' : n.number}</td>
                         <td>{n.broker} <span className="tag">{ORIGIN[n.source]}</span>{n.label && <span className="t2"> {n.label}</span>}</td>
                         <td className="t2">{ts.map(t => t.ticker).join(', ')}</td>
@@ -116,7 +115,7 @@ export function Notas() {
                   const semCusto = e.kind === 'bonificacao' && e.unitCostCents === null
                   return (
                     <tr key={e.id} style={semCusto ? { background: 'var(--warn-bg)' } : undefined}>
-                      <td>{br(e.date)}</td><td>{EVENT_LABEL[e.kind]}</td><td>{e.ticker}</td><td className="r">{eventQty(e)}</td>
+                      <td>{brDate(e.date)}</td><td>{EVENT_LABEL[e.kind]}</td><td>{e.ticker}</td><td className="r">{eventQty(e)}</td>
                       <td className="t2">{e.kind === 'bonificacao' && e.unitCostCents !== null ? `custo ${formatCents(e.unitCostCents)}` : ''}</td>
                       <td className="r t2">
                         {semCusto && (costFor?.id === e.id ? (
