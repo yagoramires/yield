@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Account, Category, Txn } from '../db/gastosRepo'
+import type { Account, Category, Txn } from './records'
 import { companyCreditHints, ownerMention, pairTransfers, validCompanyNames, validOwnerNames } from './transferencias'
 
 const acc = (id: string, kind: Account['kind'] = 'conta'): Account => ({ id, source: 'pluggy', externalId: id, institution: id, name: id, kind, number: null, itemId: null, lastSyncAt: null })

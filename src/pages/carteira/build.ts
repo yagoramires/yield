@@ -1,4 +1,4 @@
-import type { ManualAsset } from '../../db/repo'
+import type { ManualAsset } from '../../domain/records'
 import type { Portfolio } from '../../domain/portfolio'
 import type { AssetType, Cents } from '../../domain/types'
 

@@ -1,4 +1,4 @@
-import type { Category, Txn } from '../db/gastosRepo'
+import type { Category, Txn } from './records'
 import type { Cents, ISODate } from './types'
 import { normalizeDescription } from './gastos'
 

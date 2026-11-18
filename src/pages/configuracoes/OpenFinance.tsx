@@ -1,6 +1,7 @@
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { useEffect, useState } from 'react'
-import { deleteAccount, deletePluggyItem, saveCompanyNames, saveOwnerNames, savePluggyItem, type Account } from '../../db/gastosRepo'
+import { deleteAccount, deletePluggyItem, saveCompanyNames, saveOwnerNames, savePluggyItem } from '../../db/gastosRepo'
+import type { Account } from '../../domain/records'
 import { validCompanyNames, validOwnerNames } from '../../domain/transferencias'
 import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
 import { clearPluggyCredentials, getPluggyAuth, setPluggyCredentials } from '../../openfinance/secrets'

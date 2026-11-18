@@ -1,6 +1,5 @@
 import { utils, type WorkBook } from 'xlsx'
-import type { Issuer } from '../db/irRepo'
-import type { RfMoveKind, RfPosition } from '../db/rendaFixaRepo'
+import type { Issuer, RfMoveKind, RfPosition } from '../domain/records'
 import { formatCnpj } from '../domain/declaracao'
 import { normalizeTicker } from '../domain/ledger'
 import type { ISODate } from '../domain/types'

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import type { ManualAsset, Quote } from '../db/repo'
+import type { ManualAsset, Quote } from './records'
 import type { RfHolding } from './rendaFixa'
 import { buildPortfolio, portfolioResult } from './portfolio'
 import type { Dividend, Position } from './types'

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Category, CategoryRule, Txn } from '../../db/gastosRepo'
-import type { BudgetLine } from '../../db/orcamentoRepo'
+import type { BudgetLine, Category, CategoryRule, Txn } from '../../domain/records'
 import type { Subscription } from '../../domain/assinaturas'
 import { monthTotals } from '../../domain/gastos'
 import { barInfo, biggestChanges, budgetByCategory, deleteImpact, monthDelta, nextCharges, rulePreview, ruleSuggestions, ruleUsage, spentByCategory, totalsOfSubscriptions, validateCategoryName } from './build'

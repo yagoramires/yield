@@ -1,4 +1,4 @@
-import type { AccountKind } from '../db/gastosRepo'
+import type { AccountKind } from '../domain/records'
 import { normalizeTicker } from '../domain/ledger'
 import type { AssetType, Cents, ISODate, Side } from '../domain/types'
 

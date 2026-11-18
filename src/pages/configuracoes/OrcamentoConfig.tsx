@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
-import { DEFAULT_PJ, deleteSource, type IncomeSource } from '../../db/orcamentoRepo'
+import { DEFAULT_PJ, deleteSource } from '../../db/orcamentoRepo'
+import type { IncomeSource } from '../../domain/records'
 import { cltNet, cltTabelaAno, pjNet, sourceNet } from '../../domain/orcamento'
 import { formatBRL, monthOf } from '../../domain/money'
 import { decodeStatement } from '../../import/ofx'

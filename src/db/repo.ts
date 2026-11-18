@@ -3,11 +3,10 @@ import type { OpeningLoss } from '../domain/tax'
 import type { Cents, CorporateEvent, DarfPayment, Dividend, ISODate, Month, NewCorporateEvent, Trade } from '../domain/types'
 import { normalizeBroker } from '../import/parse'
 import type { Db } from './client'
-import { loadCryptoBalances, loadRfMoves, loadRfPositions, type CryptoBalance, type RfMove, type RfPosition } from './rendaFixaRepo'
+import { loadCryptoBalances, loadRfMoves, loadRfPositions } from './rendaFixaRepo'
+import type { BankInvestmentRow, CryptoBalance, ManualAsset, Quote, RfMove, RfPosition } from '../domain/records'
 
-export interface ManualAsset { id: string; name: string; assetClass: 'renda_fixa' | 'cripto' | 'dolar' | 'exterior' | 'outro'; currency: 'BRL' | 'USD' /* USD: cotação em dólar × BRL=X */; costCents: Cents | null /* aportado, na moeda do ativo */; quoteSymbol: string | null; quantity: number | null; valueCents: Cents | null; updatedAt: ISODate; sourceKey: string | null }
 export interface Note { id: string; number: string; broker: string; tradeDate: ISODate; settleDate: ISODate; source: 'manual' | 'pdf' | 'planilha' | 'sem_nota'; sourceKey: string | null; label: string | null }
-export interface Quote { symbol: string /* sempre yahooSymbol(ticker), ex. 'ITSA4.SA' */; priceCents: Cents; fetchedAt: string; source: 'yahoo' | 'manual' /* manual prevalece e nunca é sobrescrita */ }
 // proventos por cota dos últimos 12 meses segundo o Yahoo (reais, não centavos: FII paga frações de centavo); lastDate = data ex
 export interface QuoteDividends { symbol: string; sum12m: number; lastAmount: number; lastDate: ISODate; fetchedAt: string }
 // segment null = o Yahoo não tinha setor (não busca de novo)
@@ -15,8 +14,6 @@ export interface AssetSegment { symbol: string; segment: string | null; source: 
 // meta de cada segmento dentro da classe da bolsa, em % (classe → segmento → %)
 export type SegmentTargets = Record<string, Record<string, number>>
 export interface Dataset { notes: Note[]; trades: Trade[]; events: CorporateEvent[]; dividends: Dividend[]; payments: DarfPayment[]; quotes: Quote[]; quoteDividends: QuoteDividends[]; segments: AssetSegment[]; segmentTargets: SegmentTargets; manualAssets: ManualAsset[]; rfMoves: RfMove[]; rfPositions: RfPosition[]; cryptoBalances: CryptoBalance[]; openingLoss: OpeningLoss | null; proventos: ProventosMode; bankInvestments: BankInvestmentRow[] }
-// investimento que a Pluggy informa com saldo (fora ação/ETF); costCents = valor aplicado, quando ela informa
-export interface BankInvestmentRow { id: string; itemId: string; name: string; type: string; subtype: string | null; balanceCents: Cents; costCents: Cents | null; fetchedAt: string }
 // o que a pessoa faz com os proventos: reinvestir (entram na caixinha que paga as próximas compras) ou sacar
 export type ProventosMode = 'reinvisto' | 'saco'
 

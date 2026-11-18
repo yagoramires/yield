@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Category, Txn } from '../db/gastosRepo'
-import type { Possession } from '../db/bensRepo'
+import type { Category, Possession, Txn } from './records'
 import { costsOf, debtOf, installmentOf, irDiscriminacao, irSituacao, patrimonio, remaining, upcoming } from './bens'
 
 const bem = (over: Partial<Possession> = {}): Possession => ({

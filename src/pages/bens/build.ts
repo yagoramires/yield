@@ -1,4 +1,4 @@
-import type { Possession, PossessionKind } from '../../db/bensRepo'
+import type { Possession, PossessionKind } from '../../domain/records'
 import { DEFAULT_REMINDERS, remindersGroup } from '../../domain/bens'
 import { editCents } from '../../domain/money'
 import type { ISODate } from '../../domain/types'

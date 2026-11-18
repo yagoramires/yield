@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { BankInvestmentRow } from '../../db/repo'
+import type { BankInvestmentRow } from '../../domain/records'
 import { formatCents } from '../../domain/money'
 
 /**

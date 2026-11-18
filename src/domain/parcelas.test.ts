@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest'
-import type { Txn } from '../db/gastosRepo'
-import type { BudgetLine } from '../db/orcamentoRepo'
+import type { BudgetLine, Txn } from './records'
 import { installmentIn, prepaidTxnIds, purchaseOfKey, purchases, staleInstallmentLines } from './parcelas'
 
 let seq = 0

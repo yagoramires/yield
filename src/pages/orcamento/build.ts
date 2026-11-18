@@ -1,5 +1,4 @@
-import type { Category } from '../../db/gastosRepo'
-import type { BudgetLine } from '../../db/orcamentoRepo'
+import type { BudgetLine, Category } from '../../domain/records'
 import { monthOf } from '../../domain/money'
 import type { Cents, ISODate, Month } from '../../domain/types'
 import { parseMoney } from '../notas/build'

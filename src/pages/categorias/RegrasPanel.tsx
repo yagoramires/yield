@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { deleteRule, dismissRuleSuggestion, saveRule, setOverride, type CategoryRule } from '../../db/gastosRepo'
+import { deleteRule, dismissRuleSuggestion, saveRule, setOverride } from '../../db/gastosRepo'
+import type { CategoryRule } from '../../domain/records'
 import { normalizeDescription } from '../../domain/gastos'
 import { formatCents } from '../../domain/money'
 import { useData } from '../../state/DataProvider'

@@ -1,5 +1,4 @@
-import type { Broker, Issuer } from '../db/irRepo'
-import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
+import type { Broker, Issuer, RfMove, RfPosition } from './records'
 import { normalizeBroker } from '../import/parse'
 import { replay } from './ledger'
 import { nameOf, rfInstitution, rfOpenByKey } from './rendaFixa'

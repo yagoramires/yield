@@ -1,4 +1,4 @@
-import type { AccountKind } from '../db/gastosRepo'
+import type { AccountKind } from '../domain/records'
 import type { Cents, ISODate } from '../domain/types'
 
 export interface ParsedStatement {

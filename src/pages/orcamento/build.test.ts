@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Category } from '../../db/gastosRepo'
-import type { BudgetLine } from '../../db/orcamentoRepo'
+import type { BudgetLine, Category } from '../../domain/records'
 import { defaultMonth, goalChanges, monthProgress, pace, spendingPlan, validateLine } from './build'
 
 describe('validateLine', () => {

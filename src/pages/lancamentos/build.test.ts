@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Account, Category, GastosData, Txn } from '../../db/gastosRepo'
+import type { GastosData } from '../../db/gastosRepo'
+import type { Account, Category, Txn } from '../../domain/records'
 import {
   categoryBars, categoryStrip, cutToDay, monthForecast, cleanDescription, comparePreviousMonth, cumulativeByDay, duplicateAccountWarning, filterTxns, groupByDay, needsSync, ruleFor,
   shortAccountLabel, spentByMonth, suggestRulePattern, topSpending, type TxnFilter,

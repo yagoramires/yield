@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
+import type { Account, Category, CategoryRule, Txn } from './records'
 import { categorize, displayName, fingerprint, shortName, monthTotals, normalizeDescription, withFingerprints } from './gastos'
 
 const cat = (id: string, countsAsSpending = true): Category => ({ id, name: id, countsAsSpending, builtin: true, icon: null, color: null })

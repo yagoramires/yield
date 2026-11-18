@@ -1,5 +1,4 @@
-import type { ManualAsset, Quote } from '../db/repo'
-import type { CryptoBalance } from '../db/rendaFixaRepo'
+import type { CryptoBalance, ManualAsset, Quote } from './records'
 import type { RfHolding } from './rendaFixa'
 import { yahooSymbol } from '../quotes/yahoo'
 import type { AssetType, Cents, Dividend, ISODate, Position } from './types'

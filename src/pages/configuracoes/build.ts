@@ -1,6 +1,7 @@
 import { BinanceError } from '../../cripto/binance'
 import type { Db } from '../../db/client'
-import { applySource, DEFAULT_PJ, saveSource, type IncomeSource, type SourceKind } from '../../db/orcamentoRepo'
+import { applySource, DEFAULT_PJ, saveSource } from '../../db/orcamentoRepo'
+import type { IncomeSource, SourceKind } from '../../domain/records'
 import { cltNet, pjNet, sourceNet } from '../../domain/orcamento'
 import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
 import { typeFromName, type B3Import, type importB3 } from '../../import/b3'

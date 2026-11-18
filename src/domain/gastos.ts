@@ -1,4 +1,4 @@
-import type { Account, Category, CategoryRule, Txn } from '../db/gastosRepo'
+import type { Account, Category, CategoryRule, Txn } from './records'
 import { pluggyCategoryId } from './categoriasPluggy'
 import { ownerMention } from './transferencias'
 import type { Cents, ISODate, Month } from './types'

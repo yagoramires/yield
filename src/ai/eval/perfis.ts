@@ -1,5 +1,5 @@
 // Perfis financeiros inventados para a bateria (repositório público: bancos de mentira, tickers AAAA3/FIIA11).
-import type { Account, Category, Txn } from '../../db/gastosRepo'
+import type { Account, Category, Txn } from '../../domain/records'
 import { fold } from '../../domain/gastos'
 import { replay } from '../../domain/ledger'
 import { buildPortfolio } from '../../domain/portfolio'

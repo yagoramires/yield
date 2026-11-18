@@ -1,6 +1,6 @@
 import { RefreshCw, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Account } from '../../db/gastosRepo'
+import type { Account } from '../../domain/records'
 import { formatCents } from '../../domain/money'
 import type { Month } from '../../domain/types'
 import { importStatement } from '../../import/extrato'

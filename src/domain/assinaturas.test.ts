@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Category, Txn } from '../db/gastosRepo'
+import type { Category, Txn } from './records'
 import { detectSubscriptions } from './assinaturas'
 
 const txn = (o: Partial<Txn>): Txn => ({ id: 't', accountId: 'c1', date: '2026-07-05', description: 'NETFLIX', amountCents: -3990, pending: false, installment: null, operationType: null, fingerprint: 'fp', sourceKey: 's', ...o })

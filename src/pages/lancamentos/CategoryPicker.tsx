@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Category } from '../../db/gastosRepo'
+import type { Category } from '../../domain/records'
 import { CategoryIcon } from '../../ui/CategoryIcon'
 
 /**

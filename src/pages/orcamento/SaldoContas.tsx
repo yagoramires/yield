@@ -1,5 +1,6 @@
 import { useData } from '../../state/DataProvider'
-import type { Account, GastosData } from '../../db/gastosRepo'
+import type { GastosData } from '../../db/gastosRepo'
+import type { Account } from '../../domain/records'
 import { IconGlyph } from '../../ui/CategoryIcon'
 import { useHideValues } from '../../ui/HideValues'
 import { TINT } from '../../ui/palette'

@@ -1,10 +1,7 @@
-import type { Cents, ISODate } from '../domain/types'
+import type { Cents } from '../domain/types'
 import type { Db } from './client'
+import type { CryptoBalance, RfMove, RfPosition } from '../domain/records'
 
-export type RfMoveKind = 'aplicacao' | 'saida' | 'juros'
-export interface RfMove { id: string; key: string; product: string; date: ISODate; kind: RfMoveKind; qty: number; valueCents: Cents | null /* null = a B3 não informou */; sourceKey: string }
-export interface RfPosition { key: string; family: 'tesouro' | 'rf'; product: string; issuer: string | null; indexer: string; maturity: ISODate | null; qty: number; appliedCents: Cents | null; valueCents: Cents; asOf: ISODate }
-export interface CryptoBalance { asset: string; qty: number; costCents: Cents | null; costManual: 0 | 1; costPartial: 0 | 1; fetchedAt: string }
 
 export const loadRfMoves = (db: Db) =>
   db.select<RfMove>('SELECT id, key, product, date, kind, qty, value_cents AS valueCents, source_key AS sourceKey FROM rf_moves ORDER BY date, id')

@@ -1,5 +1,5 @@
 import { describe } from 'vitest'
-import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
+import type { RfMove, RfPosition } from './records'
 import { rfAppliedByMonth, rfHoldings, rfJurosByMonth } from './rendaFixa'
 
 let n = 0

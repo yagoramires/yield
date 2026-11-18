@@ -1,17 +1,8 @@
 import type { Cents, Month } from '../domain/types'
 import type { Db } from './client'
+import type { BudgetLine, Goal, IncomeSource, PjConfig } from '../domain/records'
 
-export type LineKind = 'entrada' | 'saida'
-// bloco da saída; parcela é a saída com n/total, qualquer que seja o grupo
-export type Grupo = 'fixo' | 'variavel' | 'meta'
-export interface BudgetLine { id: string; month: Month; kind: LineKind; name: string; amountCents: Cents; recurring: boolean; position: number; categoryId: string | null; installmentCurrent: number | null; installmentTotal: number | null; sourceId: string | null; sourceKey: string | null; grupo: Grupo | null /* só saída */ }
-// irpjPct: imposto sobre o faturamento (DAS do Simples ou IRPJ); dasCents: DAS fixo do MEI
-export interface PjConfig { proLaborePct: number; irpjPct: number; inssPct: number /* sobre o pró-labore */; contabilidadeCents: Cents; outrosCents: Cents; dasCents: Cents }
 export const DEFAULT_PJ: PjConfig = { proLaborePct: 28, irpjPct: 6, inssPct: 11, contabilidadeCents: 0, outrosCents: 0, dasCents: 0 }
-export type SourceKind = 'pj' | 'mei' | 'clt' | 'fixo'
-export interface IncomeSource extends PjConfig { id: string; name: string; kind: SourceKind; grossCents: Cents | null /* pj e clt */; netCents: Cents | null /* fixo */; dependents: number /* clt, para o IRRF */; sourceKey: string | null }
-// meta vale do mês dela em diante; amountCents null desliga a meta dali para frente
-export interface Goal { month: Month; key: string /* 'investir', 'variaveis' ou 'cat:<categoria>' */; amountCents: Cents | null }
 export interface OrcamentoData { months: Month[]; lines: BudgetLine[]; dismissed: { month: Month; key: string }[]; sources: IncomeSource[]; goals: Goal[]; fixedCategories: string[]; reservas: string[] /* destinos de investimento que são reserva (chave de investDest) */; reservaLinks: Record<string, string[]> /* reserva → investimentos da Pluggy ligados à mão */ }
 
 // categorias de gasto que contam como custo fixo no orçamento; as outras (e as que o usuário cria) são variáveis

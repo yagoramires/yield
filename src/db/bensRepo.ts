@@ -1,16 +1,6 @@
-import type { Cents, ISODate, Month } from '../domain/types'
 import type { Db } from './client'
+import type { Possession, Reminder } from '../domain/records'
 
-export type PossessionKind = 'apartamento' | 'casa' | 'terreno' | 'imovel' | 'veiculo' | 'outro'
-// vencimento que volta todo ano (IPVA, IPTU, seguro); valor opcional
-export interface Reminder { name: string; day: number; month: number /* 1–12 */; amountCents: Cents | null }
-export interface Possession {
-  id: string; kind: PossessionKind; name: string; details: string | null; boughtAt: ISODate; costCents: Cents
-  valueCents: Cents | null; valueAt: ISODate | null
-  // financiamento: só quando parcela, total e primeira parcela existem
-  downPaymentCents: Cents | null; installmentCents: Cents | null; installmentsTotal: number | null; firstInstallment: Month | null; debtCents: Cents | null
-  categoryIds: string[]; reminders: Reminder[]
-}
 
 type Row = Omit<Possession, 'categoryIds' | 'reminders'> & { categoryIds: string; reminders: string }
 

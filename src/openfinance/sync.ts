@@ -1,6 +1,7 @@
 import type { Db } from '../db/client'
 import { loadGastos, replaceWindow, setLastSync, upsertAccount } from '../db/gastosRepo'
-import { replaceBankInvestments, type BankInvestmentRow } from '../db/repo'
+import { replaceBankInvestments } from '../db/repo'
+import type { BankInvestmentRow } from '../domain/records'
 import { addTrades, saveNote } from '../db/repo'
 import { withFingerprints } from '../domain/gastos'
 import type { AssetType, ISODate } from '../domain/types'

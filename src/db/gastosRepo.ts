@@ -1,11 +1,7 @@
-import type { Cents, ISODate } from '../domain/types'
+import type { ISODate } from '../domain/types'
 import type { Db } from './client'
+import type { Account, Category, CategoryRule, Txn } from '../domain/records'
 
-export type AccountKind = 'conta' | 'cartao'
-export interface Account { id: string; source: 'pluggy' | 'arquivo'; externalId: string; institution: string; name: string; kind: AccountKind; number: string | null; itemId: string | null; lastSyncAt: string | null; balanceCents?: Cents | null /* da Pluggy: saldo da conta ou fatura do cartão */; balanceAt?: string | null }
-export interface Txn { id: string; accountId: string; date: ISODate; description: string; amountCents: Cents; pending: boolean; installment: string | null /* '3/10' */; operationType: string | null; fingerprint: string; sourceKey: string; pluggyCategory?: string | null /* em inglês, só da Pluggy */ }
-export interface Category { id: string; name: string; countsAsSpending: boolean; builtin: boolean; icon: string | null /* nome Lucide */; color: string | null }
-export interface CategoryRule { id: string; pattern: string; categoryId: string }
 export interface GastosData { accounts: Account[]; txns: Txn[]; categories: Category[]; rules: CategoryRule[]; overrides: Record<string, string> /* fingerprint → categoryId */; dismissed: string[] /* merchantKey */; pluggyItems: { itemId: string; label: string }[]; ownerNames: string[] /* variações do nome do titular, para Pix entre contas suas */; companyNames: string[] /* nome ou CNPJ da empresa do titular: o que ela paga é Receita */; ruleSuggestionsDismissed: string[] /* padrões que o usuário não quer virar regra */; canceledSubs: Record<string, ISODate> /* merchantKey → dia em que a pessoa marcou "cancelei" */ }
 
 type TxnInput = Omit<Txn, 'id' | 'accountId'>

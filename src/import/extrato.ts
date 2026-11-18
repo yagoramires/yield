@@ -1,5 +1,6 @@
 import type { Db } from '../db/client'
-import { insertTxns, upsertAccount, type AccountKind } from '../db/gastosRepo'
+import { insertTxns, upsertAccount } from '../db/gastosRepo'
+import type { AccountKind } from '../domain/records'
 import { withFingerprints } from '../domain/gastos'
 import type { ParsedStatement } from './ofx'
 

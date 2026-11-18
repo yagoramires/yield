@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Category } from '../../db/gastosRepo'
+import type { Category } from '../../domain/records'
 import { editCents, formatCents } from '../../domain/money'
 import { catGoal, GOAL_INVESTIR, GOAL_VARIAVEIS } from '../../domain/orcamento'
 import type { Cents, Month } from '../../domain/types'

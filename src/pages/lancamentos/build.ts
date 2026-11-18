@@ -1,4 +1,5 @@
-import type { Account, Category, CategoryRule, GastosData, Txn } from '../../db/gastosRepo'
+import type { GastosData } from '../../db/gastosRepo'
+import type { Account, Category, CategoryRule, Txn } from '../../domain/records'
 import { fold, normalizeDescription, type MonthTotals } from '../../domain/gastos'
 import { addMonths, monthOf } from '../../domain/money'
 import type { Cents, ISODate, Month } from '../../domain/types'

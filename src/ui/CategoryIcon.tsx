@@ -3,7 +3,7 @@ import {
   Gamepad2, Gift, GraduationCap, HeartPulse, House, Landmark, Music, Package, PawPrint, PiggyBank, Pill, Plane, Popcorn, ReceiptText, Repeat,
   Scissors, Shirt, ShoppingBag, ShoppingCart, Smartphone, Sparkles, Store, Tag, TrendingUp, Utensils, Wifi, Wine, Wrench, Zap, type LucideIcon,
 } from 'lucide-react'
-import type { Category } from '../db/gastosRepo'
+import type { Category } from '../domain/records'
 import { ico, TINT } from './palette'
 
 // Nome salvo no banco (kebab-case do Lucide) → componente. Mapa fixo para o bundle levar só estes.

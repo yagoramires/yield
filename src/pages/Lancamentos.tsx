@@ -1,6 +1,7 @@
 import { Search } from 'lucide-react'
 import { useState } from 'react'
-import { saveRule, setOverride, type Txn } from '../db/gastosRepo'
+import { saveRule, setOverride } from '../db/gastosRepo'
+import type { Txn } from '../domain/records'
 import { pluggyCategoryId } from '../domain/categoriasPluggy'
 import { monthTotals, normalizeDescription } from '../domain/gastos'
 import { companyCreditHints, ownerMention } from '../domain/transferencias'

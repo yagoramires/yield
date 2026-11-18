@@ -1,6 +1,6 @@
 import type { Db } from '../db/client'
-import type { Possession } from '../db/bensRepo'
-import type { Category, GastosData, Txn } from '../db/gastosRepo'
+import type { Category, Possession, Txn } from '../domain/records'
+import type { GastosData } from '../db/gastosRepo'
 import { createMonth, deleteLine, loadOrcamento, saveLine, type OrcamentoData } from '../db/orcamentoRepo'
 import type { Subscription } from '../domain/assinaturas'
 import { monthOf } from '../domain/money'

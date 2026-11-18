@@ -1,7 +1,7 @@
 // Fatos do mês para a IA: cada número sai dos mesmos cálculos dos Resumos; o modelo só escolhe o que importa e explica.
-import type { Category, GastosData, Txn } from '../db/gastosRepo'
+import type { GastosData } from '../db/gastosRepo'
+import type { Category, RfMove, Txn } from '../domain/records'
 import type { OrcamentoData } from '../db/orcamentoRepo'
-import type { RfMove } from '../db/rendaFixaRepo'
 import type { Subscription } from '../domain/assinaturas'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, monthOf, plainBRL } from '../domain/money'

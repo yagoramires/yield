@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { loadOrcamento, type IncomeSource } from '../../db/orcamentoRepo'
+import { loadOrcamento } from '../../db/orcamentoRepo'
+import type { IncomeSource } from '../../domain/records'
 import { createTestDb } from '../../db/testDb'
 import type { Dividend } from '../../domain/types'
 import { b3Summary, backupPasswordError, orcamentoImportSummary, parseItemId, planilhaReplacedByB3, refreshLine, typesToConfirm, typeMap, restoreBackup, saveSourceForm, validateSource, binanceErrorText, historyFailText, costSummaryText, investmentLine, bankLine } from './build'

@@ -1,4 +1,4 @@
-import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
+import type { RfMove, RfPosition } from './records'
 import { addMonths, monthOf } from './money'
 import type { Cents, ISODate, Month } from './types'
 

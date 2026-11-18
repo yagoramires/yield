@@ -1,5 +1,4 @@
-import type { Category, Txn } from '../db/gastosRepo'
-import type { Possession, PossessionKind, Reminder } from '../db/bensRepo'
+import type { Category, Possession, PossessionKind, Reminder, Txn } from './records'
 import { addMonths, monthOf, plainBRL } from './money'
 import type { Cents, ISODate, Month } from './types'
 

@@ -1,5 +1,6 @@
 import type { Db } from '../db/client'
-import { createMonth, saveGoals, saveLine, type BudgetLine, type Grupo, type LineKind } from '../db/orcamentoRepo'
+import { createMonth, saveGoals, saveLine } from '../db/orcamentoRepo'
+import type { BudgetLine, Grupo, LineKind } from '../domain/records'
 import { fold, normalizeDescription } from '../domain/gastos'
 import type { Month } from '../domain/types'
 import { splitRow } from './extratoCsv'

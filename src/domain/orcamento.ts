@@ -1,5 +1,4 @@
-import type { Account, Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine, Goal, Grupo, IncomeSource, PjConfig } from '../db/orcamentoRepo'
+import type { Account, BudgetLine, Category, Goal, Grupo, IncomeSource, PjConfig, Txn } from './records'
 import { fold, monthTotals, normalizeDescription, shortName } from './gastos'
 import { addMonths, monthsBetween } from './money'
 import { ownerMention } from './transferencias'

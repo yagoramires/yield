@@ -1,6 +1,6 @@
 // Ferramentas do chat: só leem os dados que a tela já carregou (não recebem o banco) e devolvem valores já formatados,
 // para o modelo nunca precisar somar nem converter centavos.
-import type { Txn } from '../db/gastosRepo'
+import type { Txn } from '../domain/records'
 import { fold, monthTotals } from '../domain/gastos'
 import { monthOf, monthsBetween, plainBRL } from '../domain/money'
 import { blocoOf, custos, goalsFor } from '../domain/orcamento'

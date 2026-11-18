@@ -1,4 +1,4 @@
-import type { Account, Category, Txn } from '../db/gastosRepo'
+import type { Account, Category, Txn } from './records'
 import { fold, normalizeDescription } from './gastos'
 
 export interface TransferLink { otherAccountId: string; outgoing: boolean }

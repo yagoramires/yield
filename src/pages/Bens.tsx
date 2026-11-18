@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { deleteBem, saveBem, type Possession, type PossessionKind } from '../db/bensRepo'
+import { deleteBem, saveBem } from '../db/bensRepo'
+import type { Possession, PossessionKind } from '../domain/records'
 import { brDate, costsOf, debtOf, installmentOf, irSituacao, isFinanced, KIND, lastInstallment, patrimonio, upcoming, valueOf } from '../domain/bens'
 import { monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'

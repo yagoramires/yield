@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
-import { deleteCategory, saveCategory, updateCategory, type Category } from '../../db/gastosRepo'
+import { deleteCategory, saveCategory, updateCategory } from '../../db/gastosRepo'
+import type { Category } from '../../domain/records'
 import { useData } from '../../state/DataProvider'
 import { categoryLook, COLOR_CHOICES, ICON_CHOICES, IconGlyph } from '../../ui/CategoryIcon'
 import { errText } from '../lancamentos/GastosHeader'

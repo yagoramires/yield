@@ -1,7 +1,7 @@
 import { CircleHelp, Pencil, Plus } from 'lucide-react'
 import { goalsFor } from '../domain/orcamento'
 import { useState } from 'react'
-import type { Category, Txn } from '../db/gastosRepo'
+import type { Category, Txn } from '../domain/records'
 import { monthTotals } from '../domain/gastos'
 import { addMonths, formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'

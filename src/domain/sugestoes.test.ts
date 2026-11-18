@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine } from '../db/orcamentoRepo'
+import type { BudgetLine, Category, Txn } from './records'
 import type { Subscription } from './assinaturas'
 import { suggestForMonth } from './sugestoes'
 

@@ -1,5 +1,5 @@
 // Dados inventados para os testes da IA (repositório público: nada real aqui).
-import type { Account, Category, Txn } from '../db/gastosRepo'
+import type { Account, Category, Txn } from '../domain/records'
 import { buildPortfolio } from '../domain/portfolio'
 import type { AiInput } from './facts'
 

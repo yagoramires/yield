@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { BankInvestmentRow } from '../db/repo'
+import type { BankInvestmentRow } from './records'
 import { bankAssets, reservaInvestments } from './bancoInvest'
 
 const inv = (id: string, name: string, type: string, subtype: string | null, balanceCents = 1000): BankInvestmentRow => ({ id, itemId: 'it', name, type, subtype, balanceCents, costCents: null, fetchedAt: '2026-10-30T12:00:00Z' })

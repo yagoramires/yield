@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import type { Broker, Issuer } from '../db/irRepo'
+import type { Broker, Issuer, RfMove, RfPosition } from './records'
 import type { TaxMonth } from './tax'
 import type { CorporateEvent, DarfPayment, Dividend, Trade } from './types'
-import type { RfMove, RfPosition } from '../db/rendaFixaRepo'
 import { normalizeBroker } from '../import/parse'
 import { BEM_CODES, bensDoAno, discriminacao, discriminacaoRf, lucroIsentoDoAno, pendencias, RF_CODES, rendaFixaDoAno, rendaVariavelDoAno, rendimentosDoAno, rendimentosRfDoAno } from './declaracao'
 

@@ -1,6 +1,7 @@
 import { Landmark, Pencil } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { saveBroker, saveIssuer, type Broker, type Issuer } from '../../db/irRepo'
+import { saveBroker, saveIssuer } from '../../db/irRepo'
+import type { Broker, Issuer } from '../../domain/records'
 import { useData } from '../../state/DataProvider'
 import { errText } from '../lancamentos/GastosHeader'
 import { classColor } from '../resumoInvestimentos/build'

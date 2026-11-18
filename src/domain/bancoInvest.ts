@@ -1,4 +1,4 @@
-import type { BankInvestmentRow, ManualAsset } from '../db/repo'
+import type { BankInvestmentRow, ManualAsset } from './records'
 import { fold } from './gastos'
 import { investDest } from './orcamento'
 

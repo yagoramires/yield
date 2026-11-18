@@ -1,6 +1,4 @@
-import type { Category, Txn } from '../db/gastosRepo'
-import type { BudgetLine } from '../db/orcamentoRepo'
-import type { Possession } from '../db/bensRepo'
+import type { BudgetLine, Category, Possession, Txn } from './records'
 import { installmentOf } from './bens'
 import type { Subscription } from './assinaturas'
 import { displayName, normalizeDescription } from './gastos'

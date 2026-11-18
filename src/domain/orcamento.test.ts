@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { BudgetLine, IncomeSource } from '../db/orcamentoRepo'
+import type { BudgetLine, Category, IncomeSource, Txn } from './records'
 import { DEFAULT_PJ } from '../db/orcamentoRepo'
-import type { Category, Txn } from '../db/gastosRepo'
 import type { Subscription } from './assinaturas'
 import { averageByCategory, blocoOf, copyLines, outrasEntradas, custos, goalsAt, goalsFor, investDest, investido, missingSources, monthSummary, nextMonthLines, withSources, pjNet, sourceNet, cltNet, cltTabelaAno, inssEmpregado, irrfMensal } from './orcamento'
 import { suggestForMonth } from './sugestoes'

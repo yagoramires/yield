@@ -1,8 +1,7 @@
 import type { Db } from './client'
 import { formatCnpj } from '../domain/declaracao'
+import type { Broker, Issuer } from '../domain/records'
 
-export interface Issuer { ticker: string; name: string; cnpj: string }
-export interface Broker { code: string; name: string; cnpj: string }
 
 export async function loadCadastro(db: Db): Promise<{ issuers: Issuer[]; brokers: Broker[] }> {
   const [issuers, brokers] = await Promise.all([

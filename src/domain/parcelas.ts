@@ -1,5 +1,4 @@
-import type { Txn } from '../db/gastosRepo'
-import type { BudgetLine } from '../db/orcamentoRepo'
+import type { BudgetLine, Txn } from './records'
 import { normalizeDescription } from './gastos'
 import { monthOf, monthsBetween } from './money'
 import type { Cents, ISODate, Month } from './types'

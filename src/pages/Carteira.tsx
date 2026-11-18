@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { deleteManualAsset, deleteQuote, deleteSegment, saveManualAsset, saveSegment, upsertQuote, type ManualAsset } from '../db/repo'
+import { deleteManualAsset, deleteQuote, deleteSegment, saveManualAsset, saveSegment, upsertQuote } from '../db/repo'
+import type { ManualAsset } from '../domain/records'
 import { editCents, formatBRL, formatCents, monthOf } from '../domain/money'
 import type { Cents } from '../domain/types'
 import { portfolioResult, type ManualRow, type PortfolioRow } from '../domain/portfolio'

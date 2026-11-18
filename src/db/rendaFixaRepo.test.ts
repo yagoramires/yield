@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, test } from 'vitest'
 import { loadAll, saveManualAsset } from './repo'
-import { saveComputedCryptoCosts, saveCryptoBalances, setCryptoCost, upsertRfMoves, upsertRfPositions, type RfMove, type RfPosition } from './rendaFixaRepo'
+import { saveComputedCryptoCosts, saveCryptoBalances, setCryptoCost, upsertRfMoves, upsertRfPositions } from './rendaFixaRepo'
+import type { RfMove, RfPosition } from '../domain/records'
 import { createTestDb, tmpPath } from './testDb'
 
 const move = (over: Partial<Omit<RfMove, 'id'>> = {}): Omit<RfMove, 'id'> => ({
