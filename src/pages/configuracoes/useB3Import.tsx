@@ -4,10 +4,9 @@ import { importB3, parseB3, type B3Import } from '../../import/b3'
 import { useData } from '../../state/DataProvider'
 import { b3Summary, mergeB3, planilhaReplacedByB3, typeMap, typesToConfirm } from './build'
 import { Select } from '../../ui/Select'
+import { errText } from '../../domain/text'
 
 const TYPES: AssetType[] = ['FII', 'ETF', 'Ação']
-
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Fluxo do extrato da B3, usado em Configurações e em Proventos: `button` abre o arquivo, `panel` mostra confirmação e resumo. */
 export function useB3Import(): { button(label: string, className: string): ReactNode; panel: ReactNode } {

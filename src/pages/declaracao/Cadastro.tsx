@@ -3,9 +3,9 @@ import { useState, type ReactNode } from 'react'
 import { saveBroker, saveIssuer } from '../../db/irRepo'
 import type { Broker, Issuer } from '../../domain/records'
 import { useData } from '../../state/DataProvider'
-import { errText } from '../lancamentos/GastosHeader'
 import { classColor } from '../resumoInvestimentos/build'
 import { ico, TINT } from '../../ui/palette'
+import { errText } from '../../domain/text'
 
 type Edit = { kind: 'issuer' | 'broker'; key: string; name: string; cnpj: string }
 

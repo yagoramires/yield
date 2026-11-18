@@ -5,7 +5,7 @@ import { gb, machineLabel, pickModel, type CatalogModel, type Hardware } from '.
 import { calibrate } from '../../ai/llm'
 import { ensureServer, tauriPost } from '../../ai/server'
 import { setAiSettings } from '../../ai/settings'
-import { errText } from '../lancamentos/GastosHeader'
+import { errText } from '../../domain/text'
 
 type Progress = { received: number; total: number }
 // o andamento do download vem do Rust (sobrevive a sair da tela); aqui fica só o que acontece depois dele e o erro

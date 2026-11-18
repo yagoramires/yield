@@ -5,6 +5,7 @@ import type { Side } from '../../domain/types'
 import { ASSET_TYPES, buildNote, emptyItem, FEE_FIELDS, noteNet, type Built, type ItemRow, type NoteForm as Form } from './build'
 import { DateField } from '../../ui/DateField'
 import { Select } from '../../ui/Select'
+import { errText } from '../../domain/text'
 
 interface Props {
   mode: 'manual' | 'sem_nota'
@@ -30,7 +31,7 @@ export function NoteForm({ mode, editing, initial, onSave, onCancel }: Props) {
 
   const submit = async () => {
     let built: Built
-    try { built = buildNote(f, mode, keep) } catch (e) { return setError(e instanceof Error ? e.message : String(e)) }
+    try { built = buildNote(f, mode, keep) } catch (e) { return setError(errText(e)) }
     setError(await onSave(built, editing))
   }
 

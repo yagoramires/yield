@@ -7,6 +7,7 @@ import type { AssetType, Dividend, Month, Trade } from '../../domain/types'
 import { typeFromName, type B3Import, type importB3 } from '../../import/b3'
 import type { InvestmentCounts } from '../../openfinance/sync'
 import { parseMoney } from '../notas/build'
+import { errText } from '../../domain/text'
 
 type B3Result = Awaited<ReturnType<typeof importB3>>
 
@@ -84,8 +85,6 @@ export function b3Summary(r: B3Result, p: Pick<B3Import, 'ignored' | 'toReview'>
 
 export const refreshLine = (r: { ok: string[]; failed: string[] }) =>
   `${r.ok.length} ok · ${n(r.failed.length, 'falhou', 'falharam')}${r.failed.length ? ` (${r.failed.join(', ')})` : ''}`
-
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** `swap` devolve o caminho da cópia de segurança, ou `null` quando não havia banco para copiar. */
 export interface RestoreSteps { checkpoint(): Promise<void>; close(): Promise<void>; swap(): Promise<string | null>; reopen(): Promise<void>; reload(): Promise<void> }

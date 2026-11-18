@@ -4,7 +4,7 @@ import { CATALOG, fits, gb, machineLabel, type Hardware } from '../../ai/catalog
 import { getHardware, stopServer } from '../../ai/server'
 import { setAiSettings, useAiSettings } from '../../ai/settings'
 import { Select } from '../../ui/Select'
-import { errText } from '../lancamentos/GastosHeader'
+import { errText } from '../../domain/text'
 
 /** Máquina, modelo e velocidade do Assistente; trocar, remover o arquivo baixado e desligar tudo. */
 export function IaLocal() {

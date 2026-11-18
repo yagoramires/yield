@@ -7,8 +7,7 @@ import { PinPad } from '../../profiles/PinPad'
 import { pinEntered, pinTitle, startPin, unlock, unlockMessage, type PinMode, type PinStep, type Unlock } from '../../profiles/pin'
 import type { Profile } from '../../profiles/profiles'
 import { BackupExport } from './BackupExport'
-
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+import { errText } from '../../domain/text'
 
 /** Teclado que confere o PIN atual no Rust (conta no limite de tentativas); `onOk` só depois de acertar. */
 export function CurrentPin({ profile, title = 'Digite o PIN atual', onOk, onCancel }: { profile: Profile; title?: string; onOk(pin: string): void; onCancel(): void }) {

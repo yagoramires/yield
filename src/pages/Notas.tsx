@@ -8,11 +8,11 @@ import { DUP_MSG, emptyForm, formFromNote, noteNet, parseMoney, type Built, type
 import { EVENT_LABEL, EventForm } from './notas/EventForm'
 import { NoteForm } from './notas/NoteForm'
 import { PdfImport } from './notas/PdfImport'
+import { errText } from '../domain/text'
 
 type Panel = { t: 'nota'; mode: 'manual' | 'sem_nota'; editing: Note | null; initial: Form } | { t: 'pdf' } | { t: 'evento' } | null
 const ORIGIN: Record<Note['source'], string> = { pdf: 'PDF', manual: 'manual', planilha: 'planilha', sem_nota: 'sem nota' }
 const br = (iso: string) => iso.split('-').reverse().join('/')
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const sign = (c: number) => (c > 0 ? '+' : c < 0 ? '−' : '') + formatCents(Math.abs(c))
 
 export function Notas() {

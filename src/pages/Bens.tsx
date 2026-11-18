@@ -10,8 +10,8 @@ import { useHideValues } from '../ui/HideValues'
 import { TINT } from '../ui/palette'
 import { Select } from '../ui/Select'
 import { changeKind, newBemForm, toBemForm, validateBem, type BemForm } from './bens/build'
-import { errText } from './lancamentos/GastosHeader'
 import { liveAccounts } from './orcamento/SaldoContas'
+import { errText } from '../domain/text'
 
 const COLOR: Record<PossessionKind, string> = { apartamento: TINT.areia, casa: TINT.areia, terreno: TINT.verde, imovel: TINT.areia, veiculo: TINT.azul, outro: TINT.violeta }
 const mmYYYY = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`

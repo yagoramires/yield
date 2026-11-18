@@ -4,11 +4,10 @@ import { deleteCategory, saveCategory, updateCategory } from '../../db/gastosRep
 import type { Category } from '../../domain/records'
 import { useData } from '../../state/DataProvider'
 import { categoryLook, COLOR_CHOICES, ICON_CHOICES, IconGlyph } from '../../ui/CategoryIcon'
-import { errText } from '../lancamentos/GastosHeader'
 import { deleteImpact, validateCategoryName } from './build'
 import { AddRule, plural, RuleList } from './RegrasPanel'
 import { Select } from '../../ui/Select'
-
+import { errText } from '../../domain/text'
 
 /** Coluna direita ao editar (`category`) ou criar (`null`) uma categoria. Esc ou Cancelar volta para as regras. */
 export function CategoriaPanel({ category, onClose }: { category: Category | null; onClose(): void }) {

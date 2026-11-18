@@ -7,7 +7,7 @@ import type { Cents, CorporateEvent, Dividend, Month, Trade } from '../../domain
 import { fetchCdi, fetchMonthlyCloses } from '../../quotes/historico'
 import { yahooSymbol } from '../../quotes/yahoo'
 import { LineChart } from '../../ui/charts'
-import { monthName } from '../lancamentos/GastosHeader'
+import { errText, monthName } from '../../domain/text'
 
 export type Hist = { closes: Map<string, Map<Month, Cents>>; ibov: Map<Month, Cents>; cdi: Map<Month, number>; missing: string[] }
 
@@ -49,7 +49,7 @@ export function Rentabilidade({ trades, events, dividends, thisMonth }: { trades
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
     let alive = true
-    loadHist(tickers, months[0], thisMonth).then(h => alive && setHist(h), e => alive && setError(e instanceof Error ? e.message : String(e)))
+    loadHist(tickers, months[0], thisMonth).then(h => alive && setHist(h), e => alive && setError(errText(e)))
     return () => { alive = false }
   }, [tickers.join(','), thisMonth]) // eslint-disable-line react-hooks/exhaustive-deps
 

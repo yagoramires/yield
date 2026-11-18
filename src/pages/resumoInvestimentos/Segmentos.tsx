@@ -5,9 +5,9 @@ import { useHideValues } from '../../ui/HideValues'
 import { SERIES, TINT } from '../../ui/palette'
 import { BOLSA, type ClassKey } from '../carteira/build'
 import { classLabel, FII_SEGMENTS, segmentSlices } from './build'
+import { errText } from '../../domain/text'
 
 const pctText = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** Sugestões do campo de segmento (Carteira e metas): os de FII e os que já existem nos ativos. */
 export function SegmentOptions({ id, segments }: { id: string; segments: AssetSegment[] }) {

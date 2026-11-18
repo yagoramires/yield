@@ -16,7 +16,6 @@ import { ago } from '../ui/SyncStatus'
 import { suggestForMonth, type Suggestion } from '../domain/sugestoes'
 import type { Month } from '../domain/types'
 import { todayISO, useData } from '../state/DataProvider'
-import { accountLabel, brDay, errText, monthName } from './lancamentos/GastosHeader'
 import { monthProgress, pace, validateLine } from './orcamento/build'
 import { Metas } from './orcamento/Metas'
 import { ReservaLink } from './orcamento/ReservaLink'
@@ -26,6 +25,7 @@ import { CategoryIcon, IconGlyph } from '../ui/CategoryIcon'
 import { TINT } from '../ui/palette'
 import { MonthNav } from '../ui/MonthNav'
 import type { SectionId } from './configuracoes/secoes'
+import { accountLabel, brDay, errText, monthName } from '../domain/text'
 
 type At = Bloco | 'entrada' // bloco onde o formulário de linha nova aparece
 interface Form { id?: string; at: At; kind: LineKind; grupo: Grupo; name: string; amount: string; installment: string; categoryId: string; recurring: boolean; sourceId: string; sourceKey: string | null; position: number }

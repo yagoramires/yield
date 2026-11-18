@@ -3,6 +3,7 @@ import { buildEvent, emptyEvent, type EventForm as Form } from './build'
 import type { NewCorporateEvent } from '../../domain/types'
 import { DateField } from '../../ui/DateField'
 import { Select } from '../../ui/Select'
+import { errText } from '../../domain/text'
 
 export const EVENT_LABEL: Record<NewCorporateEvent['kind'], string> = { bonificacao: 'Bonificação', desdobramento: 'Desdobramento', grupamento: 'Grupamento', mudanca_ticker: 'Mudança de ticker' }
 
@@ -11,7 +12,7 @@ export function EventForm({ onSave, onCancel }: { onSave(e: NewCorporateEvent): 
   const [error, setError] = useState<string | null>(null)
   const submit = async () => {
     let ev: NewCorporateEvent
-    try { ev = buildEvent(f) } catch (e) { return setError(e instanceof Error ? e.message : String(e)) }
+    try { ev = buildEvent(f) } catch (e) { return setError(errText(e)) }
     setError(await onSave(ev))
   }
   return (

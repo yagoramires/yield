@@ -10,9 +10,10 @@ import { useData } from '../state/DataProvider'
 import { CategoryIcon } from '../ui/CategoryIcon'
 import { categoryStrip, cleanDescription, filterTxns, groupByDay, NO_FILTER, ruleFor, shortAccountLabel, suggestRulePattern, type TxnFilter } from './lancamentos/build'
 import { CategoryPicker } from './lancamentos/CategoryPicker'
-import { errText, GastosHeader, GastosVazio } from './lancamentos/GastosHeader'
+import { GastosHeader, GastosVazio } from './lancamentos/GastosHeader'
 import { scoped } from '../profiles/active'
 import type { SectionId } from './configuracoes/secoes'
+import { errText } from '../domain/text'
 
 const signed = (c: number) => (c < 0 ? `−${formatCents(-c)}` : c > 0 ? `+${formatCents(c)}` : '—')
 const dayTitle = (iso: string) => {

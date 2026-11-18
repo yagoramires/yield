@@ -10,7 +10,6 @@ import { BarChart, LineChart } from '../ui/charts'
 import { useHideValues } from '../ui/HideValues'
 import { summary, yieldOnCost } from './proventos/build'
 import { spentByMonth } from './lancamentos/build'
-import { brDay, monthName } from './lancamentos/GastosHeader'
 import { Rentabilidade } from './resumoInvestimentos/Rentabilidade'
 import { Segmentos } from './resumoInvestimentos/Segmentos'
 import { rfAppliedByMonth, rfJurosByMonth } from '../domain/rendaFixa'
@@ -20,9 +19,9 @@ import { pct as pct1, sign, tone, when } from './carteira/fmt'
 import { classColor, classLabel, dividendsByMonth, investedByMonth, moneyBuckets, passiveCoverage, topPositions } from './resumoInvestimentos/build'
 import { ico } from '../ui/palette'
 import type { SectionId } from './configuracoes/secoes'
+import { brDay, monthName } from '../domain/text'
 
 const monLabel = (m: string) => `${monthName(m).toLowerCase()}/${m.slice(2, 4)}`
-
 
 export function ResumoInvestimentos({ onNavigate, onOpenCarteira, onOpenImposto, onOpenNotas, onOpenProventos, onOpenSettings }: {
   onNavigate(r: Route): void; onOpenCarteira(cls?: string): void; onOpenImposto(): void; onOpenNotas(): void; onOpenProventos(month: string): void; onOpenSettings(at?: SectionId): void

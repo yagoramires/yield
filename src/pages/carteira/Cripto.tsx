@@ -3,11 +3,11 @@ import { setCryptoCost } from '../../db/rendaFixaRepo'
 import { formatCents, editCents } from '../../domain/money'
 import type { CryptoRow } from '../../domain/portfolio'
 import { useData } from '../../state/DataProvider'
-import { errText } from '../lancamentos/GastosHeader'
 import { parseMoney } from '../notas/build'
 import { pct, qtyText, signedCents, tone, when } from './fmt'
 import { PosRow } from './PosRow'
 import type { SectionId } from '../configuracoes/secoes'
+import { errText } from '../../domain/text'
 
 const PARTIAL = 'Parte do histórico não tem custo em real conhecido (paga com outra cripto ou moeda, ou uma fonte não foi lida). Informe à mão se souber.'
 

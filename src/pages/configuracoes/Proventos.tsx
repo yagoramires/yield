@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { saveProventosMode, type ProventosMode } from '../../db/repo'
 import { useData } from '../../state/DataProvider'
-import { errText } from '../lancamentos/GastosHeader'
+import { errText } from '../../domain/text'
 
 /** O que a pessoa faz com os proventos: decide se eles pagam as próximas compras (não saem do bolso) no Resumo de investimentos. */
 export function Proventos() {

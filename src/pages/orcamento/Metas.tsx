@@ -3,9 +3,9 @@ import type { Category } from '../../domain/records'
 import { editCents, formatCents } from '../../domain/money'
 import { catGoal, GOAL_INVESTIR, GOAL_VARIAVEIS } from '../../domain/orcamento'
 import type { Cents, Month } from '../../domain/types'
-import { monthName } from '../lancamentos/GastosHeader'
 import { goalChanges } from './build'
 import { Select } from '../../ui/Select'
+import { monthName } from '../../domain/text'
 
 /** Metas do mês: valem dele em diante; os meses anteriores ficam com as que tinham. */
 export function Metas({ month, categories, goals, averages, fixed, busy, onSave, onClose }: {

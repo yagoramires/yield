@@ -33,6 +33,7 @@ import { prepaidTxnIds, purchases, type Purchase } from '../domain/parcelas'
 import { autoPlan } from './autoPlan'
 import { bankAssets, reservaInvestments } from '../domain/bancoInvest'
 import { defaultMonth } from '../pages/orcamento/build'
+import { errText } from '../domain/text'
 
 export interface Gastos {
   data: GastosData
@@ -137,7 +138,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       else setLastSyncResult(await syncPluggy(d, auth, tauriFetch as typeof fetch, todayISO(), undefined, { refresh }))
       const [ds, g] = await Promise.all([loadAll(d), loadGastos(d)]) // compras e vendas da Pluggy mudam a carteira
       setData(ds); setGastosData(g)
-    } catch (e) { setLastSyncResult(fail(`Não foi possível sincronizar: ${e instanceof Error ? e.message : String(e)}`)) }
+    } catch (e) { setLastSyncResult(fail(`Não foi possível sincronizar: ${errText(e)}`)) }
     syncingRef.current = false; setSyncing(false)
   }, [])
 
@@ -211,7 +212,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           pluggyAuto.current.last = Date.now()
           vaultStatus().then(
             s => { if (s.pluggy && !cancelled) void syncNow() },
-            e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${e instanceof Error ? e.message : String(e)}` }], investments: [] }),
+            e => setLastSyncResult({ accounts: 0, inserted: 0, removed: 0, errors: [{ itemId: '', label: 'Open Finance', message: `Não foi possível ler as credenciais: ${errText(e)}` }], investments: [] }),
           )
         }
         // com o app aberto: cotações (e a Binance, de quem usa) a cada 15 min; o Open Finance quando passar do intervalo dele
@@ -227,7 +228,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }
         }, REFRESH_MS)
       } catch (e) {
-        if (!cancelled) setError(`Não foi possível abrir o banco de dados: ${e instanceof Error ? e.message : String(e)}`)
+        if (!cancelled) setError(`Não foi possível abrir o banco de dados: ${errText(e)}`)
       }
     })()
     return () => { cancelled = true; if (timer) clearInterval(timer) }

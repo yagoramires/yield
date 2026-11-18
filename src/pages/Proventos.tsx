@@ -7,12 +7,12 @@ import { formatBRL, formatCents, monthOf } from '../domain/money'
 import { todayISO, useData } from '../state/DataProvider'
 import { BarChart, HBars } from '../ui/charts'
 import { useB3Import } from './configuracoes/useB3Import'
-import { brDay as brDate, errText, monthName } from './lancamentos/GastosHeader'
 import { buildDividend, byTicker, filterDividends, groupByMonth, KINDS, summary, yearTable, yieldOnCost, type DividendForm, type Filter } from './proventos/build'
 import { dividendsByMonth } from './resumoInvestimentos/build'
 import { rfJuros, rfJurosByMonth } from '../domain/rendaFixa'
 import { DateField } from '../ui/DateField'
 import { Select } from '../ui/Select'
+import { brDay as brDate, errText, monthName } from '../domain/text'
 
 const pct = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
 const signedPct = (p: number) => `${p >= 0 ? '+' : '−'}${pct(Math.abs(p))}`

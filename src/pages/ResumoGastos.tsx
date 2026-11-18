@@ -12,10 +12,11 @@ import { useHideValues } from '../ui/HideValues'
 import { barInfo, biggestChanges, budgetByCategory, nextCharges, spentByCategory } from './categorias/build'
 import { categoryBars, cleanDescription, comparePreviousMonth, cutToDay, cumulativeByDay, monthForecast, NO_FILTER, spentByMonth, topSpending } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
-import { brDay, GastosHeader, GastosVazio, monthName } from './lancamentos/GastosHeader'
+import { GastosHeader, GastosVazio } from './lancamentos/GastosHeader'
 import { monthProgress, spendingPlan } from './orcamento/build'
 import { ico } from '../ui/palette'
 import type { SectionId } from './configuracoes/secoes'
+import { brDay, monthName } from '../domain/text'
 
 export function ResumoGastos({ onNavigate, onOpenLancamentos, onOpenAssinaturas, onOpenSettings }: { onNavigate(r: Route): void; onOpenLancamentos(): void; onOpenAssinaturas(): void; onOpenSettings(at?: SectionId): void }) {
   const { gastos, orcamento } = useData()

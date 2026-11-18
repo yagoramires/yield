@@ -9,7 +9,7 @@ import { todayISO } from '../state/DataProvider'
 import { Ativar } from './assistente/Ativar'
 import { Chat } from './assistente/Chat'
 import { useAiInput } from './assistente/useAiInput'
-import { errText } from './lancamentos/GastosHeader'
+import { errText } from '../domain/text'
 
 /** Ativação do modelo e o chat. Os insights do mês ficam nos Resumos de gastos e de investimentos. */
 export function Assistente() {

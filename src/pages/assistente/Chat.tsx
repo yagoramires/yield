@@ -7,7 +7,7 @@ import type { AiInput } from '../../ai/facts'
 import type { ChatMsg } from '../../ai/llm'
 import { abort, ensureServer, tauriPost } from '../../ai/server'
 import { useHideValues } from '../../ui/HideValues'
-import { errText } from '../lancamentos/GastosHeader'
+import { errText } from '../../domain/text'
 
 const TOOL_LABEL: Record<string, string> = {
   gastos: 'Consultando seus gastos', lancamentos: 'Procurando lançamentos', orcamento: 'Olhando o orçamento',

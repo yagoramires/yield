@@ -7,10 +7,10 @@ import { parseSinacorNote, type NoteDraft } from '../../import/sinacorPdf'
 import { extractPdfText, PdfPasswordError } from '../../import/pdfText'
 import { ASSET_TYPES, DUP_MSG, draftToSave, FEE_FIELDS, noteNet, type Built } from './build'
 import { Select } from '../../ui/Select'
+import { errText } from '../../domain/text'
 
 interface Entry { draft: NoteDraft; askBroker: boolean; dup: boolean; resolved: { ticker: string; assetType: AssetType | '' }[]; remember: boolean[]; done: boolean }
 const br = (iso: string) => iso.split('-').reverse().join('/')
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 interface Props { db: Db; notes: Note[]; onSave(built: Built): Promise<string | null>; onClose(): void }
 

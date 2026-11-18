@@ -5,13 +5,13 @@ import { formatBRL, formatCents, editCents } from '../domain/money'
 import { useData } from '../state/DataProvider'
 import { buildOpeningLoss, buildPayment, dayTradeMonths, incompleteWarnings, exemptSales, groupByYear, irrfToDeclare, isEmptyMonth, lastDayOfMonth, lossCarry, openCounts, type ImpostoRow, type OpeningLossForm, type PaymentForm } from './imposto/build'
 import { DateField } from '../ui/DateField'
+import { errText } from '../domain/text'
 
 const SICALC = 'https://sicalc.receita.economia.gov.br/sicalc/principal'
 const MON = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const monLabel = (m: string) => `${MON[Number(m.slice(5)) - 1]}/${m.slice(2, 4)}`
 const brDay = (iso: string) => iso.split('-').reverse().join('/')
 const NOTA_SEM_NOTA = 'Comprou antes do período do relatório da B3? Lance a compra em Notas › Operação sem nota (data, quantidade e preço médio) ou a nota da corretora, se tiver.'
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const dash = (c: number, f: (c: number) => string = formatCents) => (c === 0 ? '—' : f(c))
 const STATUS: Record<DarfStatus, { label: string; cls: string }> = {
   sem_imposto: { label: 'sem imposto', cls: '' }, acumulado: { label: 'acumulado (< R$ 10)', cls: '' }, a_vencer: { label: 'a vencer', cls: '' },

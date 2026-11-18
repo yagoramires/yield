@@ -3,8 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { useEffect, useRef, useState } from 'react'
-
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+import { errText } from '../domain/text'
 
 /** Procura versão nova nas Releases do GitHub (assinada; a chave pública está no tauri.conf.json). */
 export function useUpdate(auto: boolean) {

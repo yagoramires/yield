@@ -3,6 +3,7 @@ import { useRef, useState } from 'react'
 import { Avatar } from './ProfileAvatar'
 import { cropAvatar } from './avatar'
 import { PROFILE_COLORS, validateProfileName, type Profile } from './profiles'
+import { errText } from '../domain/text'
 
 const COLOR_NAMES = ['Verde', 'Azul', 'Vermelho', 'Roxo', 'Turquesa', 'Amarelo']
 
@@ -32,7 +33,7 @@ export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, 
   async function pickPhoto(f: File | undefined) {
     if (!f) return
     setError(null)
-    try { setAvatar(await cropAvatar(f)) } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+    try { setAvatar(await cropAvatar(f)) } catch (e) { setError(errText(e)) }
   }
 
   async function submit(e: React.FormEvent) {
@@ -42,7 +43,7 @@ export function ProfileForm({ initial, others, submitLabel, onSubmit, onCancel, 
     if (invalid || busy) return
     setBusy(true)
     setError(null)
-    try { await onSubmit({ name: name.trim(), color, avatar }) } catch (err) { setError(err instanceof Error ? err.message : String(err)); setBusy(false) }
+    try { await onSubmit({ name: name.trim(), color, avatar }) } catch (err) { setError(errText(err)); setBusy(false) }
   }
 
   return (

@@ -8,8 +8,8 @@ import { useData } from '../../state/DataProvider'
 import { CategoryIcon } from '../../ui/CategoryIcon'
 import { cleanDescription, suggestRulePattern } from '../lancamentos/build'
 import { CategoryPicker } from '../lancamentos/CategoryPicker'
-import { brDay, errText } from '../lancamentos/GastosHeader'
 import { rulePreview, ruleSuggestions, ruleUsage } from './build'
+import { brDay, errText } from '../../domain/text'
 
 export const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

@@ -1,8 +1,6 @@
 import { RefreshCw, Upload } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Account } from '../../domain/records'
 import { formatCents } from '../../domain/money'
-import type { Month } from '../../domain/types'
 import { importStatement } from '../../import/extrato'
 import { detectCsvPreset, parseExtratoCsv, parseMappedCsv, sniffCsv, type CsvMapping, type CsvPreset, type CsvSniff } from '../../import/extratoCsv'
 import { decodeStatement, parseOfx, type ParsedStatement } from '../../import/ofx'
@@ -11,12 +9,8 @@ import { Select } from '../../ui/Select'
 import { duplicateAccountWarning } from './build'
 import { MonthNav } from '../../ui/MonthNav'
 import type { SectionId } from '../configuracoes/secoes'
+import { brDay, errText } from '../../domain/text'
 
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
-export const monthName = (m: Month) => MONTHS[Number(m.slice(5, 7)) - 1]
-export const accountLabel = (a: Account | undefined) => (a ? `${a.name}${a.number ? ` ···${a.number.replace(/\D/g, '').slice(-4)}` : ''}` : '—')
-export const brDay = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
-export const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const PRESET_LABEL: Record<CsvPreset, string> = { 'nubank-conta': 'Nubank', mercadopago: 'Mercado Pago' }
 
 function syncedLabel(iso: string) {

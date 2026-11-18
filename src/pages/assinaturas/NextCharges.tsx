@@ -1,7 +1,7 @@
 import type { Subscription } from '../../domain/assinaturas'
 import { formatCents } from '../../domain/money'
 import { cleanDescription } from '../lancamentos/build'
-import { brDay } from '../lancamentos/GastosHeader'
+import { brDay } from '../../domain/text'
 
 const WEEKDAY = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 

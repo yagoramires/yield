@@ -14,8 +14,8 @@ import { monthOf } from '../../domain/money'
 import { useHideValues } from '../../ui/HideValues'
 import type { Route } from '../../ui/routes'
 import { NO_FILTER } from '../lancamentos/build'
-import { errText, monthName } from '../lancamentos/GastosHeader'
 import { useAiInput } from './useAiInput'
+import { errText, monthName } from '../../domain/text'
 
 // hoje só a hora; outro dia, dia e hora
 const when = (iso: string) => {

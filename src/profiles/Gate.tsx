@@ -8,6 +8,7 @@ import { PinPad } from './PinPad'
 import { gateStep, profileLocks, unlock, unlockMessage, type PinInfo, type Unlock } from './pin'
 import { randomId, resolveActive, withFallback, type Profile, type ProfilesFile } from './profiles'
 import { loadProfiles, saveProfiles } from './store'
+import { errText } from '../domain/text'
 
 export interface Profiles {
   profile: Profile
@@ -29,8 +30,6 @@ export function useProfiles(): Profiles {
 
 type State = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'pick'; file: ProfilesFile }
   | { kind: 'pin'; file: ProfilesFile; profile: Profile; until: number | null } | { kind: 'ready'; file: ProfilesFile; id: string }
-
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 // Só deixa o app abrir depois de saber o perfil e avisar o Rust (banco e cofre dele); sem isso, nenhum banco é aberto.
 export function Gate({ children }: { children: ReactNode }) {

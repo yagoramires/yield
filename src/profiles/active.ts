@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { LEGACY_ID, SCOPED_KEYS, SETUP_KEY, newProfile, randomId, scopedKey, type Profile, type ProfilesFile } from './profiles'
-
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
+import { errText } from '../domain/text'
 
 // Perfil ativo mora no localStorage; trocar de perfil recarrega a janela, então as stores já leem as chaves certas na importação.
 export const ACTIVE_KEY = 'yield.perfilAtivo'

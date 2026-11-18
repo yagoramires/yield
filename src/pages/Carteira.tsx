@@ -18,12 +18,12 @@ import { BOLSA, carteiraClasses, pickClass, type ClassKey } from './carteira/bui
 import { br, pct, qtyText, signedCents, sign, tone, when } from './carteira/fmt'
 import type { SectionId } from './configuracoes/secoes'
 import { SegmentOptions } from './resumoInvestimentos/Segmentos'
+import { errText } from '../domain/text'
 
 const FORM_CLASSES: Record<string, string> = { renda_fixa: 'Renda fixa', cripto: 'Cripto', dolar: 'Dólar', exterior: 'Exterior (US$)', outro: 'Outro' }
 // provento por cota tem frações de centavo (FII paga R$ 0,085); não é dinheiro da pessoa, então fica fora da máscara
 const perShare = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 4 })
 const pctPlain = (p: number) => `${(p * 100).toFixed(1).replace('.', ',')}%`
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 interface Form { id?: string; name: string; assetClass: ManualAsset['assetClass']; quoteSymbol: string; quantity: string; value: string; cost: string; sourceKey: string | null }
 const emptyForm = (cls: ClassKey | null): Form => ({ name: '', assetClass: cls && cls in FORM_CLASSES ? (cls as ManualAsset['assetClass']) : 'exterior', quoteSymbol: cls === 'dolar' ? 'BRL=X' : '', quantity: '', value: '', cost: '', sourceKey: null })

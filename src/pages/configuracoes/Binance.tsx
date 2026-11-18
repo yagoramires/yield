@@ -3,7 +3,7 @@ import { clearBinanceCredentials, setBinanceCredentials } from '../../cripto/sec
 import { vaultStatus } from '../../secrets/vault'
 import { saveCryptoBalances } from '../../db/rendaFixaRepo'
 import { useData } from '../../state/DataProvider'
-import { errText } from '../lancamentos/GastosHeader'
+import { errText } from '../../domain/text'
 
 /** Chave só de leitura da Binance, guardada no cofre do sistema; o segredo só fica na tela enquanto é digitado. */
 export function Binance() {

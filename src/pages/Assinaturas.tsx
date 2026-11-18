@@ -7,8 +7,8 @@ import { todayISO, useData } from '../state/DataProvider'
 import { nextCharges, totalsOfSubscriptions } from './categorias/build'
 import { cleanDescription, NO_FILTER, shortAccountLabel } from './lancamentos/build'
 import { NextCharges } from './assinaturas/NextCharges'
-import { brDay, errText } from './lancamentos/GastosHeader'
 import { ico, TINT } from '../ui/palette'
+import { brDay, errText } from '../domain/text'
 
 const COLORS = [TINT.coral, TINT.violeta, TINT.verde, TINT.azul, TINT.turquesa, TINT.areia, TINT.ambar, TINT.rosa]
 // cor fixa por nome, para a mesma assinatura ter sempre a mesma cor

@@ -12,9 +12,9 @@ import { todayISO, useData } from '../state/DataProvider'
 import { Cadastro } from './declaracao/Cadastro'
 import { CopyButton } from './declaracao/Copy'
 import { RendaVariavel, Rendimentos } from './declaracao/Rendimentos'
-import { errText } from './lancamentos/GastosHeader'
 import { classColor } from './resumoInvestimentos/build'
 import { ico } from '../ui/palette'
+import { errText } from '../domain/text'
 
 type Tab = 'bens' | 'rendimentos' | 'rv' | 'cadastro'
 const CLASSES: AssetType[] = ['Ação', 'FII', 'ETF', 'BDR', 'ETF RF']

@@ -11,6 +11,7 @@ import type { Post } from '../llm'
 import { runTool } from '../tools'
 import perguntas from './perguntas.json'
 import { PERFIS } from './perfis'
+import { errText } from '../../domain/text'
 
 interface Pergunta { tipo: 'chat' | 'insights'; perfil: string; pergunta?: string; mes?: string; area?: 'gastos' | 'investimentos' /* insights: qual Resumo */; valores: string[]; ferramenta?: string | string[] /* qualquer uma serve */ }
 const QS = perguntas as Pergunta[]
@@ -77,7 +78,7 @@ describe.skipIf(!URL_)('avaliação contra o llama-server', () => {
           const r = await runChat(nodePost(), [{ role: 'user', content: q.pergunta! }], input, async () => input.rent, { delta: () => {}, tool: n => tools.push(n) })
           text = r.answer; bad = r.unverified; naoConferidos += bad.length
         }
-      } catch (e) { text = `ERRO: ${e instanceof Error ? e.message : String(e)}` }
+      } catch (e) { text = `ERRO: ${errText(e)}` }
       const took = Date.now() - t0
       ms += took
       const hit = found(q.valores, text)

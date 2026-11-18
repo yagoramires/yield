@@ -2,8 +2,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { useState } from 'react'
 import { backupPasswordError } from './build'
+import { errText } from '../../domain/text'
 
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const today = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

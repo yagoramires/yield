@@ -1,9 +1,9 @@
 import { Building2, Sprout } from 'lucide-react'
 import { RENDIMENTO_LABEL, type LinhaRendimento, type LinhaRV, type Rendimento } from '../../domain/declaracao'
 import { editCents, formatCents } from '../../domain/money'
-import { monthName } from '../lancamentos/GastosHeader'
 import { CopyButton } from './Copy'
 import { ico, TINT } from '../../ui/palette'
+import { monthName } from '../../domain/text'
 
 const money = (c: number) => formatCents(c)
 

@@ -9,8 +9,8 @@ import { CopyButton } from '../declaracao/Copy'
 import { todayISO, useData } from '../../state/DataProvider'
 import { orcamentoImportSummary, saveSourceForm, validateSource, type SourceForm } from './build'
 import { Select } from '../../ui/Select'
+import { errText } from '../../domain/text'
 
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const num = (x: number) => String(x).replace('.', ',')
 const money = (c: number) => (c / 100).toFixed(2).replace('.', ',')
 const brl = (c: number) => formatBRL(c).replace(/^R\$\s*/, '')

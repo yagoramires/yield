@@ -7,11 +7,11 @@ import { createPluggyClient, PluggyError } from '../../openfinance/pluggy'
 import { clearPluggyCredentials, getPluggyAuth, setPluggyCredentials } from '../../openfinance/secrets'
 import { vaultStatus } from '../../secrets/vault'
 import { useData } from '../../state/DataProvider'
-import { errText } from '../lancamentos/GastosHeader'
 import { bankLine, investmentLine, parseItemId } from './build'
 import { ago } from '../../ui/SyncStatus'
 import { initial } from '../../profiles/profiles'
 import { PluggyGuia } from './PluggyGuia'
+import { errText } from '../../domain/text'
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

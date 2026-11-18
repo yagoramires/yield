@@ -11,8 +11,8 @@ import { repairCryptoSymbols } from '../../quotes/yahoo'
 import { useData } from '../../state/DataProvider'
 import { BackupExport } from './BackupExport'
 import { restoreBackup } from './build'
+import { errText } from '../../domain/text'
 
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const BACKUP_FILTER = [{ name: 'Backup do Yield', extensions: ['yield', 'db'] }] // .db: backups antigos, sem senha
 
 export function Backup() {

@@ -10,8 +10,9 @@ import { barInfo, budgetByCategory, monthDelta, spentByCategory } from './catego
 import { CategoriaPanel } from './categorias/CategoriaPanel'
 import { RegrasPanel } from './categorias/RegrasPanel'
 import { cutToDay, NO_FILTER } from './lancamentos/build'
-import { GastosHeader, monthName } from './lancamentos/GastosHeader'
+import { GastosHeader } from './lancamentos/GastosHeader'
 import { ico } from '../ui/palette'
+import { monthName } from '../domain/text'
 
 type Side = { mode: 'regras' } | { mode: 'editar'; id: string } | { mode: 'criar' }
 

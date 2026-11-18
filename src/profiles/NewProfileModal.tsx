@@ -5,8 +5,8 @@ import { BackupError, stageBackup } from '../db/backup'
 import { createAndSwitch, createFromBackup, switchTo } from './active'
 import { ProfileForm } from './ProfileForm'
 import { randomId, type Profile, type ProfilesFile } from './profiles'
+import { errText } from '../domain/text'
 
-const errText = (e: unknown) => (e instanceof Error ? e.message : String(e))
 const BACKUP_FILTER = [{ name: 'Backup do Yield', extensions: ['yield', 'db'] }]
 
 type Stage = { kind: 'new' } | { kind: 'password'; path: string; password: string } | { kind: 'restore' } | { kind: 'failed'; profile: Profile; message: string }
