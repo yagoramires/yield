@@ -20,11 +20,15 @@ export function EventForm({ onSave, onCancel }: { onSave(e: NewCorporateEvent): 
       <b style={{ color: 'var(--strong)' }}>Novo evento corporativo</b>
       <div className="row" style={{ margin: '10px 0' }}>
         <div className="field"><span>Evento</span>
-          <Select ariaLabel="Evento" value={f.kind} onChange={v => setF({ ...f, kind: v as Form['kind'] })} options={Object.entries(EVENT_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
+          <Select ariaLabel="Evento" value={f.kind} onChange={v => setF({ ...f, kind: v as Form['kind'], qty: '', totalCost: '' })} options={Object.entries(EVENT_LABEL).map(([k, v]) => ({ value: k, label: v }))} /></div>
         <label className="field"><span>Ativo</span><input className="in" autoFocus style={{ width: 90 }} value={f.ticker} onChange={e => setF({ ...f, ticker: e.target.value.toUpperCase() })} /></label>
         <div className="field"><span>Data</span><DateField ariaLabel="Data do evento" value={f.date} onChange={v => setF({ ...f, date: v })} /></div>
         {f.kind === 'mudanca_ticker' ? (
-          <label className="field"><span>Novo ticker</span><input className="in" style={{ width: 90 }} value={f.newTicker} onChange={e => setF({ ...f, newTicker: e.target.value.toUpperCase() })} /></label>
+          <>
+            <label className="field"><span>Novo ticker</span><input className="in" style={{ width: 90 }} value={f.newTicker} onChange={e => setF({ ...f, newTicker: e.target.value.toUpperCase() })} /></label>
+            <label className="field"><span>Quantidade recebida na conversão</span><input className="in" inputMode="numeric" placeholder="Só para conversão" value={f.qty} onChange={e => setF({ ...f, qty: e.target.value })} /></label>
+            <label className="field"><span>Custo total recebido (R$)</span><input className="in" inputMode="decimal" placeholder="Só para conversão" value={f.totalCost ?? ''} onChange={e => setF({ ...f, totalCost: e.target.value })} /></label>
+          </>
         ) : (
           <label className="field"><span>{f.kind === 'grupamento' ? 'Qtd a menos' : 'Qtd a mais'}</span><input className="in" style={{ width: 90 }} inputMode="numeric" value={f.qty} onChange={e => setF({ ...f, qty: e.target.value })} /></label>
         )}

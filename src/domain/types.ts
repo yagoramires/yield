@@ -12,7 +12,7 @@ export type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omi
 export type CorporateEvent =
   | { id: string; kind: 'bonificacao'; ticker: string; date: ISODate; qtyDelta: number; unitCostCents: Cents | null }
   | { id: string; kind: 'desdobramento' | 'grupamento'; ticker: string; date: ISODate; qtyDelta: number }
-  | { id: string; kind: 'mudanca_ticker'; ticker: string; newTicker: string; date: ISODate }
+  | { id: string; kind: 'mudanca_ticker'; ticker: string; newTicker: string; date: ISODate; conversion?: { qty: number; costCents: Cents } }
 export type NewCorporateEvent = DistributiveOmit<CorporateEvent, 'id'>
 export interface Position { ticker: string; assetType: AssetType; qty: number; totalCostCents: Cents }
 export interface Sale {

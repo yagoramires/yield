@@ -51,7 +51,9 @@ export function Notas() {
   const open = (mode: 'manual' | 'sem_nota') => setPanel({ t: 'nota', mode, editing: null, initial: emptyForm() })
   const edit = (n: Note) => setPanel({ t: 'nota', mode: n.source === 'sem_nota' ? 'sem_nota' : 'manual', editing: n, initial: formFromNote(n, data.trades.filter(t => t.noteId === n.id)) })
 
-  const eventQty = (e: CorporateEvent) => (e.kind === 'mudanca_ticker' ? `→ ${e.newTicker}` : e.qtyDelta.toLocaleString('pt-BR'))
+  const eventQty = (e: CorporateEvent) => (e.kind === 'mudanca_ticker'
+    ? `→ ${e.newTicker}${e.conversion ? ` · ${e.conversion.qty.toLocaleString('pt-BR')}` : ''}`
+    : e.qtyDelta.toLocaleString('pt-BR'))
   const events = [...data.events].sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const rowActions = (key: string, label: string, onEdit: (() => void) | null, onDelete: () => Promise<void>) => confirm === key ? (
@@ -113,10 +115,11 @@ export function Notas() {
               <tbody>
                 {events.map(e => {
                   const semCusto = e.kind === 'bonificacao' && e.unitCostCents === null
+                  const conversion = e.kind === 'mudanca_ticker' ? e.conversion : undefined
                   return (
                     <tr key={e.id} style={semCusto ? { background: 'var(--warn-bg)' } : undefined}>
-                      <td>{brDate(e.date)}</td><td>{EVENT_LABEL[e.kind]}</td><td>{e.ticker}</td><td className="r">{eventQty(e)}</td>
-                      <td className="t2">{e.kind === 'bonificacao' && e.unitCostCents !== null ? `custo ${formatCents(e.unitCostCents)}` : ''}</td>
+                      <td>{brDate(e.date)}</td><td>{conversion ? 'Conversão' : EVENT_LABEL[e.kind]}</td><td>{e.ticker}</td><td className="r">{eventQty(e)}</td>
+                      <td className="t2">{conversion ? `custo total ${formatCents(conversion.costCents)}` : e.kind === 'bonificacao' && e.unitCostCents !== null ? `custo ${formatCents(e.unitCostCents)}` : ''}</td>
                       <td className="r t2">
                         {semCusto && (costFor?.id === e.id ? (
                           <span className="row" style={{ justifyContent: 'flex-end', flexWrap: 'nowrap' }}>

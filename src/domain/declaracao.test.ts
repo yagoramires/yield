@@ -34,6 +34,16 @@ describe('bensDoAno', () => {
       tr('AAAA3', 'V', 500, 100, '2025-05-10', { broker: 'ALFA' })], ev, 2025)
     expect(bens.map(b => [b.qty, b.brokers])).toEqual([[500, ['ALFA']]])
   })
+  it('conversão preserva as cotas do novo ticker que já estavam em outra corretora', () => {
+    const ev: CorporateEvent[] = [{ id: 'e1', kind: 'mudanca_ticker', ticker: 'VELH3', newTicker: 'NOVA3', date: '2025-04-01', conversion: { qty: 50, costCents: 50000 } }]
+    const [bem] = bensDoAno([
+      tr('VELH3', 'C', 100, 1000, '2024-03-01', { broker: 'BETA' }),
+      tr('NOVA3', 'C', 100, 1000, '2024-04-01'),
+      tr('NOVA3', 'V', 50, 1200, '2025-05-01'),
+    ], ev, 2025)
+    expect(bem.qty).toBe(100)
+    expect(bem.brokers).toEqual(expect.arrayContaining(['ALFA', 'BETA']))
+  })
   it('corretoras pelo saldo de cada uma; sem saldo, as que negociaram', () => {
     const bens = bensDoAno([
       tr('AAAA3', 'C', 10, 1000, '2025-01-10', { broker: 'ALFA' }), tr('AAAA3', 'C', 10, 1000, '2025-01-11', { broker: 'BETA' }), tr('AAAA3', 'V', 10, 1000, '2025-02-11', { broker: 'BETA' }),

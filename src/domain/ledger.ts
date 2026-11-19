@@ -32,7 +32,7 @@ export function replay(trades: Trade[], events: CorporateEvent[]): ReplayResult 
         if (!p || p.qty === 0) continue
         const nk = normalizeTicker(ev.newTicker)
         const n = pos.get(nk) ?? { qty: 0, cost: 0 }
-        pos.set(nk, { qty: n.qty + p.qty, cost: n.cost + p.cost })
+        pos.set(nk, { qty: n.qty + (ev.conversion?.qty ?? p.qty), cost: n.cost + (ev.conversion?.costCents ?? p.cost) })
         pos.delete(tk)
         if (!types.has(nk) && types.has(tk)) types.set(nk, types.get(tk)!)
         continue

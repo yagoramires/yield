@@ -81,6 +81,13 @@ describe('draftToSave', () => {
 })
 
 describe('buildEvent', () => {
+  it('conversão exige quantidade recebida e custo total juntos', () => {
+    const form = { kind: 'mudanca_ticker' as const, ticker: 'AAAA11', date: '2025-12-12', qty: '88', newTicker: 'BBBB11', unitCost: '', totalCost: '7.338,73' }
+    expect(buildEvent(form)).toMatchObject({ conversion: { qty: 88, costCents: 733873 } })
+    expect(() => buildEvent({ ...form, totalCost: '' })).toThrow(/Custo total/)
+    expect(() => buildEvent({ ...form, qty: '' })).toThrow(/Quantidade recebida/)
+  })
+
   it('grupamento guarda delta negativo; bonificação aceita custo vazio', () => {
     expect(buildEvent({ kind: 'grupamento', ticker: 'abev3', date: '2026-01-01', qty: '40', newTicker: '', unitCost: '' })).toEqual({ kind: 'grupamento', ticker: 'ABEV3', date: '2026-01-01', qtyDelta: -40 })
     expect(buildEvent({ kind: 'bonificacao', ticker: 'ITSA4', date: '2026-01-01', qty: '5', newTicker: '', unitCost: '' })).toMatchObject({ unitCostCents: null })

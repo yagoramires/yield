@@ -46,7 +46,12 @@ export async function loadAll(db: Db): Promise<Dataset> {
     proventos: proventos[0]?.value === 'saco' ? 'saco' : 'reinvisto', bankInvestments,
     segmentTargets: targets.length ? JSON.parse(targets[0].value) as SegmentTargets : {},
     events: events.map(e => {
-      if (e.kind === 'mudanca_ticker') return { id: e.id, kind: e.kind, ticker: e.ticker, newTicker: e.newTicker!, date: e.date }
+      if (e.kind === 'mudanca_ticker') {
+        const event = { id: e.id, kind: e.kind, ticker: e.ticker, newTicker: e.newTicker!, date: e.date }
+        // Na conversão, as colunas guardam a quantidade recebida e o custo total da nova posição.
+        return e.qtyDelta === null || e.unitCostCents === null ? event
+          : { ...event, conversion: { qty: e.qtyDelta, costCents: e.unitCostCents } }
+      }
       if (e.kind === 'bonificacao') return { id: e.id, kind: e.kind, ticker: e.ticker, date: e.date, qtyDelta: e.qtyDelta!, unitCostCents: e.unitCostCents }
       return { id: e.id, kind: e.kind, ticker: e.ticker, date: e.date, qtyDelta: e.qtyDelta! }
     }),
@@ -175,11 +180,16 @@ export async function replaceNote(db: Db, id: string, note: NoteInput, trades: T
 
 export async function saveEvent(db: Db, e: NewCorporateEvent & { sourceKey?: string }): Promise<{ id: string } | { skipped: 'duplicada' }> {
   if (e.sourceKey && (await db.select('SELECT 1 FROM corporate_events WHERE source_key = ?', [e.sourceKey])).length) return { skipped: 'duplicada' }
+  const conversion = e.kind === 'mudanca_ticker' ? e.conversion : undefined
+  if (conversion && (!Number.isSafeInteger(conversion.qty) || conversion.qty <= 0 || !Number.isSafeInteger(conversion.costCents) || conversion.costCents < 0)) {
+    throw new Error('Informe uma quantidade positiva e um custo total válido para a conversão.')
+  }
   const id = crypto.randomUUID()
   await db.execute(
     'INSERT INTO corporate_events (id, kind, ticker, new_ticker, date, qty_delta, unit_cost_cents, source_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [id, e.kind, normalizeTicker(e.ticker), e.kind === 'mudanca_ticker' ? normalizeTicker(e.newTicker) : null, e.date,
-      e.kind === 'mudanca_ticker' ? null : e.qtyDelta, e.kind === 'bonificacao' ? e.unitCostCents : null, e.sourceKey ?? null],
+      e.kind === 'mudanca_ticker' ? conversion?.qty ?? null : e.qtyDelta,
+      e.kind === 'bonificacao' ? e.unitCostCents : conversion?.costCents ?? null, e.sourceKey ?? null],
   )
   return { id }
 }

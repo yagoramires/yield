@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { createRawDb, createTestDb, tmpPath, type Db } from './testDb'
+import { replay } from '../domain/ledger'
 import {
   deleteEvent, deleteManualAsset, deleteNote, deletePayment, deleteQuote, getAlias, loadAll, renormalizeBrokers, replaceNote,
   saveAlias, saveEvent, saveManualAsset, saveNote, saveOpeningLoss, savePayment, setBonificacaoCost, upsertDividends, upsertQuote,
@@ -153,6 +154,25 @@ describe('proventos', () => {
 })
 
 describe('eventos, pagamentos, cotações, manuais, aliases', () => {
+  test('conversão registra as cotas recebidas e seu custo, e a venda integral zera a posição', async () => {
+    const conversion = { qty: 88, costCents: 733873 }
+    await saveNote(db, nota, [{ ...trades[1], ticker: 'AAAA11', qty: 99 }])
+    await saveEvent(db, { kind: 'mudanca_ticker', ticker: 'AAAA11', newTicker: 'BBBB11', date: '2024-02-01', conversion })
+    const beforeSale = await loadAll(db)
+    expect(beforeSale.events[0]).toMatchObject({ conversion })
+    expect(replay(beforeSale.trades, beforeSale.events).positions).toEqual([{ ticker: 'BBBB11', assetType: 'FII', qty: 88, totalCostCents: 733873 }])
+
+    await saveNote(db, { ...nota, number: '456', tradeDate: '2024-03-01', settleDate: '2024-03-05' }, [
+      { ...trades[1], ticker: 'BBBB11', side: 'V', qty: 50 },
+      { ...trades[1], seq: 3, ticker: 'BBBB11', side: 'V', qty: 38 },
+    ])
+    const afterSale = await loadAll(db)
+    const result = replay(afterSale.trades, afterSale.events)
+    expect(result.positions).toEqual([])
+    expect(result.warnings).toEqual([])
+    expect(result.sales.reduce((total, sale) => total + sale.costBasisCents, 0)).toBe(733873)
+  })
+
   test('eventos: grava, ignora sourceKey repetido, ajusta custo da bonificação e apaga', async () => {
     const r = (await saveEvent(db, { kind: 'bonificacao', ticker: 'itsa4', date: '2024-02-01', qtyDelta: 10, unitCostCents: null, sourceKey: 'k' })) as { id: string }
     expect(await saveEvent(db, { kind: 'bonificacao', ticker: 'ITSA4', date: '2024-02-01', qtyDelta: 10, unitCostCents: null, sourceKey: 'k' })).toEqual({ skipped: 'duplicada' })

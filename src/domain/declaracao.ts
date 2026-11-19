@@ -47,7 +47,7 @@ export function bensDoAno(trades: Trade[], events: CorporateEvent[], year: numbe
     const prev = [...before.values()].filter(p => chain.has(p.ticker))
     const cur = now.get(key)
     const mine = trades.filter(t => chain.has(t.ticker) && t.settleDate <= end)
-    const bal = brokerBalances(mine, events.filter(e => chain.has(e.ticker) && e.date <= end))
+    const bal = brokerBalances(key, mine, events.filter(e => chain.has(e.ticker) && e.date <= end))
     const holding = [...bal].filter(([, q]) => q > 0).sort((a, b) => b[1] - a[1]).map(([b]) => b)
     return {
       ticker: key, oldTickers: olds, assetType: cur?.assetType ?? prev[0].assetType,
@@ -59,17 +59,32 @@ export function bensDoAno(trades: Trade[], events: CorporateEvent[], year: numbe
 }
 
 /** Saldo por corretora: compras − vendas, e desdobramento/grupamento/bonificação mudam o saldo de todas na mesma proporção. */
-function brokerBalances(trades: Trade[], events: CorporateEvent[]): Map<string, number> {
+function brokerBalances(ticker: string, trades: Trade[], events: CorporateEvent[]): Map<string, number> {
   const steps = [...events.map(e => ({ date: e.date, rank: 0, e })), ...trades.map(t => ({ date: t.tradeDate, rank: 1, t }))].sort((a, b) => a.date.localeCompare(b.date) || a.rank - b.rank)
-  const bal = new Map<string, number>()
+  const byTicker = new Map<string, Map<string, number>>()
+  const balanceOf = (symbol: string) => {
+    let balance = byTicker.get(symbol)
+    if (!balance) { balance = new Map(); byTicker.set(symbol, balance) }
+    return balance
+  }
   for (const s of steps) {
-    if ('t' in s && s.t) bal.set(s.t.broker, (bal.get(s.t.broker) ?? 0) + (s.t.side === 'C' ? s.t.qty : -s.t.qty))
-    else if ('e' in s && s.e && 'qtyDelta' in s.e) {
+    if ('t' in s) {
+      const { ticker, broker, side, qty } = s.t
+      const bal = balanceOf(ticker)
+      bal.set(broker, (bal.get(broker) ?? 0) + (side === 'C' ? qty : -qty))
+    } else {
+      const bal = balanceOf(s.e.ticker)
       const total = [...bal.values()].reduce((x, q) => x + Math.max(0, q), 0)
-      if (total > 0) for (const [b, q] of bal) if (q > 0) bal.set(b, q * (total + s.e.qtyDelta) / total)
+      const next = s.e.kind === 'mudanca_ticker' ? s.e.conversion?.qty ?? total : total + s.e.qtyDelta
+      if (total > 0 && next !== total) for (const [b, q] of bal) if (q > 0) bal.set(b, q * next / total)
+      if (s.e.kind === 'mudanca_ticker') {
+        const received = balanceOf(s.e.newTicker)
+        for (const [broker, qty] of bal) received.set(broker, (received.get(broker) ?? 0) + qty)
+        byTicker.delete(s.e.ticker)
+      }
     }
   }
-  return bal
+  return balanceOf(ticker)
 }
 
 const num = (n: number) => String(n).replace('.', ',')

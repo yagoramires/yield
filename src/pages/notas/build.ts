@@ -108,8 +108,8 @@ export function formFromNote(n: Note, trades: Trade[]): NoteForm {
   }
 }
 
-export interface EventForm { kind: NewCorporateEvent['kind']; ticker: string; date: string; qty: string; newTicker: string; unitCost: string }
-export const emptyEvent = (): EventForm => ({ kind: 'bonificacao', ticker: '', date: '', qty: '', newTicker: '', unitCost: '' })
+export interface EventForm { kind: NewCorporateEvent['kind']; ticker: string; date: string; qty: string; newTicker: string; unitCost: string; totalCost?: string }
+export const emptyEvent = (): EventForm => ({ kind: 'bonificacao', ticker: '', date: '', qty: '', newTicker: '', unitCost: '', totalCost: '' })
 
 export function buildEvent(f: EventForm): NewCorporateEvent {
   const ticker = normalizeTicker(f.ticker)
@@ -118,7 +118,11 @@ export function buildEvent(f: EventForm): NewCorporateEvent {
   if (f.kind === 'mudanca_ticker') {
     const newTicker = normalizeTicker(f.newTicker)
     if (!newTicker || newTicker === ticker) throw new Error('Novo ticker: informe um ticker diferente do atual.')
-    return { kind: 'mudanca_ticker', ticker, newTicker, date }
+    const event = { kind: f.kind, ticker, newTicker, date }
+    if (!f.qty.trim() && !f.totalCost?.trim()) return event
+    const qty = parsePosInt(f.qty, 'Quantidade recebida')
+    if (!f.totalCost?.trim()) throw new Error('Custo total: informe o valor das cotas recebidas.')
+    return { ...event, conversion: { qty, costCents: parseMoney(f.totalCost, 'Custo total', false) } }
   }
   const qty = parsePosInt(f.qty, 'Qtd')
   if (f.kind === 'bonificacao') return { kind: 'bonificacao', ticker, date, qtyDelta: qty, unitCostCents: f.unitCost.trim() ? parseMoney(f.unitCost, 'Custo unitário') : null }
