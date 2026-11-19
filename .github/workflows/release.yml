@@ -78,5 +78,5 @@ jobs:
           releaseName: Yield ${{ github.ref_name }}
           releaseBody: "O que mudou nesta versão: https://github.com/yagoramires/yield/blob/main/CHANGELOG.md"
           releaseDraft: false
-          includeUpdaterJson: true
+          uploadUpdaterJson: true
           args: ${{ matrix.args }}
