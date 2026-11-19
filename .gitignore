@@ -29,3 +29,11 @@ dist-ssr
 *.sln
 *.sw?
 /extratos/
+
+/AGENTS.md
+/docs/
+/.docs/
+/documentation/
+superpowers/
+/specs/
+/specifications/
